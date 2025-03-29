@@ -3,6 +3,12 @@
 ## [未发布的更改]
 
 ### 新增
+- 实现查询执行计划功能
+  - 添加查询执行计划相关接口和数据模型
+  - 扩展DatabaseConnector接口，添加explainQuery方法
+  - 在MySQL连接器中实现EXPLAIN查询以获取执行计划
+  - 添加查询服务中的explainQuery方法
+  - 添加API端点POST /api/queries/explain
 - 实现查询取消功能
   - 添加数据库连接器中的cancelQuery方法，支持取消正在执行的查询
   - 扩展DatabaseConnector接口，添加查询取消相关方法
