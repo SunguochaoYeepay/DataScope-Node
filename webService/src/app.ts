@@ -78,8 +78,7 @@ if (process.env.NODE_ENV === 'development') {
       env: {
         node_env: process.env.NODE_ENV,
         port: config.service.port,
-        api_prefix: config.service.apiPrefix,
-        use_mock_data: process.env.USE_MOCK_DATA
+        api_prefix: config.service.apiPrefix
       }
     };
     

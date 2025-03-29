@@ -8,8 +8,6 @@ import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword, verif
 import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
 import { DatabaseType } from '../types/database';
 import { DatabaseConnectorFactory } from '../types/database-factory';
-import { MockConnector } from '../mocks/mock-connector';
-
 const prisma = new PrismaClient();
 
 // 每当用户发送请求更新DataSource时，但是省略某些字段，这些缺省值应该是什么
@@ -20,50 +18,6 @@ interface DataSourceDefaults {
 const DEFAULT_DATASOURCE_VALUES: DataSourceDefaults = {
   status: 'active'
 };
-
-// 模拟数据源的完整数据
-const mockDataSources: Omit<DataSource, 'passwordEncrypted' | 'passwordSalt'>[] = [
-  {
-    id: '1',
-    name: 'MySQL Sample DB',
-    description: 'Sample MySQL database for testing',
-    type: 'MYSQL',
-    host: 'localhost',
-    port: 3306,
-    databaseName: 'sample_db',
-    username: 'sample_user',
-    status: 'ACTIVE',
-    connectionParams: null,
-    syncFrequency: null,
-    lastSyncTime: null,
-    nonce: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    createdBy: 'system',
-    updatedBy: 'system',
-    active: true
-  },
-  {
-    id: '2',
-    name: 'Production Database',
-    description: 'Production MySQL database',
-    type: 'MYSQL',
-    host: 'db.example.com',
-    port: 3306,
-    databaseName: 'production_db',
-    username: 'prod_user',
-    status: 'ACTIVE',
-    connectionParams: null,
-    syncFrequency: null,
-    lastSyncTime: null,
-    nonce: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    createdBy: 'system',
-    updatedBy: 'system',
-    active: true
-  }
-];
 
 // 连接器缓存
 const connectorCache: Map<string, IDatabaseConnector> = new Map();
@@ -79,11 +33,6 @@ export class DataSourceService {
    */
   private decryptPassword(encryptedPassword: string, salt: string): string {
     try {
-      // 对于开发环境的模拟数据，直接返回一个测试密码
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        return 'test-password';
-      }
-      
       // 尝试使用decrypt方法解密
       return decrypt(encryptedPassword, salt);
     } catch (error) {
@@ -98,32 +47,6 @@ export class DataSourceService {
   async createDataSource(data: CreateDataSourceDto): Promise<DataSource> {
     try {
       const { name, description, type, host, port, username, password, database, connectionParams } = data;
-      
-      // 在开发环境直接返回模拟数据
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        return {
-          id: Date.now().toString(),
-          name,
-          description: description || null,
-          type,
-          host,
-          port,
-          databaseName: database,
-          username,
-          passwordEncrypted: 'encrypted',
-          passwordSalt: 'salt',
-          connectionParams: connectionParams || null,
-          status: 'ACTIVE',
-          syncFrequency: null,
-          lastSyncTime: null,
-          nonce: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: 'system',
-          updatedBy: 'system',
-          active: true
-        };
-      }
 
       // 密码加密
       const { hash, salt } = encryptPassword(password);
@@ -156,10 +79,6 @@ export class DataSourceService {
    */
   async getAllDataSources(): Promise<Omit<DataSource, 'passwordEncrypted' | 'passwordSalt'>[]> {
     try {
-      // 在开发环境直接返回模拟数据
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        return mockDataSources;
-      }
       
       const dataSources = await prisma.dataSource.findMany({
         where: {
@@ -183,14 +102,6 @@ export class DataSourceService {
    */
   async getDataSourceById(id: string): Promise<Omit<DataSource, 'passwordEncrypted' | 'passwordSalt'>> {
     try {
-      // 在开发环境直接返回模拟数据
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        const mockDataSource = mockDataSources.find(ds => ds.id === id);
-        if (!mockDataSource) {
-          throw new ApiError('数据源不存在', 404);
-        }
-        return mockDataSource;
-      }
       
       const dataSource = await prisma.dataSource.findUnique({
         where: { id }
@@ -219,16 +130,6 @@ export class DataSourceService {
    */
   async updateDataSource(id: string, data: UpdateDataSourceDto): Promise<DataSource> {
     try {
-      // 在开发环境直接返回模拟数据
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        const index = mockDataSources.findIndex(ds => ds.id === id);
-        if (index === -1) {
-          throw new ApiError('数据源不存在', 404);
-        }
-        const updated = { ...mockDataSources[index], ...data, updatedAt: new Date() };
-        mockDataSources[index] = updated as any;
-        return updated as any;
-      }
       
       const existingDataSource = await prisma.dataSource.findUnique({
         where: { id }
@@ -278,15 +179,6 @@ export class DataSourceService {
    */
   async deleteDataSource(id: string): Promise<void> {
     try {
-      // 在开发环境直接返回模拟数据
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        const index = mockDataSources.findIndex(ds => ds.id === id);
-        if (index === -1) {
-          throw new ApiError('数据源不存在', 404);
-        }
-        mockDataSources.splice(index, 1);
-        return;
-      }
       
       // 检查数据源是否存在
       const dataSource = await prisma.dataSource.findUnique({
@@ -327,14 +219,6 @@ export class DataSourceService {
    */
   async getDataSourceByIdWithPassword(id: string): Promise<DataSource> {
     try {
-      // 在开发环境直接返回模拟数据
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        const mockDataSource = mockDataSources.find(ds => ds.id === id);
-        if (!mockDataSource) {
-          throw new ApiError('数据源不存在', 404);
-        }
-        return mockDataSource as DataSource;
-      }
       
       const dataSource = await prisma.dataSource.findUnique({
         where: { id }
@@ -401,24 +285,7 @@ export class DataSourceService {
       return connectorCache.get(dataSource.id)!;
     }
     
-    // 使用模拟数据
-    if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-      logger.info('使用模拟数据连接器', { dataSourceId: dataSource.id });
-      const mockConnector = new MockConnector({
-        host: dataSource.host,
-        port: dataSource.port,
-        username: dataSource.username,
-        password: password,
-        database: dataSource.databaseName,
-        type: dataSource.type.toLowerCase() as DatabaseType,
-        dataSourceId: dataSource.id
-      });
-      
-      // 缓存连接器实例
-      connectorCache.set(dataSource.id, mockConnector);
-      
-      return mockConnector;
-    }
+
     
     return DatabaseConnectorFactory.createConnector(
       dataSource.id,
