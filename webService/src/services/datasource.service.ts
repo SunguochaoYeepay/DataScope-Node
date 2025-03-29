@@ -8,6 +8,7 @@ import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword, verif
 import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
 import { DatabaseType } from '../types/database';
 import { DatabaseConnectorFactory } from '../types/database-factory';
+import { MockConnector } from '../mocks/mock-connector';
 
 const prisma = new PrismaClient();
 
@@ -393,6 +394,31 @@ export class DataSourceService {
     
     // 获取解密后的密码
     const password = this.decryptPassword(dataSource.passwordEncrypted, dataSource.passwordSalt);
+    
+    // 检查缓存中是否有连接器
+    if (connectorCache.has(dataSource.id)) {
+      logger.debug('从缓存获取数据库连接器', { dataSourceId: dataSource.id });
+      return connectorCache.get(dataSource.id)!;
+    }
+    
+    // 使用模拟数据
+    if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
+      logger.info('使用模拟数据连接器', { dataSourceId: dataSource.id });
+      const mockConnector = new MockConnector({
+        host: dataSource.host,
+        port: dataSource.port,
+        username: dataSource.username,
+        password: password,
+        database: dataSource.databaseName,
+        type: dataSource.type.toLowerCase() as DatabaseType,
+        dataSourceId: dataSource.id
+      });
+      
+      // 缓存连接器实例
+      connectorCache.set(dataSource.id, mockConnector);
+      
+      return mockConnector;
+    }
     
     return DatabaseConnectorFactory.createConnector(
       dataSource.id,

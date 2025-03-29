@@ -3,6 +3,8 @@ import { ApiError } from '../utils/error';
 import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
 import { QueryPlanService } from '../database-core/query-plan/query-plan-service';
+import config from '../config';
+import { getMockQueryResult, getMockQueryHistory, getMockSavedQueries } from '../mocks/query.mock';
 
 const prisma = new PrismaClient();
 
@@ -19,6 +21,23 @@ export class QueryService {
     order?: 'asc' | 'desc';
   }): Promise<any> {
     try {
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        logger.info('使用模拟数据执行查询', { dataSourceId, sql });
+        
+        // 使用模拟数据模块获取适当的查询结果
+        const result = getMockQueryResult(sql, options);
+        
+        // 模拟查询历史记录
+        const mockQueryHistoryId = `mock-query-${Date.now()}`;
+        
+        // 返回模拟结果
+        return {
+          ...result,
+          queryId: mockQueryHistoryId
+        };
+      }
+      
       // 获取数据源连接器
       const connector = await dataSourceService.getConnector(dataSourceId);
       
@@ -277,6 +296,24 @@ export class QueryService {
     isPublic?: boolean;
   }): Promise<Query> {
     try {
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        logger.info('使用模拟数据保存查询', { query: data.name });
+        
+        // 返回模拟保存结果
+        return {
+          id: `mock-query-${Date.now()}`,
+          name: data.name,
+          dataSourceId: data.dataSourceId,
+          sqlContent: data.sql,
+          description: data.description || '',
+          tags: data.tags?.join(',') || '',
+          status: data.isPublic ? 'PUBLISHED' : 'DRAFT',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        } as Query;
+      }
+      
       const query = await prisma.query.create({
         data: {
           name: data.name,
@@ -305,6 +342,33 @@ export class QueryService {
     search?: string;
   } = {}): Promise<Query[]> {
     try {
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        logger.info('使用模拟数据获取查询列表');
+        
+        // 将选项转换为过滤器
+        const filter: any = {};
+        
+        if (options.dataSourceId) {
+          filter.dataSourceId = options.dataSourceId;
+        }
+        
+        if (options.isPublic !== undefined) {
+          filter.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
+        }
+        
+        if (options.tag) {
+          filter.tags = options.tag;
+        }
+        
+        if (options.search) {
+          filter.search = options.search;
+        }
+        
+        // 获取模拟查询列表
+        return getMockSavedQueries(filter);
+      }
+      
       const where: any = {};
       
       if (options.dataSourceId) {
@@ -358,6 +422,21 @@ export class QueryService {
    */
   async getQueryById(id: string): Promise<Query> {
     try {
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        logger.info('使用模拟数据获取查询详情', { id });
+        
+        // 模拟查询详情
+        const mockQueries = getMockSavedQueries();
+        const foundQuery = mockQueries.find(q => q.id === id);
+        
+        if (!foundQuery) {
+          throw new ApiError('查询不存在', 404);
+        }
+        
+        return foundQuery;
+      }
+      
       const query = await prisma.query.findUnique({
         where: { id },
       });
@@ -463,6 +542,24 @@ export class QueryService {
     offset: number;
   }> {
     try {
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        logger.info('使用模拟数据获取查询历史', { dataSourceId });
+        
+        // 获取模拟查询历史记录
+        const mockHistory = getMockQueryHistory(dataSourceId);
+        
+        // 应用分页
+        const paginatedHistory = mockHistory.slice(offset, offset + limit);
+        
+        return {
+          history: paginatedHistory,
+          total: mockHistory.length,
+          limit,
+          offset
+        };
+      }
+      
       const where: any = {};
       
       if (dataSourceId) {

@@ -13,6 +13,8 @@ import {
   getQueryPlanAnalyzer,
   getQueryOptimizer
 } from '../../database-core';
+import config from '../../config';
+import { getMockQueryPlanBySql } from '../../mocks/query-plan.mock';
 
 const prisma = new PrismaClient();
 const dataSourceService = new DataSourceService();
@@ -72,14 +74,41 @@ export class QueryPlanController {
         throw new ApiError('数据源不存在', 404);
       }
       
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        logger.info('使用模拟数据获取查询计划', { sql });
+        
+        // 获取模拟查询计划
+        const mockPlan = getMockQueryPlanBySql(sql);
+        mockPlan.query = sql;  // 确保查询语句正确
+        
+        // 返回模拟数据结果
+        res.status(200).json({
+          success: true,
+          data: {
+            plan: mockPlan,
+            id: `mock-plan-${Date.now()}`
+          }
+        });
+        return;
+      }
+      
+      // 实际执行逻辑
       // 获取数据库连接
       const connector = await dataSourceService.getConnector(dataSourceId);
       
-      // 解析和获取查询计划
-      if (!connector.getQueryPlan) {
+      // 获取查询计划
+      let planResult: QueryPlan;
+      
+      if (connector.getQueryPlan) {
+        // 使用连接器的getQueryPlan方法
+        planResult = await connector.getQueryPlan(sql);
+      } else if (connector.explainQuery) {
+        // 回退到explainQuery方法
+        planResult = await connector.explainQuery(sql);
+      } else {
         throw new ApiError('数据库连接器不支持查询计划功能', 400);
       }
-      const planResult = await connector.getQueryPlan(sql);
       
       // 获取转换器并转换为统一格式
       const converter = getQueryPlanConverter(dataSource.type as DatabaseType);
@@ -379,6 +408,20 @@ export class QueryPlanController {
    */
   private async saveQueryPlan(plan: QueryPlan, dataSourceId: string, userId?: string): Promise<any> {
     try {
+      // 使用模拟数据模式下，返回模拟ID而非实际保存
+      if (config.development.useMockData) {
+        logger.info('模拟保存查询计划', { dataSourceId });
+        return {
+          id: `mock-plan-${Date.now()}`,
+          queryId: `mock-query-${Date.now()}`,
+          dataSourceId,
+          name: `Mock Plan ${new Date().toISOString()}`,
+          sql: plan.query,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+      }
+
       // 查找或创建查询记录
       let queryId: string;
       
@@ -478,6 +521,23 @@ export class QueryPlanController {
       const { dataSourceId, name, sql, planData } = req.body;
       const userId = req.user?.id || 'system';
       
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        // 返回成功响应
+        res.status(201).json({
+          success: true,
+          data: {
+            id: `mock-plan-${Date.now()}`,
+            dataSourceId,
+            name,
+            sql,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        });
+        return;
+      }
+      
       // 解析计划数据
       const plan = typeof planData === 'string' ? JSON.parse(planData) : planData;
       
@@ -527,6 +587,24 @@ export class QueryPlanController {
       const { dataSourceId } = req.query;
       const userId = req.user?.id;
       
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        // 返回模拟数据
+        res.status(200).json({
+          success: true,
+          data: Array(5).fill(0).map((_, i) => ({
+            id: `mock-plan-${i + 1}`,
+            dataSourceId: dataSourceId || '1',
+            name: `模拟查询计划 ${i + 1}`,
+            sql: `SELECT * FROM table_${i + 1} WHERE id > 100 LIMIT 50`,
+            estimatedCost: Math.random() * 100,
+            createdAt: new Date(Date.now() - i * 86400000),
+            updatedAt: new Date(Date.now() - i * 86400000)
+          }))
+        });
+        return;
+      }
+      
       // 构建查询条件
       const where: any = {
         createdBy: userId
@@ -574,6 +652,27 @@ export class QueryPlanController {
   public async getSavedPlan(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
+      
+      // 使用模拟数据
+      if (config.development.useMockData) {
+        const mockPlan = getMockQueryPlanBySql('SELECT * FROM users WHERE id = 1');
+        
+        // 返回模拟数据
+        res.status(200).json({
+          success: true,
+          data: {
+            id,
+            dataSourceId: '1',
+            name: `模拟查询计划 ${id}`,
+            sql: mockPlan.query,
+            planData: JSON.stringify(mockPlan),
+            estimatedCost: mockPlan.estimatedCost,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        });
+        return;
+      }
       
       // 获取计划
       const plan = await prisma.queryPlan.findUnique({
