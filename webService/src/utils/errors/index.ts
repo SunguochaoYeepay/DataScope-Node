@@ -14,6 +14,7 @@ export * from './types/database-error';
 export * from './types/datasource-error';
 export * from './types/query-error';
 export * from './types/validation-error';
+export * from './types/query-plan-error';
 
 // 导出类型别名方便使用
 import { AppError } from './app-error';
@@ -22,6 +23,7 @@ import { DatabaseError } from './types/database-error';
 import { DataSourceError } from './types/datasource-error';
 import { QueryError } from './types/query-error';
 import { ValidationError } from './types/validation-error';
+import { QueryPlanError } from './types/query-plan-error';
 
 export type ErrorTypes = 
   | AppError
@@ -29,4 +31,5 @@ export type ErrorTypes =
   | DatabaseError
   | DataSourceError
   | QueryError
-  | ValidationError;
+  | ValidationError
+  | QueryPlanError;

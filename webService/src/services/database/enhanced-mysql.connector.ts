@@ -8,10 +8,12 @@ import {
   IndexInfo,
   TableInfo,
   QueryOptions,
-  QueryPlan
+  QueryPlan as DBQueryPlan,
+  QueryPlanNode as DBQueryPlanNode
 } from './dbInterface';
 import { DataSourceConnectionError, QueryExecutionError } from '../../utils/error';
-import { QueryPlanNode } from '../../types/query-plan';
+import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
+import { MySQLQueryPlanConverter } from './query-plan-conversion/mysql-query-plan-converter';
 import logger from '../../utils/logger';
 
 /**
@@ -313,8 +315,10 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
       // 将执行计划转换为统一格式
       const queryPlan = this.convertToQueryPlan(traditionalRows, jsonData, sql);
       
-      // 生成优化建议
-      queryPlan.optimizationTips = this.generateOptimizationTips(queryPlan);
+      // 生成优化建议 - 如果查询计划转换器未生成优化建议，则使用内部方法生成
+      if (!queryPlan.optimizationTips || queryPlan.optimizationTips.length === 0) {
+        queryPlan.optimizationTips = this.generateOptimizationTips(queryPlan);
+      }
       
       return queryPlan;
     } catch (error: any) {
@@ -347,99 +351,16 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
    * 将MySQL执行计划转换为统一格式
    */
   private convertToQueryPlan(traditionalRows: any[], jsonData: any, originalQuery: string): QueryPlan {
-    const planNodes: QueryPlanNode[] = [];
-    
-    // 处理传统格式的执行计划行
-    for (const row of traditionalRows) {
-      const planNode: QueryPlanNode = {
-        id: Number(row.id) || 1,
-        selectType: row.select_type || 'SIMPLE',
-        table: row.table || '',
-        type: row.type || '',
-        possibleKeys: row.possible_keys,
-        key: row.key,
-        keyLen: row.key_len ? row.key_len : undefined,
-        ref: row.ref,
-        rows: Number(row.rows || '0'),
-        filtered: Number(row.filtered || '100'),
-        extra: row.Extra || row.extra
-      };
-      
-      planNodes.push(planNode);
-    }
-    
-    // 从 JSON 格式中提取其他有用信息
-    let estimatedRows = 0;
-    let estimatedCost;
-    
-    if (jsonData && jsonData.query_block) {
-      const queryBlock = jsonData.query_block;
-      estimatedRows = queryBlock.select_id ? Number(queryBlock.select_id) : 0;
-      
-      if (queryBlock.cost_info && queryBlock.cost_info.query_cost) {
-        estimatedCost = Number(queryBlock.cost_info.query_cost);
-      }
-    }
-    
-    // 使用传统行数如果JSON格式没有提供
-    if (estimatedRows === 0 && planNodes.length > 0) {
-      estimatedRows = planNodes.reduce((total, node) => total + node.rows, 0);
-    }
-    
-    // 构建完整的执行计划对象
-    return {
-      planNodes,
-      query: originalQuery,
-      estimatedRows,
-      estimatedCost,
-      warnings: [],
-      optimizationTips: []
-    };
+    // 使用专用转换器进行处理
+    return MySQLQueryPlanConverter.convert(traditionalRows, jsonData, originalQuery);
   }
   
   /**
    * 分析执行计划并生成优化建议
+   * 注意：这个方法已迁移到 MySQLQueryPlanConverter
    */
   private generateOptimizationTips(plan: QueryPlan): string[] {
-    const tips: string[] = [];
-    
-    // 检查表扫描
-    const fullScanNodes = plan.planNodes.filter(node => node.type === 'ALL');
-    if (fullScanNodes.length > 0) {
-      tips.push(`发现${fullScanNodes.length}个全表扫描，考虑为表${fullScanNodes.map(n => n.table).join(', ')}添加索引`);
-    }
-    
-    // 检查索引使用
-    const noIndexNodes = plan.planNodes.filter(node => !node.key && node.rows > 100);
-    if (noIndexNodes.length > 0) {
-      tips.push(`表${noIndexNodes.map(n => n.table).join(', ')}没有使用索引，且扫描行数较大`);
-    }
-    
-    // 检查临时表和文件排序
-    const filesortNodes = plan.planNodes.filter(node => node.extra && node.extra.includes('Using filesort'));
-    const tempTableNodes = plan.planNodes.filter(node => node.extra && node.extra.includes('Using temporary'));
-    
-    if (filesortNodes.length > 0) {
-      tips.push('查询使用了文件排序，考虑添加适当的索引以避免排序');
-    }
-    
-    if (tempTableNodes.length > 0) {
-      tips.push('查询使用了临时表，考虑简化查询或添加适当的索引');
-    }
-    
-    // 检查表连接问题
-    if (plan.planNodes.length > 1) {
-      const joinProblems = plan.planNodes.filter(node => 
-        node.type === 'ALL' && 
-        (node.rows > 1000 || !node.key)
-      );
-      
-      if (joinProblems.length > 0) {
-        tips.push('表连接可能不够高效，检查连接条件和相关索引');
-      }
-    }
-    
-    return tips;
+    return MySQLQueryPlanConverter.generateOptimizationTips(plan);
   }
   
   /**

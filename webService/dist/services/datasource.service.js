@@ -5,10 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DataSourceService = void 0;
 const client_1 = require("@prisma/client");
-const mysql_connector_1 = require("./database/mysql.connector");
 const error_1 = require("../utils/error");
 const logger_1 = __importDefault(require("../utils/logger"));
 const crypto_1 = require("../utils/crypto");
+const database_factory_1 = require("../types/database-factory");
 const prisma = new client_1.PrismaClient();
 // 模拟数据源的完整数据
 const mockDataSources = [
@@ -261,93 +261,27 @@ class DataSourceService {
     /**
      * 测试数据源连接
      */
-    async testConnection(data) {
-        try {
-            // 在开发环境直接返回成功
-            if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-                return { success: true, message: '连接成功' };
-            }
-            const { type, host, port, username, password, database } = data;
-            if (type !== 'MYSQL') {
-                throw new error_1.ApiError('暂不支持该数据库类型', 400);
-            }
-            // 创建临时连接器
-            const connector = new mysql_connector_1.MySQLConnector('temp', {
-                host,
-                port,
-                user: username,
-                password,
-                database
-            });
-            // 测试连接
-            await connector.testConnection();
-            return { success: true, message: '连接成功' };
-        }
-        catch (error) {
-            logger_1.default.error('测试连接失败', { error, data });
-            return {
-                success: false,
-                message: error.message || '连接失败'
-            };
-        }
+    async testConnection(dataSource) {
+        const connector = database_factory_1.DatabaseConnectorFactory.createConnector(dataSource.id || 'temp-connection', dataSource.type, {
+            host: dataSource.host,
+            port: dataSource.port,
+            user: dataSource.username,
+            password: dataSource.passwordEncrypted,
+            database: dataSource.databaseName,
+        });
+        return connector.testConnection();
     }
     /**
      * 获取连接器实例
      */
-    async getConnector(dataSourceId) {
-        try {
-            // 检查缓存
-            if (connectorCache.has(dataSourceId)) {
-                return connectorCache.get(dataSourceId);
-            }
-            // 在开发环境创建一个模拟连接器
-            if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-                const mockConnector = new mysql_connector_1.MySQLConnector(dataSourceId, {
-                    host: 'localhost',
-                    port: 3306,
-                    user: 'root',
-                    password: 'password',
-                    database: 'mock_database'
-                });
-                connectorCache.set(dataSourceId, mockConnector);
-                return mockConnector;
-            }
-            // 获取数据源
-            const dataSource = await prisma.dataSource.findUnique({
-                where: { id: dataSourceId }
-            });
-            if (!dataSource) {
-                throw new error_1.ApiError('数据源不存在', 404);
-            }
-            // 解密密码
-            // const password = decrypt(dataSource.passwordEncrypted, dataSource.passwordSalt);
-            // 暂时忽略密码解密，直接传递加密后的密码（这在实际生产中是不安全的）
-            // 创建适当的连接器
-            let connector;
-            switch (dataSource.type) {
-                case 'MYSQL':
-                    connector = new mysql_connector_1.MySQLConnector(dataSourceId, {
-                        host: dataSource.host,
-                        port: dataSource.port,
-                        user: dataSource.username,
-                        password: dataSource.passwordEncrypted, // 注意：实际应该是解密后的密码
-                        database: dataSource.databaseName
-                    });
-                    break;
-                default:
-                    throw new error_1.ApiError(`不支持的数据库类型: ${dataSource.type}`, 400);
-            }
-            // 存入缓存
-            connectorCache.set(dataSourceId, connector);
-            return connector;
-        }
-        catch (error) {
-            logger_1.default.error(`获取数据库连接器失败 ID: ${dataSourceId}`, { error });
-            if (error instanceof error_1.ApiError) {
-                throw error;
-            }
-            throw new error_1.ApiError('获取数据库连接器失败', 500, error.message);
-        }
+    async getConnector(dataSource) {
+        return database_factory_1.DatabaseConnectorFactory.createConnector(dataSource.id, dataSource.type, {
+            host: dataSource.host,
+            port: dataSource.port,
+            user: dataSource.username,
+            password: dataSource.passwordEncrypted,
+            database: dataSource.databaseName,
+        });
     }
 }
 exports.DataSourceService = DataSourceService;

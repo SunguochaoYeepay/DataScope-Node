@@ -1,6 +1,6 @@
 import { DataSource } from '@prisma/client';
-import { IDatabaseConnector } from './database/dbInterface';
-import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
+import { CreateDataSourceDto, UpdateDataSourceDto } from '../types/datasource';
+import { DatabaseConnector } from "../types/datasource";
 export declare class DataSourceService {
     private connectors;
     /**
@@ -26,14 +26,11 @@ export declare class DataSourceService {
     /**
      * 测试数据源连接
      */
-    testConnection(data: TestConnectionDto): Promise<{
-        success: boolean;
-        message: string;
-    }>;
+    testConnection(dataSource: DataSource): Promise<boolean>;
     /**
      * 获取连接器实例
      */
-    getConnector(dataSourceId: string): Promise<IDatabaseConnector>;
+    getConnector(dataSource: DataSource): Promise<DatabaseConnector>;
 }
 declare const _default: DataSourceService;
 export default _default;

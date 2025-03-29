@@ -27,4 +27,5 @@ __exportStar(require("./types/database-error"), exports);
 __exportStar(require("./types/datasource-error"), exports);
 __exportStar(require("./types/query-error"), exports);
 __exportStar(require("./types/validation-error"), exports);
+__exportStar(require("./types/query-plan-error"), exports);
 //# sourceMappingURL=index.js.map
