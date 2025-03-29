@@ -2,8 +2,8 @@ import { AppError } from '../app-error';
 import { ERROR_CODES } from '../error-codes';
 
 /**
- * 验证错误类
- * 用于请求验证过程中的错误
+ * 数据验证错误类
+ * 用于处理请求参数验证失败的情况
  */
 export class ValidationError extends AppError {
   /**
@@ -14,10 +14,10 @@ export class ValidationError extends AppError {
    */
   constructor(
     message: string = '数据验证失败',
-    errorCode: number = ERROR_CODES.VALIDATION_FAILED,
+    errorCode: number = ERROR_CODES.VALIDATION_ERROR,
     details?: any
   ) {
-    super(message, errorCode, 400, 'VALIDATION_FAILED', details);
+    super(message, errorCode, 400, 'ValidationError', details);
   }
 
   /**
@@ -26,7 +26,7 @@ export class ValidationError extends AppError {
    * @param message 错误消息
    */
   static fromFieldErrors(fieldErrors: Record<string, string>, message: string = '数据验证失败'): ValidationError {
-    return new ValidationError(message, ERROR_CODES.VALIDATION_FAILED, fieldErrors);
+    return new ValidationError(message, ERROR_CODES.VALIDATION_ERROR, fieldErrors);
   }
 
   /**

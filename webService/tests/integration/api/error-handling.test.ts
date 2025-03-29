@@ -115,7 +115,7 @@ describe('错误处理集成测试', () => {
       
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toHaveProperty('code', ERROR_CODES.VALIDATION_FAILED);
-      expect(response.body.error).toHaveProperty('type', 'VALIDATION_FAILED');
+      expect(response.body.error).toHaveProperty('type', 'ValidationError');
       expect(response.body.error).toHaveProperty('details');
       expect(Array.isArray(response.body.error.details)).toBe(true);
       expect(response.body.error.details.length).toBe(3); // 应包含3个字段错误

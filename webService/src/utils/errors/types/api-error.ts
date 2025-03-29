@@ -18,7 +18,7 @@ export class ApiError extends AppError {
     message: string,
     errorCode: number = ERROR_CODES.INTERNAL_SERVER_ERROR,
     statusCode: number = 500,
-    errorType: string = 'API_ERROR',
+    errorType: string = 'ApiError',
     details?: any
   ) {
     super(message, errorCode, statusCode, errorType, details);

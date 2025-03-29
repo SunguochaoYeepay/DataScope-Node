@@ -17,6 +17,9 @@
 
 ### 修复
 - 修复了DatabaseError类型显示不一致的问题，使其在错误响应中正确显示为"DatabaseError"
+- 修复了DataSourceError类型显示不一致的问题，使其在错误响应中正确显示为"DataSourceError"
+- 修复了QueryError类型显示不一致的问题，使其在错误响应中正确显示为"QueryError"
+- 修复了ValidationError类型显示不一致的问题，使其在错误响应中正确显示为"ValidationError"
 
 ### 优化
 - 改进了错误处理的结构和组织方式，提高代码可维护性
