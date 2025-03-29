@@ -27,8 +27,10 @@ app.use(express.urlencoded({ extended: true }));
 // 请求日志中间件
 app.use(loggerMiddleware);
 
-// API路由
-app.use(config.service.apiPrefix, router);
+// API路由 - 修复：使用配置的API前缀
+const apiPrefix = config.service.apiPrefix || '/api';
+logger.info(`挂载API路由，前缀: "${apiPrefix}"`);
+app.use(apiPrefix, router);
 
 // Swagger文档
 setupSwagger(app);
@@ -50,6 +52,14 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     logger.info(`服务已启动，监听端口: ${PORT}`);
     logger.info(`API文档地址: http://localhost:${PORT}/api-docs`);
+    
+    // 记录所有已注册的路由
+    logger.info('已注册的路由:');
+    app._router.stack.forEach((r: any) => {
+      if (r.route && r.route.path) {
+        logger.info(`${Object.keys(r.route.methods).join(',')} ${r.route.path}`);
+      }
+    });
   });
 }
 

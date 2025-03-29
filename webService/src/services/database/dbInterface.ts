@@ -118,6 +118,9 @@ export interface DatabaseConnector {
   close(): Promise<void>;
 }
 
+// 为了向后兼容，定义IDatabaseConnector作为DatabaseConnector的别名
+export type IDatabaseConnector = DatabaseConnector;
+
 export interface TableRelationship {
   name: string;
   sourceTable: string;

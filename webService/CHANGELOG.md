@@ -76,6 +76,22 @@
 
 ## [未发布]
 
+### 修复 (Fixes)
+
+- 修复了TypeScript编译错误，统一了接口定义
+  - 添加了`encryptPassword`和`comparePassword`函数作为现有加密函数的别名
+  - 在`dbInterface.ts`中添加了`IDatabaseConnector`类型作为`DatabaseConnector`的别名
+  - 修复了`MySQLConnector`构造函数的重载问题，支持两种不同的参数格式
+  - 完善了`datasource.service.ts`中对模拟数据的类型定义
+  - 改进了错误处理，确保类型兼容性
+
+### 变更 (Changes)
+
+- 优化了项目结构，确保了代码的类型安全
+- 添加了类型定义文件`datasource.ts`，定义了所有数据源相关的DTO接口
+- 重构了数据库连接器的实现，提高了代码的可维护性和类型安全性
+- 优化了模拟数据模式，方便开发和测试
+
 ### 待实现功能
 
 - 用户认证和授权

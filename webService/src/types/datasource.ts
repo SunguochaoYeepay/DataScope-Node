@@ -197,3 +197,72 @@ export interface DatabaseConnector {
   previewTableData(schema: string, table: string, limit?: number): Promise<any>;
   close(): Promise<void>;
 }
+
+/**
+ * 数据源相关类型定义
+ */
+
+/**
+ * 创建数据源DTO
+ */
+export interface CreateDataSourceDto {
+  name: string;
+  description?: string;
+  type: string; // MYSQL, POSTGRESQL, SQLSERVER, etc.
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
+  connectionParams?: Record<string, any>;
+}
+
+/**
+ * 更新数据源DTO
+ */
+export interface UpdateDataSourceDto {
+  name?: string;
+  description?: string;
+  type?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  database?: string;
+  connectionParams?: Record<string, any>;
+  status?: string;
+  syncFrequency?: string;
+}
+
+/**
+ * 测试连接DTO
+ */
+export interface TestConnectionDto {
+  type: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
+  connectionParams?: Record<string, any>;
+}
+
+/**
+ * 执行查询DTO
+ */
+export interface ExecuteQueryDto {
+  sql: string;
+  params?: any[];
+}
+
+/**
+ * 保存查询DTO
+ */
+export interface SaveQueryDto {
+  name: string;
+  description?: string;
+  sql: string;
+  dataSourceId: string;
+  tags?: string;
+  folderId?: string;
+}

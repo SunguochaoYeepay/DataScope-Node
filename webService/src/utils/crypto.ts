@@ -119,3 +119,20 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
   
   return hashedPassword === hash;
 }
+
+/**
+ * 加密密码 - hashPassword的别名
+ * @param password 密码明文
+ * @param salt 盐值 (可选)
+ * @returns 哈希结果对象，包含哈希后的密码和使用的盐值
+ */
+export const encryptPassword = hashPassword;
+
+/**
+ * 比较密码 - verifyPassword的别名
+ * @param password 待验证的密码明文
+ * @param hash 存储的密码哈希
+ * @param salt 存储的盐值
+ * @returns 密码是否匹配
+ */
+export const comparePassword = verifyPassword;

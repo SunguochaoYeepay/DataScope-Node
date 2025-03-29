@@ -20,6 +20,11 @@ export class MySQLConnector implements DatabaseConnector {
   private pool: mysql.Pool;
   private config: mysql.PoolOptions;
   
+  /**
+   * 构造函数
+   * @param dataSourceId 数据源ID
+   * @param config 连接配置对象
+   */
   constructor(
     dataSourceId: string, 
     config: {
@@ -29,27 +34,66 @@ export class MySQLConnector implements DatabaseConnector {
       password: string;
       database: string;
     }
+  );
+  
+  /**
+   * 重载构造函数，支持传递单独的参数
+   * @param dataSourceId 数据源ID
+   * @param host 主机名
+   * @param port 端口号
+   * @param username 用户名
+   * @param password 密码
+   * @param database 数据库名
+   */
+  constructor(
+    dataSourceId: string,
+    hostOrConfig: string | { host: string; port: number; user: string; password: string; database: string },
+    port?: number,
+    username?: string,
+    password?: string,
+    database?: string
   ) {
     this._dataSourceId = dataSourceId;
-    this.config = {
-      host: config.host,
-      port: config.port,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    };
+    
+    // 根据传入参数的类型构建配置
+    if (typeof hostOrConfig === 'string') {
+      // 使用独立参数模式
+      if (!port || !username || !password || !database) {
+        throw new Error('使用单独参数模式时，所有参数都必须提供');
+      }
+      
+      this.config = {
+        host: hostOrConfig,
+        port: port,
+        user: username,
+        password: password,
+        database: database,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      };
+    } else {
+      // 使用配置对象模式
+      this.config = {
+        host: hostOrConfig.host,
+        port: hostOrConfig.port,
+        user: hostOrConfig.user,
+        password: hostOrConfig.password,
+        database: hostOrConfig.database,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      };
+    }
     
     // 创建连接池
     this.pool = mysql.createPool(this.config);
     
     logger.info('MySQL连接器已创建', { 
       dataSourceId, 
-      host: config.host, 
-      port: config.port, 
-      database: config.database 
+      host: this.config.host, 
+      port: this.config.port, 
+      database: this.config.database 
     });
   }
   

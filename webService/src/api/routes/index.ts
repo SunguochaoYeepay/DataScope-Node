@@ -5,9 +5,14 @@ import metadataRoutes from './metadata.routes';
 
 const router = Router();
 
-// 健康检查端点
-router.get('/health', (req, res) => {
-  res.json({ status: 'UP' });
+// API健康检查端点
+router.get('/status', (req, res) => {
+  res.json({ 
+    status: 'UP',
+    timestamp: new Date(),
+    api: 'DataScope API',
+    version: '1.0.1'
+  });
 });
 
 // API 路由
