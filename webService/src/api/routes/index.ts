@@ -2,6 +2,7 @@ import { Router } from 'express';
 import dataSourceRoutes from './datasource.routes';
 import queryRoutes from './query.routes';
 import metadataRoutes from './metadata.routes';
+import examplesRoutes from './examples.routes';
 
 const router = Router();
 
@@ -9,6 +10,7 @@ const router = Router();
 router.use('/datasources', dataSourceRoutes);
 router.use('/queries', queryRoutes);
 router.use('/metadata', metadataRoutes);
+router.use('/examples', examplesRoutes);
 
 // API文档
 router.get('/', (req, res) => {

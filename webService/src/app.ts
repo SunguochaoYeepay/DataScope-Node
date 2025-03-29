@@ -3,13 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
 import config from './config/env';
-import { loggerMiddleware } from './api/middlewares/logger';
-import { errorHandler, notFoundHandler } from './api/middlewares/error';
+import { requestLogger } from './middlewares/request-logger.middleware';
+import { errorHandler } from './middlewares/error-handler.middleware';
 import router from './api/routes/index';
 import setupSwagger from './config/swagger';
 import logger from './utils/logger';
 import os from 'os';
 import { healthMonitor } from './utils/health-monitor';
+import { ApiError } from './utils/errors';
 
 // 创建Express应用
 const app: Express = express();
@@ -26,8 +27,8 @@ app.use(express.json());
 // 解析URL编码的请求体
 app.use(express.urlencoded({ extended: true }));
 
-// 请求日志中间件
-app.use(loggerMiddleware);
+// 请求日志中间件 - 使用新的中间件
+app.use(requestLogger);
 
 // API路由 - 修复：使用配置的API前缀
 const apiPrefix = config.service.apiPrefix || '/api';
@@ -86,10 +87,12 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// 404处理
-app.use(notFoundHandler);
+// 404处理中间件
+app.use((req: Request, res: Response, next: NextFunction) => {
+  next(ApiError.notFound(`未找到请求的路径: ${req.originalUrl}`));
+});
 
-// 错误处理中间件
+// 错误处理中间件 - 使用新的中间件
 app.use(errorHandler);
 
 // 启动服务器
