@@ -6,6 +6,28 @@ import logger from '../../utils/logger';
 
 export class QueryController {
   /**
+   * 获取查询执行计划
+   */
+  async explainQuery(req: Request, res: Response, next: NextFunction) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new ApiError('验证错误', 400, { errors: errors.array() });
+      }
+
+      const { dataSourceId, sql, params } = req.body;
+      const plan = await queryService.explainQuery(dataSourceId, sql, params);
+      
+      res.status(200).json({
+        success: true,
+        data: plan
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+  
+  /**
    * 取消查询执行
    */
   async cancelQuery(req: Request, res: Response, next: NextFunction) {

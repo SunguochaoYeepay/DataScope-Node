@@ -79,6 +79,47 @@ export interface QueryResult {
   lastInsertId?: number | string;
 }
 
+/**
+ * 查询计划节点
+ */
+export interface QueryPlanNode {
+  id: number;
+  selectType: string;
+  table: string;
+  type: string;
+  possibleKeys?: string;
+  key?: string;
+  keyLen?: number;
+  ref?: string;
+  rows: number;
+  filtered?: number;
+  extra?: string;
+  partitions?: string;
+  costInfo?: string;
+}
+
+/**
+ * 查询执行计划
+ */
+export interface QueryPlan {
+  planNodes: QueryPlanNode[];
+  warnings: string[];
+  query: string;
+  estimatedCost: number;
+  estimatedRows: number;
+  optimizationTips: string[];
+}
+
+/**
+ * 查询选项
+ */
+export interface QueryOptions {
+  pageSize?: number;
+  pageNumber?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
+
 export interface DatabaseConnector {
   /**
    * 测试数据库连接
@@ -96,6 +137,14 @@ export interface DatabaseConnector {
    * @returns 是否成功取消
    */
   cancelQuery(queryId: string): Promise<boolean>;
+  
+  /**
+   * 获取查询执行计划
+   * @param sql 查询语句
+   * @param params 查询参数
+   * @returns 执行计划
+   */
+  explainQuery(sql: string, params?: any[]): Promise<QueryPlan>;
   
   /**
    * 获取架构列表
@@ -154,6 +203,31 @@ export interface TableMeta {
   name: string;
   description: string | null;
   columns: ColumnInfo[];
+}
+
+export interface QueryPlanNode {
+  id: number;              // 操作ID
+  selectType: string;      // 查询类型
+  table: string;           // 表名
+  partitions?: string;     // 分区
+  type: string;            // 连接类型
+  possibleKeys?: string;   // 可能使用的索引
+  key?: string;            // 实际使用的索引
+  keyLen?: string;         // 索引长度
+  ref?: string;            // 索引引用
+  rows: number;            // 扫描行数估计
+  filtered: number;        // 按表条件过滤的百分比
+  extra?: string;          // 附加信息
+  children?: QueryPlanNode[]; // 子查询计划（用于复杂查询）
+}
+
+export interface QueryPlan {
+  planNodes: QueryPlanNode[];
+  warnings?: string[];
+  query: string;           // 原始查询
+  estimatedCost?: number;  // 估计成本
+  estimatedRows: number;   // 估计返回行数
+  optimizationTips?: string[]; // 优化建议
 }
 
 export interface QueryResulMeta {

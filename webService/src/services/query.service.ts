@@ -88,6 +88,25 @@ export class QueryService {
   }
 
   /**
+   * 获取查询执行计划
+   */
+  async explainQuery(dataSourceId: string, sql: string, params: any[] = []): Promise<any> {
+    try {
+      // 获取数据源连接器
+      const connector = await dataSourceService.getConnector(dataSourceId);
+      
+      // 调用连接器的执行计划方法
+      return await connector.explainQuery(sql, params);
+    } catch (error: any) {
+      logger.error('获取查询执行计划失败', { error, dataSourceId, sql });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError('获取查询执行计划失败', 500, error?.message || '未知错误');
+    }
+  }
+  
+  /**
    * 取消正在执行的查询
    */
   async cancelQuery(queryId: string): Promise<boolean> {

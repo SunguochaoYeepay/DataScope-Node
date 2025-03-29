@@ -176,6 +176,48 @@ router.get('/:id', queryController.getQueryById);
 
 /**
  * @swagger
+ * /queries/explain:
+ *   post:
+ *     summary: 获取查询执行计划
+ *     tags: [Queries]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               dataSourceId:
+ *                 type: string
+ *                 description: 数据源ID
+ *               sql:
+ *                 type: string
+ *                 description: SQL语句
+ *               params:
+ *                 type: array
+ *                 description: 查询参数
+ *             required:
+ *               - dataSourceId
+ *               - sql
+ *     responses:
+ *       200:
+ *         description: 查询执行计划
+ *       400:
+ *         description: 请求参数错误
+ *       500:
+ *         description: 服务器错误
+ */
+router.post(
+  '/explain',
+  [
+    body('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    body('sql').notEmpty().withMessage('SQL语句不能为空'),
+  ],
+  queryController.explainQuery
+);
+
+/**
+ * @swagger
  * /queries/{id}/cancel:
  *   post:
  *     summary: 取消正在执行的查询
