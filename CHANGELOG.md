@@ -9,6 +9,7 @@
   - 在MySQL连接器中实现EXPLAIN查询以获取执行计划
   - 添加查询服务中的explainQuery方法
   - 添加API端点POST /api/queries/explain
+  - 重构代码结构，创建专门的查询计划适配器模式和查询计划服务
 - 实现查询取消功能
   - 添加数据库连接器中的cancelQuery方法，支持取消正在执行的查询
   - 扩展DatabaseConnector接口，添加查询取消相关方法
