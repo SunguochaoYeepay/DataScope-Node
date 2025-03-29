@@ -64,7 +64,10 @@ export const demonstrateValidationError = (req: Request, res: Response, next: Ne
     { field: 'email', message: '邮箱格式不正确' }
   ];
   
-  throw ValidationError.validationFailed('表单验证失败', errors);
+  // 创建新的ValidationError实例
+  const error = new ValidationError('表单验证失败', ERROR_CODES.VALIDATION_FAILED);
+  error.addDetails(errors);
+  throw error;
 };
 
 /**
@@ -97,7 +100,9 @@ export const demonstrateDatabaseError = (req: Request, res: Response, next: Next
       });
     
     default:
-      throw DatabaseError.databaseError('数据库操作错误');
+      // 创建新的DatabaseError实例
+      const error = new DatabaseError('数据库操作错误', ERROR_CODES.DATABASE_ERROR);
+      throw error;
   }
 };
 
@@ -125,7 +130,9 @@ export const demonstrateDataSourceError = (req: Request, res: Response, next: Ne
       });
     
     default:
-      throw DataSourceError.datasourceError('数据源操作错误');
+      // 创建新的DataSourceError实例
+      const error = new DataSourceError('数据源操作错误', ERROR_CODES.DATASOURCE_ERROR);
+      throw error;
   }
 };
 
@@ -156,6 +163,8 @@ export const demonstrateQueryError = (req: Request, res: Response, next: NextFun
       });
     
     default:
-      throw QueryError.executionFailed('查询执行失败');
+      // 创建新的QueryError实例
+      const error = new QueryError('查询执行失败', ERROR_CODES.QUERY_EXECUTION_ERROR);
+      throw error;
   }
 };

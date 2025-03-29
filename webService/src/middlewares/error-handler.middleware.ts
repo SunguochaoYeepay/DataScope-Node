@@ -27,9 +27,18 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     // 设置请求路径和请求ID
     err.setPath(req.path).setRequestId(requestId as string);
     
-    // 发送错误响应
-    const errorResponse = err.toResponse();
-    return res.status(err.statusCode).json(errorResponse);
+    // 发送错误响应 - 确保格式符合测试要求
+    return res.status(err.statusCode).json({
+      error: {
+        code: err.errorCode,
+        type: err.errorType,
+        message: err.message,
+        path: err.path,
+        timestamp: err.timestamp,
+        requestId: err.requestId,
+        details: err.details || undefined
+      }
+    });
   }
 
   // 处理未知错误（非AppError类型）
@@ -40,7 +49,16 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   // 设置请求路径和请求ID
   unknownError.setPath(req.path).setRequestId(requestId as string);
   
-  // 发送错误响应
-  const errorResponse = unknownError.toResponse();
-  return res.status(500).json(errorResponse);
+  // 发送错误响应 - 确保格式符合测试要求
+  return res.status(500).json({
+    error: {
+      code: unknownError.errorCode,
+      type: unknownError.errorType,
+      message: unknownError.message,
+      path: unknownError.path,
+      timestamp: unknownError.timestamp,
+      requestId: unknownError.requestId,
+      details: unknownError.details || undefined
+    }
+  });
 }

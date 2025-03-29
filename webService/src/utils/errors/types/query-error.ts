@@ -19,7 +19,7 @@ export class QueryError extends AppError {
     statusCode: number = 500,
     details?: any
   ) {
-    super(message, errorCode, statusCode, 'QueryError', details);
+    super(message, errorCode, statusCode, 'QUERY_ERROR', details);
   }
 
   /**

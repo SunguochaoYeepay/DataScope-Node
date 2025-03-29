@@ -14,10 +14,10 @@ export class ValidationError extends AppError {
    */
   constructor(
     message: string = '数据验证失败',
-    errorCode: number = ERROR_CODES.VALIDATION_ERROR,
+    errorCode: number = ERROR_CODES.VALIDATION_FAILED,
     details?: any
   ) {
-    super(message, errorCode, 400, 'ValidationError', details);
+    super(message, errorCode, 400, 'VALIDATION_FAILED', details);
   }
 
   /**
@@ -26,7 +26,7 @@ export class ValidationError extends AppError {
    * @param message 错误消息
    */
   static fromFieldErrors(fieldErrors: Record<string, string>, message: string = '数据验证失败'): ValidationError {
-    return new ValidationError(message, ERROR_CODES.VALIDATION_ERROR, fieldErrors);
+    return new ValidationError(message, ERROR_CODES.VALIDATION_FAILED, fieldErrors);
   }
 
   /**
