@@ -1,170 +1,200 @@
 /**
- * 错误处理示例控制器
- * 展示不同类型错误的使用方法
+ * 错误示例控制器，用于演示不同类型的错误和错误处理
  */
-import { Request, Response, NextFunction } from 'express';
-import { 
-  ApiError, 
-  ValidationError, 
-  DatabaseError, 
-  DataSourceError,
-  QueryError,
-  ERROR_CODES
-} from '../../../utils/errors';
+
+import { Request, Response } from 'express';
+import { ApiError } from '../../../utils/errors/types/api-error';
+import { DatabaseError } from '../../../utils/errors/types/database-error';
+import { AppError } from '../../../utils/errors/app-error';
+import logger from '../../../utils/logger';
 
 /**
- * 展示API错误的各种用法
+ * 演示验证错误
+ * @param req 请求对象
+ * @param res 响应对象
  */
-export const demonstrateApiErrors = (req: Request, res: Response, next: NextFunction) => {
-  const errorType = req.query.type as string;
+export const demonstrateValidationError = (req: Request, res: Response): void => {
+  // 模拟验证错误
+  const error = ApiError.badRequest(
+    '请求参数验证失败',
+    {
+      field: 'username',
+      message: '用户名不能为空'
+    }
+  );
   
-  switch (errorType) {
-    case 'badRequest':
-      throw ApiError.badRequest('无效的请求参数', { field: 'username', issue: '长度必须大于3个字符' });
-    
-    case 'unauthorized':
-      throw ApiError.unauthorized('用户未登录或会话已过期');
-    
-    case 'forbidden':
-      throw ApiError.forbidden('没有权限访问此资源');
-    
-    case 'notFound':
-      throw ApiError.notFound('请求的资源不存在');
-    
-    case 'conflict':
-      throw ApiError.conflict('资源已存在', { resource: 'user', identifier: req.query.id });
-    
-    case 'tooManyRequests':
-      throw ApiError.tooManyRequests('请求频率过高，请稍后再试');
-    
-    case 'internal':
-      throw ApiError.internal('服务器内部错误', { context: '处理用户请求时发生未知错误' });
-    
-    default:
-      // 正常响应
-      return res.json({ 
-        message: '错误演示API',
-        description: '使用?type=xxx查询参数测试不同类型的错误',
-        availableTypes: [
-          'badRequest', 'unauthorized', 'forbidden', 'notFound', 
-          'conflict', 'tooManyRequests', 'internal', 'validation',
-          'database', 'dataSource', 'query'
-        ]
-      });
-  }
-};
-
-/**
- * 展示验证错误用法
- */
-export const demonstrateValidationError = (req: Request, res: Response, next: NextFunction) => {
-  const errors = [
-    { field: 'username', message: '用户名不能为空' },
-    { field: 'password', message: '密码必须包含字母和数字' },
-    { field: 'email', message: '邮箱格式不正确' }
-  ];
-  
-  // 创建新的ValidationError实例
-  const error = new ValidationError('表单验证失败', ERROR_CODES.VALIDATION_FAILED);
-  error.addDetails(errors);
+  // 抛出错误，将由错误处理中间件捕获
   throw error;
 };
 
 /**
- * 展示数据库错误用法
+ * 演示授权错误
+ * @param req 请求对象
+ * @param res 响应对象
  */
-export const demonstrateDatabaseError = (req: Request, res: Response, next: NextFunction) => {
-  const errorType = req.query.subtype as string;
+export const demonstrateAuthorizationError = (req: Request, res: Response): void => {
+  // 模拟授权错误
+  const error = ApiError.forbidden(
+    '您没有权限执行此操作',
+    {
+      action: 'delete',
+      resource: 'user'
+    }
+  );
   
-  switch (errorType) {
-    case 'connection':
-      throw DatabaseError.connectionError('无法连接到数据库', { 
-        dbName: 'main', 
-        host: 'localhost' 
-      });
-    
-    case 'query':
-      throw DatabaseError.queryError('SQL查询执行失败', { 
-        sql: 'SELECT * FROM non_existent_table' 
-      });
-    
-    case 'transaction':
-      throw DatabaseError.transactionError('事务执行失败', { 
-        operation: '创建用户和关联资料' 
-      });
-    
-    case 'notFound':
-      throw DatabaseError.recordNotFound('数据库记录不存在', { 
-        table: 'users', 
-        id: req.query.id 
-      });
-    
-    default:
-      // 创建新的DatabaseError实例
-      const error = new DatabaseError('数据库操作错误', ERROR_CODES.DATABASE_ERROR);
-      throw error;
+  // 抛出错误，将由错误处理中间件捕获
+  throw error;
+};
+
+/**
+ * 演示认证错误
+ * @param req 请求对象
+ * @param res 响应对象
+ */
+export const demonstrateAuthenticationError = (req: Request, res: Response): void => {
+  // 模拟认证错误
+  const error = ApiError.unauthorized(
+    '认证失败，请重新登录'
+  );
+  
+  // 抛出错误，将由错误处理中间件捕获
+  throw error;
+};
+
+/**
+ * 演示数据库错误
+ * @param req 请求对象
+ * @param res 响应对象
+ */
+export const demonstrateDatabaseError = (req: Request, res: Response): void => {
+  const subtype = req.query.subtype as string;
+  
+  if (subtype === 'connection') {
+    // 模拟数据库连接错误
+    const error = DatabaseError.connectionError(
+      '无法连接到数据库',
+      {
+        dbName: 'main',
+        host: 'localhost'
+      }
+    );
+    throw error;
+  } else if (subtype === 'query') {
+    // 模拟数据库查询错误
+    const error = DatabaseError.queryError(
+      'SQL语法错误',
+      {
+        sql: 'SELCT * FROM users',
+        errorCode: 'ER_PARSE_ERROR'
+      }
+    );
+    throw error;
+  } else if (subtype === 'notFound') {
+    // 模拟记录未找到错误
+    const id = req.query.id as string;
+    const error = DatabaseError.recordNotFound(
+      '数据库记录不存在',
+      {
+        table: 'users',
+        id: id || 'unknown'
+      }
+    );
+    throw error;
+  } else {
+    // 默认数据库错误
+    const error = new DatabaseError(
+      '发生了数据库错误',
+      70000
+    );
+    throw error;
   }
 };
 
 /**
- * 展示数据源错误用法
+ * 演示应用错误
+ * @param req 请求对象
+ * @param res 响应对象
  */
-export const demonstrateDataSourceError = (req: Request, res: Response, next: NextFunction) => {
-  const errorType = req.query.subtype as string;
+export const demonstrateAppError = (req: Request, res: Response): void => {
+  // 模拟应用错误
+  const error = new AppError(
+    '应用程序运行时错误',
+    50000,
+    500,
+    'AppError',
+    {
+      module: 'report-generator',
+      operation: 'generatePDF'
+    }
+  );
   
-  switch (errorType) {
-    case 'connection':
-      throw DataSourceError.connectionFailed('无法连接到数据源', { 
-        source: 'MySQL', 
-        host: 'db.example.com' 
-      });
-    
-    case 'authentication':
-      throw DataSourceError.authenticationFailed('数据源认证失败', { 
-        source: 'PostgreSQL'
-      });
-    
-    case 'notFound':
-      throw DataSourceError.notFound('数据源不存在', { 
-        id: req.query.id 
-      });
-    
-    default:
-      // 创建新的DataSourceError实例
-      const error = new DataSourceError('数据源操作错误', ERROR_CODES.DATASOURCE_ERROR);
-      throw error;
-  }
+  // 设置请求路径和ID
+  error.path = req.path;
+  error.requestId = req.headers['x-request-id'] as string;
+  
+  // 抛出错误，将由错误处理中间件捕获
+  throw error;
 };
 
 /**
- * 展示查询错误用法
+ * 演示处理成功操作 - 返回正常响应
+ * @param req 请求对象
+ * @param res 响应对象
  */
-export const demonstrateQueryError = (req: Request, res: Response, next: NextFunction) => {
-  const errorType = req.query.subtype as string;
+export const demonstrateSuccess = (req: Request, res: Response): void => {
+  logger.info('处理成功请求');
   
-  switch (errorType) {
-    case 'syntax':
-      throw QueryError.syntaxError('SQL语法错误', { 
-        sql: 'SELECT * FORM users',
-        position: 7
-      });
-    
-    case 'timeout':
-      throw QueryError.timeout('查询执行超时', { 
-        sql: 'SELECT * FROM large_table', 
-        executionTime: '30s',
-        timeout: '15s'
-      });
-    
-    case 'permission':
-      throw QueryError.permissionDenied('无权执行此查询', { 
-        table: 'sensitive_data', 
-        operation: 'SELECT'
-      });
-    
+  res.status(200).json({
+    success: true,
+    message: '操作成功',
+    data: {
+      id: '12345',
+      timestamp: new Date()
+    }
+  });
+};
+
+/**
+ * 错误演示API主入口
+ * @param req 请求对象
+ * @param res 响应对象
+ */
+export const errorExamplesIndex = (req: Request, res: Response): void => {
+  const type = req.query.type as string;
+  
+  if (!type) {
+    res.status(200).json({
+      message: '错误演示API',
+      availableTypes: [
+        'badRequest',
+        'unauthorized',
+        'forbidden',
+        'notFound',
+        'conflict',
+        'tooManyRequests',
+        'internal'
+      ],
+      usage: '添加?type=错误类型来演示不同的错误响应'
+    });
+    return;
+  }
+  
+  switch(type) {
+    case 'badRequest':
+      throw ApiError.badRequest('无效的请求参数', { field: 'username', value: '' });
+    case 'unauthorized':
+      throw ApiError.unauthorized('身份验证失败');
+    case 'forbidden':
+      throw ApiError.forbidden('权限不足，禁止访问此资源');
+    case 'notFound':
+      throw ApiError.notFound('请求的资源不存在');
+    case 'conflict':
+      throw ApiError.conflict('资源冲突，无法完成请求');
+    case 'tooManyRequests':
+      throw ApiError.tooManyRequests('请求频率过高，请稍后再试');
+    case 'internal':
+      throw ApiError.internal('服务器内部错误');
     default:
-      // 创建新的QueryError实例
-      const error = new QueryError('查询执行失败', ERROR_CODES.QUERY_EXECUTION_ERROR);
-      throw error;
+      throw ApiError.badRequest(`不支持的错误类型: ${type}`);
   }
 };
