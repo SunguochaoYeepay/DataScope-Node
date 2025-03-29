@@ -45,6 +45,40 @@ router.post(
  *     responses:
  *       200:
  *         description: 数据源列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/DataSource'
+ *             example:
+ *               success: true
+ *               data:
+ *                 - id: "123e4567-e89b-12d3-a456-426614174000"
+ *                   name: "开发环境MySQL"
+ *                   type: "mysql"
+ *                   host: "localhost"
+ *                   port: 3306
+ *                   username: "admin"
+ *                   database: "dev_db"
+ *                   createdAt: "2023-06-15T08:30:00.000Z"
+ *                   updatedAt: "2023-06-15T08:30:00.000Z"
+ *                   isActive: true
+ *                 - id: "223e4567-e89b-12d3-a456-426614174001"
+ *                   name: "测试环境PostgreSQL"
+ *                   type: "postgresql"
+ *                   host: "test-server"
+ *                   port: 5432
+ *                   username: "test_user"
+ *                   database: "test_db"
+ *                   createdAt: "2023-06-14T10:30:00.000Z"
+ *                   updatedAt: "2023-06-14T10:30:00.000Z"
+ *                   isActive: true
  */
 router.get('/', dataSourceController.getAllDataSources);
 
@@ -63,8 +97,49 @@ router.get('/', dataSourceController.getAllDataSources);
  *     responses:
  *       200:
  *         description: 数据源详情
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/DataSource'
+ *             example:
+ *               success: true
+ *               data:
+ *                 id: "123e4567-e89b-12d3-a456-426614174000"
+ *                 name: "开发环境MySQL"
+ *                 type: "mysql"
+ *                 host: "localhost"
+ *                 port: 3306
+ *                 username: "admin"
+ *                 database: "dev_db"
+ *                 createdAt: "2023-06-15T08:30:00.000Z"
+ *                 updatedAt: "2023-06-15T08:30:00.000Z"
+ *                 isActive: true
+ *                 metadataStatus: "已同步"
+ *                 lastSyncAt: "2023-06-15T09:30:00.000Z"
  *       404:
  *         description: 数据源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: object
+ *             example:
+ *               success: false
+ *               error:
+ *                 statusCode: 404
+ *                 error: "NOT_FOUND"
+ *                 message: "数据源不存在"
+ *                 code: 40004
+ *                 timestamp: "2023-06-15T08:30:00.000Z"
  */
 router.get('/:id', dataSourceController.getDataSourceById);
 
@@ -138,9 +213,57 @@ router.delete(
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/DataSourceConnection'
+ *           example:
+ *             type: "mysql"
+ *             host: "localhost"
+ *             port: 3306
+ *             username: "test_user"
+ *             password: "test_password"
+ *             database: "test_db"
  *     responses:
  *       200:
  *         description: 测试结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     connected:
+ *                       type: boolean
+ *                     message:
+ *                       type: string
+ *                     details:
+ *                       type: object
+ *             examples:
+ *               success:
+ *                 summary: 连接成功
+ *                 value:
+ *                   success: true
+ *                   data:
+ *                     connected: true
+ *                     message: "数据源连接成功"
+ *                     details:
+ *                       serverVersion: "MySQL 8.0.28"
+ *                       connectionId: 12345
+ *                       connectTime: "10ms"
+ *               failure:
+ *                 summary: 连接失败
+ *                 value:
+ *                   success: false
+ *                   error:
+ *                     statusCode: 400
+ *                     error: "CONNECTION_ERROR"
+ *                     message: "无法连接到数据源"
+ *                     code: 70001
+ *                     details:
+ *                       errorCode: "ECONNREFUSED"
+ *                       host: "localhost"
+ *                       port: 3306
  */
 router.post(
   '/test-connection',

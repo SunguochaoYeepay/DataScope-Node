@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const express_validator_1 = require("express-validator");
 const query_controller_1 = __importDefault(require("../controllers/query.controller"));
+const query_plan_controller_1 = require("../controllers/query-plan.controller");
+const plan_visualization_controller_1 = __importDefault(require("../controllers/plan-visualization.controller"));
 const router = (0, express_1.Router)();
 /**
  * @swagger
@@ -80,11 +82,109 @@ router.get('/history', query_controller_1.default.getQueryHistory);
  *             required:
  *               - dataSourceId
  *               - sql
+ *           example:
+ *             dataSourceId: "123e4567-e89b-12d3-a456-426614174000"
+ *             sql: "SELECT * FROM users WHERE status = ? LIMIT 10"
+ *             params: ["active"]
+ *             limit: 10
+ *             sort: "created_at"
+ *             order: "desc"
  *     responses:
  *       200:
  *         description: 查询执行结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     columns:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     rows:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     metadata:
+ *                       type: object
+ *             example:
+ *               success: true
+ *               data: {
+ *                 columns: [
+ *                   {
+ *                     name: "id",
+ *                     type: "int"
+ *                   },
+ *                   {
+ *                     name: "username",
+ *                     type: "varchar"
+ *                   },
+ *                   {
+ *                     name: "email",
+ *                     type: "varchar"
+ *                   },
+ *                   {
+ *                     name: "status",
+ *                     type: "varchar"
+ *                   },
+ *                   {
+ *                     name: "created_at",
+ *                     type: "timestamp"
+ *                   }
+ *                 ],
+ *                 rows: [
+ *                   {
+ *                     id: 1,
+ *                     username: "john_doe",
+ *                     email: "john@example.com",
+ *                     status: "active",
+ *                     created_at: "2023-06-15T10:30:00.000Z"
+ *                   },
+ *                   {
+ *                     id: 2,
+ *                     username: "jane_smith",
+ *                     email: "jane@example.com",
+ *                     status: "active",
+ *                     created_at: "2023-06-14T08:15:00.000Z"
+ *                   }
+ *                 ],
+ *                 metadata: {
+ *                   executionTime: 45.32,
+ *                   rowCount: 2,
+ *                   totalRows: 987,
+ *                   dataSourceId: "123e4567-e89b-12d3-a456-426614174000",
+ *                   dataSourceName: "开发环境MySQL",
+ *                   queryId: "f1e2d3c4-b5a6-7890-cdef-123456789012"
+ *                 }
+ *               }
  *       400:
  *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: object
+ *             example:
+ *               success: false
+ *               error: {
+ *                 statusCode: 400,
+ *                 error: "BAD_REQUEST",
+ *                 message: "请求参数错误",
+ *                 code: 40000,
+ *                 details: [{
+ *                   field: "sql",
+ *                   message: "SQL语句不能为空"
+ *                 }]
+ *               }
  */
 router.post('/execute', [
     (0, express_validator_1.body)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
@@ -322,5 +422,70 @@ router.put('/:id', [
 router.delete('/:id', [
     (0, express_validator_1.param)('id').isUUID().withMessage('无效的查询ID'),
 ], query_controller_1.default.deleteQuery);
+/**
+ * @swagger
+ * /queries/{queryId}/execution-plan:
+ *   get:
+ *     summary: 获取查询执行计划 [兼容路由]
+ *     description: 获取指定查询的执行计划数据，用于前端兼容
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: queryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 查询ID
+ *     responses:
+ *       200:
+ *         description: 成功获取执行计划
+ *       404:
+ *         description: 查询不存在
+ */
+router.get('/:queryId/execution-plan', [
+    (0, express_validator_1.param)('queryId').isUUID().withMessage('无效的查询ID'),
+], async (req, res, next) => {
+    try {
+        // 转发到查询计划控制器
+        const queryPlanController = new query_plan_controller_1.QueryPlanController();
+        req.params.id = req.params.queryId; // 适配控制器参数
+        await queryPlanController.getSavedPlan(req, res);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+/**
+ * @swagger
+ * /queries/{queryId}/visualization:
+ *   get:
+ *     summary: 获取查询执行计划可视化数据 [兼容路由]
+ *     description: 获取指定查询的执行计划可视化数据，用于前端兼容
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: queryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 查询ID
+ *     responses:
+ *       200:
+ *         description: 成功获取可视化数据
+ *       404:
+ *         description: 查询不存在
+ */
+router.get('/:queryId/visualization', [
+    (0, express_validator_1.param)('queryId').isUUID().withMessage('无效的查询ID'),
+], async (req, res, next) => {
+    try {
+        // 复制参数，以适配目标控制器
+        req.params.planId = req.params.queryId;
+        await plan_visualization_controller_1.default.getVisualizationData(req, res, next);
+    }
+    catch (error) {
+        next(error);
+    }
+});
 exports.default = router;
 //# sourceMappingURL=query.routes.js.map
