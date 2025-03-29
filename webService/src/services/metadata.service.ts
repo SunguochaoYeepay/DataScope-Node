@@ -123,7 +123,7 @@ export class MetadataService {
                 schemaId: schema.id,
                 name: tableInfo.name,
                 type: tableInfo.type || 'TABLE',
-                description: tableInfo.comment || `${tableInfo.name} 表`,
+                description: tableInfo.description || `${tableInfo.name} 表`,
               },
             });
             logger.debug(`创建新表: ${tableInfo.name}, ID: ${table.id}`);
@@ -132,7 +132,7 @@ export class MetadataService {
               where: { id: table.id },
               data: {
                 type: tableInfo.type || 'TABLE',
-                description: tableInfo.comment || table.description,
+                description: tableInfo.description || table.description,
                 updatedAt: new Date(),
                 nonce: { increment: 1 },
               },
@@ -154,7 +154,7 @@ export class MetadataService {
           
           // 6. 获取主键信息
           const primaryKeys = await connector.getPrimaryKeys(schemaName, tableInfo.name);
-          const primaryKeyNames = primaryKeys.map(pk => pk.column_name);
+          const primaryKeyNames = primaryKeys.map(pk => pk.columnName);
           
           // 7. 获取外键信息
           const foreignKeys = await connector.getForeignKeys(schemaName, tableInfo.name);
@@ -166,7 +166,7 @@ export class MetadataService {
             
             // 判断是否为外键
             const isForeignKey = foreignKeys.some(fk => 
-              fk.column_name === columnInfo.name
+              fk.columnName === columnInfo.name
             );
             
             // 创建或更新列记录
@@ -182,15 +182,15 @@ export class MetadataService {
                 data: {
                   tableId: table.id,
                   name: columnInfo.name,
-                  dataType: columnInfo.type,
-                  length: columnInfo.length,
+                  dataType: columnInfo.dataType,
+                  length: columnInfo.maxLength,
                   precision: columnInfo.precision,
                   scale: columnInfo.scale,
-                  nullable: columnInfo.nullable,
+                  nullable: columnInfo.isNullable,
                   isPrimaryKey,
                   isForeignKey,
-                  defaultValue: columnInfo.default,
-                  description: columnInfo.comment || `${columnInfo.name} 列`,
+                  defaultValue: columnInfo.defaultValue,
+                  description: columnInfo.description || `${columnInfo.name} 列`,
                 },
               });
               logger.debug(`创建新列: ${columnInfo.name}, ID: ${column.id}`);
@@ -198,15 +198,15 @@ export class MetadataService {
               column = await prisma.column.update({
                 where: { id: column.id },
                 data: {
-                  dataType: columnInfo.type,
-                  length: columnInfo.length,
+                  dataType: columnInfo.dataType,
+                  length: columnInfo.maxLength,
                   precision: columnInfo.precision,
                   scale: columnInfo.scale,
-                  nullable: columnInfo.nullable,
+                  nullable: columnInfo.isNullable,
                   isPrimaryKey,
                   isForeignKey,
-                  defaultValue: columnInfo.default,
-                  description: columnInfo.comment || column.description,
+                  defaultValue: columnInfo.defaultValue,
+                  description: columnInfo.description || column.description,
                   updatedAt: new Date(),
                   nonce: { increment: 1 },
                 },
@@ -238,7 +238,7 @@ export class MetadataService {
           // 处理新的外键关系
           for (const fk of foreignKeys) {
             // 寻找目标表
-            const targetSchemaName = fk.referenced_schema || schemaName;
+            const targetSchemaName = fk.referencedSchema || schemaName;
             
             // 先找到目标Schema
             const targetSchema = await prisma.schema.findFirst({
@@ -249,7 +249,7 @@ export class MetadataService {
             });
             
             if (!targetSchema) {
-              logger.warn(`找不到目标Schema: ${targetSchemaName}, 跳过外键关系`);
+              logger.warn(`找不到目标架构: ${targetSchemaName}, 跳过外键关系`);
               continue;
             }
             
@@ -257,12 +257,12 @@ export class MetadataService {
             const targetTable = await prisma.table.findFirst({
               where: {
                 schemaId: targetSchema.id,
-                name: fk.referenced_table,
+                name: fk.referencedTable,
               },
             });
             
             if (!targetTable) {
-              logger.warn(`找不到目标表: ${fk.referenced_table}, 跳过外键关系`);
+              logger.warn(`找不到目标表: ${fk.referencedTable}, 跳过外键关系`);
               continue;
             }
             
@@ -270,45 +270,35 @@ export class MetadataService {
             const sourceColumn = await prisma.column.findFirst({
               where: {
                 tableId: table.id,
-                name: fk.column_name,
+                name: fk.columnName,
               },
             });
             
             const targetColumn = await prisma.column.findFirst({
               where: {
                 tableId: targetTable.id,
-                name: fk.referenced_column,
+                name: fk.referencedColumn,
               },
             });
             
             if (!sourceColumn || !targetColumn) {
-              logger.warn(`找不到源列或目标列, 跳过外键关系`);
+              logger.warn(`找不到外键关系的源列或目标列, 跳过此关系`);
               continue;
             }
             
             // 创建表关系
-            let tableRelationship = await prisma.tableRelationship.findFirst({
-              where: {
+            const tableRelationship = await prisma.tableRelationship.create({
+              data: {
                 sourceTableId: table.id,
                 targetTableId: targetTable.id,
+                type: 'MANY_TO_ONE', // 默认外键关系类型
+                confidence: 1.0,
+                isAutoDetected: true,
               },
             });
             
-            if (!tableRelationship) {
-              tableRelationship = await prisma.tableRelationship.create({
-                data: {
-                  sourceTableId: table.id,
-                  targetTableId: targetTable.id,
-                  type: 'MANY_TO_ONE', // 默认关系类型
-                  confidence: 1.0,
-                  isAutoDetected: true,
-                },
-              });
-              logger.debug(`创建表关系: ${table.name} -> ${targetTable.name}`);
-            }
-            
             // 创建列关系
-            const columnRelationship = await prisma.columnRelationship.create({
+            await prisma.columnRelationship.create({
               data: {
                 tableRelationshipId: tableRelationship.id,
                 sourceColumnId: sourceColumn.id,
@@ -316,33 +306,23 @@ export class MetadataService {
               },
             });
             
-            logger.debug(`创建列关系: ${table.name}.${sourceColumn.name} -> ${targetTable.name}.${targetColumn.name}`);
+            logger.debug(`创建外键关系: ${fk.constraintName} (${table.name}.${sourceColumn.name} -> ${targetTable.name}.${targetColumn.name})`);
           }
         }
       }
       
-      // 更新同步历史为成功
-      const endTime = new Date();
+      // 更新同步历史记录为完成状态
       await prisma.metadataSyncHistory.update({
         where: { id: syncHistoryId },
         data: {
+          endTime: new Date(),
           status: 'COMPLETED',
-          endTime,
-          duration: endTime.getTime() - syncHistory.startTime.getTime(),
           tablesCount,
           viewsCount,
         },
       });
       
-      // 更新数据源的最后同步时间
-      await prisma.dataSource.update({
-        where: { id: dataSourceId },
-        data: {
-          lastSyncTime: endTime,
-        },
-      });
-      
-      logger.info(`元数据同步完成, 耗时: ${endTime.getTime() - syncHistory.startTime.getTime()}ms, 共同步表: ${tablesCount}, 视图: ${viewsCount}`);
+      logger.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图`);
       
       return {
         tablesCount,
@@ -350,28 +330,25 @@ export class MetadataService {
         syncHistoryId,
       };
     } catch (error: any) {
-      logger.error('元数据同步失败', { error, dataSourceId });
+      logger.error(`数据源元数据同步失败 [${dataSourceId}]`, { error });
       
-      // 更新同步历史为失败
+      // 更新同步历史记录为失败状态
       if (syncHistoryId) {
-        const endTime = new Date();
         await prisma.metadataSyncHistory.update({
           where: { id: syncHistoryId },
           data: {
+            endTime: new Date(),
             status: 'FAILED',
-            endTime,
-            duration: endTime.getTime() - (await prisma.metadataSyncHistory.findUnique({ where: { id: syncHistoryId } }))!.startTime.getTime(),
-            errorMessage: error?.message || '未知错误',
-            tablesCount,
-            viewsCount,
+            errorMessage: error.message,
           },
         });
       }
       
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      throw new ApiError('元数据同步失败', 500, { message: error?.message || '未知错误' });
+      throw new ApiError(
+        `数据源元数据同步失败: ${error.message}`,
+        500,
+        { dataSourceId, error: error.stack }
+      );
     }
   }
   
