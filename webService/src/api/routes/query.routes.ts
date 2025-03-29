@@ -45,7 +45,39 @@ router.get('/history', queryController.getQueryHistory);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/QueryExecution'
+ *             type: object
+ *             properties:
+ *               dataSourceId:
+ *                 type: string
+ *                 description: 数据源ID
+ *               sql:
+ *                 type: string
+ *                 description: SQL语句
+ *               params:
+ *                 type: array
+ *                 description: 查询参数
+ *               page:
+ *                 type: integer
+ *                 description: 页码(从1开始)
+ *               pageSize:
+ *                 type: integer
+ *                 description: 每页记录数
+ *               offset:
+ *                 type: integer
+ *                 description: 偏移量(可替代page)
+ *               limit:
+ *                 type: integer
+ *                 description: 限制数量(可替代pageSize)
+ *               sort:
+ *                 type: string
+ *                 description: 排序字段
+ *               order:
+ *                 type: string
+ *                 enum: [asc, desc]
+ *                 description: 排序方向
+ *             required:
+ *               - dataSourceId
+ *               - sql
  *     responses:
  *       200:
  *         description: 查询执行结果

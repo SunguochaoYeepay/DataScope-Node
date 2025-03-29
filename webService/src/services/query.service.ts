@@ -9,7 +9,14 @@ export class QueryService {
   /**
    * 执行SQL查询
    */
-  async executeQuery(dataSourceId: string, sql: string, params: any[] = []): Promise<any> {
+  async executeQuery(dataSourceId: string, sql: string, params: any[] = [], options?: {
+    page?: number;
+    pageSize?: number;
+    offset?: number;
+    limit?: number;
+    sort?: string;
+    order?: 'asc' | 'desc';
+  }): Promise<any> {
     try {
       // 获取数据源连接器
       const connector = await dataSourceService.getConnector(dataSourceId);
@@ -31,7 +38,7 @@ export class QueryService {
         queryHistoryId = queryHistory.id;
         
         // 执行查询 - 传递queryHistoryId作为queryId以支持取消功能
-        const result = await connector.executeQuery(sql, params, queryHistoryId);
+        const result = await connector.executeQuery(sql, params, queryHistoryId, options);
         
         // 更新查询历史为成功
         const endTime = new Date();

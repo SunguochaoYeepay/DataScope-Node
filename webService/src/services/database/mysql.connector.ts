@@ -133,7 +133,7 @@ export class MySQLConnector implements DatabaseConnector {
   /**
    * 执行SQL查询
    */
-  async executeQuery(sql: string, params: any[] = [], queryId?: string): Promise<QueryResult> {
+  async executeQuery(sql: string, params: any[] = [], queryId?: string, options?: QueryOptions): Promise<QueryResult> {
     let connection;
     try {
       connection = await this.pool.getConnection();
@@ -148,7 +148,46 @@ export class MySQLConnector implements DatabaseConnector {
       }
       
       const startTime = Date.now();
-      const [rows, fields] = await connection.query(sql, params);
+      
+      // 处理分页查询
+      let originalSql = sql;
+      let modifiedSql = sql;
+      let totalCount: number | undefined;
+      
+      if (options && (options.page !== undefined || options.offset !== undefined)) {
+        // 计算分页参数
+        const page = options.page || 1;
+        const pageSize = options.pageSize || options.limit || 50;
+        const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
+        const limit = options.limit || options.pageSize || 50;
+        
+        // 添加排序
+        if (options.sort) {
+          const sortOrder = options.order === 'desc' ? 'DESC' : 'ASC';
+          // 使用子查询包装原始SQL，避免排序冲突
+          modifiedSql = `SELECT * FROM (${originalSql}) AS subquery ORDER BY ${options.sort} ${sortOrder}`;
+        }
+        
+        // 添加分页限制
+        modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+        
+        // 计算总记录数
+        try {
+          const countSql = `SELECT COUNT(*) AS total FROM (${originalSql}) AS count_query`;
+          const [countResult] = await connection.query(countSql, params);
+          totalCount = countResult[0].total;
+        } catch (countError) {
+          logger.warn('计算总记录数失败', {
+            error: countError?.message || '未知错误',
+            sql: originalSql,
+            dataSourceId: this._dataSourceId
+          });
+          // 给予宽容，如果计算总记录数失败，继续执行查询
+        }
+      }
+      
+      // 执行查询(可能已修改为分页查询)
+      const [rows, fields] = await connection.query(modifiedSql, params);
       const endTime = Date.now();
       
       logger.info('MySQL查询执行成功', {
@@ -160,11 +199,27 @@ export class MySQLConnector implements DatabaseConnector {
       // 处理不同类型的查询结果
       if (Array.isArray(rows)) {
         // SELECT 查询
-        return {
+        const queryResult: QueryResult = {
           fields: fields as any[],
           rows: rows as any[],
           rowCount: rows.length
         };
+        
+        // 添加分页信息（如果有的话）
+        if (options && (options.page !== undefined || options.offset !== undefined)) {
+          const page = options.page || 1;
+          const pageSize = options.pageSize || options.limit || 50;
+          
+          queryResult.page = page;
+          queryResult.pageSize = pageSize;
+          
+          if (totalCount !== undefined) {
+            queryResult.totalCount = totalCount;
+            queryResult.totalPages = Math.ceil(totalCount / pageSize);
+          }
+        }
+        
+        return queryResult;
       } else {
         // INSERT, UPDATE, DELETE 等
         const result = rows as mysql.ResultSetHeader;

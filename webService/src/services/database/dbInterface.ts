@@ -53,6 +53,15 @@ export interface TableInfo {
   updateTime: Date | null;
 }
 
+export interface QueryOptions {
+  page?: number;        // 当前页码，从1开始
+  pageSize?: number;    // 每页记录数
+  offset?: number;      // 偏移量（可替代page）
+  limit?: number;       // 限制数量（可替代pageSize）
+  sort?: string;        // 排序字段
+  order?: 'asc'|'desc'; // 排序方向
+}
+
 export interface QueryResult {
   fields: Array<{
     name: string;
@@ -61,7 +70,11 @@ export interface QueryResult {
     schema?: string;
   }>;
   rows: any[];
-  rowCount: number;
+  rowCount: number;     // 当前查询返回的行数
+  totalCount?: number;  // 不分页时的总行数（仅在分页查询时返回）
+  page?: number;        // 当前页码（仅在分页查询时返回）
+  pageSize?: number;    // 每页记录数（仅在分页查询时返回）
+  totalPages?: number;  // 总页数（仅在分页查询时返回）
   affectedRows?: number;
   lastInsertId?: number | string;
 }
@@ -75,7 +88,7 @@ export interface DatabaseConnector {
   /**
    * 执行查询
    */
-  executeQuery(sql: string, params?: any[], queryId?: string): Promise<QueryResult>;
+  executeQuery(sql: string, params?: any[], queryId?: string, options?: QueryOptions): Promise<QueryResult>;
   
   /**
    * 取消正在执行的查询

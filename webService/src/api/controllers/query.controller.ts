@@ -39,8 +39,10 @@ export class QueryController {
         throw new ApiError('验证错误', 400, { errors: errors.array() });
       }
 
-      const { dataSourceId, sql, params } = req.body;
-      const result = await queryService.executeQuery(dataSourceId, sql, params);
+      const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
+      const result = await queryService.executeQuery(dataSourceId, sql, params, {
+        page, pageSize, offset, limit, sort, order
+      });
       
       res.status(200).json({
         success: true,
