@@ -6,9 +6,11 @@ import {
   PrimaryKeyInfo,
   ForeignKeyInfo,
   IndexInfo,
-  TableInfo
+  TableInfo,
+  QueryOptions
 } from './dbInterface';
 import { DataSourceConnectionError, QueryExecutionError } from '../../utils/error';
+import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
 import logger from '../../utils/logger';
 
 /**
@@ -261,7 +263,7 @@ export class MySQLConnector implements DatabaseConnector {
    * @param params 查询参数
    * @returns 执行计划
    */
-  async explainQuery(sql: string, params: any[] = []): Promise<QueryPlan> {
+  async explainQuery(sql: string, params: any[] = []): Promise<any> {
     // 验证SQL语句是否为SELECT查询
     if (!this.isSelectQuery(sql)) {
       throw new QueryExecutionError(
