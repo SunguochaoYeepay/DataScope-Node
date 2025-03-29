@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>10/10</span>
+                <span class='fraction'>0/11</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">62.5% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>5/8</span>
+                <span class='fraction'>0/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>3/3</span>
+                <span class='fraction'>0/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>10/10</span>
+                <span class='fraction'>0/11</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -98,30 +98,28 @@
 <a name='L33'></a><a href='#L33'>33</a>
 <a name='L34'></a><a href='#L34'>34</a>
 <a name='L35'></a><a href='#L35'>35</a>
-<a name='L36'></a><a href='#L36'>36</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -130,34 +128,40 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import morgan, { StreamOptions } from 'morgan';
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import morgan from 'morgan';</span>
 import { Request, Response } from 'express';
-import logger from '../../utils/logger';
+<span class="cstat-no" title="statement not covered" >import logger from '../../utils/logger';</span>
 &nbsp;
 // 日志流配置
-const stream: StreamOptions = {
+const stream = <span class="cstat-no" title="statement not covered" >{</span>
   // 使用winston日志记录器写入日志
-  write: (message: string) =&gt; logger.http(message.trim()),
+  write: <span class="fstat-no" title="function not covered" >(m</span>essage: string) =&gt; <span class="cstat-no" title="statement not covered" >logger.info(message.trim()),</span>
 };
 &nbsp;
 // 跳过记录健康检查的日志
-const skip = (req: Request, res: Response) =&gt; {
-  return req.url === '/health' || req.url === '/api/health';
+const skip = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(r</span>eq: Request, res: Response) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >  return req.url === '/health' || req.url === '/api/health';</span>
 };
 &nbsp;
 // 格式化请求内容
-const requestFormat = (tokens: any, req: Request, res: Response) =&gt; {
-  const contentLength = tokens.res(req, res, 'content-length');
+const requestFormat = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(t</span>okens: any, req: Request, res: Response) =&gt; {</span>
+  const contentLength = <span class="cstat-no" title="statement not covered" >tokens.res(req, res, 'content-length');</span>
   
-  return JSON.stringify({
+<span class="cstat-no" title="statement not covered" >  return JSON.stringify({</span>
     method: tokens.method(req, res),
     url: tokens.url(req, res),
-    status: parseInt(tokens.status(req, res) || <span class="branch-1 cbranch-no" title="branch not covered" >'0',</span> 10),
-    contentLength: contentLength ? parseInt(contentLength, 10) : <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-    responseTime: parseFloat(tokens['response-time'](req, res) || <span class="branch-1 cbranch-no" title="branch not covered" >'0')</span>,
+    status: parseInt(tokens.status(req, res) || '0', 10),
+    contentLength: contentLength ? parseInt(contentLength, 10) : 0,
+    responseTime: parseFloat(tokens['response-time'](req, res) || '0'),
     remoteAddr: tokens['remote-addr'](req, res),
     userAgent: tokens['user-agent'](req, res),
     referrer: tokens.referrer(req, res),
@@ -165,17 +169,19 @@ const requestFormat = (tokens: any, req: Request, res: Response) =&gt; {
 };
 &nbsp;
 // 导出配置好的morgan中间件
-export const loggerMiddleware = morgan(requestFormat, {
+const morganMiddleware = <span class="cstat-no" title="statement not covered" >morgan(requestFormat, {</span>
   stream,
   skip,
-});</pre></td></tr></table></pre>
+});
+&nbsp;
+<span class="cstat-no" title="statement not covered" >export default morganMiddleware;</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T03:05:00.670Z
+                at 2025-03-29T16:12:12.174Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

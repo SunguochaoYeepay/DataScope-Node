@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.14% </span>
+                <span class="strong">6.77% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>7/114</span>
+                <span class='fraction'>8/118</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.19% </span>
+                <span class="strong">6.83% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>7/113</span>
+                <span class='fraction'>8/117</span>
             </div>
         
             
@@ -538,20 +538,28 @@
 <a name='L473'></a><a href='#L473'>473</a>
 <a name='L474'></a><a href='#L474'>474</a>
 <a name='L475'></a><a href='#L475'>475</a>
-<a name='L476'></a><a href='#L476'>476</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L476'></a><a href='#L476'>476</a>
+<a name='L477'></a><a href='#L477'>477</a>
+<a name='L478'></a><a href='#L478'>478</a>
+<a name='L479'></a><a href='#L479'>479</a>
+<a name='L480'></a><a href='#L480'>480</a>
+<a name='L481'></a><a href='#L481'>481</a>
+<a name='L482'></a><a href='#L482'>482</a>
+<a name='L483'></a><a href='#L483'>483</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -570,6 +578,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -847,9 +856,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1013,7 +1027,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">/**
+<span class="cline-any cline-yes">2x</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * 元数据服务
  * 
  * 负责从数据源同步元数据，包括数据库结构、表、列和关系
@@ -1022,6 +1036,8 @@ import { PrismaClient } from '@prisma/client';
 import { ApiError } from '../utils/error';
 import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
+import relationshipDetector from './metadata/relationship-detector';
+import columnAnalyzer from './metadata/column-analyzer';
 &nbsp;
 const prisma = new PrismaClient();
 &nbsp;
@@ -1326,6 +1342,11 @@ export class MetadataService {
         }
       }
       
+      // 使用关系检测器检测表关系
+<span class="cstat-no" title="statement not covered" >      logger.info(`开始检测表关系 [${dataSourceId}]`);</span>
+      const detectedRelationships = <span class="cstat-no" title="statement not covered" >await relationshipDetector.detectRelationships(dataSourceId);</span>
+<span class="cstat-no" title="statement not covered" >      logger.info(`检测到 ${detectedRelationships} 个表关系 [${dataSourceId}]`);</span>
+      
       // 更新同步历史记录为完成状态
 <span class="cstat-no" title="statement not covered" >      await prisma.metadataSyncHistory.update({</span>
         where: { id: syncHistoryId },
@@ -1337,7 +1358,7 @@ export class MetadataService {
         },
       });
       
-<span class="cstat-no" title="statement not covered" >      logger.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图`);</span>
+<span class="cstat-no" title="statement not covered" >      logger.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图, 检测了 ${detectedRelationships} 个表关系`);</span>
       
 <span class="cstat-no" title="statement not covered" >      return {</span>
         tablesCount,
@@ -1495,7 +1516,7 @@ export default new MetadataService();</pre></td></tr></table></pre>
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T03:05:00.670Z
+                at 2025-03-29T16:12:12.174Z
             </div>
         <script src="../../prettify.js"></script>
         <script>
