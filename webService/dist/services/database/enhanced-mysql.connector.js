@@ -164,7 +164,7 @@ class EnhancedMySQLConnector {
                 const queryResult = {
                     fields: fields.map(f => ({
                         name: f.name,
-                        type: f.type.toString(),
+                        type: f.type ? f.type.toString() : 'unknown',
                         table: f.table,
                         schema: f.db
                     })),

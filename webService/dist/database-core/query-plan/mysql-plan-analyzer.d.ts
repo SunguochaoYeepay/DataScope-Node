@@ -1,4 +1,8 @@
 import { QueryPlan } from '../../types/query-plan';
+/**
+ * MySQL查询计划分析器
+ * 分析MySQL执行计划并提供优化建议
+ */
 export declare class MySQLPlanAnalyzer {
     /**
      * 分析MySQL查询执行计划
@@ -6,6 +10,12 @@ export declare class MySQLPlanAnalyzer {
      * @returns 带有分析结果的查询执行计划
      */
     analyze(plan: QueryPlan): QueryPlan;
+    /**
+     * 获取查询计划的优化建议
+     * @param queryPlan 查询执行计划
+     * @returns 优化建议数组
+     */
+    getOptimizationTips(queryPlan: QueryPlan): string[];
     /**
      * 分析性能关注点
      * @param plan 查询执行计划
@@ -42,6 +52,13 @@ export declare class MySQLPlanAnalyzer {
      * @param analysis 性能分析结果
      */
     private updatePlanWithAnalysisResults;
+    /**
+     * 将内部分析结果转换为查询计划需要的性能分析格式
+     * @param analysis 性能分析结果
+     * @param planNodes 计划节点
+     * @returns 格式化的性能分析输出
+     */
+    private convertToPerformanceAnalysis;
     /**
      * 添加优化提示
      * @param plan 查询执行计划

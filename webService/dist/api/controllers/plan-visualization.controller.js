@@ -181,7 +181,7 @@ class PlanVisualizationController {
             }
         };
         // 处理节点
-        if (planData.planNodes && planData.planNodes.length > 0) {
+        if (Array.isArray(planData.planNodes) && planData.planNodes.length > 0) {
             // 首先创建所有节点
             result.nodes = planData.planNodes.map((node, index) => {
                 const isBottleneck = this.isNodeBottleneck(node);
@@ -190,10 +190,10 @@ class PlanVisualizationController {
                 }
                 return {
                     id: node.id || index + 1,
-                    label: `${node.type} - ${node.table}`,
-                    type: node.type,
-                    table: node.table,
-                    rows: node.rows,
+                    label: `${node.type || 'unknown'} - ${node.table || 'unknown'}`,
+                    type: node.type || 'unknown',
+                    table: node.table || 'unknown',
+                    rows: node.rows || 0,
                     filtered: node.filtered || 100,
                     key: node.key || '无索引',
                     extra: node.extra || '',
@@ -203,11 +203,15 @@ class PlanVisualizationController {
             });
             // 然后创建节点之间的连接
             for (let i = 0; i < planData.planNodes.length - 1; i++) {
-                result.links.push({
-                    source: planData.planNodes[i].id || i + 1,
-                    target: planData.planNodes[i + 1].id || i + 2,
-                    value: planData.planNodes[i].rows
-                });
+                const sourceNode = planData.planNodes[i];
+                const targetNode = planData.planNodes[i + 1];
+                if (sourceNode && targetNode) {
+                    result.links.push({
+                        source: sourceNode.id || i + 1,
+                        target: targetNode.id || i + 2,
+                        value: sourceNode.rows || 0
+                    });
+                }
             }
         }
         return result;
@@ -219,22 +223,25 @@ class PlanVisualizationController {
      * @returns 节点成本
      */
     calculateNodeCost(node, totalCost) {
+        if (!node || !node.type)
+            return 0;
+        const rows = node.rows || 0;
         // 如果没有总成本信息，则根据节点的行数估算
         if (!totalCost) {
-            return node.rows;
+            return rows;
         }
         // 否则尝试根据节点信息分配成本
         // 这里使用简化算法，实际情况可能需要更复杂的计算
         if (node.type === 'ALL') {
-            return node.rows * 2; // 全表扫描成本更高
+            return rows * 2; // 全表扫描成本更高
         }
         else if (node.type === 'range' || node.type === 'ref') {
-            return node.rows;
+            return rows;
         }
         else if (node.type === 'eq_ref' || node.type === 'const') {
             return 1; // 这些是高效的访问类型
         }
-        return node.rows;
+        return rows;
     }
     /**
      * 判断节点是否为瓶颈
@@ -242,8 +249,10 @@ class PlanVisualizationController {
      * @returns 是否为瓶颈
      */
     isNodeBottleneck(node) {
+        if (!node || !node.type)
+            return false;
         // 全表扫描通常是瓶颈
-        if (node.type === 'ALL' && node.rows > 1000) {
+        if (node.type === 'ALL' && (node.rows || 0) > 1000) {
             return true;
         }
         // 使用临时表或文件排序的节点
@@ -252,7 +261,7 @@ class PlanVisualizationController {
             return true;
         }
         // 扫描大量行但过滤率低的节点
-        if (node.rows > 10000 && (node.filtered !== undefined && node.filtered < 20)) {
+        if ((node.rows || 0) > 10000 && (node.filtered !== undefined && node.filtered < 20)) {
             return true;
         }
         return false;
@@ -276,14 +285,16 @@ class PlanVisualizationController {
             indexUsageChanges: []
         };
         // 比较节点
-        if (plan1.planNodes && plan2.planNodes) {
+        if (Array.isArray(plan1.planNodes) && Array.isArray(plan2.planNodes) &&
+            plan1.planNodes.length > 0 && plan2.planNodes.length > 0) {
             // 为简单起见，假设节点顺序匹配
             // 实际情况可能需要更复杂的匹配算法
             const minLength = Math.min(plan1.planNodes.length, plan2.planNodes.length);
             for (let i = 0; i < minLength; i++) {
                 const node1 = plan1.planNodes[i];
                 const node2 = plan2.planNodes[i];
-                if (node1.table === node2.table) {
+                // 确保节点和表名存在
+                if (node1 && node2 && node1.table && node2.table && node1.table === node2.table) {
                     // 比较相同表的处理方式
                     if (node1.type !== node2.type) {
                         result.accessTypeChanges.push({
@@ -305,9 +316,9 @@ class PlanVisualizationController {
                     result.nodeComparison.push({
                         table: node1.table,
                         rows: {
-                            plan1: node1.rows,
-                            plan2: node2.rows,
-                            difference: node2.rows - node1.rows
+                            plan1: node1.rows || 0,
+                            plan2: node2.rows || 0,
+                            difference: (node2.rows || 0) - (node1.rows || 0)
                         },
                         filtered: {
                             plan1: node1.filtered || 100,
@@ -332,9 +343,9 @@ class PlanVisualizationController {
      */
     countBottlenecks(plan) {
         let count = 0;
-        if (plan.planNodes) {
+        if (Array.isArray(plan.planNodes)) {
             for (const node of plan.planNodes) {
-                if (this.isNodeBottleneck(node)) {
+                if (node && this.isNodeBottleneck(node)) {
                     count++;
                 }
             }
@@ -348,12 +359,17 @@ class PlanVisualizationController {
      * @returns 是否改进
      */
     isAccessTypeImprovement(fromType, toType) {
+        if (!fromType || !toType)
+            return false;
         // 定义访问类型的效率排序（从高到低）
         const efficiency = ['system', 'const', 'eq_ref', 'ref', 'fulltext', 'ref_or_null',
             'index_merge', 'unique_subquery', 'index_subquery',
             'range', 'index', 'ALL'];
         const fromIndex = efficiency.indexOf(fromType);
         const toIndex = efficiency.indexOf(toType);
+        // 如果类型不在列表中，无法比较
+        if (fromIndex === -1 || toIndex === -1)
+            return false;
         // 索引越小，访问类型越高效
         return toIndex < fromIndex;
     }
@@ -364,28 +380,30 @@ class PlanVisualizationController {
      * @returns 优化后的SQL
      */
     generateOptimizedSql(originalSql, planData) {
+        if (!originalSql || !planData)
+            return originalSql || '';
         // 这里仅作为示例，实际优化需要更复杂的实现
         // 可能需要SQL解析器和根据不同问题的特定优化逻辑
         let optimizedSql = originalSql;
         // 检查是否有全表扫描，尝试添加WHERE条件提示
-        const fullTableScans = planData.planNodes ?
-            planData.planNodes.filter((node) => node.type === 'ALL') :
+        const fullTableScans = Array.isArray(planData.planNodes) ?
+            planData.planNodes.filter((node) => node && node.type === 'ALL') :
             [];
         if (fullTableScans.length > 0) {
             // 这里只是示例，不会真正修改SQL逻辑
-            const tables = fullTableScans.map((node) => node.table).join(', ');
+            const tables = fullTableScans.map((node) => node.table || 'unknown').join(', ');
             optimizedSql = `/* 建议为表 ${tables} 添加索引 */\n${optimizedSql}`;
         }
         // 检查是否使用了文件排序
-        const hasFilesort = planData.planNodes ?
-            planData.planNodes.some((node) => node.extra && node.extra.includes('Using filesort')) :
+        const hasFilesort = Array.isArray(planData.planNodes) ?
+            planData.planNodes.some((node) => node && node.extra && node.extra.includes('Using filesort')) :
             false;
         if (hasFilesort) {
             optimizedSql = `/* 考虑添加ORDER BY列的索引 */\n${optimizedSql}`;
         }
         // 检查是否使用了临时表
-        const hasTempTable = planData.planNodes ?
-            planData.planNodes.some((node) => node.extra && node.extra.includes('Using temporary')) :
+        const hasTempTable = Array.isArray(planData.planNodes) ?
+            planData.planNodes.some((node) => node && node.extra && node.extra.includes('Using temporary')) :
             false;
         if (hasTempTable) {
             optimizedSql = `/* 考虑简化查询或添加索引 */\n${optimizedSql}`;

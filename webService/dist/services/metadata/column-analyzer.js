@@ -264,7 +264,7 @@ class ColumnAnalyzer {
           ORDER BY MIN(${columnName})
         `;
                 const result = await connector.executeQuery(sql);
-                return result.rows.map(row => ({
+                return result.rows.map((row) => ({
                     range: row.time_group,
                     count: parseInt(row.count)
                 }));
@@ -294,7 +294,7 @@ class ColumnAnalyzer {
         LIMIT ${sampleSize}
       `;
             const result = await connector.executeQuery(sql);
-            return result.rows.map(row => row.value);
+            return result.rows.map((row) => row.value);
         }
         catch (error) {
             logger_1.default.error(`获取样本值时出错`, {
@@ -481,7 +481,25 @@ class ColumnAnalyzer {
      * 获取基数分布建议
      */
     getRecommendation(row) {
-        // ... existing code ...
+        // 根据基数值给出建议
+        const uniqueCount = row.unique_count || 0;
+        const totalCount = row.total_count || 0;
+        if (totalCount === 0) {
+            return '无数据，无法给出建议';
+        }
+        const ratio = uniqueCount / totalCount;
+        if (ratio > 0.9) {
+            return '列基数非常高，考虑用作主键或添加唯一索引';
+        }
+        else if (ratio > 0.7) {
+            return '列基数较高，适合创建索引';
+        }
+        else if (ratio > 0.3) {
+            return '列基数中等，可以考虑创建索引，但效果可能一般';
+        }
+        else {
+            return '列基数较低，不适合单独创建索引';
+        }
     }
     /**
      * 判断是否为数值类型

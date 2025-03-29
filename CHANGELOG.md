@@ -1,5 +1,22 @@
 # 变更日志
 
+## [1.0.3] - 2023-06-01
+
+### 新增
+- 添加 MySQL 查询计划分析器中的 getOptimizationTips 方法，支持获取查询优化建议
+- 完善 column-analyzer 中的列基数分析，添加不同基数水平的具体建议
+
+### 优化
+- 改进类型系统，确保 PerformanceAnalysis 类型在不同模块间正确转换
+- 增强 plan-visualization.controller 对节点数据的安全处理，避免运行时错误
+- 优化数据源类型定义，修正 DatabaseType 的类型引用问题
+
+### 修复
+- 修复 MySQL 查询计划分析器中类型冲突问题
+- 解决 plan-visualization.controller 中的 null 引用错误
+- 修复 column-analyzer 中 getRecommendation 缺少返回值的问题
+- 处理 isAccessTypeImprovement 方法对无效或不支持类型的处理逻辑
+
 ## [1.0.2] - 2023-05-25
 
 ### 新增

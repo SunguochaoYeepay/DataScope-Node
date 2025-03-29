@@ -1,122 +1,138 @@
 /**
- * 数据库核心模块入口
- * 导出查询计划分析和优化相关的组件
+ * 数据库核心功能入口文件
+ * 提供获取查询计划转换器、分析器和优化器的工厂函数
  */
 
-// 导入日志记录器
-import logger from '../utils/logger';
-
-// 查询计划转换器
-import { MySQLQueryPlanConverter } from './query-plan/mysql-query-plan-converter';
-
-// 查询计划分析器
-import { MySQLPlanAnalyzer } from './query-plan/mysql-plan-analyzer';
-
-// 查询优化器
-import { MySQLQueryOptimizer, OptimizationSuggestion } from './query-optimizer/mysql-query-optimizer';
-
-// 数据库类型
 import { DatabaseType } from '../types/database';
+import { MySQLQueryPlanConverter } from './query-plan/mysql-query-plan-converter';
+import { MySQLPlanAnalyzer } from './query-plan/mysql-plan-analyzer';
+import { MySQLQueryOptimizer } from './query-optimizer/mysql-query-optimizer';
 
-// 导出查询计划相关组件
-export {
-  // 查询计划转换器
-  MySQLQueryPlanConverter,
+/**
+ * 查询计划转换器接口
+ */
+export interface QueryPlanConverter {
+  /**
+   * 转换传统格式的EXPLAIN结果
+   */
+  convertTraditionalExplain(explainResult: any, query: string): any;
   
-  // 查询计划分析器
-  MySQLPlanAnalyzer,
-  
-  // 查询优化器
-  MySQLQueryOptimizer,
-  OptimizationSuggestion
-};
+  /**
+   * 转换JSON格式的EXPLAIN结果
+   */
+  convertJsonExplain(explainJsonResult: any, query: string): any;
+}
 
-// 工厂函数 - 获取指定数据库类型的查询计划转换器
-export function getQueryPlanConverter(dbType: string) {
-  // 当前只支持MySQL，其他数据库类型返回默认MySQL转换器或抛出错误
-  const normalizedType = dbType.toLowerCase();
+/**
+ * 查询计划分析器接口
+ */
+export interface QueryPlanAnalyzer {
+  /**
+   * 分析查询计划
+   */
+  analyze(queryPlan: any): any;
   
-  if (normalizedType === 'mysql') {
-    return new MySQLQueryPlanConverter();
-  }
+  /**
+   * 获取优化建议
+   */
+  getOptimizationTips(queryPlan: any): string[];
+}
+
+/**
+ * 查询优化器接口
+ */
+export interface QueryOptimizer {
+  /**
+   * 分析SQL并提供优化建议
+   */
+  analyzeSql(queryPlan: any, sql: string): any[];
   
-  // 对于其他类型，暂时返回MySQL转换器
-  logger.warn(`数据库类型 ${dbType} 的查询计划转换器尚未实现，使用MySQL转换器替代`);
-  return new MySQLQueryPlanConverter();
+  /**
+   * 生成优化后的SQL
+   */
+  generateOptimizedSql(sql: string, suggestions: any[]): string;
+}
+
+/**
+ * 获取查询计划转换器
+ * @param dbType 数据库类型
+ * @returns 查询计划转换器实例
+ */
+export function getQueryPlanConverter(dbType: DatabaseType): QueryPlanConverter {
+  const lowerType = dbType.toLowerCase();
   
-  // 未来扩展时，取消下面注释并实现对应的转换器
-  /*
-  switch (normalizedType) {
+  switch (lowerType) {
     case 'mysql':
       return new MySQLQueryPlanConverter();
     case 'postgresql':
-      // return new PostgreSQLQueryPlanConverter();
+      // 临时使用MySQL转换器
+      console.warn('PostgreSQL查询计划转换器尚未实现，临时使用MySQL转换器');
+      return new MySQLQueryPlanConverter();
     case 'sqlserver':
-      // return new SQLServerQueryPlanConverter();
+      // 临时使用MySQL转换器
+      console.warn('SQL Server查询计划转换器尚未实现，临时使用MySQL转换器');
+      return new MySQLQueryPlanConverter();
     case 'oracle':
-      // return new OracleQueryPlanConverter();
+      // 临时使用MySQL转换器
+      console.warn('Oracle查询计划转换器尚未实现，临时使用MySQL转换器');
+      return new MySQLQueryPlanConverter();
     default:
       throw new Error(`不支持的数据库类型: ${dbType}`);
   }
-  */
 }
 
-// 工厂函数 - 获取指定数据库类型的查询计划分析器
-export function getQueryPlanAnalyzer(dbType: string) {
-  // 当前只支持MySQL，其他数据库类型返回默认MySQL分析器或抛出错误
-  const normalizedType = dbType.toLowerCase();
+/**
+ * 获取查询计划分析器
+ * @param dbType 数据库类型
+ * @returns 查询计划分析器实例
+ */
+export function getQueryPlanAnalyzer(dbType: DatabaseType): QueryPlanAnalyzer {
+  const lowerType = dbType.toLowerCase();
   
-  if (normalizedType === 'mysql') {
-    return new MySQLPlanAnalyzer();
-  }
-  
-  // 对于其他类型，暂时返回MySQL分析器
-  logger.warn(`数据库类型 ${dbType} 的查询计划分析器尚未实现，使用MySQL分析器替代`);
-  return new MySQLPlanAnalyzer();
-  
-  // 未来扩展时，取消下面注释并实现对应的分析器
-  /*
-  switch (normalizedType) {
+  switch (lowerType) {
     case 'mysql':
       return new MySQLPlanAnalyzer();
     case 'postgresql':
-      // return new PostgreSQLPlanAnalyzer();
+      // 临时使用MySQL分析器
+      console.warn('PostgreSQL查询计划分析器尚未实现，临时使用MySQL分析器');
+      return new MySQLPlanAnalyzer();
     case 'sqlserver':
-      // return new SQLServerPlanAnalyzer();
+      // 临时使用MySQL分析器
+      console.warn('SQL Server查询计划分析器尚未实现，临时使用MySQL分析器');
+      return new MySQLPlanAnalyzer();
     case 'oracle':
-      // return new OraclePlanAnalyzer();
+      // 临时使用MySQL分析器
+      console.warn('Oracle查询计划分析器尚未实现，临时使用MySQL分析器');
+      return new MySQLPlanAnalyzer();
     default:
       throw new Error(`不支持的数据库类型: ${dbType}`);
   }
-  */
 }
 
-// 工厂函数 - 获取指定数据库类型的查询优化器
-export function getQueryOptimizer(dbType: string) {
-  // 当前只支持MySQL，其他数据库类型返回默认MySQL优化器或抛出错误
-  const normalizedType = dbType.toLowerCase();
+/**
+ * 获取SQL查询优化器
+ * @param dbType 数据库类型
+ * @returns SQL查询优化器实例
+ */
+export function getQueryOptimizer(dbType: DatabaseType): QueryOptimizer {
+  const lowerType = dbType.toLowerCase();
   
-  if (normalizedType === 'mysql') {
-    return new MySQLQueryOptimizer();
-  }
-  
-  // 对于其他类型，暂时返回MySQL优化器
-  logger.warn(`数据库类型 ${dbType} 的查询优化器尚未实现，使用MySQL优化器替代`);
-  return new MySQLQueryOptimizer();
-  
-  // 未来扩展时，取消下面注释并实现对应的优化器
-  /*
-  switch (normalizedType) {
+  switch (lowerType) {
     case 'mysql':
       return new MySQLQueryOptimizer();
     case 'postgresql':
-      // return new PostgreSQLQueryOptimizer();
+      // 临时使用MySQL优化器
+      console.warn('PostgreSQL查询优化器尚未实现，临时使用MySQL优化器');
+      return new MySQLQueryOptimizer();
     case 'sqlserver':
-      // return new SQLServerQueryOptimizer();
+      // 临时使用MySQL优化器
+      console.warn('SQL Server查询优化器尚未实现，临时使用MySQL优化器');
+      return new MySQLQueryOptimizer();
     case 'oracle':
-      // return new OracleQueryOptimizer();
+      // 临时使用MySQL优化器
+      console.warn('Oracle查询优化器尚未实现，临时使用MySQL优化器');
+      return new MySQLQueryOptimizer();
     default:
       throw new Error(`不支持的数据库类型: ${dbType}`);
   }
-  */
 } 

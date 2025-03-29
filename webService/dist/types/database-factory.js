@@ -4,12 +4,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DatabaseConnectorFactory = void 0;
-const datasource_1 = require("./datasource");
 const enhanced_mysql_connector_1 = require("../services/database/enhanced-mysql.connector");
+const error_1 = require("../utils/error");
 const logger_1 = __importDefault(require("../utils/logger"));
+// 缓存连接器实例
+const connectorCache = {};
 /**
  * 数据库连接器工厂类
- * 负责创建匹配数据库类型的连接器
+ * 用于创建不同类型数据库的连接器实例
  */
 class DatabaseConnectorFactory {
     /**
@@ -20,34 +22,65 @@ class DatabaseConnectorFactory {
      * @returns 数据库连接器实例
      */
     static createConnector(dataSourceId, type, config) {
-        logger_1.default.debug('创建数据库连接器', { dataSourceId, type });
-        switch (type) {
-            case datasource_1.DatabaseType.MYSQL:
-                return new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, {
-                    host: config.host,
-                    port: config.port,
-                    user: config.user,
-                    password: config.password,
-                    database: config.database
-                });
-            case datasource_1.DatabaseType.POSTGRESQL:
-                // 创建PostgreSQL连接器
-                throw new Error('PostgreSQL连接器尚未实现');
-            case datasource_1.DatabaseType.SQLSERVER:
-                // 创建SQL Server连接器
-                throw new Error('SQL Server连接器尚未实现');
-            case datasource_1.DatabaseType.ORACLE:
-                // 创建Oracle连接器
-                throw new Error('Oracle连接器尚未实现');
-            case datasource_1.DatabaseType.MONGODB:
-                // 创建MongoDB连接器
-                throw new Error('MongoDB连接器尚未实现');
-            case datasource_1.DatabaseType.ELASTICSEARCH:
-                // 创建Elasticsearch连接器
-                throw new Error('Elasticsearch连接器尚未实现');
-            default:
-                throw new Error(`不支持的数据库类型: ${type}`);
+        // 检查缓存中是否已存在连接器实例
+        const cacheKey = `${dataSourceId}`;
+        if (connectorCache[cacheKey]) {
+            return connectorCache[cacheKey];
         }
+        // 根据数据库类型创建对应的连接器
+        let connector;
+        const lowerType = type.toLowerCase();
+        switch (lowerType) {
+            case 'mysql':
+                connector = new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, config);
+                break;
+            case 'postgresql':
+                // 目前使用MySQL连接器做临时替代
+                logger_1.default.warn('PostgreSQL连接器尚未实现，临时使用MySQL连接器代替');
+                connector = new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, config);
+                break;
+            case 'sqlserver':
+                // 目前使用MySQL连接器做临时替代
+                logger_1.default.warn('SQL Server连接器尚未实现，临时使用MySQL连接器代替');
+                connector = new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, config);
+                break;
+            case 'oracle':
+                // 目前使用MySQL连接器做临时替代
+                logger_1.default.warn('Oracle连接器尚未实现，临时使用MySQL连接器代替');
+                connector = new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, config);
+                break;
+            case 'mongodb':
+                // 目前使用MySQL连接器做临时替代
+                logger_1.default.warn('MongoDB连接器尚未实现，临时使用MySQL连接器代替');
+                connector = new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, config);
+                break;
+            case 'elasticsearch':
+                // 目前使用MySQL连接器做临时替代
+                logger_1.default.warn('Elasticsearch连接器尚未实现，临时使用MySQL连接器代替');
+                connector = new enhanced_mysql_connector_1.EnhancedMySQLConnector(dataSourceId, config);
+                break;
+            default:
+                logger_1.default.error(`不支持的数据库类型: ${type}`);
+                throw new error_1.ApiError(`不支持的数据库类型: ${type}`, 400);
+        }
+        // 缓存连接器实例
+        connectorCache[cacheKey] = connector;
+        return connector;
+    }
+    /**
+     * 从缓存中获取连接器
+     * @param dataSourceId 数据源ID
+     * @returns 数据库连接器实例或undefined
+     */
+    static getConnectorFromCache(dataSourceId) {
+        return connectorCache[dataSourceId];
+    }
+    /**
+     * 从缓存中移除连接器
+     * @param dataSourceId 数据源ID
+     */
+    static removeConnectorFromCache(dataSourceId) {
+        delete connectorCache[dataSourceId];
     }
 }
 exports.DatabaseConnectorFactory = DatabaseConnectorFactory;

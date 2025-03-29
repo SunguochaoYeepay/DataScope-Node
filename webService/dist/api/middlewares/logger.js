@@ -3,13 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loggerMiddleware = void 0;
 const morgan_1 = __importDefault(require("morgan"));
 const logger_1 = __importDefault(require("../../utils/logger"));
 // 日志流配置
 const stream = {
     // 使用winston日志记录器写入日志
-    write: (message) => logger_1.default.http(message.trim()),
+    write: (message) => logger_1.default.info(message.trim()),
 };
 // 跳过记录健康检查的日志
 const skip = (req, res) => {
@@ -30,8 +29,9 @@ const requestFormat = (tokens, req, res) => {
     });
 };
 // 导出配置好的morgan中间件
-exports.loggerMiddleware = (0, morgan_1.default)(requestFormat, {
+const morganMiddleware = (0, morgan_1.default)(requestFormat, {
     stream,
     skip,
 });
+exports.default = morganMiddleware;
 //# sourceMappingURL=logger.js.map

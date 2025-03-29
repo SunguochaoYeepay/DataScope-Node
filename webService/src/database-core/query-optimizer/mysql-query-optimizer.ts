@@ -252,7 +252,7 @@ export class MySQLQueryOptimizer {
       const joinIssues = plan.performanceAnalysis.joinAnalysis;
       
       // 检查是否有通过相同大小的表
-      const hasSizableTables = joinIssues.some(join => join.tables.length > 1 && join.joinType === 'inefficient');
+      const hasSizableTables = joinIssues.some(join => join.type === 'inefficient_join');
       
       if (hasSizableTables) {
         suggestions.push({

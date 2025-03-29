@@ -1,6 +1,6 @@
 /**
  * MySQL查询优化器
- * 提供查询分析和优化建议
+ * 基于查询执行计划分析，生成优化建议和优化后的SQL查询
  */
 import { QueryPlan } from '../../types/query-plan';
 /**
@@ -8,71 +8,47 @@ import { QueryPlan } from '../../types/query-plan';
  */
 export interface OptimizationSuggestion {
     type: string;
+    priority: number;
     description: string;
-    suggestedFix: string;
-    originalSql?: string;
-    optimizedSql?: string;
-    estimatedImprovement?: number;
+    action: string;
+    impact: string;
+    example?: string;
 }
+/**
+ * MySQL查询优化器
+ * 分析查询执行计划，提供SQL优化建议
+ */
 export declare class MySQLQueryOptimizer {
     /**
-     * 分析查询并生成优化建议
-     * @param queryPlan 查询执行计划
-     * @param originalSql 原始SQL查询
-     * @returns 优化建议列表
+     * 分析SQL查询并生成优化建议
+     * @param plan 查询执行计划
+     * @param sql 原始SQL查询
+     * @returns 优化建议数组
      */
-    analyzeSql(queryPlan: QueryPlan, originalSql: string): OptimizationSuggestion[];
+    analyzeSql(plan: QueryPlan, sql: string): OptimizationSuggestion[];
     /**
-     * 生成优化后的SQL
-     * @param originalSql 原始SQL
+     * 将优化提示转换为优化建议
+     * @param tip 优化提示
+     * @returns 优化建议
+     */
+    private convertTipToSuggestion;
+    /**
+     * 分析SQL语句结构
+     * @param sql SQL查询语句
+     * @param suggestions 存放生成的建议
+     */
+    private analyzeSqlStructure;
+    /**
+     * 分析性能特征
+     * @param plan 查询执行计划
+     * @param suggestions 存放生成的建议
+     */
+    private analyzePerformanceFeatures;
+    /**
+     * 根据优化建议生成优化后的SQL查询
+     * @param originalSql 原始SQL查询
      * @param suggestions 优化建议
-     * @returns 优化后的SQL
+     * @returns 优化后的SQL查询
      */
     generateOptimizedSql(originalSql: string, suggestions: OptimizationSuggestion[]): string;
-    /**
-     * 识别查询模式
-     * @param queryPlan 查询执行计划
-     * @param sql 原始SQL
-     * @returns 识别出的模式列表
-     */
-    private identifyQueryPatterns;
-    /**
-     * 生成SELECT列建议
-     * @param sql 原始SQL
-     * @returns 优化建议
-     */
-    private generateSelectColumnsRecommendation;
-    /**
-     * 生成LIKE通配符建议
-     * @param sql 原始SQL
-     * @returns 优化建议
-     */
-    private generateLikeRecommendation;
-    /**
-     * 生成子查询优化建议
-     * @param sql 原始SQL
-     * @returns 优化建议
-     */
-    private generateSubqueryRecommendation;
-    /**
-     * 生成索引建议
-     * @param queryPlan 查询执行计划
-     * @param sql 原始SQL
-     * @returns 优化建议
-     */
-    private generateIndexRecommendation;
-    /**
-     * 生成连接优化建议
-     * @param queryPlan 查询执行计划
-     * @param sql 原始SQL
-     * @returns 优化建议
-     */
-    private generateJoinOptimizationRecommendation;
-    /**
-     * 添加基于执行计划的具体建议
-     * @param queryPlan 查询执行计划
-     * @param sql 原始SQL
-     * @param suggestions 现有建议列表
-     */
-    private addPlanBasedSuggestions;
 }

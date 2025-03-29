@@ -164,5 +164,24 @@ router.post('/compare', auth_1.authenticate, [
 router.delete('/:id', auth_1.authenticate, [
     (0, express_validator_1.param)('id').isUUID().withMessage('执行计划ID无效')
 ], queryPlanController.deletePlan);
+/**
+ * @api {get} /api/query-plans/:id/optimize 获取优化后的SQL查询
+ * @apiName GetOptimizedQuery
+ * @apiGroup QueryPlan
+ * @apiDescription 根据查询执行计划生成优化后的SQL查询和优化建议
+ *
+ * @apiHeader {String} Authorization 用户认证token
+ *
+ * @apiParam {String} id 执行计划ID
+ *
+ * @apiSuccess {Boolean} success 请求是否成功
+ * @apiSuccess {Object} data 优化结果
+ * @apiSuccess {String} data.originalSql 原始SQL查询
+ * @apiSuccess {String} data.optimizedSql 优化后的SQL查询
+ * @apiSuccess {Array} data.suggestions 优化建议
+ */
+router.get('/:id/optimize', auth_1.authenticate, [
+    (0, express_validator_1.param)('id').isUUID().withMessage('执行计划ID无效')
+], queryPlanController.getOptimizedQuery);
 exports.default = router;
 //# sourceMappingURL=query-plan.routes.js.map

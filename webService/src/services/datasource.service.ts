@@ -6,10 +6,19 @@ import logger from '../utils/logger';
 import config from '../config/env';
 import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword, verifyPassword } from '../utils/crypto';
 import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
-import { DatabaseType } from "../types/datasource";
-import { DatabaseConnectorFactory } from "../types/database-factory";
+import { DatabaseType } from '../types/database';
+import { DatabaseConnectorFactory } from '../types/database-factory';
 
 const prisma = new PrismaClient();
+
+// 每当用户发送请求更新DataSource时，但是省略某些字段，这些缺省值应该是什么
+interface DataSourceDefaults {
+  status: string;
+}
+
+const DEFAULT_DATASOURCE_VALUES: DataSourceDefaults = {
+  status: 'active'
+};
 
 // 模拟数据源的完整数据
 const mockDataSources: Omit<DataSource, 'passwordEncrypted' | 'passwordSalt'>[] = [
@@ -355,7 +364,7 @@ export class DataSourceService {
     // 创建临时连接器
     const connector = DatabaseConnectorFactory.createConnector(
       'temp',
-      type as DatabaseType,
+      type.toLowerCase() as DatabaseType,
       {
         host,
         port,
@@ -387,7 +396,7 @@ export class DataSourceService {
     
     return DatabaseConnectorFactory.createConnector(
       dataSource.id,
-      dataSource.type as DatabaseType,
+      dataSource.type.toLowerCase() as DatabaseType,
       {
         host: dataSource.host,
         port: dataSource.port,

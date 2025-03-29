@@ -38,8 +38,22 @@ export class MySQLQueryPlanConverter {
     // 添加性能分析
     if (this.hasPerformanceIssues(planNodes)) {
       queryPlan.performanceAnalysis = {
-        bottlenecks: this.identifyBottlenecks(planNodes),
-        recommendedIndexes: this.suggestIndexes(planNodes, originalQuery)
+        bottlenecks: this.identifyBottlenecks(planNodes).map(bottleneck => ({
+          severity: 'high',
+          type: 'bottleneck',
+          description: bottleneck,
+          suggestedAction: '查看优化建议'
+        })),
+        indexUsage: {
+          missingIndexes: this.suggestIndexes(planNodes, originalQuery).map(suggestion => ({
+            severity: 'medium',
+            type: 'missing_index',
+            description: suggestion,
+            suggestedAction: '添加合适的索引'
+          })),
+          inefficientIndexes: []
+        },
+        joinAnalysis: []
       };
     }
     

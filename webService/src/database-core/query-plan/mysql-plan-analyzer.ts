@@ -1,45 +1,16 @@
-import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
+import { QueryPlan, QueryPlanNode, PerformanceAnalysis as QueryPlanPerformanceAnalysis, PerformanceConcern, IndexUsageAnalysis } from '../../types/query-plan';
 import logger from '../../utils/logger';
 import { 
-  PerformanceConcern, 
-  PerformanceAnalysisResult, 
-  PerformanceAnalysis 
+  PerformanceAnalysisResult,
+  PlanBottleneck,
+  IndexUsage,
+  JoinAnalysis
 } from '../../types/performance-analysis';
 
 /**
  * MySQL查询计划分析器
  * 分析MySQL执行计划并提供优化建议
  */
-
-/**
- * 性能关注点类型
- */
-type PerformanceConcern = {
-  severity: 'high' | 'medium' | 'low';
-  type: string;
-  description: string;
-  suggestedAction: string;
-};
-
-/**
- * 性能分析结果
- */
-type PerformanceAnalysis = {
-  bottlenecks: PerformanceConcern[];
-  indexUsage: {
-    missingIndexes: PerformanceConcern[];
-    inefficientIndexes: PerformanceConcern[];
-  };
-  joinAnalysis: PerformanceConcern[];
-};
-
-// 性能分析输出接口
-interface PerformanceAnalysisOutput {
-  bottlenecks: Array<{nodeId: number; reason: string;}>;
-  indexUsage: Array<{table: string; index: string; effectiveness: number;}>;
-  joinAnalysis: Array<{tables: string[]; joinType: string; condition: string; cost: number;}>;
-}
-
 export class MySQLPlanAnalyzer {
   /**
    * 分析MySQL查询执行计划
@@ -88,6 +59,22 @@ export class MySQLPlanAnalyzer {
       
       return plan;
     }
+  }
+  
+  /**
+   * 获取查询计划的优化建议
+   * @param queryPlan 查询执行计划
+   * @returns 优化建议数组
+   */
+  public getOptimizationTips(queryPlan: QueryPlan): string[] {
+    // 如果计划已经有优化建议，直接返回
+    if (queryPlan.optimizationTips && queryPlan.optimizationTips.length > 0) {
+      return queryPlan.optimizationTips;
+    }
+    
+    // 否则，先分析计划，然后返回优化建议
+    const analyzedPlan = this.analyze(queryPlan);
+    return analyzedPlan.optimizationTips || [];
   }
   
   /**
@@ -277,74 +264,47 @@ export class MySQLPlanAnalyzer {
     this.addOptimizationTips(plan, analysis);
     
     // 添加性能分析结果到计划
-    plan.performanceAnalysis = this.convertToPerformanceOutput(analysis, plan.planNodes);
+    plan.performanceAnalysis = this.convertToPerformanceAnalysis(analysis, plan.planNodes || []);
   }
   
   /**
-   * 将内部分析结果转换为标准输出格式
+   * 将内部分析结果转换为查询计划需要的性能分析格式
    * @param analysis 性能分析结果
    * @param planNodes 计划节点
    * @returns 格式化的性能分析输出
    */
-  private convertToPerformanceOutput(analysis: PerformanceAnalysisResult, planNodes: QueryPlanNode[]): PerformanceAnalysis {
-    // 转换瓶颈
-    const bottlenecks = analysis.bottlenecks.map(bottleneck => {
-      // 从描述中提取表名
-      const tableMatch = bottleneck.description.match(/表\s+(\w+)/);
-      const table = tableMatch ? tableMatch[1] : '';
-      
-      // 查找对应的节点ID
-      const nodeId = planNodes.findIndex(node => node.table === table) + 1;
-      
-      return {
-        nodeId: nodeId > 0 ? nodeId : 1,
-        reason: bottleneck.description
-      };
-    });
+  private convertToPerformanceAnalysis(analysis: PerformanceAnalysisResult, planNodes: QueryPlanNode[]): QueryPlanPerformanceAnalysis {
+    // 转换瓶颈为PerformanceConcern类型
+    const bottlenecks: PerformanceConcern[] = analysis.bottlenecks.map(bottleneck => ({
+      severity: bottleneck.severity,
+      type: bottleneck.type,
+      description: bottleneck.description,
+      suggestedAction: bottleneck.suggestedAction
+    }));
     
     // 转换索引使用情况
-    const indexUsage = [
-      ...analysis.indexUsage.missingIndexes.map(item => {
-        const tableMatch = item.description.match(/表\s+(\w+)/);
-        const table = tableMatch ? tableMatch[1] : '';
-        
-        return {
-          table,
-          index: '缺失',
-          effectiveness: 0
-        };
-      }),
-      ...analysis.indexUsage.inefficientIndexes.map(item => {
-        const tableMatch = item.description.match(/表\s+(\w+)/);
-        const table = tableMatch ? tableMatch[1] : '';
-        
-        const indexMatch = item.description.match(/索引\s+(\w+)/);
-        const index = indexMatch ? indexMatch[1] : '未知';
-        
-        // 从描述中提取过滤率
-        const filterMatch = item.description.match(/率低\s+\((\d+)%\)/);
-        const effectiveness = filterMatch ? parseInt(filterMatch[1]) : 50;
-        
-        return {
-          table,
-          index,
-          effectiveness
-        };
-      })
-    ];
+    const indexUsage: IndexUsageAnalysis = {
+      missingIndexes: analysis.indexUsage.missingIndexes.map(item => ({
+        severity: item.severity,
+        type: item.type,
+        description: item.description,
+        suggestedAction: item.suggestedAction
+      })),
+      inefficientIndexes: analysis.indexUsage.inefficientIndexes.map(item => ({
+        severity: item.severity,
+        type: item.type,
+        description: item.description,
+        suggestedAction: item.suggestedAction
+      }))
+    };
     
     // 转换连接分析
-    const joinAnalysis = analysis.joinAnalysis.map(item => {
-      const tableMatch = item.description.match(/表\s+(\w+)/);
-      const table = tableMatch ? tableMatch[1] : '';
-      
-      return {
-        tables: [table],
-        joinType: item.type.includes('inefficient') ? 'inefficient' : 'suboptimal',
-        condition: item.description,
-        cost: 100 // 默认成本
-      };
-    });
+    const joinAnalysis: PerformanceConcern[] = analysis.joinAnalysis.map(item => ({
+      severity: item.severity,
+      type: item.type,
+      description: item.description,
+      suggestedAction: item.suggestedAction
+    }));
     
     return {
       bottlenecks,

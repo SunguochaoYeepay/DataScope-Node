@@ -48,26 +48,7 @@ export interface QueryPlan {
     /** 查询性能优化建议 */
     optimizationTips: string[];
     /** 性能分析结果，可以是任意格式的性能数据 */
-    performanceAnalysis?: {
-        /** 瓶颈节点 */
-        bottlenecks?: {
-            nodeId: number;
-            reason: string;
-        }[];
-        /** 索引使用情况 */
-        indexUsage?: {
-            table: string;
-            index: string;
-            effectiveness: number;
-        }[];
-        /** 连接操作分析 */
-        joinAnalysis?: {
-            tables: string[];
-            joinType: string;
-            condition: string;
-            cost: number;
-        }[];
-    };
+    performanceAnalysis?: PerformanceAnalysis;
     /** 查询执行统计信息 */
     executionStats?: {
         /** 执行时间（毫秒） */

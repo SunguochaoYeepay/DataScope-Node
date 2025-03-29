@@ -87,5 +87,11 @@ export declare class QueryPlanController {
      * @param res 响应对象
      */
     deletePlan(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 获取优化后的SQL查询
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    getOptimizedQuery(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 export {};

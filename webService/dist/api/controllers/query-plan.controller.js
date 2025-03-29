@@ -564,6 +564,70 @@ class QueryPlanController {
             }
         }
     }
+    /**
+     * 获取优化后的SQL查询
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    async getOptimizedQuery(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                throw new error_1.ApiError('缺少查询计划ID', 400);
+            }
+            // 获取查询计划
+            const queryPlan = await prisma.queryPlan.findUnique({
+                where: { id }
+            });
+            if (!queryPlan) {
+                throw new error_1.ApiError('查询计划不存在', 404);
+            }
+            // 获取数据源
+            const dataSource = await dataSourceService.getDataSourceById(queryPlan.dataSourceId);
+            if (!dataSource) {
+                throw new error_1.ApiError('数据源不存在', 404);
+            }
+            // 解析计划数据
+            let planData;
+            try {
+                planData = JSON.parse(queryPlan.planData);
+            }
+            catch (e) {
+                throw new error_1.ApiError('无法解析查询计划数据', 500);
+            }
+            // 获取优化器
+            const optimizer = (0, database_core_1.getQueryOptimizer)(dataSource.type);
+            // 分析SQL并生成优化建议
+            const suggestions = optimizer.analyzeSql(planData, queryPlan.sql);
+            // 生成优化后的SQL
+            const optimizedSql = optimizer.generateOptimizedSql(queryPlan.sql, suggestions);
+            // 返回结果
+            res.status(200).json({
+                success: true,
+                data: {
+                    originalSql: queryPlan.sql,
+                    optimizedSql: optimizedSql,
+                    suggestions: suggestions
+                }
+            });
+        }
+        catch (error) {
+            logger_1.default.error('获取优化后SQL查询失败', { error });
+            if (error instanceof error_1.ApiError) {
+                res.status(error.statusCode).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+            else {
+                res.status(500).json({
+                    success: false,
+                    message: '获取优化后SQL查询失败',
+                    error: error.message || '未知错误'
+                });
+            }
+        }
+    }
 }
 exports.QueryPlanController = QueryPlanController;
 //# sourceMappingURL=query-plan.controller.js.map

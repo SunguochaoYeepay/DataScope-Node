@@ -82,7 +82,7 @@ export class QueryPlanController {
       const planResult = await connector.getQueryPlan(sql);
       
       // 获取转换器并转换为统一格式
-      const converter = getQueryPlanConverter(dataSource.type);
+      const converter = getQueryPlanConverter(dataSource.type as DatabaseType);
       let queryPlan: QueryPlan;
       
       if (dataSource.type.toLowerCase() === 'mysql') {
@@ -96,7 +96,7 @@ export class QueryPlanController {
       }
       
       // 分析查询计划
-      const analyzer = getQueryPlanAnalyzer(dataSource.type);
+      const analyzer = getQueryPlanAnalyzer(dataSource.type as DatabaseType);
       const analyzedPlan = analyzer.analyze(queryPlan);
       
       // 保存到数据库
@@ -169,7 +169,7 @@ export class QueryPlanController {
       const planData = JSON.parse(queryPlan.planData) as QueryPlan;
       
       // 获取优化器
-      const optimizer = getQueryOptimizer(dataSource.type);
+      const optimizer = getQueryOptimizer(dataSource.type as DatabaseType);
       
       // 获取优化建议
       const suggestions = optimizer.analyzeSql(planData, queryPlan.sql);
@@ -652,6 +652,78 @@ export class QueryPlanController {
           success: false,
           message: '删除查询计划时发生错误',
           error: (error as Error).message
+        });
+      }
+    }
+  }
+
+  /**
+   * 获取优化后的SQL查询
+   * @param req 请求对象
+   * @param res 响应对象
+   */
+  public async getOptimizedQuery(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      
+      if (!id) {
+        throw new ApiError('缺少查询计划ID', 400);
+      }
+      
+      // 获取查询计划
+      const queryPlan = await prisma.queryPlan.findUnique({
+        where: { id }
+      });
+      
+      if (!queryPlan) {
+        throw new ApiError('查询计划不存在', 404);
+      }
+      
+      // 获取数据源
+      const dataSource = await dataSourceService.getDataSourceById(queryPlan.dataSourceId);
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', 404);
+      }
+      
+      // 解析计划数据
+      let planData: QueryPlan;
+      try {
+        planData = JSON.parse(queryPlan.planData);
+      } catch (e) {
+        throw new ApiError('无法解析查询计划数据', 500);
+      }
+      
+      // 获取优化器
+      const optimizer = getQueryOptimizer(dataSource.type as DatabaseType);
+      
+      // 分析SQL并生成优化建议
+      const suggestions = optimizer.analyzeSql(planData, queryPlan.sql);
+      
+      // 生成优化后的SQL
+      const optimizedSql = optimizer.generateOptimizedSql(queryPlan.sql, suggestions);
+      
+      // 返回结果
+      res.status(200).json({
+        success: true,
+        data: {
+          originalSql: queryPlan.sql,
+          optimizedSql: optimizedSql,
+          suggestions: suggestions
+        }
+      });
+    } catch (error: any) {
+      logger.error('获取优化后SQL查询失败', { error });
+      
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: '获取优化后SQL查询失败',
+          error: error.message || '未知错误'
         });
       }
     }

@@ -5,6 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MySQLPlanAnalyzer = void 0;
 const logger_1 = __importDefault(require("../../utils/logger"));
+/**
+ * MySQL查询计划分析器
+ * 分析MySQL执行计划并提供优化建议
+ */
 class MySQLPlanAnalyzer {
     /**
      * 分析MySQL查询执行计划
@@ -48,6 +52,20 @@ class MySQLPlanAnalyzer {
             plan.optimizationTips.push('请检查查询语法和执行计划格式');
             return plan;
         }
+    }
+    /**
+     * 获取查询计划的优化建议
+     * @param queryPlan 查询执行计划
+     * @returns 优化建议数组
+     */
+    getOptimizationTips(queryPlan) {
+        // 如果计划已经有优化建议，直接返回
+        if (queryPlan.optimizationTips && queryPlan.optimizationTips.length > 0) {
+            return queryPlan.optimizationTips;
+        }
+        // 否则，先分析计划，然后返回优化建议
+        const analyzedPlan = this.analyze(queryPlan);
+        return analyzedPlan.optimizationTips || [];
     }
     /**
      * 分析性能关注点
@@ -216,10 +234,48 @@ class MySQLPlanAnalyzer {
         // 汇总优化建议
         this.addOptimizationTips(plan, analysis);
         // 添加性能分析结果到计划
-        plan.performanceAnalysis = {
-            bottlenecks: analysis.bottlenecks,
-            indexUsage: analysis.indexUsage,
-            joinAnalysis: analysis.joinAnalysis
+        plan.performanceAnalysis = this.convertToPerformanceAnalysis(analysis, plan.planNodes || []);
+    }
+    /**
+     * 将内部分析结果转换为查询计划需要的性能分析格式
+     * @param analysis 性能分析结果
+     * @param planNodes 计划节点
+     * @returns 格式化的性能分析输出
+     */
+    convertToPerformanceAnalysis(analysis, planNodes) {
+        // 转换瓶颈为PerformanceConcern类型
+        const bottlenecks = analysis.bottlenecks.map(bottleneck => ({
+            severity: bottleneck.severity,
+            type: bottleneck.type,
+            description: bottleneck.description,
+            suggestedAction: bottleneck.suggestedAction
+        }));
+        // 转换索引使用情况
+        const indexUsage = {
+            missingIndexes: analysis.indexUsage.missingIndexes.map(item => ({
+                severity: item.severity,
+                type: item.type,
+                description: item.description,
+                suggestedAction: item.suggestedAction
+            })),
+            inefficientIndexes: analysis.indexUsage.inefficientIndexes.map(item => ({
+                severity: item.severity,
+                type: item.type,
+                description: item.description,
+                suggestedAction: item.suggestedAction
+            }))
+        };
+        // 转换连接分析
+        const joinAnalysis = analysis.joinAnalysis.map(item => ({
+            severity: item.severity,
+            type: item.type,
+            description: item.description,
+            suggestedAction: item.suggestedAction
+        }));
+        return {
+            bottlenecks,
+            indexUsage,
+            joinAnalysis
         };
     }
     /**

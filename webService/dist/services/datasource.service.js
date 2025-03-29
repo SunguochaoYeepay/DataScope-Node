@@ -10,6 +10,9 @@ const logger_1 = __importDefault(require("../utils/logger"));
 const crypto_1 = require("../utils/crypto");
 const database_factory_1 = require("../types/database-factory");
 const prisma = new client_1.PrismaClient();
+const DEFAULT_DATASOURCE_VALUES = {
+    status: 'active'
+};
 // 模拟数据源的完整数据
 const mockDataSources = [
     {
@@ -320,7 +323,7 @@ class DataSourceService {
     async testConnection(connectionData) {
         const { type, host, port, username, password, database } = connectionData;
         // 创建临时连接器
-        const connector = database_factory_1.DatabaseConnectorFactory.createConnector('temp', type, {
+        const connector = database_factory_1.DatabaseConnectorFactory.createConnector('temp', type.toLowerCase(), {
             host,
             port,
             user: username,
@@ -345,7 +348,7 @@ class DataSourceService {
         }
         // 获取解密后的密码
         const password = this.decryptPassword(dataSource.passwordEncrypted, dataSource.passwordSalt);
-        return database_factory_1.DatabaseConnectorFactory.createConnector(dataSource.id, dataSource.type, {
+        return database_factory_1.DatabaseConnectorFactory.createConnector(dataSource.id, dataSource.type.toLowerCase(), {
             host: dataSource.host,
             port: dataSource.port,
             user: dataSource.username,

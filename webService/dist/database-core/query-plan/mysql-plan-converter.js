@@ -61,7 +61,14 @@ class MySQLQueryPlanConverter {
             estimatedCost,
             warnings: [],
             optimizationTips: [],
-            performanceAnalysis
+            performanceAnalysis: {
+                bottlenecks: [],
+                indexUsage: {
+                    missingIndexes: [],
+                    inefficientIndexes: []
+                },
+                joinAnalysis: []
+            }
         };
     }
     /**
