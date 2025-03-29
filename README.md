@@ -34,77 +34,16 @@
 - 严格的类型安全设计，统一的接口定义
 - 模块化数据库连接器，支持多种数据库类型
 - 完整的错误处理和日志记录
+- 全面的错误处理系统，支持统一的错误格式和多种错误类型
+  - 基础错误类 (AppError)
+  - API错误 (ApiError) 
+  - 数据库错误 (DatabaseError)
+  - 数据源错误 (DataSourceError)
+  - 查询错误 (QueryError)
+  - 验证错误 (ValidationError)
 
 ## 快速开始
 
 ### 安装依赖
 
-```bash
-# 后端依赖
-cd webService
-npm install
-
-# 前端依赖
-cd ../webview-ui
-npm install
 ```
-
-### 启动开发环境
-
-```bash
-# 后端服务
-cd webService
-npm run dev
-
-# 前端开发服务器
-cd ../webview-ui
-npm run dev
-```
-
-### 构建生产版本
-
-```bash
-# 后端构建
-cd webService
-npm run build
-
-# 前端构建
-cd ../webview-ui
-npm run build
-```
-
-## API文档
-
-启动后端服务后，可以通过以下地址访问API文档：
-
-```
-http://localhost:3000/api-docs
-```
-
-## 数据库初始化
-
-首次运行需要初始化数据库，可以使用以下两种方式：
-
-### 方式一：使用Prisma CLI（推荐用于开发环境）
-
-```bash
-cd webService
-npx prisma migrate dev
-```
-
-### 方式二：使用初始化脚本（适用于生产环境）
-
-```bash
-cd webService
-npm run init:db
-```
-
-这个脚本会自动进行以下操作：
-- 检查数据库连接
-- 运行Prisma迁移
-- 生成Prisma客户端
-- 创建必要的目录结构
-
-## 许可证
-
-MIT
