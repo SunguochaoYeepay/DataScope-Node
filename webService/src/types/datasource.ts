@@ -184,6 +184,16 @@
  *           description: 是否公开
  */
 
+// 数据库类型枚举
+export enum DatabaseType {
+  MYSQL = 'mysql',
+  POSTGRESQL = 'postgresql',
+  SQLSERVER = 'sqlserver',
+  ORACLE = 'oracle',
+  MONGODB = 'mongodb',
+  ELASTICSEARCH = 'elasticsearch'
+}
+
 // 数据库连接器接口
 export interface DatabaseConnector {
   testConnection(): Promise<boolean>;
@@ -196,6 +206,7 @@ export interface DatabaseConnector {
   getIndexes(schema: string, table: string): Promise<any[]>;
   previewTableData(schema: string, table: string, limit?: number): Promise<any>;
   close(): Promise<void>;
+  explainQuery(sql: string, params?: any[]): Promise<any>;
 }
 
 /**
@@ -265,4 +276,19 @@ export interface SaveQueryDto {
   dataSourceId: string;
   tags?: string;
   folderId?: string;
+}
+
+/**
+ * 查询选项接口
+ */
+export interface QueryOptions {
+  pageNumber?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  page?: number;      // 兼容性
+  limit?: number;     // 兼容性
+  offset?: number;    // 兼容性
+  sort?: string;      // 兼容性
+  order?: string;     // 兼容性
 }

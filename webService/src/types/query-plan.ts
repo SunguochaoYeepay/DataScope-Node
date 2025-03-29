@@ -24,7 +24,7 @@ export interface QueryPlan {
   planNodes: QueryPlanNode[];
   warnings: string[];      // 警告信息
   query: string;           // 原始查询
-  estimatedCost: number;   // 估计成本
+  estimatedCost: number | undefined;   // 估计成本
   estimatedRows: number;   // 估计返回行数
   optimizationTips: string[]; // 优化建议
   performanceAnalysis?: any; // 性能分析结果

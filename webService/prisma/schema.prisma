@@ -223,6 +223,7 @@ model MetadataSyncHistory {
   syncType     String   // FULL, INCREMENTAL
   tablesCount  Int?
   viewsCount   Int?
+  relationshipsCount Int?
   errorMessage String?  @db.Text
   createdAt    DateTime @default(now())
   createdBy    String   @default("system")

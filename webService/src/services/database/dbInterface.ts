@@ -58,6 +58,11 @@ export interface QueryOptions {
   pageSize?: number;      // 每页记录数
   sortBy?: string;        // 排序字段
   sortDirection?: 'asc'|'desc'; // 排序方向
+  page?: number;      // 兼容性
+  limit?: number;     // 兼容性
+  offset?: number;    // 兼容性
+  sort?: string;      // 兼容性
+  order?: string;     // 兼容性
 }
 
 export interface QueryResult {
@@ -103,9 +108,10 @@ export interface QueryPlan {
   planNodes: QueryPlanNode[];
   warnings: string[];
   query: string;
-  estimatedCost: number;
+  estimatedCost: number | undefined;
   estimatedRows: number;
   optimizationTips: string[];
+  performanceAnalysis?: any;
 }
 
 
