@@ -312,6 +312,6 @@ router.get('/history', auth_1.authenticate, queryPlanController.getQueryPlanHist
  */
 router.get('/:planId', auth_1.authenticate, [
     (0, express_validator_1.param)('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
-], queryPlanController.getQueryPlanById);
+], queryPlanController.getQueryPlanById.bind(queryPlanController));
 exports.default = router;
 //# sourceMappingURL=query-plan.routes.js.map

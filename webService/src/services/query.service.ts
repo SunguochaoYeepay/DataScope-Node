@@ -5,7 +5,6 @@ import logger from '../utils/logger';
 import { QueryPlanService } from '../database-core/query-plan/query-plan-service';
 import config from '../config';
 
-
 const prisma = new PrismaClient();
 
 export class QueryService {

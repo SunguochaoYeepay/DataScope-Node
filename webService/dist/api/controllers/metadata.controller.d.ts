@@ -22,7 +22,7 @@ export declare class MetadataController {
     /**
      * 获取表数据预览
      */
-    previewTableData(req: Request, res: Response, next: NextFunction): Promise<void>;
+    previewTableData: (import("express-validator").ValidationChain | ((req: Request, res: Response, next: NextFunction) => Promise<void>))[];
     /**
      * 验证同步元数据请求
      */

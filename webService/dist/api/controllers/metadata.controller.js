@@ -12,6 +12,38 @@ const logger_1 = __importDefault(require("../../utils/logger"));
 const datasource_service_1 = require("../../services/datasource.service");
 const dataSourceService = new datasource_service_1.DataSourceService();
 class MetadataController {
+    constructor() {
+        /**
+         * 获取表数据预览
+         */
+        this.previewTableData = [
+            (0, express_validator_1.param)('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
+            (0, express_validator_1.param)('schemaName').isString().withMessage('模式名称不能为空'),
+            (0, express_validator_1.param)('tableName').isString().withMessage('表名不能为空'),
+            async (req, res, next) => {
+                try {
+                    // 验证输入
+                    const errors = (0, express_validator_1.validationResult)(req);
+                    if (!errors.isEmpty()) {
+                        throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                    }
+                    const { dataSourceId, schemaName, tableName } = req.params;
+                    const limit = parseInt(req.query.limit) || 100;
+                    // 获取连接器
+                    const connector = await dataSourceService.getConnector(dataSourceId);
+                    // 预览表数据
+                    const data = await connector.previewTableData(schemaName, tableName, limit);
+                    res.status(200).json({
+                        success: true,
+                        data
+                    });
+                }
+                catch (error) {
+                    next(error);
+                }
+            }
+        ];
+    }
     /**
      * 同步数据源元数据
      */
@@ -65,70 +97,6 @@ class MetadataController {
                 success: true,
                 data: result
             });
-        }
-        catch (error) {
-            next(error);
-        }
-    }
-    /**
-     * 获取表数据预览
-     */
-    async previewTableData(req, res, next) {
-        try {
-            const errors = (0, express_validator_1.validationResult)(req);
-            if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
-            }
-            const { dataSourceId } = req.params;
-            const { schema, table, limit } = req.query;
-            if (!schema || !table) {
-                throw new error_1.ApiError('缺少必要参数', 400, { message: '必须提供schema和table参数' });
-            }
-            try {
-                // 获取数据源
-                const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
-                if (!dataSource) {
-                    throw new error_1.ApiError('数据源不存在', 404);
-                }
-                // 获取数据库连接
-                const connector = await dataSourceService.getConnector(dataSourceId);
-                // 预览表数据
-                const limitNum = Number(limit) || 100;
-                if (typeof connector.previewTableData !== 'function') {
-                    throw new error_1.ApiError('数据源连接器不支持表数据预览功能', 400);
-                }
-                const schemaOrDb = schema;
-                const result = await connector.previewTableData(schemaOrDb, table, limitNum);
-                // 确保result.rows存在且是一个数组
-                const rows = Array.isArray(result.rows) ? result.rows : [];
-                // 确定列信息
-                let columns = [];
-                if (result.fields && Array.isArray(result.fields)) {
-                    columns = result.fields.map((field) => field.name);
-                }
-                else if (rows.length > 0) {
-                    columns = Object.keys(rows[0]);
-                }
-                res.status(200).json({
-                    success: true,
-                    data: {
-                        rows: rows,
-                        columns: columns,
-                        total: result.rowCount || rows.length,
-                        limit: limitNum,
-                        offset: 0
-                    }
-                });
-            }
-            catch (error) {
-                logger_1.default.error('获取表数据预览失败', { error });
-                if (error instanceof error_1.ApiError) {
-                    throw error;
-                }
-                else {
-                    throw new error_1.ApiError('获取表数据预览时发生错误', 500, { message: error.message });
-                }
-            }
         }
         catch (error) {
             next(error);

@@ -15,6 +15,10 @@
 - 简化了代码库，消除了多余的条件判断
 - 增强了代码一致性和可维护性
 - 明确了后端和前端的职责边界
+- 添加了针对服务和控制器的单元测试
+  - 为 `query.service.ts` 添加了完整测试
+  - 为 `metadata.controller.ts` 添加了测试
+  - 添加了配置文件测试，确保移除了模拟数据相关配置
 
 ### 修复
 
@@ -43,3 +47,6 @@
 - 添加错误演示API入口点，修复测试用例失败的问题
 - 实现`/api/examples/errors`路由，修复之前404的问题
 - 完善error-examples.controller.ts中的错误类型示例
+- 修复了metadata.controller.ts中的重复方法定义
+- 修复了query-plan.routes.ts中queryPlanController方法未正确绑定的问题
+- 添加了metadata.service的单元测试用例

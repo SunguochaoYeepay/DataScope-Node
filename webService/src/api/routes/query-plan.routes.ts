@@ -334,7 +334,7 @@ router.get('/:planId',
   [
     param('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
   ],
-  queryPlanController.getQueryPlanById
+  queryPlanController.getQueryPlanById.bind(queryPlanController)
 );
 
 export default router;
