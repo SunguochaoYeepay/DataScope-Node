@@ -36,6 +36,28 @@ export declare class ColumnAnalyzer {
      * 基于分析结果增强列描述
      */
     private enhanceDescription;
+    /**
+     * 分析列基数统计
+     */
+    analyzeColumnCardinality(dataSourceId: string, schemas: string[]): Promise<any>;
+    /**
+     * 获取基数分布建议
+     */
+    private getRecommendation;
+    /**
+     * 判断是否为数值类型
+     * @param dataType 数据类型字符串
+     * @returns 是否为数值类型
+     */
+    private isNumericType;
+    /**
+     * 获取特定数据类型的值分布
+     */
+    getValueDistribution(dataSourceId: string, schema: string, table: string, column: string): Promise<any[]>;
+    /**
+     * 获取列数据的频率分布
+     */
+    private getFrequencyDistribution;
 }
 declare const _default: ColumnAnalyzer;
 export default _default;

@@ -3,10 +3,81 @@ import { body, param, validationResult } from 'express-validator';
 import queryService from '../../services/query.service';
 import { ApiError } from '../../utils/error';
 import logger from '../../utils/logger';
+import { PrismaClient } from '@prisma/client';
+import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
+
+const prisma = new PrismaClient();
+
+// 可视化数据接口定义
+interface VisualizationData {
+  nodes: Array<{
+    id: number;
+    label: string;
+    type: string;
+    table: string;
+    rows: number;
+    filtered: number;
+    key: string;
+    extra: string;
+    cost: number;
+    isBottleneck: boolean;
+  }>;
+  links: Array<{
+    source: number;
+    target: number;
+    value: number;
+  }>;
+  summary: {
+    totalCost: number;
+    totalRows: number;
+    bottlenecks: number;
+    warnings: string[];
+    optimizationTips: string[];
+  };
+}
+
+// 计划比较结果接口
+interface PlanComparisonResult {
+  summary: {
+    costDifference: number;
+    rowsDifference: number;
+    plan1BottlenecksCount: number;
+    plan2BottlenecksCount: number;
+  };
+  nodeComparison: Array<{
+    table: string;
+    rows: {
+      plan1: number;
+      plan2: number;
+      difference: number;
+    };
+    filtered: {
+      plan1: number;
+      plan2: number;
+      difference: number;
+    };
+    accessType: {
+      plan1: string;
+      plan2: string;
+      improved: boolean;
+    };
+  }>;
+  accessTypeChanges: Array<{
+    table: string;
+    from: string;
+    to: string;
+    improvement: boolean;
+  }>;
+  indexUsageChanges: Array<{
+    table: string;
+    from: string;
+    to: string;
+  }>;
+}
 
 /**
- * 查询计划可视化控制器
- * 提供查询计划分析和可视化功能
+ * 查询执行计划可视化控制器
+ * 提供查询执行计划可视化相关的API接口
  */
 export class PlanVisualizationController {
   /**
@@ -186,34 +257,39 @@ export class PlanVisualizationController {
    * @param planData 查询计划数据
    * @returns 可视化格式数据
    */
-  private transformToVisualizationFormat(planData: any): any {
-    // 基本结构
-    const result = {
+  private transformToVisualizationFormat(planData: QueryPlan): VisualizationData {
+    const result: VisualizationData = {
       nodes: [],
       links: [],
       summary: {
         totalCost: planData.estimatedCost || 0,
         totalRows: planData.estimatedRows || 0,
-        optimizationTips: planData.optimizationTips || [],
-        bottlenecks: planData.performanceAnalysis?.bottlenecks || []
+        bottlenecks: 0,
+        warnings: planData.warnings || [],
+        optimizationTips: planData.optimizationTips || []
       }
     };
     
     // 处理节点
     if (planData.planNodes && planData.planNodes.length > 0) {
       // 首先创建所有节点
-      result.nodes = planData.planNodes.map((node: any, index: number) => {
+      result.nodes = planData.planNodes.map((node: QueryPlanNode, index: number) => {
+        const isBottleneck = this.isNodeBottleneck(node);
+        if (isBottleneck) {
+          result.summary.bottlenecks++;
+        }
+        
         return {
           id: node.id || index + 1,
           label: `${node.type} - ${node.table}`,
           type: node.type,
           table: node.table,
           rows: node.rows,
-          filtered: node.filtered,
+          filtered: node.filtered || 100,
           key: node.key || '无索引',
           extra: node.extra || '',
-          cost: this.calculateNodeCost(node, planData.estimatedCost),
-          isBottleneck: this.isNodeBottleneck(node)
+          cost: this.calculateNodeCost(node, planData.estimatedCost || 0),
+          isBottleneck: isBottleneck
         };
       });
       
@@ -236,7 +312,7 @@ export class PlanVisualizationController {
    * @param totalCost 总成本
    * @returns 节点成本
    */
-  private calculateNodeCost(node: any, totalCost: number): number {
+  private calculateNodeCost(node: QueryPlanNode, totalCost: number): number {
     // 如果没有总成本信息，则根据节点的行数估算
     if (!totalCost) {
       return node.rows;
@@ -260,7 +336,7 @@ export class PlanVisualizationController {
    * @param node 查询计划节点
    * @returns 是否为瓶颈
    */
-  private isNodeBottleneck(node: any): boolean {
+  private isNodeBottleneck(node: QueryPlanNode): boolean {
     // 全表扫描通常是瓶颈
     if (node.type === 'ALL' && node.rows > 1000) {
       return true;
@@ -275,7 +351,7 @@ export class PlanVisualizationController {
     }
     
     // 扫描大量行但过滤率低的节点
-    if (node.rows > 10000 && node.filtered < 20) {
+    if (node.rows > 10000 && (node.filtered !== undefined && node.filtered < 20)) {
       return true;
     }
     
@@ -288,8 +364,8 @@ export class PlanVisualizationController {
    * @param plan2 第二个查询计划
    * @returns 比较结果
    */
-  private comparePlanData(plan1: any, plan2: any): any {
-    const result = {
+  private comparePlanData(plan1: QueryPlan, plan2: QueryPlan): PlanComparisonResult {
+    const result: PlanComparisonResult = {
       summary: {
         costDifference: (plan2.estimatedCost || 0) - (plan1.estimatedCost || 0),
         rowsDifference: (plan2.estimatedRows || 0) - (plan1.estimatedRows || 0),
@@ -340,9 +416,9 @@ export class PlanVisualizationController {
               difference: node2.rows - node1.rows
             },
             filtered: {
-              plan1: node1.filtered,
-              plan2: node2.filtered,
-              difference: node2.filtered - node1.filtered
+              plan1: node1.filtered || 100,
+              plan2: node2.filtered || 100,
+              difference: (node2.filtered || 100) - (node1.filtered || 100)
             },
             accessType: {
               plan1: node1.type,
@@ -362,7 +438,7 @@ export class PlanVisualizationController {
    * @param plan 查询计划
    * @returns 瓶颈数量
    */
-  private countBottlenecks(plan: any): number {
+  private countBottlenecks(plan: QueryPlan): number {
     let count = 0;
     
     if (plan.planNodes) {

@@ -7,9 +7,11 @@ exports.PlanVisualizationController = void 0;
 const express_validator_1 = require("express-validator");
 const query_service_1 = __importDefault(require("../../services/query.service"));
 const error_1 = require("../../utils/error");
+const client_1 = require("@prisma/client");
+const prisma = new client_1.PrismaClient();
 /**
- * 查询计划可视化控制器
- * 提供查询计划分析和可视化功能
+ * 查询执行计划可视化控制器
+ * 提供查询执行计划可视化相关的API接口
  */
 class PlanVisualizationController {
     /**
@@ -167,32 +169,36 @@ class PlanVisualizationController {
      * @returns 可视化格式数据
      */
     transformToVisualizationFormat(planData) {
-        // 基本结构
         const result = {
             nodes: [],
             links: [],
             summary: {
                 totalCost: planData.estimatedCost || 0,
                 totalRows: planData.estimatedRows || 0,
-                optimizationTips: planData.optimizationTips || [],
-                bottlenecks: planData.performanceAnalysis?.bottlenecks || []
+                bottlenecks: 0,
+                warnings: planData.warnings || [],
+                optimizationTips: planData.optimizationTips || []
             }
         };
         // 处理节点
         if (planData.planNodes && planData.planNodes.length > 0) {
             // 首先创建所有节点
             result.nodes = planData.planNodes.map((node, index) => {
+                const isBottleneck = this.isNodeBottleneck(node);
+                if (isBottleneck) {
+                    result.summary.bottlenecks++;
+                }
                 return {
                     id: node.id || index + 1,
                     label: `${node.type} - ${node.table}`,
                     type: node.type,
                     table: node.table,
                     rows: node.rows,
-                    filtered: node.filtered,
+                    filtered: node.filtered || 100,
                     key: node.key || '无索引',
                     extra: node.extra || '',
-                    cost: this.calculateNodeCost(node, planData.estimatedCost),
-                    isBottleneck: this.isNodeBottleneck(node)
+                    cost: this.calculateNodeCost(node, planData.estimatedCost || 0),
+                    isBottleneck: isBottleneck
                 };
             });
             // 然后创建节点之间的连接
@@ -246,7 +252,7 @@ class PlanVisualizationController {
             return true;
         }
         // 扫描大量行但过滤率低的节点
-        if (node.rows > 10000 && node.filtered < 20) {
+        if (node.rows > 10000 && (node.filtered !== undefined && node.filtered < 20)) {
             return true;
         }
         return false;
@@ -304,9 +310,9 @@ class PlanVisualizationController {
                             difference: node2.rows - node1.rows
                         },
                         filtered: {
-                            plan1: node1.filtered,
-                            plan2: node2.filtered,
-                            difference: node2.filtered - node1.filtered
+                            plan1: node1.filtered || 100,
+                            plan2: node2.filtered || 100,
+                            difference: (node2.filtered || 100) - (node1.filtered || 100)
                         },
                         accessType: {
                             plan1: node1.type,

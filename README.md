@@ -24,6 +24,91 @@
 - **计划比较**：支持比较两个查询执行计划的差异，帮助评估优化效果
 - **历史记录**：保存执行计划历史，便于分析查询性能变化趋势
 
+### 使用方法
+
+#### 获取查询执行计划
+
+```bash
+POST /api/query-plans/analyze
+{
+  "dataSourceId": "your-datasource-id",
+  "sql": "SELECT * FROM users WHERE status = 'active'"
+}
+```
+
+响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "plan": {
+      "planNodes": [
+        {
+          "id": 1,
+          "selectType": "SIMPLE",
+          "table": "users",
+          "type": "ALL",
+          "possibleKeys": null,
+          "key": null,
+          "rows": 1000,
+          "filtered": 100,
+          "extra": null
+        }
+      ],
+      "warnings": [
+        "表 users 正在进行全表扫描，扫描了 1000 行"
+      ],
+      "optimizationTips": [
+        "考虑为表 users 添加索引，覆盖常用的查询条件"
+      ],
+      "estimatedCost": 1000
+    },
+    "id": "plan-id-123"
+  }
+}
+```
+
+#### 保存执行计划
+
+```bash
+POST /api/query-plans/save
+{
+  "dataSourceId": "your-datasource-id",
+  "name": "用户查询计划",
+  "sql": "SELECT * FROM users WHERE status = 'active'",
+  "planData": {...} // 执行计划数据
+}
+```
+
+#### 比较执行计划
+
+```bash
+POST /api/query-plans/compare
+{
+  "planAId": "first-plan-id",
+  "planBId": "second-plan-id"
+}
+```
+
+响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "costDifference": -500,
+    "costImprovement": 50,
+    "accessTypeChanges": [
+      {
+        "table": "users",
+        "from": "ALL",
+        "to": "range",
+        "improvement": true
+      }
+    ]
+  }
+}
+```
+
 ### 技术实现
 
 - 模块化的查询计划转换器，支持不同数据库的执行计划格式

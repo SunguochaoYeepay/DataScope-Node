@@ -1,0 +1,50 @@
+// 修改后的Schema，需要应用到prisma/schema.prisma
+
+// 在Query模型中添加与QueryPlan的关系
+model Query {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.Text
+  dataSourceId String
+  sqlContent   String   @db.Text
+  status       String   @default("DRAFT") // DRAFT, PUBLISHED
+  queryType    String   @default("SQL") // SQL, NATURAL_LANGUAGE
+  isFavorite   Boolean  @default(false)
+  executionCount Int    @default(0)
+  lastExecutedAt DateTime?
+  tags         String?  // 逗号分隔的标签
+  nonce        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String   @default("system")
+  updatedBy    String   @default("system")
+
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  displayConfigs DisplayConfig[]
+  queryHistory QueryHistory[]
+  queryPlans   QueryPlan[]   // 添加了这一行
+
+  @@map("tbl_query")
+}
+
+// 在QueryPlan模型中添加与Query的关系
+model QueryPlan {
+  id           String    @id @default(uuid())
+  queryId      String?   // 关联的查询ID
+  dataSourceId String
+  name         String?
+  sql          String    @db.Text
+  planData     String    @db.Text  // JSON字符串格式的执行计划数据
+  estimatedCost Float?   
+  optimizationTips String? @db.Text  // 优化建议
+  isAnalyzed   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String    @default("system")
+  
+  query        Query?    @relation(fields: [queryId], references: [id], onDelete: SetNull)  // 添加了这一行
+  comparisons  QueryPlanComparison[] @relation("PlanA")
+  comparedWith QueryPlanComparison[] @relation("PlanB")
+
+  @@map("tbl_query_plan")
+}

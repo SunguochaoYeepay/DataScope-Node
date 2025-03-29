@@ -1,226 +1,85 @@
-# DataScope-Node 后端服务
+# DataScope Web Service
 
-DataScope-Node 是一个强大的数据库可视化查询工具后端服务，提供了数据源管理、查询执行、元数据分析和低代码导出等功能。
+DataScope是一个强大的数据库性能分析和优化工具，帮助开发人员和数据库管理员理解和改进查询性能。
 
-## 功能特性
+## 主要功能
 
-- **数据源管理**：添加、编辑、删除和测试各种数据库连接
-- **SQL查询执行**：执行SQL查询并获取结果，支持参数化查询
-- **查询管理**：保存、共享和重用SQL查询
-- **元数据分析**：探索数据库架构、表结构和关系
-- **元数据同步**：自动同步数据源中的表结构和关系到系统中
-- **数据预览**：直接在界面中预览表数据
-- **低代码导出**：将表结构导出为低代码平台可用的JSON格式
-- **统一错误处理**：使用类型化的错误响应，支持错误追踪和问题诊断
+- 数据库连接管理：支持MySQL、PostgreSQL等多种数据库系统
+- 查询执行和历史记录：跟踪SQL查询历史和执行结果
+- 查询计划分析：
+  - 可视化查询执行计划
+  - 识别查询性能瓶颈
+  - 提供优化建议
+  - 比较查询计划变更效果
+- 元数据管理：浏览数据库结构、表和列信息
+- 数据分析：生成表关系图和依赖分析
+
+## 新增功能：查询计划分析与优化
+
+最新版本增加了强大的查询计划分析与优化功能，主要包括：
+
+1. **查询计划转换**
+   - 支持MySQL传统EXPLAIN和JSON格式EXPLAIN结果
+   - 将不同格式的执行计划转换为标准格式，便于统一处理
+
+2. **性能分析**
+   - 自动识别全表扫描、文件排序、临时表使用等常见性能问题
+   - 分析索引使用情况，找出低效或缺失的索引
+   - 识别连接操作中的优化机会
+
+3. **优化建议**
+   - 基于执行计划生成具体优化建议
+   - 提供SQL重写建议，如替换通配符LIKE、优化子查询等
+   - 根据查询特点推荐索引创建策略
+
+4. **计划比较**
+   - 对比优化前后的查询计划
+   - 计算性能改进百分比
+   - 提供详细的比较报告，突出关键改进点
 
 ## 技术栈
 
-- Node.js + TypeScript
-- Express.js：Web 框架
-- Prisma ORM：数据库ORM
-- MySQL：支持MySQL数据源连接
-- Winston：日志记录
-- Swagger：API文档
+- **后端**: Node.js, Express, TypeScript
+- **数据库**: MySQL/PostgreSQL (使用Prisma ORM)
+- **前端**: React, TypeScript, TailwindCSS
+- **API文档**: Swagger
 
-## 测试
-
-项目使用Jest作为测试框架，提供了以下测试命令：
+## 安装
 
 ```bash
-# 运行所有测试
-npm test
+# 克隆仓库
+git clone https://github.com/yourorg/datascope.git
+cd datascope/webService
 
-# 仅运行单元测试
-npm run test:unit
-
-# 仅运行集成测试
-npm run test:integration
-
-# 获取测试覆盖率报告
-npm run test:coverage
-
-# 监视模式（自动重新运行受影响的测试）
-npm run test:watch
-```
-
-### 测试结构
-
-- `tests/unit/`: 单元测试，测试独立的组件和函数
-  - `utils/`: 工具函数测试
-  - `services/`: 服务层测试
-  - `api/`: API端点测试
-- `tests/integration/`: 集成测试，测试多个组件的交互
-
-### 模拟数据模式
-
-项目支持使用模拟数据进行测试，无需实际数据库连接。通过设置环境变量`USE_MOCK_DATA=true`启用此功能。
-
-在测试环境中，模拟数据模式默认启用。
-
-## 快速开始
-
-### 环境要求
-
-- Node.js 16+
-- MySQL 5.7+
-
-### 安装依赖
-
-```bash
+# 安装依赖
 npm install
-```
 
-### 配置环境变量
+# 创建.env文件
+cp .env.example .env
 
-创建 `.env` 文件，配置必要的环境变量：
+# 编辑.env文件，设置数据库连接和其他配置
 
-```
-# 服务配置
-PORT=3000
-NODE_ENV=development
+# 运行数据库迁移
+npx prisma migrate dev
 
-# 数据库配置
-DATABASE_URL="mysql://用户名:密码@localhost:3306/datascope_dev"
-
-# 日志配置
-LOG_LEVEL=debug
-
-# API配置
-API_PREFIX=/api/v1
-
-# 安全配置
-ENCRYPTION_KEY="datascope-secure-encryption-key-2023"
-```
-
-### 数据库初始化
-
-方法一：使用初始化脚本（推荐）
-```bash
-# 运行数据库初始化脚本
-npm run init:db
-```
-
-方法二：手动初始化
-```bash
-# 创建数据库
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS datascope_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# 推送Prisma模型
-npx prisma db push
-
-# 生成Prisma客户端
-npx prisma generate
-```
-
-### 加载示例数据（可选）
-
-```bash
-# 运行数据种子脚本，加载示例数据源和示例查询
-npx ts-node scripts/seed.ts
-```
-
-### 启动服务
-
-开发模式：
-```bash
+# 启动服务器
 npm run dev
 ```
 
-生产模式：
-```bash
-npm run build
-npm start
-```
+## API接口
 
-## API文档
+主要API端点：
 
-启动服务后，访问 `http://localhost:3000/api-docs` 查看API文档。
+- `/api/datasources` - 数据源管理
+- `/api/queries` - 查询执行和历史
+- `/api/query-plans` - 查询计划分析和优化
+- `/api/metadata` - 数据库元数据
 
-## 项目结构
+详细API文档请参考 `/api-docs` 路径下的Swagger文档。
 
-```
-webService/
-├── prisma/               # Prisma 数据库模型
-│   └── schema.prisma     # 数据库模型定义
-├── scripts/              # 脚本文件
-│   ├── init-db.ts        # 数据库初始化脚本
-│   └── seed.ts           # 示例数据种子脚本
-├── src/                  # 源代码
-│   ├── api/              # API相关代码
-│   │   ├── controllers/  # 控制器
-│   │   ├── middlewares/  # 中间件
-│   │   └── routes/       # 路由
-│   ├── config/           # 配置文件
-│   ├── middlewares/      # 全局中间件
-│   ├── services/         # 服务层
-│   │   └── database/     # 数据库服务
-│   ├── types/            # 类型定义
-│   └── utils/            # 工具函数
-│       └── errors/       # 错误处理模块
-├── .env                  # 环境变量
-├── package.json          # 项目依赖
-└── tsconfig.json         # TypeScript配置
-```
+## 贡献
 
-## 核心模块
-
-### 数据源管理
-
-- 支持添加、编辑、删除数据源
-- 支持测试数据源连接
-- 支持查看数据源详情和列表
-
-### 查询执行
-
-- 支持执行SQL查询，返回结果集
-- 支持查询参数化
-- 查询执行历史记录
-
-### 元数据分析
-
-- 获取数据库架构列表
-- 获取表列表
-- 获取表结构（列、主键、外键、索引）
-- 预览表数据
-
-### 元数据同步
-
-- 支持全量和增量同步数据源结构
-- 自动识别表、视图、列、主键和外键关系
-- 同步历史记录和状态跟踪
-- 支持过滤特定的架构或表
-
-### 低代码导出
-
-- 将表结构导出为JSON格式，适用于低代码平台
-
-### 错误处理系统
-
-- 统一的错误处理机制，支持错误代码和类型化错误响应
-- 错误类型包括 API错误、数据库错误、验证错误、查询错误和数据源错误
-- 请求跟踪和日志系统，每个请求都有唯一标识符
-- 标准化的错误响应格式，方便前端处理
-- 基于继承的错误类层次结构，包含以下类型：
-  - AppError: 所有错误的基类，提供基本错误处理功能和统一接口
-  - ApiError: 处理HTTP API错误，如400、401、403、404、409、429和500等
-  - DatabaseError: 处理数据库操作错误，如连接错误、查询错误、事务错误等
-  - DataSourceError: 处理数据源错误，如连接失败、认证失败、配置无效等
-  - QueryError: 处理SQL查询错误，如语法错误、超时、权限错误等
-  - ValidationError: 处理数据验证错误，如字段缺失、格式错误、类型错误等
-- 详细的错误代码系统，使用5位数字标识不同类型的错误
-- 全局错误处理中间件，自动捕获并转换所有错误为标准响应格式
-- 错误日志记录，包含错误类型、代码、消息、请求路径、请求ID和时间戳
-- 错误示例API，用于演示和测试不同类型的错误
-
-## 支持的数据库类型
-
-目前支持的数据库类型：
-- MySQL
-
-计划支持的数据库类型：
-- PostgreSQL
-- SQL Server
-- Oracle
+欢迎提交PR和Issue！请查看[贡献指南](CONTRIBUTING.md)了解更多信息。
 
 ## 许可证
 

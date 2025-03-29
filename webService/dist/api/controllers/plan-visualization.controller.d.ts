@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 /**
- * 查询计划可视化控制器
- * 提供查询计划分析和可视化功能
+ * 查询执行计划可视化控制器
+ * 提供查询执行计划可视化相关的API接口
  */
 export declare class PlanVisualizationController {
     /**

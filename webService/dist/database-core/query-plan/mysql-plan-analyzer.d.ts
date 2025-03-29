@@ -1,72 +1,56 @@
 import { QueryPlan } from '../../types/query-plan';
-/**
- * MySQL查询计划分析器
- * 专门负责分析MySQL的查询执行计划并提供优化建议
- */
 export declare class MySQLPlanAnalyzer {
     /**
-     * 分析MySQL查询计划并提供优化建议
+     * 分析MySQL查询执行计划
      * @param plan 查询执行计划
-     * @returns 优化建议列表
+     * @returns 带有分析结果的查询执行计划
      */
-    provideOptimizationSuggestions(plan: QueryPlan): string[];
+    analyze(plan: QueryPlan): QueryPlan;
     /**
-     * 执行性能分析，提取关键指标
+     * 分析性能关注点
      * @param plan 查询执行计划
      * @returns 性能分析结果
      */
-    analyzePerformance(plan: QueryPlan): any;
-    /**
-     * 从计划中提取表名列表
-     */
-    private getTablesFromPlan;
-    /**
-     * 从计划中提取访问类型列表
-     */
-    private getAccessTypes;
-    /**
-     * 从计划中提取使用的索引列表
-     */
-    private getIndexesUsed;
-    /**
-     * 获取连接类型
-     */
-    private getJoinTypes;
+    private analyzePerformanceConcerns;
     /**
      * 检查全表扫描
+     * @param plan 查询执行计划
+     * @param analysis 性能分析结果
      */
     private checkFullTableScans;
     /**
+     * 检查文件排序和临时表使用
+     * @param plan 查询执行计划
+     * @param analysis 性能分析结果
+     */
+    private checkFileSortAndTemporaryTables;
+    /**
      * 检查索引使用情况
+     * @param plan 查询执行计划
+     * @param analysis 性能分析结果
      */
     private checkIndexUsage;
     /**
-     * 检查临时表和文件排序
+     * 检查连接操作
+     * @param plan 查询执行计划
+     * @param analysis 性能分析结果
      */
-    private checkTemporaryTablesAndFilesort;
+    private checkJoinOperations;
     /**
-     * 检查表连接
+     * 使用分析结果更新计划的警告和优化提示
+     * @param plan 查询执行计划
+     * @param analysis 性能分析结果
      */
-    private checkTableJoins;
+    private updatePlanWithAnalysisResults;
     /**
-     * 检查WHERE条件
+     * 添加优化提示
+     * @param plan 查询执行计划
+     * @param analysis 性能分析结果
      */
-    private checkWhereConditions;
+    private addOptimizationTips;
     /**
-     * 检查LIMIT优化
+     * 更新计划的估算成本和行数
+     * @param plan 查询执行计划
      */
-    private checkLimitOptimization;
-    /**
-     * 计算索引使用效率
-     */
-    private calculateIndexEfficiency;
-    /**
-     *
-     * 计算总体性能评分
-     */
-    private calculatePerformanceScore;
-    /**
-     * 识别查询中的瓶颈
-     */
-    private identifyBottlenecks;
+    private updatePlanEstimates;
 }

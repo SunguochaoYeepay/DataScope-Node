@@ -6,8 +6,28 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '../../utils/logger';
 import dataSourceService from '../datasource.service';
+import { DatabaseConnector } from '../database/dbInterface';
 
 const prisma = new PrismaClient();
+
+// 定义分析结果类型
+interface ColumnStatistics {
+  totalCount: number;
+  nonNullCount: number;
+  nullCount: number;
+  minValue?: number;
+  maxValue?: number;
+  avgValue?: number;
+  sumValue?: number;
+  minLength?: number;
+  maxLength?: number;
+  avgLength?: number;
+}
+
+// 定义行数据类型
+interface RowData {
+  [key: string]: any;
+}
 
 export class ColumnAnalyzer {
   /**
@@ -524,6 +544,169 @@ export class ColumnAnalyzer {
     }
     
     return enhancedDescription;
+  }
+
+  /**
+   * 分析列基数统计
+   */
+  async analyzeColumnCardinality(dataSourceId: string, schemas: string[]): Promise<any> {
+    try {
+      const connector = await dataSourceService.getConnector(dataSourceId);
+      
+      // 构建要分析的表条件
+      const schemaCondition = schemas.length > 0 
+        ? `AND table_schema IN (${schemas.map(s => `'${s}'`).join(',')})`
+        : '';
+      
+      // 基础查询部分
+      let query = `
+        SELECT 
+          table_schema AS schema_name,
+          table_name,
+          column_name,
+          column_type AS data_type,
+          COUNT(*) AS total_values,
+          COUNT(DISTINCT column_name) AS unique_values,
+          ROUND(COUNT(DISTINCT column_name) * 100.0 / COUNT(*), 2) AS cardinality_percentage,
+          ROUND(SUM(CASE WHEN column_name IS NULL THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS null_percentage,
+          '' AS comments
+        FROM 
+          information_schema.columns
+        WHERE 
+          table_schema NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+          ${schemaCondition}
+      `;
+      
+      // 分组条件
+      const groupBy = [
+        'table_schema',
+        'table_name',
+        'column_name',
+        'column_type'
+      ];
+      
+      query += `
+        GROUP BY ${groupBy.join(', ')}
+        ORDER BY cardinality_percentage ASC, column_name ASC
+        LIMIT 100
+      `;
+      
+      const result = await connector.executeQuery(query);
+      
+      // 转换结果为所需格式
+      return result.rows.map((row: RowData) => ({
+        schemaName: row.schema_name,
+        tableName: row.table_name,
+        columnName: row.column_name,
+        dataType: row.data_type,
+        totalValues: row.total_values,
+        uniqueValues: row.unique_values,
+        cardinalityPercentage: row.cardinality_percentage,
+        nullPercentage: row.null_percentage,
+        comments: `${row.comments || ''} ${this.getRecommendation(row)}`
+      }));
+    } catch (error: any) {
+      logger.error(`分析列数据分布失败: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取基数分布建议
+   */
+  private getRecommendation(row: RowData): string {
+    // ... existing code ...
+  }
+
+  /**
+   * 判断是否为数值类型
+   * @param dataType 数据类型字符串
+   * @returns 是否为数值类型
+   */
+  private isNumericType(dataType: string): boolean {
+    const numericTypes = [
+      'int', 'bigint', 'decimal', 'float', 'double', 'numeric',
+      'tinyint', 'smallint', 'mediumint', 'real'
+    ];
+    
+    return numericTypes.some(type => 
+      dataType.toLowerCase().includes(type)
+    );
+  }
+
+  /**
+   * 获取特定数据类型的值分布
+   */
+  async getValueDistribution(dataSourceId: string, schema: string, table: string, column: string): Promise<any[]> {
+    try {
+      const connector = await dataSourceService.getConnector(dataSourceId);
+      
+      // 获取列的数据类型
+      const columnsInfo = await connector.getColumns(schema, table);
+      const columnInfo = columnsInfo.find(col => col.name === column);
+      
+      if (!columnInfo) {
+        throw new Error(`列 ${column} 不存在`);
+      }
+      
+      // 根据数据类型构建不同的查询
+      let query = '';
+      const isNumeric = this.isNumericType(columnInfo.dataType);
+      
+      if (isNumeric) {
+        // 数值型列的分位数分析
+        query = `
+          SELECT 
+            PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY ${column}) AS p5,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${column}) AS p25,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ${column}) AS median,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${column}) AS p75,
+            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ${column}) AS p95,
+            MIN(${column}) AS min_value,
+            MAX(${column}) AS max_value,
+            AVG(${column}) AS avg_value,
+            STDDEV(${column}) AS stddev
+          FROM ${schema}.${table}
+          WHERE ${column} IS NOT NULL
+        `;
+      } else {
+        // 字符串或其他类型的频率分析
+        query = `
+          SELECT 
+            ${column} AS value,
+            COUNT(*) AS count,
+            ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM ${schema}.${table} WHERE ${column} IS NOT NULL), 2) AS percentage
+          FROM ${schema}.${table}
+          WHERE ${column} IS NOT NULL
+          GROUP BY ${column}
+          ORDER BY count DESC
+          LIMIT 20
+        `;
+      }
+      
+      const result = await connector.executeQuery(query);
+      return result.rows.map((row: RowData) => row);
+    } catch (error: any) {
+      logger.error(`获取值分布失败: ${error.message}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * 获取列数据的频率分布
+   */
+  private async getFrequencyDistribution(connector: DatabaseConnector, schema: string, table: string, column: string): Promise<string[]> {
+    const query = `
+      SELECT ${column} AS value
+      FROM ${schema}.${table}
+      WHERE ${column} IS NOT NULL
+      GROUP BY ${column}
+      ORDER BY COUNT(*) DESC
+      LIMIT 10
+    `;
+    
+    const result = await connector.executeQuery(query);
+    return result.rows.map((row: RowData) => row.value);
   }
 }
 

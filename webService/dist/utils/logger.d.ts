@@ -1,16 +1,34 @@
 /**
- * 日志工具类
- * 基于winston实现的分级日志记录器
+ * 日志工具
+ * 提供统一的日志记录接口
  */
-import { Logger } from 'winston';
-interface ExtendedLogger extends Logger {
-    getSubLogger: (context: Record<string, any>) => {
-        error: (message: string, meta?: Record<string, any>) => void;
-        warn: (message: string, meta?: Record<string, any>) => void;
-        info: (message: string, meta?: Record<string, any>) => void;
-        debug: (message: string, meta?: Record<string, any>) => void;
-        verbose: (message: string, meta?: Record<string, any>) => void;
-    };
-}
-declare const _default: ExtendedLogger;
-export default _default;
+/**
+ * 日志记录工具
+ */
+declare const logger: {
+    /**
+     * 错误日志
+     * @param message 日志消息
+     * @param data 附加数据
+     */
+    error: (message: string, data?: any) => void;
+    /**
+     * 警告日志
+     * @param message 日志消息
+     * @param data 附加数据
+     */
+    warn: (message: string, data?: any) => void;
+    /**
+     * 信息日志
+     * @param message 日志消息
+     * @param data 附加数据
+     */
+    info: (message: string, data?: any) => void;
+    /**
+     * 调试日志
+     * @param message 日志消息
+     * @param data 附加数据
+     */
+    debug: (message: string, data?: any) => void;
+};
+export default logger;

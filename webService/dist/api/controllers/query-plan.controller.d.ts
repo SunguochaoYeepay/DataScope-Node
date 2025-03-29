@@ -1,42 +1,91 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
+interface AuthenticatedRequest extends Request {
+    user?: {
+        id: string;
+        email: string;
+        role: string;
+    };
+}
 /**
- * 查询执行计划控制器
- * 提供查询执行计划相关的API接口
+ * 查询计划控制器
+ * 处理查询计划的获取、分析和优化
  */
 export declare class QueryPlanController {
     /**
-     * 获取SQL查询执行计划
-     * @param req Express请求对象
-     * @param res Express响应对象
-     * @param next Express下一个中间件函数
+     * 获取查询的执行计划
+     * @param req 请求对象
+     * @param res 响应对象
      */
-    getQueryPlan(req: Request, res: Response, next: NextFunction): Promise<void>;
+    getQueryPlan(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 获取查询的执行计划 (路由别名)
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    getPlan(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 获取查询的优化建议
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    getOptimizationTips(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 比较两个查询计划
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    comparePlans(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 计算性能改进百分比
+     * @param planA 原始计划
+     * @param planB 优化后计划
+     * @returns 改进百分比
+     */
+    private calculateImprovement;
+    /**
+     * 生成比较要点
+     * @param planA 原始计划
+     * @param planB 优化后计划
+     * @returns 比较要点列表
+     */
+    private generateComparisonPoints;
+    /**
+     * 保存查询计划到数据库
+     * @param plan 查询计划
+     * @param dataSourceId 数据源ID
+     * @param userId 用户ID
+     * @returns 保存的查询计划记录
+     */
+    private saveQueryPlan;
+    /**
+     * 获取查询计划历史
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    getQueryPlanHistory(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
      * 保存查询执行计划
-     * @param req Express请求对象
-     * @param res Express响应对象
-     * @param next Express下一个中间件函数
+     * @param req 请求对象
+     * @param res 响应对象
      */
-    saveQueryPlan(req: Request, res: Response, next: NextFunction): Promise<void>;
+    savePlan(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
-     * 获取查询的执行计划历史记录
-     * @param req Express请求对象
-     * @param res Express响应对象
-     * @param next Express下一个中间件函数
+     * 获取所有保存的查询执行计划
+     * @param req 请求对象
+     * @param res 响应对象
      */
-    getQueryPlanHistory(req: Request, res: Response, next: NextFunction): Promise<void>;
+    getAllSavedPlans(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
-     * 获取单个查询执行计划详情
-     * @param req Express请求对象
-     * @param res Express响应对象
-     * @param next Express下一个中间件函数
+     * 获取特定的查询执行计划
+     * @param req 请求对象
+     * @param res 响应对象
      */
-    getQueryPlanById(req: Request, res: Response, next: NextFunction): Promise<void>;
+    getSavedPlan(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
      * 删除查询执行计划
-     * @param req Express请求对象
-     * @param res Express响应对象
-     * @param next Express下一个中间件函数
+     * @param req 请求对象
+     * @param res 响应对象
      */
-    deleteQueryPlan(req: Request, res: Response, next: NextFunction): Promise<void>;
+    deletePlan(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
+export {};

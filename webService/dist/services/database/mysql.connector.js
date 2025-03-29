@@ -24,6 +24,7 @@ class MySQLConnector {
      */
     constructor(dataSourceId, hostOrConfig, port, username, password, database) {
         this.activeQueries = new Map(); // queryId -> connectionId
+        this.isJsonExplainSupported = false; // 是否支持JSON格式的EXPLAIN
         this._dataSourceId = dataSourceId;
         // 根据传入参数的类型构建配置
         if (typeof hostOrConfig === 'string') {
@@ -201,6 +202,15 @@ class MySQLConnector {
         }
     }
     /**
+     * 获取查询计划（直接返回结构化数据）
+     * @param sql 查询语句
+     * @param params 查询参数
+     * @returns 执行计划
+     */
+    async getQueryPlan(sql, params = []) {
+        return this.explainQuery(sql, params);
+    }
+    /**
      * 获取查询执行计划
      * @param sql 查询语句
      * @param params 查询参数
@@ -222,9 +232,11 @@ class MySQLConnector {
                 const [jsonRows] = await connection.query(`EXPLAIN FORMAT=JSON ${sql}`, params);
                 if (jsonRows && jsonRows[0] && jsonRows[0].EXPLAIN) {
                     jsonData = JSON.parse(jsonRows[0].EXPLAIN);
+                    this.isJsonExplainSupported = true;
                 }
             }
             catch (jsonError) {
+                this.isJsonExplainSupported = false;
                 logger_1.default.warn('获取JSON格式执行计划失败，使用传统格式', {
                     error: jsonError?.message || '未知错误',
                     dataSourceId: this._dataSourceId

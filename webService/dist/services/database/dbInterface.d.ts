@@ -2,6 +2,8 @@
  * 数据库连接器接口
  * 定义所有支持的数据库类型必须实现的接口方法
  */
+import { QueryPlan, QueryPlanNode, PerformanceConcern } from '../../types/query-plan';
+export { QueryPlan, QueryPlanNode, PerformanceConcern };
 export interface ColumnInfo {
     name: string;
     dataType: string;
@@ -74,36 +76,6 @@ export interface QueryResult {
     affectedRows?: number;
     lastInsertId?: number | string;
 }
-/**
- * 查询计划节点
- */
-export interface QueryPlanNode {
-    id: number;
-    selectType: string;
-    table: string;
-    type: string;
-    possibleKeys?: string;
-    key?: string;
-    keyLen?: string | number;
-    ref?: string;
-    rows: number;
-    filtered?: number;
-    extra?: string;
-    partitions?: string;
-    costInfo?: string;
-}
-/**
- * 查询执行计划
- */
-export interface QueryPlan {
-    planNodes: QueryPlanNode[];
-    warnings: string[];
-    query: string;
-    estimatedCost: number | undefined;
-    estimatedRows: number;
-    optimizationTips: string[];
-    performanceAnalysis?: any;
-}
 export interface DatabaseConnector {
     /**
      * 测试数据库连接
@@ -126,6 +98,17 @@ export interface DatabaseConnector {
      * @returns 执行计划
      */
     explainQuery(sql: string, params?: any[]): Promise<QueryPlan>;
+    /**
+     * 获取查询计划（直接返回结构化数据）
+     * @param sql 查询语句
+     * @param params 查询参数
+     * @returns 执行计划
+     */
+    getQueryPlan?(sql: string, params?: any[]): Promise<QueryPlan>;
+    /**
+     * 是否支持JSON格式的EXPLAIN
+     */
+    isJsonExplainSupported?: boolean;
     /**
      * 获取架构列表
      */

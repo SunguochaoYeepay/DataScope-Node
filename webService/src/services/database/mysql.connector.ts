@@ -23,6 +23,7 @@ export class MySQLConnector implements DatabaseConnector {
   private pool: mysql.Pool;
   private config: mysql.PoolOptions;
   private activeQueries: Map<string, number> = new Map(); // queryId -> connectionId
+  public isJsonExplainSupported: boolean = false; // 是否支持JSON格式的EXPLAIN
   
   /**
    * 构造函数
@@ -258,6 +259,16 @@ export class MySQLConnector implements DatabaseConnector {
   }
 
   /**
+   * 获取查询计划（直接返回结构化数据）
+   * @param sql 查询语句
+   * @param params 查询参数
+   * @returns 执行计划
+   */
+  async getQueryPlan(sql: string, params: any[] = []): Promise<QueryPlan> {
+    return this.explainQuery(sql, params);
+  }
+
+  /**
    * 获取查询执行计划
    * @param sql 查询语句
    * @param params 查询参数
@@ -286,8 +297,10 @@ export class MySQLConnector implements DatabaseConnector {
         const [jsonRows] = await connection.query(`EXPLAIN FORMAT=JSON ${sql}`, params) as [any[], mysql.FieldPacket[]];
         if (jsonRows && jsonRows[0] && jsonRows[0].EXPLAIN) {
           jsonData = JSON.parse(jsonRows[0].EXPLAIN);
+          this.isJsonExplainSupported = true;
         }
       } catch (jsonError: any) {
+        this.isJsonExplainSupported = false;
         logger.warn('获取JSON格式执行计划失败，使用传统格式', {
           error: jsonError?.message || '未知错误',
           dataSourceId: this._dataSourceId

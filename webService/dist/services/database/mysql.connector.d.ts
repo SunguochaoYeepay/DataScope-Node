@@ -9,6 +9,7 @@ export declare class MySQLConnector implements DatabaseConnector {
     private pool;
     private config;
     private activeQueries;
+    isJsonExplainSupported: boolean;
     /**
      * 构造函数
      * @param dataSourceId 数据源ID
@@ -30,6 +31,13 @@ export declare class MySQLConnector implements DatabaseConnector {
      * 执行SQL查询
      */
     executeQuery(sql: string, params?: any[], queryId?: string, options?: QueryOptions): Promise<QueryResult>;
+    /**
+     * 获取查询计划（直接返回结构化数据）
+     * @param sql 查询语句
+     * @param params 查询参数
+     * @returns 执行计划
+     */
+    getQueryPlan(sql: string, params?: any[]): Promise<QueryPlan>;
     /**
      * 获取查询执行计划
      * @param sql 查询语句

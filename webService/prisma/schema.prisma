@@ -167,6 +167,7 @@ model Query {
   dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
   displayConfigs DisplayConfig[]
   queryHistory QueryHistory[]
+  queryPlans   QueryPlan[]  // 添加与QueryPlan的关系
 
   @@map("tbl_query")
 }
@@ -246,6 +247,7 @@ model QueryPlan {
   updatedAt    DateTime  @updatedAt
   createdBy    String    @default("system")
   
+  query        Query?    @relation(fields: [queryId], references: [id], onDelete: SetNull)
   comparisons  QueryPlanComparison[] @relation("PlanA")
   comparedWith QueryPlanComparison[] @relation("PlanB")
 
