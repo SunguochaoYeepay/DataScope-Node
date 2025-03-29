@@ -229,7 +229,7 @@ class QueryController {
     async getQueryHistory(req, res, next) {
         try {
             const { dataSourceId, limit, offset } = req.query;
-            const history = await query_service_1.default.getQueryPlanHistory(dataSourceId, limit ? Number(limit) : 50, offset ? Number(offset) : 0);
+            const history = await query_service_1.default.getQueryHistory(dataSourceId, limit ? Number(limit) : 50, offset ? Number(offset) : 0);
             res.status(200).json({
                 success: true,
                 data: history

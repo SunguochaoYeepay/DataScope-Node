@@ -20,7 +20,7 @@ export declare class MetadataController {
      */
     getSyncHistory(req: Request, res: Response, next: NextFunction): Promise<void>;
     /**
-     * 获取表数据预览（通过metadataService）
+     * 获取表数据预览
      */
     previewTableData(req: Request, res: Response, next: NextFunction): Promise<void>;
     /**
@@ -48,19 +48,13 @@ export declare class MetadataController {
     /**
      * 获取表的数据示例（预览）
      */
-    private getTablePreview;
+    private getTablePreviewInternal;
     /**
      * 获取表详细信息
      * @param req 请求对象
      * @param res 响应对象
      */
     getTableDetails(req: AuthenticatedRequest, res: Response): Promise<void>;
-    /**
-     * 获取表数据预览（通过Connector）
-     * @param req 请求对象
-     * @param res 响应对象
-     */
-    previewTableDataDirect(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 declare const _default: MetadataController;
 export default _default;

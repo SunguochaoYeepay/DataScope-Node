@@ -445,6 +445,48 @@ export class QueryService {
       throw new ApiError('删除查询失败', 500, error.message);
     }
   }
+
+  /**
+   * 获取查询历史记录列表
+   * @param dataSourceId 数据源ID
+   * @param limit 每页数量
+   * @param offset 偏移量
+   * @returns 查询历史记录列表
+   */
+  async getQueryHistory(
+    dataSourceId?: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<{
+    history: QueryHistory[];
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
+    try {
+      const where = dataSourceId ? { dataSourceId } : {};
+      
+      const [history, total] = await Promise.all([
+        prisma.queryHistory.findMany({
+          where,
+          orderBy: { startTime: 'desc' },
+          skip: offset,
+          take: limit
+        }),
+        prisma.queryHistory.count({ where })
+      ]);
+      
+      return {
+        history,
+        total,
+        limit,
+        offset
+      };
+    } catch (error) {
+      logger.error('获取查询历史记录列表失败', { error, dataSourceId });
+      throw new ApiError('获取查询历史记录列表失败', 500);
+    }
+  }
 }
 
 export default new QueryService();

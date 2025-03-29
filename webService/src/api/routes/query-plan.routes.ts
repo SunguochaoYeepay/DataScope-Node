@@ -92,7 +92,7 @@ router.post('/analyze',
     body('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
     body('sql').isString().notEmpty().withMessage('SQL查询语句不能为空')
   ],
-  queryPlanController.getPlan
+  queryPlanController.getQueryPlan.bind(queryPlanController)
 );
 
 /**
@@ -145,7 +145,7 @@ router.get('/:planId/optimize',
   [
     param('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
   ],
-  queryPlanController.getOptimizationTips
+  queryPlanController.getOptimizationTips.bind(queryPlanController)
 );
 
 /**
@@ -209,7 +209,7 @@ router.post('/compare',
     body('planAId').isString().notEmpty().withMessage('原始执行计划ID不能为空'),
     body('planBId').isString().notEmpty().withMessage('对比执行计划ID不能为空')
   ],
-  queryPlanController.comparePlans
+  queryPlanController.comparePlans.bind(queryPlanController)
 );
 
 /**
@@ -280,7 +280,7 @@ router.post('/compare',
  */
 router.get('/history',
   authenticate,
-  queryPlanController.getQueryPlanHistory
+  queryPlanController.getQueryPlanHistory.bind(queryPlanController)
 );
 
 /**

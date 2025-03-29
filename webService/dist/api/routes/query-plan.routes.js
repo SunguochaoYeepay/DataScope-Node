@@ -89,7 +89,7 @@ const queryPlanController = new query_plan_controller_1.QueryPlanController();
 router.post('/analyze', auth_1.authenticate, [
     (0, express_validator_1.body)('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
     (0, express_validator_1.body)('sql').isString().notEmpty().withMessage('SQL查询语句不能为空')
-], queryPlanController.getPlan);
+], queryPlanController.getQueryPlan.bind(queryPlanController));
 /**
  * @swagger
  * /query-plans/{planId}/optimize:
@@ -137,7 +137,7 @@ router.post('/analyze', auth_1.authenticate, [
  */
 router.get('/:planId/optimize', auth_1.authenticate, [
     (0, express_validator_1.param)('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
-], queryPlanController.getOptimizationTips);
+], queryPlanController.getOptimizationTips.bind(queryPlanController));
 /**
  * @swagger
  * /query-plans/compare:
@@ -196,7 +196,7 @@ router.get('/:planId/optimize', auth_1.authenticate, [
 router.post('/compare', auth_1.authenticate, [
     (0, express_validator_1.body)('planAId').isString().notEmpty().withMessage('原始执行计划ID不能为空'),
     (0, express_validator_1.body)('planBId').isString().notEmpty().withMessage('对比执行计划ID不能为空')
-], queryPlanController.comparePlans);
+], queryPlanController.comparePlans.bind(queryPlanController));
 /**
  * @swagger
  * /query-plans/history:
@@ -263,7 +263,7 @@ router.post('/compare', auth_1.authenticate, [
  *                 limit: 20
  *                 offset: 0
  */
-router.get('/history', auth_1.authenticate, queryPlanController.getQueryPlanHistory);
+router.get('/history', auth_1.authenticate, queryPlanController.getQueryPlanHistory.bind(queryPlanController));
 /**
  * @swagger
  * /query-plans/{planId}:

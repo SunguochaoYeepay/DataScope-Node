@@ -489,7 +489,7 @@ router.get('/:queryId/visualization', [
     }
 });
 // 引用查询计划详情的路由
-router.get('/plans/:id', auth_1.authenticate, async (req, res) => {
+router.get('/plans/:id', auth_1.authenticate, async (req, res, next) => {
     try {
         await queryPlanController.getQueryPlanById(req, res);
     }
@@ -501,7 +501,7 @@ router.get('/plans/:id', auth_1.authenticate, async (req, res) => {
         });
     }
 });
-router.get('/history/:queryId/plans', auth_1.authenticate, async (req, res) => {
+router.get('/history/:queryId/plans', auth_1.authenticate, async (req, res, next) => {
     try {
         // 转发到查询计划控制器
         req.params.planId = req.params.queryId; // 适配控制器参数

@@ -88,7 +88,7 @@ export class MetadataController {
   }
 
   /**
-   * 获取表数据预览（通过metadataService）
+   * 获取表数据预览
    */
   async previewTableData(req: Request, res: Response, next: NextFunction) {
     try {
@@ -104,17 +104,56 @@ export class MetadataController {
         throw new ApiError('缺少必要参数', 400, { message: '必须提供schema和table参数' });
       }
       
-      const result = await metadataService.previewTableData(
-        dataSourceId,
-        schema as string,
-        table as string,
-        Number(limit) || 100
-      );
-      
-      res.status(200).json({
-        success: true,
-        data: result
-      });
+      try {
+        // 获取数据源
+        const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
+        if (!dataSource) {
+          throw new ApiError('数据源不存在', 404);
+        }
+        
+        // 获取数据库连接
+        const connector = await dataSourceService.getConnector(dataSourceId);
+        
+        // 预览表数据
+        const limitNum = Number(limit) || 100;
+        
+        if (typeof connector.previewTableData !== 'function') {
+          throw new ApiError('数据源连接器不支持表数据预览功能', 400);
+        }
+        
+        const schemaOrDb = schema as string;
+        const result = await connector.previewTableData(schemaOrDb, table as string, limitNum);
+        
+        // 确保result.rows存在且是一个数组
+        const rows = Array.isArray(result.rows) ? result.rows : [];
+        
+        // 确定列信息
+        let columns: string[] = [];
+        if (result.fields && Array.isArray(result.fields)) {
+          columns = result.fields.map((field: any) => field.name);
+        } else if (rows.length > 0) {
+          columns = Object.keys(rows[0]);
+        }
+        
+        res.status(200).json({
+          success: true,
+          data: {
+            rows: rows,
+            columns: columns,
+            total: result.rowCount || rows.length,
+            limit: limitNum,
+            offset: 0
+          }
+        });
+      } catch (error: any) {
+        logger.error('获取表数据预览失败', { error });
+        
+        if (error instanceof ApiError) {
+          throw error;
+        } else {
+          throw new ApiError('获取表数据预览时发生错误', 500, { message: error.message });
+        }
+      }
     } catch (error: any) {
       next(error);
     }
@@ -293,7 +332,7 @@ export class MetadataController {
   /**
    * 获取表的数据示例（预览）
    */
-  private async getTablePreview(connector: any, schemaOrDb: string, tableName: string, limit: number = 1): Promise<any> {
+  private async getTablePreviewInternal(connector: any, schemaOrDb: string, tableName: string, limit: number = 1): Promise<any> {
     try {
       if (typeof connector.previewTableData !== 'function') {
         return null;
@@ -362,7 +401,7 @@ export class MetadataController {
       }
       
       // 获取表的数据示例（预览）
-      const previewData = await this.getTablePreview(connector, schemaOrDb, table as string);
+      const previewData = await this.getTablePreviewInternal(connector, schemaOrDb, table as string);
       
       // 返回表详情
       res.status(200).json({
@@ -390,79 +429,6 @@ export class MetadataController {
         res.status(500).json({
           success: false,
           message: '获取表详细信息时发生错误',
-          error: (error as Error).message
-        });
-      }
-    }
-  }
-  
-  /**
-   * 获取表数据预览（通过Connector）
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  public async previewTableDataDirect(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const { database, table, schema, limit, offset } = req.query;
-      
-      if (!id || !database || !table) {
-        throw new ApiError('缺少必要参数', 400);
-      }
-      
-      // 获取数据源
-      const dataSource = await dataSourceService.getDataSourceById(id);
-      if (!dataSource) {
-        throw new ApiError('数据源不存在', 404);
-      }
-      
-      // 获取数据库连接
-      const connector = await dataSourceService.getConnector(id);
-      
-      // 预览表数据
-      const limitNum = Number(limit) || 100;
-      const offsetNum = Number(offset) || 0;
-      
-      if (typeof connector.previewTableData !== 'function') {
-        throw new ApiError('数据源连接器不支持表数据预览功能', 400);
-      }
-      
-      const schemaOrDb = schema as string || database as string;
-      const result = await connector.previewTableData(schemaOrDb, table as string, limitNum);
-      
-      // 确保result.rows存在且是一个数组
-      const rows = Array.isArray(result.rows) ? result.rows : [];
-      
-      // 确定列信息
-      let columns: string[] = [];
-      if (result.fields && Array.isArray(result.fields)) {
-        columns = result.fields.map((field: any) => field.name);
-      } else if (rows.length > 0) {
-        columns = Object.keys(rows[0]);
-      }
-      
-      res.status(200).json({
-        success: true,
-        data: {
-          rows: rows,
-          columns: columns,
-          total: result.rowCount || rows.length,
-          limit: limitNum,
-          offset: offsetNum
-        }
-      });
-    } catch (error) {
-      logger.error('获取表数据预览失败', { error });
-      
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({
-          success: false,
-          message: error.message
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: '获取表数据预览时发生错误',
           error: (error as Error).message
         });
       }
