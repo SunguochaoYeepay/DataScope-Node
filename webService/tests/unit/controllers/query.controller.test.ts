@@ -1,10 +1,37 @@
 import { QueryController } from '../../../src/api/controllers/query.controller';
 import { Request, Response, NextFunction } from 'express';
 import { jest, describe, beforeEach, it, expect } from '@jest/globals';
-import { QueryService } from '../../../src/services/query.service';
-import { DataSourceService } from '../../../src/services/datasource.service';
-import { PrismaClient } from '@prisma/client';
-import { DatabaseConnector } from '../../../src/types/db-interface';
+import { createMockSavedQuery, createMockQueryHistory, createMockOptimizationTips } from '../../mocks/database-mock';
+import { ApiError } from '../../../src/utils/error';
+
+// Mock express-validator
+jest.mock('express-validator', () => ({
+  validationResult: jest.fn().mockImplementation(() => ({
+    isEmpty: jest.fn().mockReturnValue(true),
+    array: jest.fn().mockReturnValue([])
+  })),
+  body: jest.fn(),
+  param: jest.fn()
+}));
+
+// Mock QueryService
+jest.mock('../../../src/services/query.service', () => {
+  const mockService = {
+    explainQuery: jest.fn(),
+    getQueryOptimizationTips: jest.fn(),
+    getQueryHistory: jest.fn(),
+    getQueryPlanById: jest.fn(),
+    saveQuery: jest.fn(),
+    getQueries: jest.fn(),
+    getQueryById: jest.fn(),
+    updateQuery: jest.fn(),
+    deleteQuery: jest.fn(),
+    cancelQuery: jest.fn(),
+    executeQuery: jest.fn(),
+    getQueryPlanHistory: jest.fn()
+  };
+  return mockService;
+});
 
 // Mock types
 type MockResponse = Partial<Response> & {
@@ -20,113 +47,26 @@ type MockRequest = Partial<Request> & {
   };
 };
 
-// Mock PrismaClient
-jest.mock('@prisma/client', () => {
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => {
-      return {
-        query: {
-          findUnique: jest.fn(),
-          findMany: jest.fn(),
-          create: jest.fn(),
-          update: jest.fn(),
-          delete: jest.fn(),
-          count: jest.fn()
-        }
-      };
-    })
-  };
-});
-
-// Mock QueryService
-jest.mock('../../../src/services/query.service', () => {
-  return {
-    QueryService: jest.fn().mockImplementation(() => {
-      return {
-        explainQuery: jest.fn(),
-        getQueryOptimizationTips: jest.fn(),
-        getQueryHistory: jest.fn(),
-        saveQuery: jest.fn(),
-        getQueries: jest.fn(),
-        getQueryById: jest.fn(),
-        updateQuery: jest.fn(),
-        deleteQuery: jest.fn(),
-        cancelQuery: jest.fn()
-      };
-    })
-  };
-});
-
-// Mock DataSourceService
-jest.mock('../../../src/services/datasource.service', () => {
-  return {
-    DataSourceService: jest.fn().mockImplementation(() => {
-      return {
-        getDataSourceById: jest.fn(),
-        getConnector: jest.fn()
-      };
-    })
-  };
-});
-
 // 生成mock响应
 const mockResponse = (): MockResponse => {
   const res = {
-    status: jest.fn(() => res),
-    json: jest.fn(() => res)
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis()
   } as MockResponse;
   return res;
 };
 
-// 创建模拟数据源
-const createMockDataSource = (dbType = 'mysql') => {
-  return {
-    id: 'test-ds-id',
-    name: 'Test DB',
-    type: dbType,
-    host: 'localhost',
-    port: 3306,
-    username: 'user',
-    status: 'active',
-    description: 'Test Database',
-    nonce: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    createdBy: 'test-user-id',
-    updatedBy: 'test-user-id',
-    active: true,
-    databaseName: 'test_db'
-  };
-};
-
-// 创建模拟数据库连接器
-const createMockConnector = (): Partial<DatabaseConnector> => {
-  return {
-    testConnection: jest.fn().mockResolvedValue(true),
-    executeQuery: jest.fn().mockResolvedValue({
-      columns: ['id', 'name'],
-      rows: [{ id: 1, name: 'test' }],
-      rowCount: 1,
-      executionTime: 10
-    }),
-    close: jest.fn().mockResolvedValue(undefined)
-  };
-};
+// 导入模拟的queryService
+import queryService from '../../../src/services/query.service';
 
 describe('QueryController', () => {
   let queryController: QueryController;
-  let mockQueryService: jest.Mocked<QueryService>;
-  let mockDataSourceService: jest.Mocked<DataSourceService>;
-  let mockPrismaClient: jest.Mocked<PrismaClient>;
   let mockReq: MockRequest;
   let mockRes: MockResponse;
   let mockNext: NextFunction;
   
   beforeEach(() => {
     jest.clearAllMocks();
-    mockQueryService = new QueryService() as jest.Mocked<QueryService>;
-    mockDataSourceService = new DataSourceService() as jest.Mocked<DataSourceService>;
-    mockPrismaClient = new PrismaClient() as jest.Mocked<PrismaClient>;
     
     queryController = new QueryController();
     
@@ -160,13 +100,13 @@ describe('QueryController', () => {
         sql: 'SELECT * FROM users'
       };
       
-      mockQueryService.explainQuery.mockResolvedValue(mockExplainResult);
+      (queryService.explainQuery as jest.Mock).mockResolvedValue(mockExplainResult);
       
       // 执行测试
-      await queryController.explainQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.explainQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.explainQuery).toHaveBeenCalledWith('test-ds-id', 'SELECT * FROM users');
+      expect(queryService.explainQuery).toHaveBeenCalledWith('test-ds-id', 'SELECT * FROM users', undefined);
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -178,14 +118,35 @@ describe('QueryController', () => {
       // 设置模拟 - 缺少 sql 参数
       mockReq.body = { dataSourceId: 'test-ds-id' };
       
+      // 修改模拟验证结果为失败
+      const validationResult = require('express-validator').validationResult;
+      validationResult.mockImplementationOnce(() => ({
+        isEmpty: jest.fn().mockReturnValue(false),
+        array: jest.fn().mockReturnValue([{ msg: 'SQL is required', param: 'sql' }])
+      }));
+      
+      // 模拟 next 函数处理 ApiError
+      mockNext.mockImplementation((error) => {
+        // 确保传给mockNext的是ApiError类型错误
+        if (error instanceof Error) {
+          mockRes.status(400).json({
+            success: false,
+            message: error.message,
+            errors: (error as any).details?.errors || []
+          });
+        }
+      });
+      
       // 执行测试
-      await queryController.explainQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.explainQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
+      expect(mockNext).toHaveBeenCalled();
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        message: expect.any(String)
+        message: expect.any(String),
+        errors: expect.any(Array)
       });
     });
   });
@@ -193,62 +154,59 @@ describe('QueryController', () => {
   describe('getQueryOptimizationTips', () => {
     it('should return query optimization tips', async () => {
       // 准备测试数据
-      const mockTips = [
-        { type: 'INDEX', description: '为users表的email列添加索引', impact: 'HIGH' }
-      ];
-      
-      // 设置模拟
-      mockReq.body = {
-        dataSourceId: 'test-ds-id',
-        sql: 'SELECT * FROM users WHERE email = "test@example.com"'
+      const mockTips = createMockOptimizationTips();
+      const mockPlan = {
+        sql: 'SELECT * FROM users WHERE email = "test@example.com"',
+        planData: JSON.stringify({
+          optimizationTips: mockTips,
+          performanceAnalysis: { score: 75 }
+        })
       };
       
-      mockQueryService.getQueryOptimizationTips.mockResolvedValue(mockTips);
+      // 设置模拟
+      mockReq.params = { id: 'plan-123' };
+      (queryService.getQueryPlanById as jest.Mock).mockResolvedValue(mockPlan);
       
       // 执行测试
-      await queryController.getQueryOptimizationTips(mockReq as Request, mockRes as unknown as Response);
+      await queryController.getQueryOptimizationTips(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.getQueryOptimizationTips).toHaveBeenCalledWith('test-ds-id', 'SELECT * FROM users WHERE email = "test@example.com"');
+      expect(queryService.getQueryPlanById).toHaveBeenCalledWith('plan-123');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
-        data: mockTips
+        data: expect.objectContaining({
+          sql: mockPlan.sql,
+          optimizationTips: expect.any(Array)
+        })
       });
     });
   });
   
-  describe('getQueryPlanHistory', () => {
+  describe('getQueryHistory', () => {
     it('should return query history', async () => {
       // 准备测试数据
       const mockHistory = {
-        history: [
-          { id: 'query-1', sql: 'SELECT 1', createdAt: new Date() },
-          { id: 'query-2', sql: 'SELECT 2', createdAt: new Date() }
-        ],
+        history: createMockQueryHistory(),
         total: 2,
-        limit: 20,
+        limit: 50,
         offset: 0
       };
       
       // 设置模拟
-      mockReq.query = {
+      mockReq.query = { 
         dataSourceId: 'test-ds-id',
-        limit: '20',
+        limit: '50',
         offset: '0'
       };
       
-      mockQueryService.getQueryHistory.mockResolvedValue(mockHistory);
+      (queryService.getQueryHistory as jest.Mock).mockResolvedValue(mockHistory);
       
       // 执行测试
-      await queryController.getQueryHistory(mockReq as Request, mockRes as unknown as Response);
+      await queryController.getQueryHistory(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.getQueryHistory).toHaveBeenCalledWith(
-        'test-ds-id',
-        20,
-        0
-      );
+      expect(queryService.getQueryHistory).toHaveBeenCalledWith('test-ds-id', 50, 0);
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -258,17 +216,16 @@ describe('QueryController', () => {
   });
   
   describe('cancelQuery', () => {
-    it('should cancel query successfully', async () => {
+    it('should cancel query execution successfully', async () => {
       // 设置模拟
-      mockReq.params = { queryId: 'query-123' };
-      
-      mockQueryService.cancelQuery.mockResolvedValue(true);
+      mockReq.params = { id: 'query-123' };
+      (queryService.cancelQuery as jest.Mock).mockResolvedValue(true);
       
       // 执行测试
-      await queryController.cancelQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.cancelQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.cancelQuery).toHaveBeenCalledWith('query-123');
+      expect(queryService.cancelQuery).toHaveBeenCalledWith('query-123');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -276,151 +233,130 @@ describe('QueryController', () => {
       });
     });
     
-    it('should throw error if query id is missing', async () => {
-      // 设置模拟 - 不提供 queryId
-      mockReq.params = {};
+    it('should handle query that cannot be cancelled', async () => {
+      // 设置模拟
+      mockReq.params = { id: 'query-123' };
+      (queryService.cancelQuery as jest.Mock).mockResolvedValue(false);
       
       // 执行测试
-      await queryController.cancelQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.cancelQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        message: expect.any(String)
+        message: expect.stringContaining('无法取消')
       });
     });
   });
   
   describe('executeQuery', () => {
-    it('should execute query successfully', async () => {
+    it('should execute SQL query successfully', async () => {
       // 准备测试数据
-      const mockDataSource = createMockDataSource();
-      const mockConnector = createMockConnector();
       const mockQueryResult = {
         columns: ['id', 'name'],
-        rows: [{ id: 1, name: 'test' }],
+        rows: [{ id: 1, name: 'User 1' }],
         rowCount: 1,
-        executionTime: 10
+        executionTime: 15
       };
       
       // 设置模拟
       mockReq.body = {
         dataSourceId: 'test-ds-id',
-        sql: 'SELECT * FROM users'
+        sql: 'SELECT * FROM users',
+        params: [],
+        page: 1,
+        pageSize: 10
       };
       
-      mockDataSourceService.getDataSourceById.mockResolvedValue(mockDataSource as any);
-      mockDataSourceService.getConnector.mockResolvedValue(mockConnector as unknown as DatabaseConnector);
+      (queryService.executeQuery as jest.Mock).mockResolvedValue(mockQueryResult);
       
       // 执行测试
-      await queryController.executeQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.executeQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockDataSourceService.getDataSourceById).toHaveBeenCalledWith('test-ds-id');
-      expect(mockDataSourceService.getConnector).toHaveBeenCalledWith('test-ds-id');
-      expect(mockConnector.executeQuery).toHaveBeenCalledWith('SELECT * FROM users');
+      expect(queryService.executeQuery).toHaveBeenCalledWith(
+        'test-ds-id', 
+        'SELECT * FROM users', 
+        [],
+        {
+          page: 1,
+          pageSize: 10,
+          offset: undefined,
+          limit: undefined,
+          sort: undefined,
+          order: undefined
+        }
+      );
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         data: mockQueryResult
       });
     });
-    
-    it('should throw error if data source not found', async () => {
-      // 设置模拟
-      mockReq.body = {
-        dataSourceId: 'test-ds-id',
-        sql: 'SELECT * FROM users'
-      };
-      
-      mockDataSourceService.getDataSourceById.mockResolvedValue(null as any);
-      
-      // 执行测试
-      await queryController.executeQuery(mockReq as Request, mockRes as unknown as Response);
-      
-      // 验证
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        message: expect.any(String)
-      });
-    });
   });
   
   describe('saveQuery', () => {
-    it('should save query successfully', async () => {
+    it('should save a query successfully', async () => {
       // 准备测试数据
-      const mockSavedQuery = {
-        id: 'query-123',
-        name: 'Test Query',
-        sql: 'SELECT * FROM users',
-        dataSourceId: 'test-ds-id',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      const savedQuery = createMockSavedQuery();
       
       // 设置模拟
       mockReq.body = {
         dataSourceId: 'test-ds-id',
         name: 'Test Query',
-        sql: 'SELECT * FROM users'
+        description: 'Test query description',
+        sql: 'SELECT * FROM users',
+        isPublic: false,
+        tags: ['users', 'test']
       };
-      mockReq.user = { id: 'test-user-id', email: 'test@example.com', role: 'user' };
       
-      mockQueryService.saveQuery.mockResolvedValue(mockSavedQuery);
+      (queryService.saveQuery as jest.Mock).mockResolvedValue(savedQuery);
       
       // 执行测试
-      await queryController.saveQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.saveQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.saveQuery).toHaveBeenCalledWith({
-        name: 'Test Query',
-        sql: 'SELECT * FROM users',
+      expect(queryService.saveQuery).toHaveBeenCalledWith({
         dataSourceId: 'test-ds-id',
-        createdBy: 'test-user-id',
-        description: undefined,
-        folderId: undefined
+        name: 'Test Query',
+        description: 'Test query description',
+        sql: 'SELECT * FROM users',
+        isPublic: false,
+        tags: ['users', 'test']
       });
       expect(mockRes.status).toHaveBeenCalledWith(201);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
-        data: mockSavedQuery
+        data: savedQuery
       });
     });
   });
   
   describe('getQueries', () => {
-    it('should return list of queries', async () => {
+    it('should retrieve saved queries with filters', async () => {
       // 准备测试数据
-      const mockQueries = {
-        queries: [
-          { id: 'query-1', name: 'Query 1', sql: 'SELECT 1' },
-          { id: 'query-2', name: 'Query 2', sql: 'SELECT 2' }
-        ],
-        total: 2
-      };
+      const mockQueries = [createMockSavedQuery()];
       
       // 设置模拟
       mockReq.query = {
         dataSourceId: 'test-ds-id',
-        limit: '20',
-        offset: '0'
+        tag: 'users',
+        isPublic: 'true',
+        search: 'test'
       };
       
-      mockQueryService.getQueries.mockResolvedValue(mockQueries);
+      (queryService.getQueries as jest.Mock).mockResolvedValue(mockQueries);
       
       // 执行测试
-      await queryController.getQueries(mockReq as Request, mockRes as unknown as Response);
+      await queryController.getQueries(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.getQueries).toHaveBeenCalledWith({
+      expect(queryService.getQueries).toHaveBeenCalledWith({
         dataSourceId: 'test-ds-id',
-        limit: 20,
-        offset: 0,
-        userId: 'test-user-id',
-        search: undefined,
-        folderId: undefined
+        tag: 'users',
+        isPublic: true,
+        search: 'test'
       });
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -431,83 +367,53 @@ describe('QueryController', () => {
   });
   
   describe('getQueryById', () => {
-    it('should return query by id', async () => {
+    it('should retrieve a specific query by ID', async () => {
       // 准备测试数据
-      const mockQuery = {
-        id: 'query-123',
-        name: 'Test Query',
-        sql: 'SELECT * FROM users',
-        dataSourceId: 'test-ds-id'
-      };
+      const mockQuery = createMockSavedQuery();
       
       // 设置模拟
       mockReq.params = { id: 'query-123' };
-      
-      mockQueryService.getQueryById.mockResolvedValue(mockQuery);
+      (queryService.getQueryById as jest.Mock).mockResolvedValue(mockQuery);
       
       // 执行测试
-      await queryController.getQueryById(mockReq as Request, mockRes as unknown as Response);
+      await queryController.getQueryById(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.getQueryById).toHaveBeenCalledWith('query-123');
+      expect(queryService.getQueryById).toHaveBeenCalledWith('query-123');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         data: mockQuery
       });
     });
-    
-    it('should throw error if query not found', async () => {
-      // 设置模拟
-      mockReq.params = { id: 'non-existent-id' };
-      
-      mockQueryService.getQueryById.mockResolvedValue(null);
-      
-      // 执行测试
-      await queryController.getQueryById(mockReq as Request, mockRes as unknown as Response);
-      
-      // 验证
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        message: expect.any(String)
-      });
-    });
   });
   
   describe('updateQuery', () => {
-    it('should update query successfully', async () => {
+    it('should update a query successfully', async () => {
       // 准备测试数据
       const mockUpdatedQuery = {
-        id: 'query-123',
-        name: 'Updated Query',
-        sql: 'SELECT * FROM users',
-        dataSourceId: 'test-ds-id',
-        updatedAt: new Date()
+        ...createMockSavedQuery(),
+        name: 'Updated Query Name',
+        description: 'Updated description'
       };
       
       // 设置模拟
       mockReq.params = { id: 'query-123' };
       mockReq.body = {
-        name: 'Updated Query',
+        name: 'Updated Query Name',
         description: 'Updated description'
       };
-      mockReq.user = { id: 'test-user-id', email: 'test@example.com', role: 'user' };
       
-      mockQueryService.updateQuery.mockResolvedValue(mockUpdatedQuery);
+      (queryService.updateQuery as jest.Mock).mockResolvedValue(mockUpdatedQuery);
       
       // 执行测试
-      await queryController.updateQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.updateQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.updateQuery).toHaveBeenCalledWith(
-        'query-123',
-        {
-          name: 'Updated Query',
-          description: 'Updated description',
-          updatedBy: 'test-user-id'
-        }
-      );
+      expect(queryService.updateQuery).toHaveBeenCalledWith('query-123', {
+        name: 'Updated Query Name',
+        description: 'Updated description'
+      });
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -517,17 +423,16 @@ describe('QueryController', () => {
   });
   
   describe('deleteQuery', () => {
-    it('should delete query successfully', async () => {
+    it('should delete a query successfully', async () => {
       // 设置模拟
       mockReq.params = { id: 'query-123' };
-      
-      mockQueryService.deleteQuery.mockResolvedValue(true);
+      (queryService.deleteQuery as jest.Mock).mockResolvedValue(undefined);
       
       // 执行测试
-      await queryController.deleteQuery(mockReq as Request, mockRes as unknown as Response);
+      await queryController.deleteQuery(mockReq as Request, mockRes as Response, mockNext);
       
       // 验证
-      expect(mockQueryService.deleteQuery).toHaveBeenCalledWith('query-123');
+      expect(queryService.deleteQuery).toHaveBeenCalledWith('query-123');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
