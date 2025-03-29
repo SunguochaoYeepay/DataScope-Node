@@ -21,6 +21,41 @@ DataScope-Node 是一个强大的数据库可视化查询工具后端服务，�
 - Winston：日志记录
 - Swagger：API文档
 
+## 测试
+
+项目使用Jest作为测试框架，提供了以下测试命令：
+
+```bash
+# 运行所有测试
+npm test
+
+# 仅运行单元测试
+npm run test:unit
+
+# 仅运行集成测试
+npm run test:integration
+
+# 获取测试覆盖率报告
+npm run test:coverage
+
+# 监视模式（自动重新运行受影响的测试）
+npm run test:watch
+```
+
+### 测试结构
+
+- `tests/unit/`: 单元测试，测试独立的组件和函数
+  - `utils/`: 工具函数测试
+  - `services/`: 服务层测试
+  - `api/`: API端点测试
+- `tests/integration/`: 集成测试，测试多个组件的交互
+
+### 模拟数据模式
+
+项目支持使用模拟数据进行测试，无需实际数据库连接。通过设置环境变量`USE_MOCK_DATA=true`启用此功能。
+
+在测试环境中，模拟数据模式默认启用。
+
 ## 快速开始
 
 ### 环境要求
