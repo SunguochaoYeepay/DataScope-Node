@@ -5,6 +5,14 @@ export declare class QueryController {
      */
     explainQuery(req: Request, res: Response, next: NextFunction): Promise<void>;
     /**
+     * 获取查询计划的优化建议
+     */
+    getQueryOptimizationTips(req: Request, res: Response, next: NextFunction): Promise<void>;
+    /**
+     * 获取查询计划历史记录
+     */
+    getQueryPlanHistory(req: Request, res: Response, next: NextFunction): Promise<void>;
+    /**
      * 取消查询执行
      */
     cancelQuery(req: Request, res: Response, next: NextFunction): Promise<void>;

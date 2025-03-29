@@ -87,36 +87,6 @@ export class QueryController {
   }
   
   /**
-   * 获取查询计划的优化建议
-   */
-  async getQueryOptimizationTips(req: Request, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      
-      // 从历史记录中获取查询计划
-      const planHistory = await queryService.getQueryPlanById(id);
-      
-      if (!planHistory) {
-        throw new ApiError('查询计划不存在', 404);
-      }
-      
-      // 获取优化建议
-      const plan = JSON.parse(planHistory.planData);
-      
-      res.status(200).json({
-        success: true,
-        data: {
-          sql: planHistory.sql,
-          optimizationTips: plan.optimizationTips || [],
-          performanceAnalysis: plan.performanceAnalysis || {}
-        }
-      });
-    } catch (error: any) {
-      next(error);
-    }
-  }
-  
-  /**
    * 取消查询执行
    */
   async cancelQuery(req: Request, res: Response, next: NextFunction) {

@@ -375,7 +375,9 @@ export class MySQLConnector implements DatabaseConnector {
       planNodes,
       query: originalQuery,
       estimatedRows,
-      estimatedCost
+      estimatedCost,
+      warnings: [],
+      optimizationTips: []
     };
   }
   

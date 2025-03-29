@@ -17,12 +17,12 @@ const validate = (validations) => {
         }
         // 将验证错误格式化为更友好的格式
         const formattedErrors = errors.array().map(error => ({
-            param: error.param,
+            param: error.path || error.param,
             value: error.value,
             message: error.msg
         }));
         // 抛出API验证错误
-        throw error_1.ApiError.badRequest('输入验证失败', 3000, formattedErrors);
+        throw new error_1.ApiError('输入验证失败', 400, { code: 3000, errors: formattedErrors });
     };
 };
 exports.validate = validate;

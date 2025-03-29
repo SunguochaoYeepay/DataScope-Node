@@ -24,6 +24,14 @@ export declare class MetadataController {
      * 验证预览表数据请求
      */
     validatePreviewTableData(): import("express-validator").ValidationChain[];
+    /**
+     * 分析表列详细信息
+     */
+    analyzeColumn(req: Request, res: Response, next: NextFunction): Promise<void>;
+    /**
+     * 验证列分析请求
+     */
+    validateColumnAnalysis(): import("express-validator").ValidationChain[];
 }
 declare const _default: MetadataController;
 export default _default;

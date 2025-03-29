@@ -183,6 +183,14 @@
  *           type: boolean
  *           description: 是否公开
  */
+export declare enum DatabaseType {
+    MYSQL = "mysql",
+    POSTGRESQL = "postgresql",
+    SQLSERVER = "sqlserver",
+    ORACLE = "oracle",
+    MONGODB = "mongodb",
+    ELASTICSEARCH = "elasticsearch"
+}
 export interface DatabaseConnector {
     testConnection(): Promise<boolean>;
     executeQuery(sql: string, params?: any[]): Promise<any>;
@@ -194,6 +202,7 @@ export interface DatabaseConnector {
     getIndexes(schema: string, table: string): Promise<any[]>;
     previewTableData(schema: string, table: string, limit?: number): Promise<any>;
     close(): Promise<void>;
+    explainQuery(sql: string, params?: any[]): Promise<any>;
 }
 /**
  * 数据源相关类型定义
@@ -257,4 +266,18 @@ export interface SaveQueryDto {
     dataSourceId: string;
     tags?: string;
     folderId?: string;
+}
+/**
+ * 查询选项接口
+ */
+export interface QueryOptions {
+    pageNumber?: number;
+    pageSize?: number;
+    sortBy?: string;
+    sortDirection?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+    offset?: number;
+    sort?: string;
+    order?: string;
 }

@@ -17,11 +17,59 @@ class QueryController {
             if (!errors.isEmpty()) {
                 throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
             }
-            const { dataSourceId, sql, params } = req.body;
+            const { dataSourceId, sql, params, includeAnalysis = true } = req.body;
             const plan = await query_service_1.default.explainQuery(dataSourceId, sql, params);
+            // 根据客户端请求决定是否返回完整分析结果
+            if (!includeAnalysis && plan.performanceAnalysis) {
+                // 缓存原始分析结果但不返回
+                plan._performanceAnalysis = plan.performanceAnalysis;
+                delete plan.performanceAnalysis;
+            }
             res.status(200).json({
                 success: true,
                 data: plan
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * 获取查询计划的优化建议
+     */
+    async getQueryOptimizationTips(req, res, next) {
+        try {
+            const { id } = req.params;
+            // 从历史记录中获取查询计划
+            const planHistory = await query_service_1.default.getQueryPlanById(id);
+            if (!planHistory) {
+                throw new error_1.ApiError('查询计划不存在', 404);
+            }
+            // 获取优化建议
+            const plan = JSON.parse(planHistory.planData);
+            res.status(200).json({
+                success: true,
+                data: {
+                    sql: planHistory.sql,
+                    optimizationTips: plan.optimizationTips || [],
+                    performanceAnalysis: plan.performanceAnalysis || {}
+                }
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * 获取查询计划历史记录
+     */
+    async getQueryPlanHistory(req, res, next) {
+        try {
+            const { dataSourceId, limit, offset } = req.query;
+            const result = await query_service_1.default.getQueryPlanHistory(dataSourceId, limit ? Number(limit) : 20, offset ? Number(offset) : 0);
+            res.status(200).json({
+                success: true,
+                data: result
             });
         }
         catch (error) {

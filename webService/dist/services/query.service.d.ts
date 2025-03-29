@@ -16,6 +16,32 @@ export declare class QueryService {
      */
     explainQuery(dataSourceId: string, sql: string, params?: any[]): Promise<any>;
     /**
+     * 保存查询计划到历史记录
+     * @param dataSourceId 数据源ID
+     * @param sql SQL查询语句
+     * @param plan 执行计划
+     */
+    private saveQueryPlanToHistory;
+    /**
+     * 获取查询计划历史记录
+     * @param id 查询计划ID
+     * @returns 查询计划历史记录
+     */
+    getQueryPlanById(id: string): Promise<any | null>;
+    /**
+     * 获取查询计划历史记录列表
+     * @param dataSourceId 数据源ID
+     * @param limit 每页数量
+     * @param offset 偏移量
+     * @returns 查询计划历史记录列表
+     */
+    getQueryPlanHistory(dataSourceId?: string, limit?: number, offset?: number): Promise<{
+        history: any[];
+        total: number;
+        limit: number;
+        offset: number;
+    }>;
+    /**
      * 取消正在执行的查询
      */
     cancelQuery(queryId: string): Promise<boolean>;

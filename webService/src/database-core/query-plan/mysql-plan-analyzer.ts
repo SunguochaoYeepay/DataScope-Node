@@ -1,74 +1,100 @@
+import { QueryPlan } from '../../types/query-plan';
+import logger from '../../utils/logger';
+
 /**
  * MySQL查询计划分析器
- * 专门用于分析MySQL数据库的查询执行计划
+ * 专门负责分析MySQL的查询执行计划并提供优化建议
  */
-
-import { QueryPlan } from '../../types/query-plan';
-
 export class MySQLPlanAnalyzer {
   /**
-   * 分析MySQL查询计划，提取关键性能指标
-   * @param plan 查询执行计划
-   * @returns 性能分析结果
-   */
-  analyzePerformance(plan: QueryPlan): any {
-    return {
-      // 查询估计成本
-      estimatedCost: plan.estimatedCost,
-      
-      // 估计扫描的行数
-      estimatedRows: plan.estimatedRows,
-      
-      // 扫描的表数量
-      tablesScanned: this.getTablesScanned(plan).length,
-      
-      // 是否使用了索引
-      usesIndexes: this.checkIfUsesIndexes(plan),
-      
-      // 是否有全表扫描
-      hasFullTableScan: this.hasFullTableScan(plan),
-      
-      // 是否使用了临时表
-      usesTemporaryTable: this.checkIfUsesTemporaryTable(plan),
-      
-      // 是否使用了文件排序
-      usesFileSort: this.checkIfUsesFileSort(plan),
-      
-      // 性能得分(0-100)
-      performanceScore: this.calculatePerformanceScore(plan),
-      
-      // 详细分析
-      details: this.getDetailedAnalysis(plan)
-    };
-  }
-
-  /**
-   * 提供深度优化建议
+   * 分析MySQL查询计划并提供优化建议
    * @param plan 查询执行计划
    * @returns 优化建议列表
    */
   provideOptimizationSuggestions(plan: QueryPlan): string[] {
-    const suggestions: string[] = [];
+    const tips: string[] = [];
     
-    // 分析索引使用情况
-    this.analyzeIndexUsage(plan, suggestions);
+    try {
+      // 检查全表扫描
+      this.checkFullTableScans(plan, tips);
+      
+      // 检查索引使用情况
+      this.checkIndexUsage(plan, tips);
+      
+      // 检查临时表和文件排序
+      this.checkTemporaryTablesAndFilesort(plan, tips);
+      
+      // 检查表连接
+      this.checkTableJoins(plan, tips);
+      
+      // 检查WHERE子句
+      this.checkWhereConditions(plan, tips);
+      
+      // 检查LIMIT优化
+      this.checkLimitOptimization(plan, tips);
+    } catch (error) {
+      logger.error('生成查询优化建议时出错', { error });
+      // 发生错误时返回基本建议
+      if (tips.length === 0) {
+        tips.push('无法对此查询生成详细的优化建议');
+      }
+    }
     
-    // 分析查询结构
-    this.analyzeQueryStructure(plan, suggestions);
-    
-    // 分析排序和分组
-    this.analyzeSortingAndGrouping(plan, suggestions);
-    
-    // 添加更具体的建议
-    this.addDatabaseSpecificSuggestions(plan, suggestions);
-    
-    return suggestions;
+    return tips;
   }
-
+  
   /**
-   * 获取执行计划中的表列表
+   * 执行性能分析，提取关键指标
+   * @param plan 查询执行计划
+   * @returns 性能分析结果
    */
-  private getTablesScanned(plan: QueryPlan): string[] {
+  analyzePerformance(plan: QueryPlan): any {
+    try {
+      const tablesScanned = this.getTablesFromPlan(plan);
+      const totalRows = plan.estimatedRows;
+      const accessTypes = this.getAccessTypes(plan);
+      const indexesUsed = this.getIndexesUsed(plan);
+      const joinTypes = this.getJoinTypes(plan);
+      
+      // 计算估算的I/O成本
+      let ioLoad = 'low';
+      if (totalRows > 1000000 || accessTypes.includes('ALL')) {
+        ioLoad = 'high';
+      } else if (totalRows > 10000 || accessTypes.includes('index')) {
+        ioLoad = 'medium';
+      }
+      
+      // 计算索引使用效率
+      const indexEfficiency = this.calculateIndexEfficiency(plan);
+      
+      // 计算总体性能评分 (0-100)
+      const performanceScore = this.calculatePerformanceScore(plan);
+      
+      return {
+        tablesScanned,
+        totalRows,
+        accessTypes,
+        indexesUsed,
+        joinTypes,
+        ioLoad,
+        indexEfficiency,
+        performanceScore,
+        bottlenecks: this.identifyBottlenecks(plan)
+      };
+    } catch (error) {
+      logger.error('分析查询性能时出错', { error });
+      return {
+        error: '无法完成性能分析',
+        tablesScanned: this.getTablesFromPlan(plan),
+        totalRows: plan.estimatedRows
+      };
+    }
+  }
+  
+  /**
+   * 从计划中提取表名列表
+   */
+  private getTablesFromPlan(plan: QueryPlan): string[] {
     const tables = new Set<string>();
     
     for (const node of plan.planNodes) {
@@ -81,292 +107,258 @@ export class MySQLPlanAnalyzer {
   }
   
   /**
-   * 检查执行计划是否使用了索引
+   * 从计划中提取访问类型列表
    */
-  private checkIfUsesIndexes(plan: QueryPlan): boolean {
-    return plan.planNodes.some(node => node.key && node.key !== 'NULL');
+  private getAccessTypes(plan: QueryPlan): string[] {
+    return plan.planNodes.map(node => node.type);
   }
   
   /**
-   * 检查是否有全表扫描
+   * 从计划中提取使用的索引列表
    */
-  private hasFullTableScan(plan: QueryPlan): boolean {
-    return plan.planNodes.some(node => node.type === 'ALL');
-  }
-  
-  /**
-   * 检查执行计划是否使用了临时表
-   */
-  private checkIfUsesTemporaryTable(plan: QueryPlan): boolean {
-    return plan.planNodes.some(node => node.extra && node.extra.includes('Using temporary'));
-  }
-  
-  /**
-   * 检查执行计划是否使用了文件排序
-   */
-  private checkIfUsesFileSort(plan: QueryPlan): boolean {
-    return plan.planNodes.some(node => node.extra && node.extra.includes('Using filesort'));
-  }
-
-  /**
-   * 计算查询性能得分(0-100)
-   */
-  private calculatePerformanceScore(plan: QueryPlan): number {
-    let score = 100;
+  private getIndexesUsed(plan: QueryPlan): string[] {
+    const indexes = new Set<string>();
     
-    // 有全表扫描，扣15分
-    if (this.hasFullTableScan(plan)) {
-      score -= 15;
-    }
-    
-    // 没有使用索引，扣20分
-    if (!this.checkIfUsesIndexes(plan)) {
-      score -= 20;
-    }
-    
-    // 使用临时表，扣10分
-    if (this.checkIfUsesTemporaryTable(plan)) {
-      score -= 10;
-    }
-    
-    // 使用文件排序，扣10分
-    if (this.checkIfUsesFileSort(plan)) {
-      score -= 10;
-    }
-    
-    // 根据估计行数扣分
-    if (plan.estimatedRows > 1000000) {
-      score -= 15; // 超过一百万行，扣15分
-    } else if (plan.estimatedRows > 100000) {
-      score -= 10; // 超过十万行，扣10分
-    } else if (plan.estimatedRows > 10000) {
-      score -= 5;  // 超过一万行，扣5分
-    }
-    
-    // 确保分数在0-100之间
-    return Math.max(0, Math.min(100, score));
-  }
-
-  /**
-   * 获取详细分析信息
-   */
-  private getDetailedAnalysis(plan: QueryPlan): any {
-    // 分析每个表的扫描情况
-    const tableAnalysis = plan.planNodes.map(node => {
-      return {
-        table: node.table,
-        scanType: node.type,
-        usedIndex: node.key || '无',
-        rows: node.rows,
-        filtered: node.filtered,
-        issues: this.getNodeIssues(node)
-      };
-    });
-    
-    return {
-      tableAnalysis,
-      complexityLevel: this.getQueryComplexityLevel(plan),
-      bottlenecks: this.identifyBottlenecks(plan)
-    };
-  }
-
-  /**
-   * 获取节点存在的问题
-   */
-  private getNodeIssues(node: any): string[] {
-    const issues: string[] = [];
-    
-    if (node.type === 'ALL') {
-      issues.push('全表扫描');
-    }
-    
-    if (!node.key && node.rows > 100) {
-      issues.push('未使用索引且行数较多');
-    }
-    
-    if (node.extra) {
-      if (node.extra.includes('Using temporary')) {
-        issues.push('使用临时表');
+    for (const node of plan.planNodes) {
+      if (node.key) {
+        indexes.add(node.key);
       }
-      
-      if (node.extra.includes('Using filesort')) {
-        issues.push('使用文件排序');
-      }
-      
-      if (node.extra.includes('Using where')) {
-        // 如果同时有Using where但没有合适的索引
-        if (!node.key || node.key === 'NULL') {
-          issues.push('条件过滤无索引支持');
+    }
+    
+    return Array.from(indexes);
+  }
+  
+  /**
+   * 获取连接类型
+   */
+  private getJoinTypes(plan: QueryPlan): string[] {
+    // 对于MySQL，连接类型通常在extra字段中
+    const joinTypes = new Set<string>();
+    
+    for (const node of plan.planNodes) {
+      if (node.extra) {
+        if (node.extra.includes('Using join buffer')) {
+          joinTypes.add('block nested loop');
+        } else if (node.extra.includes('Using index for')) {
+          joinTypes.add('index join');
         }
       }
     }
     
-    return issues;
+    return Array.from(joinTypes);
   }
-
+  
   /**
-   * 获取查询复杂度级别
+   * 检查全表扫描
    */
-  private getQueryComplexityLevel(plan: QueryPlan): string {
-    const nodeCount = plan.planNodes.length;
-    const hasJoin = plan.planNodes.some(node => node.type.includes('join'));
-    const hasSubquery = plan.planNodes.some(node => node.selectType !== 'SIMPLE');
+  private checkFullTableScans(plan: QueryPlan, tips: string[]): void {
+    const fullScanNodes = plan.planNodes.filter(node => node.type === 'ALL');
     
-    if (hasSubquery && hasJoin && nodeCount > 5) {
-      return '高';
-    } else if ((hasJoin && nodeCount > 3) || hasSubquery) {
-      return '中';
-    } else {
-      return '低';
-    }
-  }
-
-  /**
-   * 识别性能瓶颈
-   */
-  private identifyBottlenecks(plan: QueryPlan): string[] {
-    const bottlenecks: string[] = [];
-    
-    // 寻找扫描行数最多的节点
-    let maxRowsNode = plan.planNodes[0];
-    for (const node of plan.planNodes) {
-      if (node.rows > maxRowsNode.rows) {
-        maxRowsNode = node;
+    if (fullScanNodes.length > 0) {
+      tips.push(`检测到${fullScanNodes.length}个全表扫描操作，考虑为表 ${fullScanNodes.map(n => n.table).join(', ')} 添加适当的索引`);
+      
+      // 提供更具体的建议
+      for (const node of fullScanNodes) {
+        if (node.extra && node.extra.includes('Using where')) {
+          tips.push(`为表 ${node.table} 的WHERE子句中使用的列添加索引可能会提高性能`);
+        }
       }
     }
-    
-    if (maxRowsNode.rows > 10000) {
-      bottlenecks.push(`表${maxRowsNode.table}扫描行数过多(${maxRowsNode.rows}行)`);
-    }
-    
-    // 检查是否有不良的连接类型
-    const poorJoins = plan.planNodes.filter(node => 
-      ['ALL', 'index'].includes(node.type) && node.selectType.includes('JOIN')
-    );
-    
-    if (poorJoins.length > 0) {
-      bottlenecks.push(`存在${poorJoins.length}个低效连接操作`);
-    }
-    
-    // 检查是否有非常低的过滤率
-    const poorFiltering = plan.planNodes.filter(node => node.filtered < 20);
-    if (poorFiltering.length > 0) {
-      bottlenecks.push(`${poorFiltering.length}个操作的过滤效率低于20%`);
-    }
-    
-    return bottlenecks;
   }
-
+  
   /**
-   * 分析索引使用情况并提供建议
+   * 检查索引使用情况
    */
-  private analyzeIndexUsage(plan: QueryPlan, suggestions: string[]): void {
-    // 检查未使用索引的表
+  private checkIndexUsage(plan: QueryPlan, tips: string[]): void {
+    // 检查没有使用索引但扫描行数大的节点
     const noIndexNodes = plan.planNodes.filter(node => 
-      !node.key && node.type === 'ALL' && node.rows > 100
+      !node.key && node.rows > 100 && node.type !== 'system'
     );
     
     if (noIndexNodes.length > 0) {
-      for (const node of noIndexNodes) {
-        suggestions.push(`为表${node.table}添加适当的索引，当前全表扫描了${node.rows}行`);
-      }
+      tips.push(`表 ${noIndexNodes.map(n => n.table).join(', ')} 没有使用索引，且扫描行数较大`);
     }
     
     // 检查可能的索引但未使用
-    const unusedPossibleKeys = plan.planNodes.filter(node => 
-      node.possibleKeys && !node.key
+    const missedIndexNodes = plan.planNodes.filter(node => 
+      !node.key && node.possibleKeys && node.rows > 10
     );
     
-    if (unusedPossibleKeys.length > 0) {
-      for (const node of unusedPossibleKeys) {
-        suggestions.push(`表${node.table}有可用索引但未被选择使用，检查WHERE条件和索引列顺序`);
-      }
+    if (missedIndexNodes.length > 0) {
+      tips.push(`有可用索引但未被优化器选择: ${missedIndexNodes.map(n => n.table).join(', ')}`);
     }
   }
-
+  
   /**
-   * 分析查询结构并提供建议
+   * 检查临时表和文件排序
    */
-  private analyzeQueryStructure(plan: QueryPlan, suggestions: string[]): void {
-    // 检查是否有复杂子查询
-    const hasComplexSubquery = plan.planNodes.some(node => 
-      node.selectType.includes('SUBQUERY') || node.selectType.includes('DERIVED')
-    );
-    
-    if (hasComplexSubquery) {
-      suggestions.push('查询包含子查询或派生表，考虑重写为JOIN操作提高性能');
-    }
-    
-    // 检查连接操作
-    const joinNodes = plan.planNodes.filter(node => 
-      node.selectType.includes('JOIN')
-    );
-    
-    if (joinNodes.length > 3) {
-      suggestions.push('查询包含多个连接操作，考虑拆分复杂查询或优化连接顺序');
-    }
-  }
-
-  /**
-   * 分析排序和分组操作并提供建议
-   */
-  private analyzeSortingAndGrouping(plan: QueryPlan, suggestions: string[]): void {
-    // 检查文件排序
-    const fileSortNodes = plan.planNodes.filter(node => 
-      node.extra && node.extra.includes('Using filesort')
-    );
-    
-    if (fileSortNodes.length > 0) {
-      for (const node of fileSortNodes) {
-        suggestions.push(`表${node.table}使用了文件排序，考虑添加包含ORDER BY列的索引`);
-      }
-    }
-    
-    // 检查临时表
+  private checkTemporaryTablesAndFilesort(plan: QueryPlan, tips: string[]): void {
     const tempTableNodes = plan.planNodes.filter(node => 
       node.extra && node.extra.includes('Using temporary')
     );
     
     if (tempTableNodes.length > 0) {
-      for (const node of tempTableNodes) {
-        suggestions.push(`表${node.table}使用了临时表，可能是由于GROUP BY或ORDER BY的列没有合适索引`);
+      tips.push('查询使用了临时表，这可能导致性能下降。考虑重写查询或添加适当的索引');
+      
+      if (tempTableNodes.some(node => node.extra && node.extra.includes('Using filesort'))) {
+        tips.push('临时表上执行了文件排序，这会显著影响性能。考虑在ORDER BY列上添加索引');
+      }
+    } else {
+      // 单独检查文件排序
+      const fileSortNodes = plan.planNodes.filter(node => 
+        node.extra && node.extra.includes('Using filesort')
+      );
+      
+      if (fileSortNodes.length > 0) {
+        tips.push('查询使用了文件排序，考虑在ORDER BY列上添加索引以避免排序操作');
       }
     }
   }
-
+  
   /**
-   * 添加数据库特定的优化建议
+   * 检查表连接
    */
-  private addDatabaseSpecificSuggestions(plan: QueryPlan, suggestions: string[]): void {
-    // 检查是否有LIMIT但没有ORDER BY索引
-    const hasLimitWithoutIndexOrder = plan.planNodes.some(node => 
-      node.extra && 
-      node.extra.includes('Using filesort') && 
-      plan.query.toLowerCase().includes('limit')
-    );
-    
-    if (hasLimitWithoutIndexOrder) {
-      suggestions.push('查询使用了LIMIT但没有合适的ORDER BY索引，可能导致不一致的结果');
+  private checkTableJoins(plan: QueryPlan, tips: string[]): void {
+    if (plan.planNodes.length <= 1) {
+      return; // 无连接查询
     }
     
-    // 检查是否有不必要的列
-    if (plan.query.includes('SELECT *')) {
-      suggestions.push('避免使用SELECT *，只选择需要的列以减少I/O和内存使用');
-    }
-    
-    // 检查是否有大表放在小表前面做连接
-    // （这需要估计表大小，这里简化处理）
-    const joinOrder = plan.planNodes.filter(node => 
-      node.selectType.includes('JOIN')
+    // 检查嵌套循环连接
+    const nestedLoopNodes = plan.planNodes.filter(node => 
+      node.extra && node.extra.includes('Using join buffer')
     );
     
-    if (joinOrder.length > 1) {
-      const firstJoinRows = joinOrder[0]?.rows || 0;
-      const otherJoinsWithLessRows = joinOrder.slice(1).filter(node => node.rows < firstJoinRows);
-      
-      if (otherJoinsWithLessRows.length > 0) {
-        suggestions.push('考虑调整JOIN顺序，将小表放在前面作为驱动表');
+    if (nestedLoopNodes.length > 0) {
+      tips.push('查询使用了嵌套循环连接，这可能在大型表上效率低下。确保在连接列上有适当的索引');
+    }
+    
+    // 检查驱动表选择
+    const firstNode = plan.planNodes[0];
+    if (firstNode.rows > 1000 && plan.planNodes.some(node => node.rows < firstNode.rows / 10)) {
+      tips.push('优化器可能没有选择最优的驱动表。考虑使用STRAIGHT_JOIN并首先指定较小的表');
+    }
+  }
+  
+  /**
+   * 检查WHERE条件
+   */
+  private checkWhereConditions(plan: QueryPlan, tips: string[]): void {
+    const indexRangeNodes = plan.planNodes.filter(node => node.type === 'range');
+    
+    if (indexRangeNodes.length > 0) {
+      if (indexRangeNodes.some(node => node.rows > 1000)) {
+        tips.push('索引范围扫描仍返回大量行，考虑细化WHERE条件或创建更精确的复合索引');
       }
     }
+    
+    // 检查索引有效性
+    plan.planNodes.forEach(node => {
+      if (node.key && node.extra && node.extra.includes('Using index condition')) {
+        tips.push(`表 ${node.table} 使用了索引条件下推（ICP），这表明索引不能完全满足查询条件`);
+      }
+    });
+  }
+  
+  /**
+   * 检查LIMIT优化
+   */
+  private checkLimitOptimization(plan: QueryPlan, tips: string[]): void {
+    // 检查是否存在排序+LIMIT模式
+    const sortLimitNodes = plan.planNodes.filter(node => 
+      node.extra && node.extra.includes('Using filesort') 
+    );
+    
+    if (sortLimitNodes.length > 0 && 
+        plan.query.toLowerCase().includes('limit') && 
+        plan.query.toLowerCase().includes('order by')) {
+      tips.push('查询包含ORDER BY和LIMIT，但可能需要扫描和排序大量数据。考虑添加ORDER BY列的索引或使用延迟连接优化');
+    }
+  }
+  
+  /**
+   * 计算索引使用效率
+   */
+  private calculateIndexEfficiency(plan: QueryPlan): number {
+    let totalNodes = plan.planNodes.length;
+    let nodesUsingIndexes = plan.planNodes.filter(node => node.key).length;
+    
+    return totalNodes > 0 ? (nodesUsingIndexes / totalNodes) * 100 : 0;
+  }
+  
+  /**
+   *
+   * 计算总体性能评分
+   */
+  private calculatePerformanceScore(plan: QueryPlan): number {
+    // 基础分数为100
+    let score = 100;
+    
+    // 扣分项：全表扫描
+    const fullScanNodes = plan.planNodes.filter(node => node.type === 'ALL');
+    score -= fullScanNodes.length * 20;
+    
+    // 扣分项：文件排序和临时表
+    const sortAndTempNodes = plan.planNodes.filter(node => 
+      node.extra && (node.extra.includes('Using filesort') || node.extra.includes('Using temporary'))
+    );
+    score -= sortAndTempNodes.length * 15;
+    
+    // 扣分项：估计行数过大
+    if (plan.estimatedRows > 1000000) {
+      score -= 25;
+    } else if (plan.estimatedRows > 100000) {
+      score -= 15;
+    } else if (plan.estimatedRows > 10000) {
+      score -= 5;
+    }
+    
+    // 扣分项：无索引的JOIN
+    const badJoinNodes = plan.planNodes.filter(node => 
+      !node.key && node.type !== 'system' && plan.planNodes.length > 1
+    );
+    score -= badJoinNodes.length * 10;
+    
+    // 限制分数范围在0-100之间
+    return Math.max(0, Math.min(100, score));
+  }
+  
+  /**
+   * 识别查询中的瓶颈
+   */
+  private identifyBottlenecks(plan: QueryPlan): string[] {
+    const bottlenecks: string[] = [];
+    
+    // 检查主要瓶颈
+    const fullScanNodes = plan.planNodes.filter(node => node.type === 'ALL');
+    if (fullScanNodes.length > 0) {
+      bottlenecks.push('全表扫描');
+    }
+    
+    const tempTableNodes = plan.planNodes.filter(node => 
+      node.extra && node.extra.includes('Using temporary')
+    );
+    if (tempTableNodes.length > 0) {
+      bottlenecks.push('使用临时表');
+    }
+    
+    const filesortNodes = plan.planNodes.filter(node => 
+      node.extra && node.extra.includes('Using filesort')
+    );
+    if (filesortNodes.length > 0) {
+      bottlenecks.push('文件排序');
+    }
+    
+    // 检查是否有大量数据处理
+    if (plan.estimatedRows > 100000) {
+      bottlenecks.push('处理大量数据');
+    }
+    
+    // 检查不良连接
+    if (plan.planNodes.length > 1 && 
+        plan.planNodes.some(node => node.type === 'ALL' || node.rows > 10000)) {
+      bottlenecks.push('低效的表连接');
+    }
+    
+    return bottlenecks;
   }
 }

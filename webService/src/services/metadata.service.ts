@@ -7,6 +7,8 @@ import { PrismaClient } from '@prisma/client';
 import { ApiError } from '../utils/error';
 import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
+import relationshipDetector from './metadata/relationship-detector';
+import columnAnalyzer from './metadata/column-analyzer';
 
 const prisma = new PrismaClient();
 
@@ -311,6 +313,11 @@ export class MetadataService {
         }
       }
       
+      // 使用关系检测器检测表关系
+      logger.info(`开始检测表关系 [${dataSourceId}]`);
+      const detectedRelationships = await relationshipDetector.detectRelationships(dataSourceId);
+      logger.info(`检测到 ${detectedRelationships} 个表关系 [${dataSourceId}]`);
+      
       // 更新同步历史记录为完成状态
       await prisma.metadataSyncHistory.update({
         where: { id: syncHistoryId },
@@ -322,7 +329,7 @@ export class MetadataService {
         },
       });
       
-      logger.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图`);
+      logger.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图, 检测了 ${detectedRelationships} 个表关系`);
       
       return {
         tablesCount,

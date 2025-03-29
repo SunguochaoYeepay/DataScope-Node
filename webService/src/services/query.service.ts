@@ -107,7 +107,7 @@ export class QueryService {
       // 利用查询计划服务获取并增强执行计划
       const plan = await queryPlanService.getQueryPlan(
         connector, 
-        dataSource.type, 
+        dataSource.type as any, 
         sql, 
         params
       );
@@ -158,7 +158,7 @@ export class QueryService {
    * @param id 查询计划ID
    * @returns 查询计划历史记录
    */
-  async getQueryPlanById(id: string): Promise<QueryPlanHistory | null> {
+  async getQueryPlanById(id: string): Promise<any | null> {
     try {
       return await prisma.queryPlanHistory.findUnique({
         where: { id }
@@ -181,7 +181,7 @@ export class QueryService {
     limit: number = 20,
     offset: number = 0
   ): Promise<{
-    history: QueryPlanHistory[];
+    history: any[];
     total: number;
     limit: number;
     offset: number;

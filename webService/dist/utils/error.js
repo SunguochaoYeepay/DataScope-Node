@@ -40,6 +40,9 @@ class ApiError extends AppError {
         super(message, statusCode, exports.ErrorCodes.INVALID_REQUEST);
         this.details = details;
     }
+    static badRequest(message, code, errors) {
+        return new ApiError(message, 400, { code, errors });
+    }
 }
 exports.ApiError = ApiError;
 /**

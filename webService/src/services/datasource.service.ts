@@ -6,6 +6,9 @@ import logger from '../utils/logger';
 import config from '../config/env';
 import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword } from '../utils/crypto';
 import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
+import { DatabaseType } from "../types/datasource";
+import { DatabaseConnector } from "../types/datasource";
+import { DatabaseConnectorFactory } from "../types/database-factory";
 
 const prisma = new PrismaClient();
 
@@ -285,116 +288,37 @@ export class DataSourceService {
   /**
    * 测试数据源连接
    */
-  async testConnection(data: TestConnectionDto): Promise<{ success: boolean; message: string }> {
-    try {
-      // 在开发环境直接返回成功
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        return { success: true, message: '连接成功' };
+  async testConnection(dataSource: DataSource): Promise<boolean> {
+    const connector = DatabaseConnectorFactory.createConnector(
+      dataSource.id || 'temp-connection',
+      dataSource.type as DatabaseType,
+      {
+        host: dataSource.host,
+        port: dataSource.port,
+        user: dataSource.username,
+        password: dataSource.passwordEncrypted,
+        database: dataSource.databaseName,
       }
-      
-      const { type, host, port, username, password, database } = data;
-      
-      if (type !== 'MYSQL') {
-        throw new ApiError('暂不支持该数据库类型', 400);
-      }
-      
-      // 创建临时连接器
-      const connector = new MySQLConnector(
-        'temp', 
-        {
-          host,
-          port,
-          user: username,
-          password,
-          database
-        }
-      );
-      
-      // 测试连接
-      await connector.testConnection();
-      
-      return { success: true, message: '连接成功' };
-    } catch (error: any) {
-      logger.error('测试连接失败', { error, data });
-      
-      return { 
-        success: false, 
-        message: error.message || '连接失败'
-      };
-    }
+    );
+
+    return connector.testConnection();
   }
   
   /**
    * 获取连接器实例
    */
-  async getConnector(dataSourceId: string): Promise<IDatabaseConnector> {
-    try {
-      // 检查缓存
-      if (connectorCache.has(dataSourceId)) {
-        return connectorCache.get(dataSourceId)!;
+  async getConnector(dataSource: DataSource): Promise<DatabaseConnector> {
+    return DatabaseConnectorFactory.createConnector(
+      dataSource.id,
+      dataSource.type as DatabaseType,
+      {
+        host: dataSource.host,
+        port: dataSource.port,
+        user: dataSource.username,
+        password: dataSource.passwordEncrypted,
+        database: dataSource.databaseName,
       }
-      
-      // 在开发环境创建一个模拟连接器
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        const mockConnector = new MySQLConnector(
-          dataSourceId,
-          {
-            host: 'localhost',
-            port: 3306,
-            user: 'root',
-            password: 'password',
-            database: 'mock_database'
-          }
-        );
-        connectorCache.set(dataSourceId, mockConnector);
-        return mockConnector;
-      }
-      
-      // 获取数据源
-      const dataSource = await prisma.dataSource.findUnique({
-        where: { id: dataSourceId }
-      });
-      
-      if (!dataSource) {
-        throw new ApiError('数据源不存在', 404);
-      }
-      
-      // 解密密码
-      // const password = decrypt(dataSource.passwordEncrypted, dataSource.passwordSalt);
-      // 暂时忽略密码解密，直接传递加密后的密码（这在实际生产中是不安全的）
-      
-      // 创建适当的连接器
-      let connector: IDatabaseConnector;
-      switch (dataSource.type) {
-        case 'MYSQL':
-          connector = new MySQLConnector(
-            dataSourceId,
-            {
-              host: dataSource.host,
-              port: dataSource.port,
-              user: dataSource.username,
-              password: dataSource.passwordEncrypted, // 注意：实际应该是解密后的密码
-              database: dataSource.databaseName
-            }
-          );
-          break;
-        default:
-          throw new ApiError(`不支持的数据库类型: ${dataSource.type}`, 400);
-      }
-      
-      // 存入缓存
-      connectorCache.set(dataSourceId, connector);
-      
-      return connector;
-    } catch (error: any) {
-      logger.error(`获取数据库连接器失败 ID: ${dataSourceId}`, { error });
-      
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      
-      throw new ApiError('获取数据库连接器失败', 500, error.message);
-    }
+    );
   }
 }
 

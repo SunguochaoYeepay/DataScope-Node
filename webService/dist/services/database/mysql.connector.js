@@ -111,17 +111,17 @@ class MySQLConnector {
             let originalSql = sql;
             let modifiedSql = sql;
             let totalCount;
-            if (options && (options.pageNumber !== undefined || options.pageSize !== undefined)) {
+            if (options && (options.page !== undefined || options.offset !== undefined)) {
                 // 计算分页参数
-                const page = options.pageNumber || 1;
-                const pageSize = options.pageSize || 50;
-                const offset = (page - 1) * pageSize;
-                const limit = pageSize;
+                const page = options.page || 1;
+                const pageSize = options.pageSize || options.limit || 50;
+                const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
+                const limit = options.limit || options.pageSize || 50;
                 // 添加排序
-                if (options.sortBy) {
-                    const sortOrder = options.sortDirection === 'desc' ? 'DESC' : 'ASC';
+                if (options.sort) {
+                    const sortOrder = options.order === 'desc' ? 'DESC' : 'ASC';
                     // 使用子查询包装原始SQL，避免排序冲突
-                    modifiedSql = `SELECT * FROM (${originalSql}) AS subquery ORDER BY ${options.sortBy} ${sortOrder}`;
+                    modifiedSql = `SELECT * FROM (${originalSql}) AS subquery ORDER BY ${options.sort} ${sortOrder}`;
                 }
                 // 添加分页限制
                 modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
@@ -157,9 +157,9 @@ class MySQLConnector {
                     rowCount: rows.length
                 };
                 // 添加分页信息（如果有的话）
-                if (options && (options.pageNumber !== undefined || options.pageSize !== undefined)) {
-                    const page = options.pageNumber || 1;
-                    const pageSize = options.pageSize || 50;
+                if (options && (options.page !== undefined || options.offset !== undefined)) {
+                    const page = options.page || 1;
+                    const pageSize = options.pageSize || options.limit || 50;
                     queryResult.page = page;
                     queryResult.pageSize = pageSize;
                     if (totalCount !== undefined) {
@@ -298,7 +298,7 @@ class MySQLConnector {
             planNodes,
             query: originalQuery,
             estimatedRows,
-            estimatedCost: estimatedCost || 0,
+            estimatedCost,
             warnings: [],
             optimizationTips: []
         };
@@ -309,18 +309,18 @@ class MySQLConnector {
     generateOptimizationTips(plan) {
         const tips = [];
         // 检查表扫描
-        const fullScanNodes = plan.planNodes.filter((node) => node.type === 'ALL');
+        const fullScanNodes = plan.planNodes.filter(node => node.type === 'ALL');
         if (fullScanNodes.length > 0) {
-            tips.push(`发现${fullScanNodes.length}个全表扫描，考虑为表${fullScanNodes.map((n) => n.table).join(', ')}添加索引`);
+            tips.push(`发现${fullScanNodes.length}个全表扫描，考虑为表${fullScanNodes.map(n => n.table).join(', ')}添加索引`);
         }
         // 检查索引使用
-        const noIndexNodes = plan.planNodes.filter((node) => !node.key && node.rows > 100);
+        const noIndexNodes = plan.planNodes.filter(node => !node.key && node.rows > 100);
         if (noIndexNodes.length > 0) {
-            tips.push(`表${noIndexNodes.map((n) => n.table).join(', ')}没有使用索引，且扫描行数较大`);
+            tips.push(`表${noIndexNodes.map(n => n.table).join(', ')}没有使用索引，且扫描行数较大`);
         }
         // 检查临时表和文件排序
-        const fileSort = plan.planNodes.some((node) => node.extra && node.extra.includes('Using filesort'));
-        const tempTable = plan.planNodes.some((node) => node.extra && node.extra.includes('Using temporary'));
+        const fileSort = plan.planNodes.some(node => node.extra && node.extra.includes('Using filesort'));
+        const tempTable = plan.planNodes.some(node => node.extra && node.extra.includes('Using temporary'));
         if (fileSort) {
             tips.push('查询使用了文件排序，考虑添加适当的索引以避免排序');
         }
@@ -393,8 +393,7 @@ class MySQLConnector {
     /**
      * 获取表列表
      */
-    async getTables(schema) {
-        const schemaName = schema || this.config.database;
+    async getTables(schema = this.config.database) {
         try {
             const query = `
         SELECT 

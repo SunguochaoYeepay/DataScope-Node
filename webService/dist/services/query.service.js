@@ -8,6 +8,7 @@ const client_1 = require("@prisma/client");
 const error_1 = require("../utils/error");
 const datasource_service_1 = __importDefault(require("./datasource.service"));
 const logger_1 = __importDefault(require("../utils/logger"));
+const query_plan_service_1 = require("../database-core/query-plan/query-plan-service");
 const prisma = new client_1.PrismaClient();
 class QueryService {
     /**
@@ -82,10 +83,19 @@ class QueryService {
      */
     async explainQuery(dataSourceId, sql, params = []) {
         try {
-            // 获取数据源连接器
+            // 获取数据源连接器和数据源信息
             const connector = await datasource_service_1.default.getConnector(dataSourceId);
-            // 调用连接器的执行计划方法
-            return await connector.explainQuery(sql, params);
+            const dataSource = await datasource_service_1.default.getDataSourceById(dataSourceId);
+            if (!dataSource) {
+                throw new error_1.ApiError('数据源不存在', 404);
+            }
+            // 实例化查询计划服务
+            const queryPlanService = new query_plan_service_1.QueryPlanService();
+            // 利用查询计划服务获取并增强执行计划
+            const plan = await queryPlanService.getQueryPlan(connector, dataSource.type, sql, params);
+            // 记录查询计划到历史记录
+            await this.saveQueryPlanToHistory(dataSourceId, sql, plan);
+            return plan;
         }
         catch (error) {
             logger_1.default.error('获取查询执行计划失败', { error, dataSourceId, sql });
@@ -93,6 +103,79 @@ class QueryService {
                 throw error;
             }
             throw new error_1.ApiError('获取查询执行计划失败', 500, error?.message || '未知错误');
+        }
+    }
+    /**
+     * 保存查询计划到历史记录
+     * @param dataSourceId 数据源ID
+     * @param sql SQL查询语句
+     * @param plan 执行计划
+     */
+    async saveQueryPlanToHistory(dataSourceId, sql, plan) {
+        try {
+            // 将执行计划转为JSON字符串
+            const planJson = JSON.stringify(plan);
+            // 创建记录
+            await prisma.queryPlanHistory.create({
+                data: {
+                    dataSourceId,
+                    sql,
+                    planData: planJson,
+                    createdAt: new Date()
+                }
+            });
+            logger_1.default.info('查询计划已保存到历史记录', { dataSourceId, sql });
+        }
+        catch (error) {
+            // 仅记录日志，不抛出异常，确保主流程不受影响
+            logger_1.default.error('保存查询计划到历史记录失败', { error, dataSourceId, sql });
+        }
+    }
+    /**
+     * 获取查询计划历史记录
+     * @param id 查询计划ID
+     * @returns 查询计划历史记录
+     */
+    async getQueryPlanById(id) {
+        try {
+            return await prisma.queryPlanHistory.findUnique({
+                where: { id }
+            });
+        }
+        catch (error) {
+            logger_1.default.error('获取查询计划历史记录失败', { error, id });
+            return null;
+        }
+    }
+    /**
+     * 获取查询计划历史记录列表
+     * @param dataSourceId 数据源ID
+     * @param limit 每页数量
+     * @param offset 偏移量
+     * @returns 查询计划历史记录列表
+     */
+    async getQueryPlanHistory(dataSourceId, limit = 20, offset = 0) {
+        try {
+            const where = dataSourceId ? { dataSourceId } : {};
+            const [history, total] = await Promise.all([
+                prisma.queryPlanHistory.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    skip: offset,
+                    take: limit
+                }),
+                prisma.queryPlanHistory.count({ where })
+            ]);
+            return {
+                history,
+                total,
+                limit,
+                offset
+            };
+        }
+        catch (error) {
+            logger_1.default.error('获取查询计划历史记录列表失败', { error, dataSourceId });
+            throw new error_1.ApiError('获取查询计划历史记录列表失败', 500);
         }
     }
     /**

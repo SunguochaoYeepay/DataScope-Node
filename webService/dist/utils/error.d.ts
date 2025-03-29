@@ -29,6 +29,7 @@ export declare class AppError extends Error {
 export declare class ApiError extends AppError {
     details: any;
     constructor(message: string, statusCode?: number, details?: any);
+    static badRequest(message: string, code: number, errors: any): ApiError;
 }
 /**
  * 数据库错误类

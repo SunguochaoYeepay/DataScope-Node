@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import metadataService from '../../services/metadata.service';
+import columnAnalyzer from '../../services/metadata/column-analyzer';
 import { ApiError } from '../../utils/error';
 import logger from '../../utils/logger';
 
@@ -127,6 +128,51 @@ export class MetadataController {
       query('schema').isString().withMessage('架构名称必须是字符串'),
       query('table').isString().withMessage('表名称必须是字符串'),
       query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit必须是1-1000之间的整数'),
+    ];
+  }
+  
+  /**
+   * 分析表列详细信息
+   */
+  async analyzeColumn(req: Request, res: Response, next: NextFunction) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new ApiError('验证错误', 400, { errors: errors.array() });
+      }
+
+      const { dataSourceId } = req.params;
+      const { schema, table, column } = req.query;
+      
+      if (!schema || !table || !column) {
+        throw new ApiError('缺少必要参数', 400, { message: '必须提供schema、table和column参数' });
+      }
+      
+      const result = await columnAnalyzer.analyzeColumn(
+        dataSourceId,
+        schema as string,
+        table as string,
+        column as string
+      );
+      
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+  
+  /**
+   * 验证列分析请求
+   */
+  validateColumnAnalysis() {
+    return [
+      param('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+      query('schema').isString().withMessage('架构名称必须是字符串'),
+      query('table').isString().withMessage('表名称必须是字符串'),
+      query('column').isString().withMessage('列名称必须是字符串'),
     ];
   }
 }

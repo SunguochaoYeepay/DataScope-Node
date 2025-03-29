@@ -1,4 +1,4 @@
-import { DatabaseConnector, QueryResult, ColumnInfo, PrimaryKeyInfo, ForeignKeyInfo, IndexInfo, TableInfo } from './dbInterface';
+import { DatabaseConnector, QueryResult, ColumnInfo, PrimaryKeyInfo, ForeignKeyInfo, IndexInfo, TableInfo, QueryOptions } from './dbInterface';
 /**
  * MySQL连接器
  * 实现DatabaseConnector接口，提供MySQL数据库的连接和查询功能
@@ -28,14 +28,14 @@ export declare class MySQLConnector implements DatabaseConnector {
     /**
      * 执行SQL查询
      */
-    executeQuery(sql: string, params?: any[], queryId?: string, options?: QueryOptions): Promise<any>;
+    executeQuery(sql: string, params?: any[], queryId?: string, options?: QueryOptions): Promise<QueryResult>;
     /**
      * 获取查询执行计划
      * @param sql 查询语句
      * @param params 查询参数
      * @returns 执行计划
      */
-    explainQuery(sql: string, params?: any[]): Promise<QueryPlan>;
+    explainQuery(sql: string, params?: any[]): Promise<any>;
     /**
      * 检查SQL是否为SELECT查询
      */

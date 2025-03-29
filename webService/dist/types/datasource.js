@@ -185,4 +185,15 @@
  *           description: 是否公开
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DatabaseType = void 0;
+// 数据库类型枚举
+var DatabaseType;
+(function (DatabaseType) {
+    DatabaseType["MYSQL"] = "mysql";
+    DatabaseType["POSTGRESQL"] = "postgresql";
+    DatabaseType["SQLSERVER"] = "sqlserver";
+    DatabaseType["ORACLE"] = "oracle";
+    DatabaseType["MONGODB"] = "mongodb";
+    DatabaseType["ELASTICSEARCH"] = "elasticsearch";
+})(DatabaseType || (exports.DatabaseType = DatabaseType = {}));
 //# sourceMappingURL=datasource.js.map

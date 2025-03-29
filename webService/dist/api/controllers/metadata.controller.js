@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MetadataController = void 0;
 const express_validator_1 = require("express-validator");
 const metadata_service_1 = __importDefault(require("../../services/metadata.service"));
+const column_analyzer_1 = __importDefault(require("../../services/metadata/column-analyzer"));
 const error_1 = require("../../utils/error");
 class MetadataController {
     /**
@@ -110,6 +111,41 @@ class MetadataController {
             (0, express_validator_1.query)('schema').isString().withMessage('架构名称必须是字符串'),
             (0, express_validator_1.query)('table').isString().withMessage('表名称必须是字符串'),
             (0, express_validator_1.query)('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit必须是1-1000之间的整数'),
+        ];
+    }
+    /**
+     * 分析表列详细信息
+     */
+    async analyzeColumn(req, res, next) {
+        try {
+            const errors = (0, express_validator_1.validationResult)(req);
+            if (!errors.isEmpty()) {
+                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+            }
+            const { dataSourceId } = req.params;
+            const { schema, table, column } = req.query;
+            if (!schema || !table || !column) {
+                throw new error_1.ApiError('缺少必要参数', 400, { message: '必须提供schema、table和column参数' });
+            }
+            const result = await column_analyzer_1.default.analyzeColumn(dataSourceId, schema, table, column);
+            res.status(200).json({
+                success: true,
+                data: result
+            });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * 验证列分析请求
+     */
+    validateColumnAnalysis() {
+        return [
+            (0, express_validator_1.param)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+            (0, express_validator_1.query)('schema').isString().withMessage('架构名称必须是字符串'),
+            (0, express_validator_1.query)('table').isString().withMessage('表名称必须是字符串'),
+            (0, express_validator_1.query)('column').isString().withMessage('列名称必须是字符串'),
         ];
     }
 }

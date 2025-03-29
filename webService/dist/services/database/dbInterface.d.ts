@@ -48,12 +48,15 @@ export interface TableInfo {
     updateTime: Date | null;
 }
 export interface QueryOptions {
-    page?: number;
+    pageNumber?: number;
     pageSize?: number;
-    offset?: number;
+    sortBy?: string;
+    sortDirection?: 'asc' | 'desc';
+    page?: number;
     limit?: number;
+    offset?: number;
     sort?: string;
-    order?: 'asc' | 'desc';
+    order?: string;
 }
 export interface QueryResult {
     fields: Array<{
@@ -72,42 +75,34 @@ export interface QueryResult {
     lastInsertId?: number | string;
 }
 /**
- * 查询计划节点接口
+ * 查询计划节点
  */
 export interface QueryPlanNode {
     id: number;
     selectType: string;
     table: string;
-    partitions?: string;
     type: string;
     possibleKeys?: string;
     key?: string;
-    keyLen?: string;
+    keyLen?: number;
     ref?: string;
     rows: number;
-    filtered: number;
+    filtered?: number;
     extra?: string;
-    children?: QueryPlanNode[];
+    partitions?: string;
+    costInfo?: string;
 }
 /**
- * 查询执行计划接口
+ * 查询执行计划
  */
 export interface QueryPlan {
     planNodes: QueryPlanNode[];
     warnings: string[];
     query: string;
-    estimatedCost: number;
+    estimatedCost: number | undefined;
     estimatedRows: number;
     optimizationTips: string[];
-}
-/**
- * 查询选项
- */
-export interface QueryOptions {
-    pageSize?: number;
-    pageNumber?: number;
-    sortBy?: string;
-    sortDirection?: 'asc' | 'desc';
+    performanceAnalysis?: any;
 }
 export interface DatabaseConnector {
     /**
@@ -130,7 +125,7 @@ export interface DatabaseConnector {
      * @param params 查询参数
      * @returns 执行计划
      */
-    explainQuery(sql: string, params?: any[]): Promise<QueryPlan>;
+    explainQuery(sql: string, params?: any[]): Promise<any>;
     /**
      * 获取架构列表
      */

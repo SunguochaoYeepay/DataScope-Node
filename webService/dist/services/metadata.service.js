@@ -13,6 +13,7 @@ const client_1 = require("@prisma/client");
 const error_1 = require("../utils/error");
 const datasource_service_1 = __importDefault(require("./datasource.service"));
 const logger_1 = __importDefault(require("../utils/logger"));
+const relationship_detector_1 = __importDefault(require("./metadata/relationship-detector"));
 const prisma = new client_1.PrismaClient();
 class MetadataService {
     /**
@@ -271,6 +272,10 @@ class MetadataService {
                     }
                 }
             }
+            // 使用关系检测器检测表关系
+            logger_1.default.info(`开始检测表关系 [${dataSourceId}]`);
+            const detectedRelationships = await relationship_detector_1.default.detectRelationships(dataSourceId);
+            logger_1.default.info(`检测到 ${detectedRelationships} 个表关系 [${dataSourceId}]`);
             // 更新同步历史记录为完成状态
             await prisma.metadataSyncHistory.update({
                 where: { id: syncHistoryId },
@@ -281,7 +286,7 @@ class MetadataService {
                     viewsCount,
                 },
             });
-            logger_1.default.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图`);
+            logger_1.default.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图, 检测了 ${detectedRelationships} 个表关系`);
             return {
                 tablesCount,
                 viewsCount,
