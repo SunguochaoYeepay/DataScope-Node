@@ -60,3 +60,7 @@
 - 修复了前端集成组件中残留的模拟数据引用
 - 删除了所有与 `USE_MOCK_DATA` 环境变量相关的代码
 - 移除了模拟数据层和 `mocks` 目录
+
+### Added
+- 添加查询计划控制器(QueryPlanController)的单元测试
+- 添加查询控制器(QueryController)的单元测试
