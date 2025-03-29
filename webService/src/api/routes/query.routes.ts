@@ -144,6 +144,32 @@ router.get('/:id', queryController.getQueryById);
 
 /**
  * @swagger
+ * /queries/{id}/cancel:
+ *   post:
+ *     summary: 取消正在执行的查询
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 查询取消成功
+ *       404:
+ *         description: 查询不存在
+ */
+router.post(
+  '/:id/cancel',
+  [
+    param('id').isUUID().withMessage('无效的查询ID'),
+  ],
+  queryController.cancelQuery
+);
+
+/**
+ * @swagger
  * /queries/{id}:
  *   put:
  *     summary: 更新指定ID的查询

@@ -6,6 +6,30 @@ import logger from '../../utils/logger';
 
 export class QueryController {
   /**
+   * 取消查询执行
+   */
+  async cancelQuery(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const success = await queryService.cancelQuery(id);
+      
+      if (success) {
+        res.status(200).json({
+          success: true,
+          message: '查询已成功取消'
+        });
+      } else {
+        res.status(200).json({
+          success: false,
+          message: '无法取消查询，查询可能已完成或已取消'
+        });
+      }
+    } catch (error: any) {
+      next(error);
+    }
+  }
+  
+  /**
    * 执行SQL查询
    */
   async executeQuery(req: Request, res: Response, next: NextFunction) {

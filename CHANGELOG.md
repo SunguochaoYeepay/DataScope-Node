@@ -1,5 +1,15 @@
 # DataScope-Node 变更日志
 
+## [未发布的更改]
+
+### 新增
+- 实现查询取消功能
+  - 添加数据库连接器中的cancelQuery方法，支持取消正在执行的查询
+  - 扩展DatabaseConnector接口，添加查询取消相关方法
+  - 在MySQL连接器中实现KILL QUERY命令执行查询取消
+  - 添加查询服务中的cancelQuery方法
+  - 添加API端点POST /api/queries/:id/cancel
+
 ## [v1.0.2] - 2025-03-29
 
 ### 新增

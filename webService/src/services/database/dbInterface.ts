@@ -75,7 +75,14 @@ export interface DatabaseConnector {
   /**
    * 执行查询
    */
-  executeQuery(sql: string, params?: any[]): Promise<QueryResult>;
+  executeQuery(sql: string, params?: any[], queryId?: string): Promise<QueryResult>;
+  
+  /**
+   * 取消正在执行的查询
+   * @param queryId 查询ID
+   * @returns 是否成功取消
+   */
+  cancelQuery(queryId: string): Promise<boolean>;
   
   /**
    * 获取架构列表

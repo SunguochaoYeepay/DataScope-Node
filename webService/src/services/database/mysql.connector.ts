@@ -19,6 +19,7 @@ export class MySQLConnector implements DatabaseConnector {
   private _dataSourceId: string;
   private pool: mysql.Pool;
   private config: mysql.PoolOptions;
+  private activeQueries: Map<string, number> = new Map(); // queryId -> connectionId
   
   /**
    * 构造函数
@@ -132,10 +133,19 @@ export class MySQLConnector implements DatabaseConnector {
   /**
    * 执行SQL查询
    */
-  async executeQuery(sql: string, params: any[] = []): Promise<QueryResult> {
+  async executeQuery(sql: string, params: any[] = [], queryId?: string): Promise<QueryResult> {
     let connection;
     try {
       connection = await this.pool.getConnection();
+      
+      // 如果提供了queryId，则记录连接ID用于查询取消
+      if (queryId) {
+        const [threadIdResult] = await connection.query('SELECT CONNECTION_ID() as connectionId');
+        const connectionId = threadIdResult[0].connectionId;
+        this.activeQueries.set(queryId, connectionId);
+        
+        logger.info('记录活动查询', { queryId, connectionId, dataSourceId: this._dataSourceId });
+      }
       
       const startTime = Date.now();
       const [rows, fields] = await connection.query(sql, params);
@@ -178,8 +188,53 @@ export class MySQLConnector implements DatabaseConnector {
         sql
       );
     } finally {
+      // 如果提供了queryId，清理活动查询记录
+      if (queryId) {
+        this.activeQueries.delete(queryId);
+        logger.debug('删除活动查询记录', { queryId, dataSourceId: this._dataSourceId });
+      }
+      
       if (connection) {
         connection.release();
+      }
+    }
+  }
+
+  /**
+   * 取消正在执行的查询
+   * @param queryId 查询ID
+   * @returns 是否成功取消
+   */
+  async cancelQuery(queryId: string): Promise<boolean> {
+    if (!this.activeQueries.has(queryId)) {
+      logger.warn('无法取消查询，查询不存在或已完成', { queryId, dataSourceId: this._dataSourceId });
+      return false; // 查询不存在或已完成
+    }
+
+    const connectionId = this.activeQueries.get(queryId);
+    
+    // 使用管理连接执行KILL QUERY命令
+    let adminConnection;
+    try {
+      adminConnection = await this.pool.getConnection();
+      await adminConnection.query(`KILL QUERY ${connectionId}`);
+      
+      logger.info('成功取消MySQL查询', { queryId, connectionId, dataSourceId: this._dataSourceId });
+      
+      // 从活动查询中移除
+      this.activeQueries.delete(queryId);
+      return true;
+    } catch (error: any) {
+      logger.error('取消MySQL查询失败', { 
+        error: error?.message || '未知错误', 
+        queryId, 
+        connectionId,
+        dataSourceId: this._dataSourceId
+      });
+      return false;
+    } finally {
+      if (adminConnection) {
+        adminConnection.release();
       }
     }
   }
@@ -200,23 +255,25 @@ export class MySQLConnector implements DatabaseConnector {
       `;
       
       const result = await this.executeQuery(query);
+      
       return result.rows.map(row => row.database);
     } catch (error: any) {
-      logger.error('获取MySQL数据库列表失败', {
+      logger.error('获取数据库架构列表失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId
       });
-      throw error;
+      throw new DataSourceConnectionError(
+        `获取数据库架构列表失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId
+      );
     }
   }
   
   /**
    * 获取表列表
    */
-  async getTables(schema?: string): Promise<TableInfo[]> {
+  async getTables(schema: string = this.config.database): Promise<TableInfo[]> {
     try {
-      const databaseName = schema || this.config.database;
-      
       const query = `
         SELECT 
           table_name AS name,
@@ -230,23 +287,26 @@ export class MySQLConnector implements DatabaseConnector {
         ORDER BY table_name
       `;
       
-      const result = await this.executeQuery(query, [databaseName]);
+      const result = await this.executeQuery(query, [schema]);
       
       return result.rows.map(row => ({
         name: row.name,
-        type: row.type === 'BASE TABLE' ? 'table' : row.type.toLowerCase(),
+        type: row.type === 'BASE TABLE' ? 'TABLE' : row.type,
         schema: row.schema,
         description: row.description,
         createTime: row.createTime,
         updateTime: row.updateTime
       }));
     } catch (error: any) {
-      logger.error('获取MySQL表列表失败', {
+      logger.error('获取表列表失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId,
-        schema: schema || this.config.database
+        schema
       });
-      throw error;
+      throw new DataSourceConnectionError(
+        `获取表列表失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId
+      );
     }
   }
   
@@ -255,38 +315,37 @@ export class MySQLConnector implements DatabaseConnector {
    */
   async getColumns(schema: string, table: string): Promise<ColumnInfo[]> {
     try {
-      const databaseName = schema || this.config.database;
-      
       const query = `
         SELECT 
           column_name AS name,
-          ordinal_position AS position,
-          column_default AS defaultValue,
-          is_nullable AS nullable,
           data_type AS dataType,
           column_type AS columnType,
+          ordinal_position AS position,
+          is_nullable = 'YES' AS isNullable,
+          column_key = 'PRI' AS isPrimaryKey,
+          column_key = 'UNI' AS isUnique,
+          extra = 'auto_increment' AS isAutoIncrement,
+          column_default AS defaultValue,
+          column_comment AS description,
           character_maximum_length AS maxLength,
           numeric_precision AS precision,
-          numeric_scale AS scale,
-          column_key AS columnKey,
-          extra AS extra,
-          column_comment AS description
+          numeric_scale AS scale
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
       `;
       
-      const result = await this.executeQuery(query, [databaseName, table]);
+      const result = await this.executeQuery(query, [schema, table]);
       
       return result.rows.map(row => ({
         name: row.name,
         dataType: row.dataType,
         columnType: row.columnType,
         position: row.position,
-        isNullable: row.nullable === 'YES',
-        isPrimaryKey: row.columnKey === 'PRI',
-        isUnique: row.columnKey === 'UNI',
-        isAutoIncrement: row.extra.includes('auto_increment'),
+        isNullable: Boolean(row.isNullable),
+        isPrimaryKey: Boolean(row.isPrimaryKey),
+        isUnique: Boolean(row.isUnique),
+        isAutoIncrement: Boolean(row.isAutoIncrement),
         defaultValue: row.defaultValue,
         description: row.description,
         maxLength: row.maxLength,
@@ -294,13 +353,16 @@ export class MySQLConnector implements DatabaseConnector {
         scale: row.scale
       }));
     } catch (error: any) {
-      logger.error('获取MySQL列信息失败', {
+      logger.error('获取列信息失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId,
-        schema: schema || this.config.database,
+        schema,
         table
       });
-      throw error;
+      throw new DataSourceConnectionError(
+        `获取列信息失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId
+      );
     }
   }
   
@@ -309,24 +371,20 @@ export class MySQLConnector implements DatabaseConnector {
    */
   async getPrimaryKeys(schema: string, table: string): Promise<PrimaryKeyInfo[]> {
     try {
-      const databaseName = schema || this.config.database;
-      
       const query = `
         SELECT 
-          tc.constraint_name AS constraintName,
-          kcu.column_name AS columnName,
-          kcu.ordinal_position AS position
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-          AND tc.table_schema = kcu.table_schema
-        WHERE tc.constraint_type = 'PRIMARY KEY'
-          AND tc.table_schema = ?
-          AND tc.table_name = ?
-        ORDER BY kcu.ordinal_position
+          constraint_name AS constraintName,
+          column_name AS columnName,
+          ordinal_position AS position
+        FROM information_schema.key_column_usage
+        WHERE 
+          table_schema = ? 
+          AND table_name = ?
+          AND constraint_name = 'PRIMARY'
+        ORDER BY ordinal_position
       `;
       
-      const result = await this.executeQuery(query, [databaseName, table]);
+      const result = await this.executeQuery(query, [schema, table]);
       
       return result.rows.map(row => ({
         constraintName: row.constraintName,
@@ -334,13 +392,16 @@ export class MySQLConnector implements DatabaseConnector {
         position: row.position
       }));
     } catch (error: any) {
-      logger.error('获取MySQL主键信息失败', {
+      logger.error('获取主键信息失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId,
-        schema: schema || this.config.database,
+        schema,
         table
       });
-      throw error;
+      throw new DataSourceConnectionError(
+        `获取主键信息失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId
+      );
     }
   }
   
@@ -349,29 +410,31 @@ export class MySQLConnector implements DatabaseConnector {
    */
   async getForeignKeys(schema: string, table: string): Promise<ForeignKeyInfo[]> {
     try {
-      const databaseName = schema || this.config.database;
-      
       const query = `
         SELECT 
-          kcu.constraint_name AS constraintName,
-          kcu.column_name AS columnName,
-          kcu.ordinal_position AS position,
-          kcu.referenced_table_schema AS referencedSchema,
-          kcu.referenced_table_name AS referencedTable,
-          kcu.referenced_column_name AS referencedColumn,
-          rc.update_rule AS updateRule,
-          rc.delete_rule AS deleteRule
-        FROM information_schema.key_column_usage kcu
-        JOIN information_schema.referential_constraints rc
-          ON kcu.constraint_name = rc.constraint_name
-          AND kcu.constraint_schema = rc.constraint_schema
-        WHERE kcu.table_schema = ?
-          AND kcu.table_name = ?
-          AND kcu.referenced_table_schema IS NOT NULL
-        ORDER BY kcu.constraint_name, kcu.ordinal_position
+          k.constraint_name AS constraintName,
+          k.column_name AS columnName,
+          k.ordinal_position AS position,
+          k.referenced_table_schema AS referencedSchema,
+          k.referenced_table_name AS referencedTable,
+          k.referenced_column_name AS referencedColumn,
+          r.update_rule AS updateRule,
+          r.delete_rule AS deleteRule
+        FROM 
+          information_schema.key_column_usage k
+        JOIN 
+          information_schema.referential_constraints r
+          ON k.constraint_name = r.constraint_name
+          AND k.table_schema = r.constraint_schema
+        WHERE 
+          k.table_schema = ?
+          AND k.table_name = ?
+          AND k.referenced_table_name IS NOT NULL
+        ORDER BY 
+          k.constraint_name, k.ordinal_position
       `;
       
-      const result = await this.executeQuery(query, [databaseName, table]);
+      const result = await this.executeQuery(query, [schema, table]);
       
       return result.rows.map(row => ({
         constraintName: row.constraintName,
@@ -384,13 +447,16 @@ export class MySQLConnector implements DatabaseConnector {
         deleteRule: row.deleteRule
       }));
     } catch (error: any) {
-      logger.error('获取MySQL外键信息失败', {
+      logger.error('获取外键信息失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId,
-        schema: schema || this.config.database,
+        schema,
         table
       });
-      throw error;
+      throw new DataSourceConnectionError(
+        `获取外键信息失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId
+      );
     }
   }
   
@@ -399,8 +465,6 @@ export class MySQLConnector implements DatabaseConnector {
    */
   async getIndexes(schema: string, table: string): Promise<IndexInfo[]> {
     try {
-      const databaseName = schema || this.config.database;
-      
       const query = `
         SELECT 
           index_name AS indexName,
@@ -408,13 +472,16 @@ export class MySQLConnector implements DatabaseConnector {
           non_unique AS nonUnique,
           seq_in_index AS sequenceInIndex,
           index_type AS indexType
-        FROM information_schema.statistics
-        WHERE table_schema = ?
+        FROM 
+          information_schema.statistics
+        WHERE 
+          table_schema = ?
           AND table_name = ?
-        ORDER BY index_name, seq_in_index
+        ORDER BY 
+          index_name, seq_in_index
       `;
       
-      const result = await this.executeQuery(query, [databaseName, table]);
+      const result = await this.executeQuery(query, [schema, table]);
       
       return result.rows.map(row => ({
         indexName: row.indexName,
@@ -424,13 +491,16 @@ export class MySQLConnector implements DatabaseConnector {
         indexType: row.indexType
       }));
     } catch (error: any) {
-      logger.error('获取MySQL索引信息失败', {
+      logger.error('获取索引信息失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId,
-        schema: schema || this.config.database,
+        schema,
         table
       });
-      throw error;
+      throw new DataSourceConnectionError(
+        `获取索引信息失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId
+      );
     }
   }
   
@@ -439,27 +509,26 @@ export class MySQLConnector implements DatabaseConnector {
    */
   async previewTableData(schema: string, table: string, limit: number = 100): Promise<QueryResult> {
     try {
-      const databaseName = schema || this.config.database;
+      const sql = `SELECT * FROM \`${schema}\`.\`${table}\` LIMIT ?`;
       
-      // 使用反引号包裹数据库和表名，防止SQL注入
-      const query = `
-        SELECT * FROM \`${databaseName}\`.\`${table}\` LIMIT ?
-      `;
-      
-      return await this.executeQuery(query, [limit]);
+      return await this.executeQuery(sql, [limit]);
     } catch (error: any) {
-      logger.error('预览MySQL表数据失败', {
+      logger.error('预览表数据失败', {
         error: error?.message || '未知错误',
         dataSourceId: this._dataSourceId,
-        schema: schema || this.config.database,
+        schema,
         table
       });
-      throw error;
+      throw new QueryExecutionError(
+        `预览表数据失败: ${error?.message || '未知错误'}`,
+        this._dataSourceId,
+        `SELECT * FROM ${schema}.${table} LIMIT ${limit}`
+      );
     }
   }
   
   /**
-   * 关闭连接池
+   * 关闭连接
    */
   async close(): Promise<void> {
     try {

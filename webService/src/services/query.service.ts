@@ -30,8 +30,8 @@ export class QueryService {
         });
         queryHistoryId = queryHistory.id;
         
-        // 执行查询
-        const result = await connector.executeQuery(sql, params);
+        // 执行查询 - 传递queryHistoryId作为queryId以支持取消功能
+        const result = await connector.executeQuery(sql, params, queryHistoryId);
         
         // 更新查询历史为成功
         const endTime = new Date();
@@ -77,6 +77,60 @@ export class QueryService {
         throw error;
       }
       throw new ApiError('执行查询失败', 500, error?.message || '未知错误');
+    }
+  }
+
+  /**
+   * 取消正在执行的查询
+   */
+  async cancelQuery(queryId: string): Promise<boolean> {
+    try {
+      // 首先查找查询执行记录
+      const queryExecution = await prisma.queryHistory.findUnique({
+        where: { id: queryId }
+      });
+      
+      if (!queryExecution) {
+        throw new ApiError('查询不存在', 404);
+      }
+      
+      if (queryExecution.status !== 'RUNNING') {
+        logger.warn('无法取消查询，查询未在运行中', { 
+          queryId, 
+          status: queryExecution.status 
+        });
+        return false; // 查询已经完成或已取消
+      }
+      
+      // 获取数据源连接器
+      const connector = await dataSourceService.getConnector(queryExecution.dataSourceId);
+      
+      // 取消查询
+      const success = await connector.cancelQuery(queryId);
+      
+      if (success) {
+        // 更新查询历史状态
+        await prisma.queryHistory.update({
+          where: { id: queryId },
+          data: {
+            status: 'CANCELLED',
+            endTime: new Date(),
+            duration: new Date().getTime() - new Date(queryExecution.startTime).getTime(),
+            errorMessage: '查询已取消'
+          }
+        });
+        logger.info('查询已成功取消', { queryId });
+      } else {
+        logger.warn('取消查询请求已发送，但无法确认取消状态', { queryId });
+      }
+      
+      return success;
+    } catch (error: any) {
+      logger.error('取消查询失败', { error, queryId });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError('取消查询失败', 500, error?.message || '未知错误');
     }
   }
   
@@ -265,7 +319,7 @@ export class QueryService {
   }
   
   /**
-   * 获取查询历史
+   * 获取查询历史记录
    */
   async getQueryHistory(
     dataSourceId?: string,
@@ -278,16 +332,20 @@ export class QueryService {
     offset: number;
   }> {
     try {
-      const where = dataSourceId ? { dataSourceId } : {};
+      const where: any = {};
+      
+      if (dataSourceId) {
+        where.dataSourceId = dataSourceId;
+      }
       
       const [history, total] = await Promise.all([
         prisma.queryHistory.findMany({
           where,
           orderBy: {
-            createdAt: 'desc',
+            startTime: 'desc',
           },
-          skip: offset,
           take: limit,
+          skip: offset,
         }),
         prisma.queryHistory.count({ where }),
       ]);
