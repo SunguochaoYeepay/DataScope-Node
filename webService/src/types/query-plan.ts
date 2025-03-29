@@ -27,4 +27,13 @@ export interface QueryPlan {
   estimatedCost: number;   // 估计成本
   estimatedRows: number;   // 估计返回行数
   optimizationTips: string[]; // 优化建议
+  performanceAnalysis?: any; // 性能分析结果
+  executionStats?: { // 执行统计信息
+    executionTime?: number; // 执行时间
+    ioStats?: { // IO统计
+      reads: number;  // 读取次数
+      writes: number; // 写入次数
+    };
+    memoryUsage?: number; // 内存使用
+  };
 }

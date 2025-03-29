@@ -230,6 +230,17 @@ model MetadataSyncHistory {
   @@map("tbl_metadata_sync_history")
 }
 
+// 查询执行计划历史记录
+model QueryPlanHistory {
+  id           String    @id @default(uuid())
+  dataSourceId String
+  sql          String    @db.Text
+  planData     String    @db.Text  // JSON字符串格式的执行计划数据
+  createdAt    DateTime  @default(now())
+
+  @@map("tbl_query_plan_history")
+}
+
 // 保存的查询
 model SavedQuery {
   id           String   @id @default(uuid())

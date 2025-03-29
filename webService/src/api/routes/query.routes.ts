@@ -212,8 +212,70 @@ router.post(
   [
     body('dataSourceId').isUUID().withMessage('无效的数据源ID'),
     body('sql').notEmpty().withMessage('SQL语句不能为空'),
+    body('includeAnalysis').optional().isBoolean().withMessage('必须是布尔值'),
   ],
   queryController.explainQuery
+);
+
+/**
+ * @swagger
+ * /queries/plans/{id}/tips:
+ *   get:
+ *     summary: 获取查询计划的优化建议
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 查询计划优化建议
+ *       404:
+ *         description: 查询计划不存在
+ */
+router.get(
+  '/plans/:id/tips',
+  [
+    param('id').isUUID().withMessage('无效的查询计划ID'),
+  ],
+  queryController.getQueryOptimizationTips
+);
+
+/**
+ * @swagger
+ * /queries/plans:
+ *   get:
+ *     summary: 获取查询计划历史记录
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: query
+ *         name: dataSourceId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: 查询计划历史记录列表
+ */
+router.get(
+  '/plans',
+  [
+    query('dataSourceId').optional().isUUID().withMessage('无效的数据源ID'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
+    query('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
+  ],
+  queryController.getQueryPlanHistory
 );
 
 /**
