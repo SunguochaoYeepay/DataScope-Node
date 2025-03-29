@@ -1,4 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+interface AuthenticatedRequest extends Request {
+    user?: {
+        id: string;
+        email: string;
+        role: string;
+    };
+}
 export declare class MetadataController {
     /**
      * 同步数据源元数据
@@ -13,7 +20,7 @@ export declare class MetadataController {
      */
     getSyncHistory(req: Request, res: Response, next: NextFunction): Promise<void>;
     /**
-     * 获取表数据预览
+     * 获取表数据预览（通过metadataService）
      */
     previewTableData(req: Request, res: Response, next: NextFunction): Promise<void>;
     /**
@@ -32,6 +39,28 @@ export declare class MetadataController {
      * 验证列分析请求
      */
     validateColumnAnalysis(): import("express-validator").ValidationChain[];
+    /**
+     * 获取数据源数据库结构
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    getDatabaseStructure(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 获取表的数据示例（预览）
+     */
+    private getTablePreview;
+    /**
+     * 获取表详细信息
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    getTableDetails(req: AuthenticatedRequest, res: Response): Promise<void>;
+    /**
+     * 获取表数据预览（通过Connector）
+     * @param req 请求对象
+     * @param res 响应对象
+     */
+    previewTableDataDirect(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 declare const _default: MetadataController;
 export default _default;

@@ -30,68 +30,30 @@ export declare class QueryPlanController {
      */
     getOptimizationTips(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
+     * 保存查询计划到数据库
+     * @param plan 查询计划
+     * @param dataSourceId 数据源ID
+     * @param userId 用户ID
+     * @returns 保存的计划对象
+     */
+    private saveQueryPlan;
+    /**
      * 比较两个查询计划
      * @param req 请求对象
      * @param res 响应对象
      */
     comparePlans(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
-     * 计算性能改进百分比
-     * @param planA 原始计划
-     * @param planB 优化后计划
-     * @returns 改进百分比
-     */
-    private calculateImprovement;
-    /**
-     * 生成比较要点
-     * @param planA 原始计划
-     * @param planB 优化后计划
-     * @returns 比较要点列表
-     */
-    private generateComparisonPoints;
-    /**
-     * 保存查询计划到数据库
-     * @param plan 查询计划
-     * @param dataSourceId 数据源ID
-     * @param userId 用户ID
-     * @returns 保存的查询计划记录
-     */
-    private saveQueryPlan;
-    /**
-     * 获取查询计划历史
+     * 获取查询计划历史记录
      * @param req 请求对象
      * @param res 响应对象
      */
     getQueryPlanHistory(req: AuthenticatedRequest, res: Response): Promise<void>;
     /**
-     * 保存查询执行计划
+     * 获取特定的查询计划
      * @param req 请求对象
      * @param res 响应对象
      */
-    savePlan(req: AuthenticatedRequest, res: Response): Promise<void>;
-    /**
-     * 获取所有保存的查询执行计划
-     * @param req 请求对象
-     * @param res 响应对象
-     */
-    getAllSavedPlans(req: AuthenticatedRequest, res: Response): Promise<void>;
-    /**
-     * 获取特定的查询执行计划
-     * @param req 请求对象
-     * @param res 响应对象
-     */
-    getSavedPlan(req: AuthenticatedRequest, res: Response): Promise<void>;
-    /**
-     * 删除查询执行计划
-     * @param req 请求对象
-     * @param res 响应对象
-     */
-    deletePlan(req: AuthenticatedRequest, res: Response): Promise<void>;
-    /**
-     * 获取优化后的SQL查询
-     * @param req 请求对象
-     * @param res 响应对象
-     */
-    getOptimizedQuery(req: AuthenticatedRequest, res: Response): Promise<void>;
+    getQueryPlanById(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 export {};

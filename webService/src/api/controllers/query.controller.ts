@@ -258,7 +258,7 @@ export class QueryController {
   async getQueryHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const { dataSourceId, limit, offset } = req.query;
-      const history = await queryService.getQueryHistory(
+      const history = await queryService.getQueryPlanHistory(
         dataSourceId as string,
         limit ? Number(limit) : 50,
         offset ? Number(offset) : 0

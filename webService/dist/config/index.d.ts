@@ -33,7 +33,6 @@ declare const config: {
         timeout: number;
     };
     development: {
-        useMockData: boolean;
         mockDataPath: string;
     };
 };

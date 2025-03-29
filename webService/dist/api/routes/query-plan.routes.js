@@ -92,177 +92,23 @@ router.post('/analyze', auth_1.authenticate, [
 ], queryPlanController.getPlan);
 /**
  * @swagger
- * /query-plans/save:
- *   post:
- *     summary: 保存查询执行计划
- *     description: 保存查询执行计划以便后续查看和比较
- *     tags: [QueryPlans]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - dataSourceId
- *               - name
- *               - sql
- *               - planData
- *             properties:
- *               dataSourceId:
- *                 type: string
- *               name:
- *                 type: string
- *               sql:
- *                 type: string
- *               planData:
- *                 type: object
- *           example:
- *             dataSourceId: "123e4567-e89b-12d3-a456-426614174000"
- *             name: "用户查询优化后"
- *             sql: "SELECT * FROM users WHERE status = 'active'"
- *             planData: {
- *               estimatedRows: 1000,
- *               estimatedCost: 123.45,
- *               planNodes: [
- *                 {
- *                   id: 1,
- *                   type: "range",
- *                   table: "users",
- *                   rows: 1000,
- *                   filtered: 100,
- *                   key: "idx_status"
- *                 }
- *               ]
- *             }
- *     responses:
- *       201:
- *         description: 成功保存执行计划
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *             example:
- *               success: true
- *               data: {
- *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
- *                 name: "用户查询优化后",
- *                 dataSourceId: "123e4567-e89b-12d3-a456-426614174000",
- *                 sql: "SELECT * FROM users WHERE status = 'active'",
- *                 createdAt: "2023-06-15T08:30:00.000Z",
- *                 updatedAt: "2023-06-15T08:30:00.000Z"
- *               }
- *       400:
- *         description: 请求参数错误
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 error:
- *                   type: object
- *             example:
- *               success: false
- *               error: {
- *                 statusCode: 400,
- *                 error: "BAD_REQUEST",
- *                 message: "请求参数错误",
- *                 code: 40000,
- *                 details: [
- *                   {
- *                     field: "planData",
- *                     message: "执行计划数据不能为空"
- *                   }
- *                 ]
- *               }
- */
-router.post('/save', auth_1.authenticate, [
-    (0, express_validator_1.body)('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
-    (0, express_validator_1.body)('name').isString().notEmpty().withMessage('执行计划名称不能为空'),
-    (0, express_validator_1.body)('sql').isString().notEmpty().withMessage('SQL查询语句不能为空'),
-    (0, express_validator_1.body)('planData').isObject().notEmpty().withMessage('执行计划数据不能为空')
-], queryPlanController.savePlan);
-/**
- * @swagger
- * /query-plans:
+ * /query-plans/{planId}/optimize:
  *   get:
- *     summary: 获取所有保存的查询执行计划
- *     description: 获取用户保存的所有查询执行计划
- *     tags: [QueryPlans]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: dataSourceId
- *         schema:
- *           type: string
- *         description: 数据源ID（可选，用于筛选）
- *     responses:
- *       200:
- *         description: 成功获取执行计划列表
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *             example:
- *               success: true
- *               data: [
- *                 {
- *                   id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
- *                   name: "原始用户查询",
- *                   dataSourceId: "123e4567-e89b-12d3-a456-426614174000",
- *                   sql: "SELECT * FROM users WHERE status = 'active'",
- *                   createdAt: "2023-06-14T08:30:00.000Z",
- *                   updatedAt: "2023-06-14T08:30:00.000Z",
- *                   dataSourceName: "开发环境MySQL"
- *                 },
- *                 {
- *                   id: "b2c3d4e5-f6a7-8901-bcde-2345678901fg",
- *                   name: "优化后的用户查询",
- *                   dataSourceId: "123e4567-e89b-12d3-a456-426614174000",
- *                   sql: "SELECT u.id, u.name, u.email FROM users u FORCE INDEX(idx_status) WHERE u.status = 'active'",
- *                   createdAt: "2023-06-15T08:30:00.000Z",
- *                   updatedAt: "2023-06-15T08:30:00.000Z",
- *                   dataSourceName: "开发环境MySQL"
- *                 }
- *               ]
- */
-router.get('/', auth_1.authenticate, queryPlanController.getAllSavedPlans);
-/**
- * @swagger
- * /query-plans/{id}:
- *   get:
- *     summary: 获取特定的查询执行计划
- *     description: 获取特定ID的查询执行计划详情
+ *     summary: 获取查询执行计划的优化建议
+ *     description: 根据查询计划ID获取SQL优化建议和优化后的SQL语句
  *     tags: [QueryPlans]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: planId
  *         required: true
  *         schema:
  *           type: string
- *         description: 执行计划ID
+ *         description: 查询计划ID
  *     responses:
  *       200:
- *         description: 成功获取执行计划数据
+ *         description: 成功获取优化建议
  *         content:
  *           application/json:
  *             schema:
@@ -272,73 +118,32 @@ router.get('/', auth_1.authenticate, queryPlanController.getAllSavedPlans);
  *                   type: boolean
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     suggestions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     optimizedSql:
+ *                       type: string
  *             example:
  *               success: true
- *               data: {
- *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
- *                 name: "用户查询优化后",
- *                 dataSourceId: "123e4567-e89b-12d3-a456-426614174000",
- *                 sql: "SELECT * FROM users WHERE status = 'active'",
- *                 planData: {
- *                   estimatedRows: 1000,
- *                   estimatedCost: 123.45,
- *                   planNodes: [
- *                     {
- *                       id: 1,
- *                       type: "range",
- *                       table: "users",
- *                       rows: 1000,
- *                       filtered: 100,
- *                       key: "idx_status",
- *                       possible_keys: "idx_status",
- *                       extra: "Using index condition"
- *                     }
- *                   ],
- *                   warnings: [
- *                     "查询返回所有列，可能无法充分利用索引"
- *                   ],
- *                   optimizationTips: [
- *                     "仅选择必要的列可以使用覆盖索引提高查询性能"
- *                   ]
- *                 },
- *                 createdAt: "2023-06-15T08:30:00.000Z",
- *                 updatedAt: "2023-06-15T08:30:00.000Z",
- *                 dataSource: {
- *                   id: "123e4567-e89b-12d3-a456-426614174000",
- *                   name: "开发环境MySQL",
- *                   type: "mysql"
- *                 }
- *               }
- *       404:
- *         description: 执行计划不存在
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 error:
- *                   type: object
- *             example:
- *               success: false
- *               error: {
- *                 statusCode: 404,
- *                 error: "NOT_FOUND",
- *                 message: "执行计划不存在",
- *                 code: 40401,
- *                 details: "未找到ID为a1b2c3d4-e5f6-7890-abcd-1234567890ab的执行计划"
- *               }
+ *               data:
+ *                 suggestions:
+ *                   - type: "INDEX"
+ *                     description: "缺少索引: users.status 字段应创建索引"
+ *                     impact: "HIGH"
+ *                     fix: "CREATE INDEX idx_users_status ON users(status)"
+ *                 optimizedSql: "SELECT * FROM users FORCE INDEX(idx_users_status) JOIN orders ON users.id = orders.user_id WHERE users.status = 'active'"
  */
-router.get('/:id', auth_1.authenticate, [
-    (0, express_validator_1.param)('id').isUUID().withMessage('执行计划ID无效')
-], queryPlanController.getSavedPlan);
+router.get('/:planId/optimize', auth_1.authenticate, [
+    (0, express_validator_1.param)('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
+], queryPlanController.getOptimizationTips);
 /**
  * @swagger
  * /query-plans/compare:
  *   post:
  *     summary: 比较两个查询执行计划
- *     description: 比较两个查询执行计划的差异并分析性能差异
+ *     description: 比较两个执行计划的差异和性能改进
  *     tags: [QueryPlans]
  *     security:
  *       - bearerAuth: []
@@ -354,14 +159,16 @@ router.get('/:id', auth_1.authenticate, [
  *             properties:
  *               planAId:
  *                 type: string
+ *                 description: 原始执行计划ID
  *               planBId:
  *                 type: string
+ *                 description: 对比执行计划ID
  *           example:
- *             planAId: "123e4567-e89b-12d3-a456-426614174000"
- *             planBId: "223e4567-e89b-12d3-a456-426614174001"
+ *             planAId: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+ *             planBId: "b2c3d4e5-f6a7-8901-bcde-2345678901fg"
  *     responses:
  *       200:
- *         description: 成功比较执行计划
+ *         description: 成功获取比较结果
  *         content:
  *           application/json:
  *             schema:
@@ -374,88 +181,52 @@ router.get('/:id', auth_1.authenticate, [
  *             example:
  *               success: true
  *               data:
- *                 summary:
- *                   costDifference: -45.67
- *                   rowsDifference: -500
- *                   plan1BottlenecksCount: 2
- *                   plan2BottlenecksCount: 1
- *                 nodeComparison: [
- *                   {
- *                     table: "users",
- *                     rows: {
- *                       plan1: 5000,
- *                       plan2: 5000,
- *                       difference: 0
- *                     },
- *                     filtered: {
- *                       plan1: 20,
- *                       plan2: 20,
- *                       difference: 0
- *                     },
- *                     accessType: {
- *                       plan1: "ALL",
- *                       plan2: "range",
- *                       improved: true
- *                     }
- *                   },
- *                   {
- *                     table: "orders",
- *                     rows: {
- *                       plan1: 200,
- *                       plan2: 150,
- *                       difference: -50
- *                     },
- *                     filtered: {
- *                       plan1: 100,
- *                       plan2: 100,
- *                       difference: 0
- *                     },
- *                     accessType: {
- *                       plan1: "ref",
- *                       plan2: "ref",
- *                       improved: false
- *                     }
- *                   }
- *                 ],
- *                 accessTypeChanges: [
- *                   {
- *                     table: "users",
- *                     from: "ALL",
- *                     to: "range",
- *                     improvement: true
- *                   }
- *                 ],
- *                 indexUsageChanges: [
- *                   {
- *                     table: "users",
- *                     from: "无索引",
- *                     to: "status_idx"
- *                   }
- *                 ]
+ *                 costDifference: -50.25
+ *                 costImprovement: 40
+ *                 planAWarnings: 2
+ *                 planBWarnings: 0
+ *                 planANodes: 3
+ *                 planBNodes: 2
+ *                 comparisonPoints:
+ *                   - key: "reduced_rows"
+ *                     description: "优化后扫描行数减少了 3000 行"
+ *                   - key: "reduced_cost"
+ *                     description: "优化后估算成本降低了 40%"
  */
 router.post('/compare', auth_1.authenticate, [
-    (0, express_validator_1.body)('planAId').isUUID().withMessage('第一个执行计划ID无效'),
-    (0, express_validator_1.body)('planBId').isUUID().withMessage('第二个执行计划ID无效')
+    (0, express_validator_1.body)('planAId').isString().notEmpty().withMessage('原始执行计划ID不能为空'),
+    (0, express_validator_1.body)('planBId').isString().notEmpty().withMessage('对比执行计划ID不能为空')
 ], queryPlanController.comparePlans);
 /**
  * @swagger
- * /query-plans/{id}:
- *   delete:
- *     summary: 删除查询执行计划
- *     description: 删除特定ID的查询执行计划
+ * /query-plans/history:
+ *   get:
+ *     summary: 获取查询计划历史记录
+ *     description: 获取查询计划历史记录列表
  *     tags: [QueryPlans]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
- *         required: true
+ *       - in: query
+ *         name: dataSourceId
  *         schema:
  *           type: string
- *         description: 执行计划ID
+ *         description: 数据源ID（可选，用于筛选）
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 返回结果数量限制
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: 结果偏移量（用于分页）
  *     responses:
  *       200:
- *         description: 成功删除执行计划
+ *         description: 成功获取查询计划历史记录
  *         content:
  *           application/json:
  *             schema:
@@ -465,55 +236,53 @@ router.post('/compare', auth_1.authenticate, [
  *                   type: boolean
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     history:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     total:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     offset:
+ *                       type: integer
  *             example:
  *               success: true
- *               data: {
- *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
- *                 deleted: true
- *               }
- *       404:
- *         description: 执行计划不存在
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 error:
- *                   type: object
- *             example:
- *               success: false
- *               error: {
- *                 statusCode: 404,
- *                 error: "NOT_FOUND",
- *                 message: "执行计划不存在",
- *                 code: 40401,
- *                 details: "未找到ID为a1b2c3d4-e5f6-7890-abcd-1234567890ab的执行计划"
- *               }
+ *               data:
+ *                 history:
+ *                   - id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+ *                     sql: "SELECT * FROM users WHERE status = 'active'"
+ *                     dataSourceId: "123e4567-e89b-12d3-a456-426614174000"
+ *                     createdAt: "2023-06-14T08:30:00.000Z"
+ *                   - id: "b2c3d4e5-f6a7-8901-bcde-2345678901fg"
+ *                     sql: "SELECT u.id, u.name FROM users u WHERE u.status = 'active'"
+ *                     dataSourceId: "123e4567-e89b-12d3-a456-426614174000"
+ *                     createdAt: "2023-06-13T10:15:00.000Z"
+ *                 total: 42
+ *                 limit: 20
+ *                 offset: 0
  */
-router.delete('/:id', auth_1.authenticate, [
-    (0, express_validator_1.param)('id').isUUID().withMessage('执行计划ID无效')
-], queryPlanController.deletePlan);
+router.get('/history', auth_1.authenticate, queryPlanController.getQueryPlanHistory);
 /**
  * @swagger
- * /query-plans/{id}/optimize:
+ * /query-plans/{planId}:
  *   get:
- *     summary: 获取优化后的SQL查询
- *     description: 根据查询执行计划生成优化后的SQL查询和优化建议
+ *     summary: 获取特定查询计划
+ *     description: 根据ID获取查询计划详情
  *     tags: [QueryPlans]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: planId
  *         required: true
  *         schema:
  *           type: string
- *         description: 执行计划ID
+ *         description: 查询计划ID
  *     responses:
  *       200:
- *         description: 成功获取优化结果
+ *         description: 成功获取查询计划
  *         content:
  *           application/json:
  *             schema:
@@ -525,61 +294,24 @@ router.delete('/:id', auth_1.authenticate, [
  *                   type: object
  *             example:
  *               success: true
- *               data: {
- *                 originalSql: "SELECT * FROM users WHERE status = 'active'",
- *                 optimizedSql: "SELECT u.id, u.name, u.email FROM users u FORCE INDEX(idx_status) WHERE u.status = 'active'",
- *                 optimizations: [
- *                   {
- *                     type: "COLUMN_SELECTION",
- *                     description: "选择特定列而不是使用SELECT *"
- *                   },
- *                   {
- *                     type: "TABLE_ALIAS",
- *                     description: "使用表别名提高可读性"
- *                   },
- *                   {
- *                     type: "INDEX_HINT",
- *                     description: "添加强制索引提示确保使用索引"
- *                   }
- *                 ],
- *                 performanceEstimate: {
- *                   originalCost: 125.75,
- *                   optimizedCost: 35.25,
- *                   improvement: "72%"
- *                 },
- *                 indexRecommendations: [
- *                   {
- *                     table: "users",
- *                     name: "idx_status_email",
- *                     columns: ["status", "email"],
- *                     type: "COVERING_INDEX",
- *                     ddl: "CREATE INDEX idx_status_email ON users(status, email);"
- *                   }
- *                 ]
- *               }
- *       404:
- *         description: 执行计划不存在
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 error:
- *                   type: object
- *             example:
- *               success: false
- *               error: {
- *                 statusCode: 404,
- *                 error: "NOT_FOUND",
- *                 message: "执行计划不存在",
- *                 code: 40401,
- *                 details: "未找到ID为a1b2c3d4-e5f6-7890-abcd-1234567890ab的执行计划"
- *               }
+ *               data:
+ *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+ *                 sql: "SELECT * FROM users WHERE status = 'active'"
+ *                 dataSourceId: "123e4567-e89b-12d3-a456-426614174000"
+ *                 createdAt: "2023-06-14T08:30:00.000Z"
+ *                 plan:
+ *                   estimatedCost: 123.45
+ *                   estimatedRows: 1000
+ *                   planNodes:
+ *                     - id: 1
+ *                       type: "range"
+ *                       table: "users"
+ *                       rows: 1000
+ *                       filtered: 100
+ *                       key: "idx_status"
  */
-router.get('/:id/optimize', auth_1.authenticate, [
-    (0, express_validator_1.param)('id').isUUID().withMessage('执行计划ID无效')
-], queryPlanController.getOptimizedQuery);
+router.get('/:planId', auth_1.authenticate, [
+    (0, express_validator_1.param)('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
+], queryPlanController.getQueryPlanById);
 exports.default = router;
 //# sourceMappingURL=query-plan.routes.js.map

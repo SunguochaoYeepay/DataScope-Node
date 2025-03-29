@@ -5,8 +5,10 @@ import { Request, Response, NextFunction } from 'express';
 import { QueryPlanController } from '../controllers/query-plan.controller';
 import planVisualizationController from '../controllers/plan-visualization.controller';
 import { validate } from '../../utils/validate';
+import { authenticate } from '../../middleware/auth';
 
 const router = Router();
+const queryPlanController = new QueryPlanController();
 
 /**
  * @swagger
@@ -492,9 +494,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // 转发到查询计划控制器
-      const queryPlanController = new QueryPlanController();
-      req.params.id = req.params.queryId; // 适配控制器参数
-      await queryPlanController.getSavedPlan(req as any, res);
+      req.params.planId = req.params.queryId; // 适配控制器参数
+      await queryPlanController.getQueryPlanById(req as any, res);
     } catch (error) {
       next(error);
     }
@@ -536,5 +537,31 @@ router.get(
     }
   }
 );
+
+// 引用查询计划详情的路由
+router.get('/plans/:id', authenticate, async (req, res) => {
+  try {
+    await queryPlanController.getQueryPlanById(req as any, res);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: '获取查询计划失败',
+      error: error.message
+    });
+  }
+});
+
+router.get('/history/:queryId/plans', authenticate, async (req, res) => {
+  try {
+    // 转发到查询计划控制器
+    req.params.planId = req.params.queryId; // 适配控制器参数
+    await queryPlanController.getQueryPlanById(req as any, res);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || '获取查询计划失败'
+    });
+  }
+});
 
 export default router;

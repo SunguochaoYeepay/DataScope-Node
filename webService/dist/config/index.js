@@ -52,7 +52,7 @@ const config = {
     },
     // 开发环境配置
     development: {
-        useMockData: process.env.USE_MOCK_DATA === 'true',
+        // 注意：移除了模拟数据模式，现在始终使用真实数据库
         mockDataPath: process.env.MOCK_DATA_PATH || './src/mock',
     },
 };

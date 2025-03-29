@@ -1,4 +1,4 @@
-import { Query, QueryHistory } from '@prisma/client';
+import { Query } from '@prisma/client';
 export declare class QueryService {
     /**
      * 执行SQL查询
@@ -57,7 +57,7 @@ export declare class QueryService {
         isPublic?: boolean;
     }): Promise<Query>;
     /**
-     * 获取查询列表
+     * 获取已保存的查询列表
      */
     getQueries(options?: {
         dataSourceId?: string;
@@ -66,7 +66,7 @@ export declare class QueryService {
         search?: string;
     }): Promise<Query[]>;
     /**
-     * 获取查询详情
+     * 根据ID获取查询
      */
     getQueryById(id: string): Promise<Query>;
     /**
@@ -83,15 +83,6 @@ export declare class QueryService {
      * 删除查询
      */
     deleteQuery(id: string): Promise<void>;
-    /**
-     * 获取查询历史记录
-     */
-    getQueryHistory(dataSourceId?: string, limit?: number, offset?: number): Promise<{
-        history: QueryHistory[];
-        total: number;
-        limit: number;
-        offset: number;
-    }>;
 }
 declare const _default: QueryService;
 export default _default;

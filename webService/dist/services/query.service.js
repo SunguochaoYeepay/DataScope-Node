@@ -195,36 +195,32 @@ class QueryService {
                     queryId,
                     status: queryExecution.status
                 });
-                return false; // 查询已经完成或已取消
+                return false;
             }
             // 获取数据源连接器
             const connector = await datasource_service_1.default.getConnector(queryExecution.dataSourceId);
-            // 取消查询
-            const success = await connector.cancelQuery(queryId);
-            if (success) {
-                // 更新查询历史状态
-                await prisma.queryHistory.update({
-                    where: { id: queryId },
-                    data: {
-                        status: 'CANCELLED',
-                        endTime: new Date(),
-                        duration: new Date().getTime() - new Date(queryExecution.startTime).getTime(),
-                        errorMessage: '查询已取消'
-                    }
-                });
-                logger_1.default.info('查询已成功取消', { queryId });
+            // 检查是否支持取消查询
+            if (!connector.cancelQuery) {
+                throw new error_1.ApiError('该数据源不支持取消查询操作', 400);
             }
-            else {
-                logger_1.default.warn('取消查询请求已发送，但无法确认取消状态', { queryId });
-            }
-            return success;
+            // 执行取消操作
+            await connector.cancelQuery(queryId);
+            // 更新查询历史记录为取消状态
+            await prisma.queryHistory.update({
+                where: { id: queryId },
+                data: {
+                    status: 'CANCELLED',
+                    endTime: new Date()
+                }
+            });
+            return true;
         }
         catch (error) {
             logger_1.default.error('取消查询失败', { error, queryId });
             if (error instanceof error_1.ApiError) {
                 throw error;
             }
-            throw new error_1.ApiError('取消查询失败', 500, error?.message || '未知错误');
+            throw new error_1.ApiError('取消查询失败', 500, error.message);
         }
     }
     /**
@@ -240,70 +236,64 @@ class QueryService {
                     description: data.description || '',
                     tags: data.tags?.join(',') || '',
                     status: data.isPublic ? 'PUBLISHED' : 'DRAFT',
-                },
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }
             });
             return query;
         }
         catch (error) {
-            logger_1.default.error('保存查询失败', { error, query: data });
-            throw new error_1.ApiError('保存查询失败', 500, error?.message || '未知错误');
+            logger_1.default.error('保存查询失败', { error, data });
+            throw new error_1.ApiError('保存查询失败', 500, error.message);
         }
     }
     /**
-     * 获取查询列表
+     * 获取已保存的查询列表
      */
     async getQueries(options = {}) {
         try {
+            // 构建查询条件
             const where = {};
+            // 添加数据源过滤
             if (options.dataSourceId) {
                 where.dataSourceId = options.dataSourceId;
             }
+            // 添加公开状态过滤
             if (options.isPublic !== undefined) {
                 where.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
             }
+            // 添加标签过滤
             if (options.tag) {
                 where.tags = {
-                    contains: options.tag,
+                    contains: options.tag
                 };
             }
+            // 添加搜索条件
             if (options.search) {
                 where.OR = [
-                    {
-                        name: {
-                            contains: options.search,
-                        },
-                    },
-                    {
-                        description: {
-                            contains: options.search,
-                        },
-                    },
-                    {
-                        sqlContent: {
-                            contains: options.search,
-                        },
-                    },
+                    { name: { contains: options.search } },
+                    { description: { contains: options.search } },
+                    { sqlContent: { contains: options.search } }
                 ];
             }
+            // 查询数据库
             return await prisma.query.findMany({
                 where,
-                orderBy: {
-                    updatedAt: 'desc',
-                },
+                orderBy: { createdAt: 'desc' }
             });
         }
         catch (error) {
             logger_1.default.error('获取查询列表失败', { error, options });
-            throw new error_1.ApiError('获取查询列表失败', 500, error?.message || '未知错误');
+            throw new error_1.ApiError('获取查询列表失败', 500, error.message);
         }
     }
     /**
-     * 获取查询详情
+     * 根据ID获取查询
      */
     async getQueryById(id) {
         try {
             const query = await prisma.query.findUnique({
-                where: { id },
+                where: { id }
             });
             if (!query) {
                 throw new error_1.ApiError('查询不存在', 404);
@@ -311,11 +301,11 @@ class QueryService {
             return query;
         }
         catch (error) {
-            logger_1.default.error('获取查询详情失败', { error, id });
+            logger_1.default.error('获取查询失败', { error, id });
             if (error instanceof error_1.ApiError) {
                 throw error;
             }
-            throw new error_1.ApiError('获取查询详情失败', 500, error?.message || '未知错误');
+            throw new error_1.ApiError('获取查询失败', 500, error.message);
         }
     }
     /**
@@ -323,15 +313,16 @@ class QueryService {
      */
     async updateQuery(id, data) {
         try {
-            // 首先检查查询是否存在
+            // 检查查询是否存在
             const existingQuery = await prisma.query.findUnique({
-                where: { id },
+                where: { id }
             });
             if (!existingQuery) {
                 throw new error_1.ApiError('查询不存在', 404);
             }
             // 准备更新数据
             const updateData = {};
+            // 有选择地更新字段
             if (data.name !== undefined)
                 updateData.name = data.name;
             if (data.sql !== undefined)
@@ -342,10 +333,10 @@ class QueryService {
                 updateData.status = data.isPublic ? 'PUBLISHED' : 'DRAFT';
             if (data.tags !== undefined)
                 updateData.tags = data.tags.join(',');
-            // 更新查询
+            // 更新时间
             return await prisma.query.update({
                 where: { id },
-                data: updateData,
+                data: updateData
             });
         }
         catch (error) {
@@ -353,7 +344,7 @@ class QueryService {
             if (error instanceof error_1.ApiError) {
                 throw error;
             }
-            throw new error_1.ApiError('更新查询失败', 500, error?.message || '未知错误');
+            throw new error_1.ApiError('更新查询失败', 500, error.message);
         }
     }
     /**
@@ -361,16 +352,16 @@ class QueryService {
      */
     async deleteQuery(id) {
         try {
-            // 首先检查查询是否存在
+            // 检查查询是否存在
             const existingQuery = await prisma.query.findUnique({
-                where: { id },
+                where: { id }
             });
             if (!existingQuery) {
                 throw new error_1.ApiError('查询不存在', 404);
             }
             // 删除查询
             await prisma.query.delete({
-                where: { id },
+                where: { id }
             });
         }
         catch (error) {
@@ -378,39 +369,7 @@ class QueryService {
             if (error instanceof error_1.ApiError) {
                 throw error;
             }
-            throw new error_1.ApiError('删除查询失败', 500, error?.message || '未知错误');
-        }
-    }
-    /**
-     * 获取查询历史记录
-     */
-    async getQueryHistory(dataSourceId, limit = 50, offset = 0) {
-        try {
-            const where = {};
-            if (dataSourceId) {
-                where.dataSourceId = dataSourceId;
-            }
-            const [history, total] = await Promise.all([
-                prisma.queryHistory.findMany({
-                    where,
-                    orderBy: {
-                        startTime: 'desc',
-                    },
-                    take: limit,
-                    skip: offset,
-                }),
-                prisma.queryHistory.count({ where }),
-            ]);
-            return {
-                history,
-                total,
-                limit,
-                offset,
-            };
-        }
-        catch (error) {
-            logger_1.default.error('获取查询历史失败', { error, dataSourceId });
-            throw new error_1.ApiError('获取查询历史失败', 500, error?.message || '未知错误');
+            throw new error_1.ApiError('删除查询失败', 500, error.message);
         }
     }
 }

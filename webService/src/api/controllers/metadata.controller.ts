@@ -6,7 +6,6 @@ import { ApiError } from '../../utils/error';
 import logger from '../../utils/logger';
 import { DataSourceService } from '../../services/datasource.service';
 import config from '../../config';
-import { getMockMetadataStructure, getMockTableColumns, getMockTableIndexes, getMockTableForeignKeys } from '../../mocks/metadata.mock';
 
 const dataSourceService = new DataSourceService();
 
@@ -89,7 +88,7 @@ export class MetadataController {
   }
 
   /**
-   * 获取表数据预览
+   * 获取表数据预览（通过metadataService）
    */
   async previewTableData(req: Request, res: Response, next: NextFunction) {
     try {
@@ -203,18 +202,6 @@ export class MetadataController {
         throw new ApiError('缺少数据源ID', 400);
       }
       
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        logger.info('使用模拟数据获取数据库结构', { dataSourceId: id });
-        
-        // 返回模拟数据库结构
-        res.status(200).json({
-          success: true,
-          data: getMockMetadataStructure(id)
-        });
-        return;
-      }
-      
       // 获取数据源
       const dataSource = await dataSourceService.getDataSourceById(id);
       if (!dataSource) {
@@ -224,60 +211,63 @@ export class MetadataController {
       // 获取数据库连接
       const connector = await dataSourceService.getConnector(id);
       
-      // 获取数据库列表
-      const databases = await connector.getDatabases();
-      
       // 构建结构对象
       const structure = {
-        databases: []
+        databases: [] as any[]
       };
       
-      // 遍历数据库
-      for (const database of databases) {
-        const dbStructure: any = {
-          name: database,
-          schemas: [],
-          tables: []
-        };
+      try {
+        // 尝试获取schema列表
+        const schemas = await connector.getSchemas();
         
-        // 根据数据库类型获取模式或表
-        try {
-          if (connector.getSchemas) {
-            // 支持模式的数据库（如PostgreSQL）
-            const schemas = await connector.getSchemas();
+        // 对于支持schemas的数据库，获取schemas下的表
+        if (schemas && schemas.length > 0) {
+          const database = dataSource.databaseName || 'default';
+          const dbStructure: any = {
+            name: database,
+            schemas: [] as any[],
+            tables: [] as any[]
+          };
+          
+          for (const schema of schemas) {
+            // 获取当前schema下的表
+            const tables = await connector.getTables(schema);
             
-            for (const schema of schemas) {
-              const tables = await connector.getTables(database, schema);
-              
-              const schemaStructure = {
-                name: schema,
-                tables: tables.map(table => ({
-                  name: table,
-                  type: 'TABLE', // 简化处理，实际应根据类型区分表、视图等
-                  schema
-                }))
-              };
-              
-              dbStructure.schemas.push(schemaStructure);
-            }
-          } else {
-            // 不支持模式的数据库（如MySQL）
-            const tables = await connector.getTables(database);
+            const schemaStructure: any = {
+              name: schema,
+              tables: tables.map((table: any) => ({
+                name: typeof table === 'string' ? table : table.name,
+                type: 'TABLE',
+                schema
+              }))
+            };
             
-            dbStructure.tables = tables.map(table => ({
-              name: table,
-              type: 'TABLE', // 简化处理
-              schema: null
-            }));
+            dbStructure.schemas.push(schemaStructure);
           }
-        } catch (e) {
-          logger.warn(`获取数据库 ${database} 结构失败`, { error: e });
-          // 继续处理其他数据库
+          
+          structure.databases.push(dbStructure);
+        } else {
+          // 不支持schema的数据库，直接获取表
+          const tables = await connector.getTables();
+          
+          const dbStructure = {
+            name: dataSource.databaseName || 'default',
+            schemas: [],
+            tables: tables.map((table: any) => ({
+              name: typeof table === 'string' ? table : table.name,
+              type: 'TABLE',
+              schema: null
+            }))
+          };
+          
+          structure.databases.push(dbStructure);
         }
-        
-        structure.databases.push(dbStructure);
+      } catch (err) {
+        logger.error('获取数据库结构失败', { error: err, dataSourceId: id });
+        throw new ApiError('获取数据库结构失败', 500, { message: (err as Error).message });
       }
       
+      // 返回结构
       res.status(200).json({
         success: true,
         data: structure
@@ -293,13 +283,39 @@ export class MetadataController {
       } else {
         res.status(500).json({
           success: false,
-          message: '获取元数据结构失败',
+          message: '获取数据库结构时发生错误',
           error: (error as Error).message
         });
       }
     }
   }
   
+  /**
+   * 获取表的数据示例（预览）
+   */
+  private async getTablePreview(connector: any, schemaOrDb: string, tableName: string, limit: number = 1): Promise<any> {
+    try {
+      if (typeof connector.previewTableData !== 'function') {
+        return null;
+      }
+      
+      const preview = await connector.previewTableData(schemaOrDb, tableName, limit);
+      if (!preview || !preview.rows || preview.rows.length === 0) {
+        return null;
+      }
+      
+      // 从预览中提取第一行数据作为示例
+      const sampleRow = preview.rows[0];
+      return {
+        sampleRow,
+        columns: preview.fields ? preview.fields.map((f: any) => f.name) : Object.keys(sampleRow)
+      };
+    } catch (err) {
+      logger.warn('获取表数据预览失败', { error: err, schemaOrDb, tableName });
+      return null;
+    }
+  }
+
   /**
    * 获取表详细信息
    * @param req 请求对象
@@ -308,39 +324,10 @@ export class MetadataController {
   public async getTableDetails(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { database, table, schema } = req.query as { database: string; table: string; schema?: string };
+      const { database, table, schema } = req.query;
       
       if (!id || !database || !table) {
         throw new ApiError('缺少必要参数', 400);
-      }
-      
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        logger.info('使用模拟数据获取表详情', { dataSourceId: id, database, table });
-        
-        // 获取模拟列信息
-        const columns = getMockTableColumns(id, database, table);
-        
-        // 获取模拟索引信息
-        const indexes = getMockTableIndexes(id, database, table);
-        
-        // 获取模拟外键信息
-        const foreignKeys = getMockTableForeignKeys(id, database, table);
-        
-        // 返回模拟表详情
-        res.status(200).json({
-          success: true,
-          data: {
-            name: table,
-            schema: schema || 'public',
-            database,
-            columns,
-            indexes,
-            foreignKeys,
-            rowCount: 10000 + Math.floor(Math.random() * 90000)
-          }
-        });
-        return;
       }
       
       // 获取数据源
@@ -352,56 +339,47 @@ export class MetadataController {
       // 获取数据库连接
       const connector = await dataSourceService.getConnector(id);
       
-      // 获取列信息
-      const columns = await connector.getColumns(database, table, schema);
+      // 获取表信息
+      const schemaOrDb = schema as string || database as string;
+      const columns = await connector.getColumns(schemaOrDb, table as string);
+      const indexes = await connector.getIndexes(schemaOrDb, table as string);
       
-      // 获取索引信息
-      const indexes = await connector.getIndexes(database, table, schema);
-      
-      // 获取外键信息
-      let foreignKeys = [];
-      if (connector.getForeignKeys) {
-        foreignKeys = await connector.getForeignKeys(database, table, schema);
+      // 获取外键（如果支持）
+      let foreignKeys: any[] = [];
+      if (typeof connector.getForeignKeys === 'function') {
+        foreignKeys = await connector.getForeignKeys(schemaOrDb, table as string);
       }
       
-      // 获取主键信息
-      let primaryKeys = [];
-      if (connector.getPrimaryKeys) {
-        primaryKeys = await connector.getPrimaryKeys(database, table, schema);
+      // 获取主键（如果支持）
+      let primaryKeys: any[] = [];
+      if (typeof connector.getPrimaryKeys === 'function') {
+        primaryKeys = await connector.getPrimaryKeys(schemaOrDb, table as string);
       } else {
         // 从列信息中提取主键
         primaryKeys = columns
-          .filter(column => column.isPrimary)
+          .filter(column => column.isPrimaryKey)
           .map(column => column.name);
       }
       
-      // 获取行数（预览）
-      let rowCount = 0;
-      if (connector.previewTableData) {
-        try {
-          const preview = await connector.previewTableData(database, table, schema, 1);
-          rowCount = preview.rowCount || 0;
-        } catch (e) {
-          logger.warn(`获取表 ${table} 行数失败`, { error: e });
-          // 忽略错误，继续返回其他信息
-        }
-      }
+      // 获取表的数据示例（预览）
+      const previewData = await this.getTablePreview(connector, schemaOrDb, table as string);
       
+      // 返回表详情
       res.status(200).json({
         success: true,
         data: {
           name: table,
           schema: schema || null,
-          database,
+          database: database,
           columns,
           indexes,
           foreignKeys,
           primaryKeys,
-          rowCount
+          preview: previewData
         }
       });
     } catch (error) {
-      logger.error('获取表详情失败', { error });
+      logger.error('获取表详细信息失败', { error });
       
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({
@@ -411,7 +389,7 @@ export class MetadataController {
       } else {
         res.status(500).json({
           success: false,
-          message: '获取表详情失败',
+          message: '获取表详细信息时发生错误',
           error: (error as Error).message
         });
       }
@@ -419,72 +397,17 @@ export class MetadataController {
   }
   
   /**
-   * 获取表数据预览
+   * 获取表数据预览（通过Connector）
    * @param req 请求对象
    * @param res 响应对象
    */
-  public async previewTableData(req: AuthenticatedRequest, res: Response): Promise<void> {
+  public async previewTableDataDirect(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { database, table, schema, limit } = req.query as { 
-        database: string; 
-        table: string; 
-        schema?: string;
-        limit?: string;
-      };
+      const { database, table, schema, limit, offset } = req.query;
       
       if (!id || !database || !table) {
         throw new ApiError('缺少必要参数', 400);
-      }
-      
-      const rowLimit = limit ? parseInt(limit) : 100;
-      
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        logger.info('使用模拟数据获取表预览', { dataSourceId: id, database, table });
-        
-        // 获取模拟列信息
-        const columns = getMockTableColumns(id, database, table);
-        const columnNames = columns.map(col => col.name);
-        
-        // 生成模拟数据行
-        const rows = Array(Math.min(rowLimit, 50)).fill(0).map((_, rowIndex) => {
-          const row: any = {};
-          
-          columns.forEach(col => {
-            if (col.name === 'id') {
-              row[col.name] = rowIndex + 1;
-            } else if (col.type.includes('INT')) {
-              row[col.name] = Math.floor(Math.random() * 1000);
-            } else if (col.type.includes('VARCHAR') || col.type.includes('TEXT')) {
-              row[col.name] = `${col.name}_值_${rowIndex + 1}`;
-            } else if (col.type.includes('DECIMAL')) {
-              row[col.name] = (Math.random() * 1000).toFixed(2);
-            } else if (col.type.includes('TIMESTAMP')) {
-              row[col.name] = new Date(Date.now() - Math.random() * 10000000000).toISOString();
-            } else if (col.type.includes('ENUM')) {
-              // 从类型定义中提取枚举值
-              const enumValues = col.type.match(/"([^"]+)"/g)?.map(v => v.replace(/"/g, '')) || ['value1', 'value2'];
-              row[col.name] = enumValues[Math.floor(Math.random() * enumValues.length)];
-            } else {
-              row[col.name] = `${col.name}_${rowIndex}`;
-            }
-          });
-          
-          return row;
-        });
-        
-        // 返回模拟表数据
-        res.status(200).json({
-          success: true,
-          data: {
-            columns: columnNames,
-            rows,
-            rowCount: rows.length,
-            totalRows: 10000 + Math.floor(Math.random() * 90000)
-          }
-        });
-        return;
       }
       
       // 获取数据源
@@ -496,19 +419,36 @@ export class MetadataController {
       // 获取数据库连接
       const connector = await dataSourceService.getConnector(id);
       
-      // 生成预览SQL
-      const sql = `SELECT * FROM ${schema ? `${schema}.` : ''}${table} LIMIT ${rowLimit}`;
+      // 预览表数据
+      const limitNum = Number(limit) || 100;
+      const offsetNum = Number(offset) || 0;
       
-      // 执行查询
-      const result = await connector.executeQuery(sql);
+      if (typeof connector.previewTableData !== 'function') {
+        throw new ApiError('数据源连接器不支持表数据预览功能', 400);
+      }
+      
+      const schemaOrDb = schema as string || database as string;
+      const result = await connector.previewTableData(schemaOrDb, table as string, limitNum);
+      
+      // 确保result.rows存在且是一个数组
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      
+      // 确定列信息
+      let columns: string[] = [];
+      if (result.fields && Array.isArray(result.fields)) {
+        columns = result.fields.map((field: any) => field.name);
+      } else if (rows.length > 0) {
+        columns = Object.keys(rows[0]);
+      }
       
       res.status(200).json({
         success: true,
         data: {
-          columns: result.columns,
-          rows: result.rows,
-          rowCount: result.rows.length,
-          totalRows: result.rowCount || result.rows.length
+          rows: rows,
+          columns: columns,
+          total: result.rowCount || rows.length,
+          limit: limitNum,
+          offset: offsetNum
         }
       });
     } catch (error) {
@@ -522,7 +462,7 @@ export class MetadataController {
       } else {
         res.status(500).json({
           success: false,
-          message: '获取表数据预览失败',
+          message: '获取表数据预览时发生错误',
           error: (error as Error).message
         });
       }

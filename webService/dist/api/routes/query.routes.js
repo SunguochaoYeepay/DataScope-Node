@@ -8,7 +8,9 @@ const express_validator_1 = require("express-validator");
 const query_controller_1 = __importDefault(require("../controllers/query.controller"));
 const query_plan_controller_1 = require("../controllers/query-plan.controller");
 const plan_visualization_controller_1 = __importDefault(require("../controllers/plan-visualization.controller"));
+const auth_1 = require("../../middleware/auth");
 const router = (0, express_1.Router)();
+const queryPlanController = new query_plan_controller_1.QueryPlanController();
 /**
  * @swagger
  * /queries/history:
@@ -447,9 +449,8 @@ router.get('/:queryId/execution-plan', [
 ], async (req, res, next) => {
     try {
         // 转发到查询计划控制器
-        const queryPlanController = new query_plan_controller_1.QueryPlanController();
-        req.params.id = req.params.queryId; // 适配控制器参数
-        await queryPlanController.getSavedPlan(req, res);
+        req.params.planId = req.params.queryId; // 适配控制器参数
+        await queryPlanController.getQueryPlanById(req, res);
     }
     catch (error) {
         next(error);
@@ -485,6 +486,32 @@ router.get('/:queryId/visualization', [
     }
     catch (error) {
         next(error);
+    }
+});
+// 引用查询计划详情的路由
+router.get('/plans/:id', auth_1.authenticate, async (req, res) => {
+    try {
+        await queryPlanController.getQueryPlanById(req, res);
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: '获取查询计划失败',
+            error: error.message
+        });
+    }
+});
+router.get('/history/:queryId/plans', auth_1.authenticate, async (req, res) => {
+    try {
+        // 转发到查询计划控制器
+        req.params.planId = req.params.queryId; // 适配控制器参数
+        await queryPlanController.getQueryPlanById(req, res);
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message || '获取查询计划失败'
+        });
     }
 });
 exports.default = router;

@@ -72,8 +72,7 @@ if (process.env.NODE_ENV === 'development') {
             env: {
                 node_env: process.env.NODE_ENV,
                 port: env_1.default.service.port,
-                api_prefix: env_1.default.service.apiPrefix,
-                use_mock_data: process.env.USE_MOCK_DATA
+                api_prefix: env_1.default.service.apiPrefix
             }
         };
         res.json(systemInfo);

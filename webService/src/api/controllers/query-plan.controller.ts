@@ -14,7 +14,7 @@ import {
   getQueryOptimizer
 } from '../../database-core';
 import config from '../../config';
-import { getMockQueryPlanBySql } from '../../mocks/query-plan.mock';
+
 
 const prisma = new PrismaClient();
 const dataSourceService = new DataSourceService();
@@ -72,25 +72,6 @@ export class QueryPlanController {
       const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
       if (!dataSource) {
         throw new ApiError('数据源不存在', 404);
-      }
-      
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        logger.info('使用模拟数据获取查询计划', { sql });
-        
-        // 获取模拟查询计划
-        const mockPlan = getMockQueryPlanBySql(sql);
-        mockPlan.query = sql;  // 确保查询语句正确
-        
-        // 返回模拟数据结果
-        res.status(200).json({
-          success: true,
-          data: {
-            plan: mockPlan,
-            id: `mock-plan-${Date.now()}`
-          }
-        });
-        return;
       }
       
       // 实际执行逻辑
@@ -239,6 +220,33 @@ export class QueryPlanController {
       }
     }
   }
+
+  /**
+   * 保存查询计划到数据库
+   * @param plan 查询计划
+   * @param dataSourceId 数据源ID
+   * @param userId 用户ID
+   * @returns 保存的计划对象
+   */
+  private async saveQueryPlan(plan: QueryPlan, dataSourceId: string, userId?: string): Promise<any> {
+    try {
+      const planJson = JSON.stringify(plan);
+      
+      // 创建查询计划记录
+      return await prisma.queryPlan.create({
+        data: {
+          dataSourceId,
+          sql: plan.query || '',
+          planData: planJson,
+          createdBy: userId || 'system',
+        }
+      });
+    } catch (error) {
+      logger.error('保存查询计划失败', { error });
+      // 仅记录错误，不中断流程
+      return { id: `error-${Date.now()}` };
+    }
+  }
   
   /**
    * 比较两个查询计划
@@ -253,10 +261,14 @@ export class QueryPlanController {
         throw new ApiError('缺少必要参数', 400);
       }
       
-      // 获取两个计划
+      // 获取两个计划的数据
       const [planA, planB] = await Promise.all([
-        prisma.queryPlan.findUnique({ where: { id: planAId } }),
-        prisma.queryPlan.findUnique({ where: { id: planBId } })
+        prisma.queryPlan.findUnique({
+          where: { id: planAId }
+        }),
+        prisma.queryPlan.findUnique({
+          where: { id: planBId }
+        })
       ]);
       
       if (!planA || !planB) {
@@ -267,38 +279,31 @@ export class QueryPlanController {
       const planAData = JSON.parse(planA.planData) as QueryPlan;
       const planBData = JSON.parse(planB.planData) as QueryPlan;
       
+      // 获取数据源类型
+      const dataSource = await dataSourceService.getDataSourceById(planA.dataSourceId);
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', 404);
+      }
+      
       // 计算性能改进
-      const improvement = this.calculateImprovement(planAData, planBData);
+      const costA = planAData.estimatedCost || planAData.estimatedRows || 0;
+      const costB = planBData.estimatedCost || planBData.estimatedRows || 0;
+      const improvement = costA > 0 ? Math.max(0, Math.round(((costA - costB) / costA) * 100)) : 0;
       
       // 生成比较数据
       const comparisonData = {
         costDifference: (planBData.estimatedCost || 0) - (planAData.estimatedCost || 0),
         costImprovement: improvement,
-        planAWarnings: planAData.warnings.length || 0,
-        planBWarnings: planBData.warnings.length || 0,
-        planANodes: planAData.planNodes.length || 0,
-        planBNodes: planBData.planNodes.length || 0,
-        comparisonPoints: this.generateComparisonPoints(planAData, planBData)
+        planAWarnings: planAData.warnings?.length || 0,
+        planBWarnings: planBData.warnings?.length || 0,
+        planANodes: planAData.planNodes?.length || 0,
+        planBNodes: planBData.planNodes?.length || 0
       };
-      
-      // 保存比较结果到数据库
-      const comparison = await prisma.queryPlanComparison.create({
-        data: {
-          planAId,
-          planBId,
-          comparisonData: JSON.stringify(comparisonData),
-          improvement,
-          createdBy: req.user?.id
-        }
-      });
       
       // 返回比较结果
       res.status(200).json({
         success: true,
-        data: {
-          comparison: comparisonData,
-          id: comparison.id
-        }
+        data: comparisonData
       });
     } catch (error) {
       logger.error('比较查询计划失败', { error });
@@ -319,182 +324,30 @@ export class QueryPlanController {
   }
   
   /**
-   * 计算性能改进百分比
-   * @param planA 原始计划
-   * @param planB 优化后计划
-   * @returns 改进百分比
-   */
-  private calculateImprovement(planA: QueryPlan, planB: QueryPlan): number {
-    // 如果没有成本估算，使用行数估算
-    const costA = planA.estimatedCost || planA.estimatedRows || 0;
-    const costB = planB.estimatedCost || planB.estimatedRows || 0;
-    
-    if (costA === 0) return 0;
-    
-    // 计算改进百分比
-    const improvement = ((costA - costB) / costA) * 100;
-    
-    // 返回改进百分比（最小0%，不计算负改进）
-    return Math.max(0, Math.round(improvement));
-  }
-  
-  /**
-   * 生成比较要点
-   * @param planA 原始计划
-   * @param planB 优化后计划
-   * @returns 比较要点列表
-   */
-  private generateComparisonPoints(planA: QueryPlan, planB: QueryPlan): Array<{key: string, description: string}> {
-    const points: Array<{key: string, description: string}> = [];
-    
-    // 比较扫描行数
-    if ((planA.estimatedRows || 0) > (planB.estimatedRows || 0)) {
-      points.push({
-        key: 'reduced_rows',
-        description: `优化后扫描行数减少了 ${((planA.estimatedRows || 0) - (planB.estimatedRows || 0)).toLocaleString()} 行`
-      });
-    }
-    
-    // 比较成本
-    if ((planA.estimatedCost || 0) > (planB.estimatedCost || 0)) {
-      points.push({
-        key: 'reduced_cost',
-        description: `优化后估算成本降低了 ${Math.round(((planA.estimatedCost || 0) - (planB.estimatedCost || 0)) / (planA.estimatedCost || 1) * 100)}%`
-      });
-    }
-    
-    // 比较临时表使用
-    const tempTablesA = planA.planNodes?.filter(n => n.extra?.includes('Using temporary')).length || 0;
-    const tempTablesB = planB.planNodes?.filter(n => n.extra?.includes('Using temporary')).length || 0;
-    
-    if (tempTablesA > tempTablesB) {
-      points.push({
-        key: 'reduced_temp_tables',
-        description: `优化后减少了 ${tempTablesA - tempTablesB} 个临时表的使用`
-      });
-    }
-    
-    // 比较文件排序
-    const filesortsA = planA.planNodes?.filter(n => n.extra?.includes('Using filesort')).length || 0;
-    const filesortsB = planB.planNodes?.filter(n => n.extra?.includes('Using filesort')).length || 0;
-    
-    if (filesortsA > filesortsB) {
-      points.push({
-        key: 'reduced_filesorts',
-        description: `优化后减少了 ${filesortsA - filesortsB} 个文件排序操作`
-      });
-    }
-    
-    // 全表扫描比较
-    const fullScansA = planA.planNodes?.filter(n => n.type === 'ALL').length || 0;
-    const fullScansB = planB.planNodes?.filter(n => n.type === 'ALL').length || 0;
-    
-    if (fullScansA > fullScansB) {
-      points.push({
-        key: 'reduced_full_scans',
-        description: `优化后减少了 ${fullScansA - fullScansB} 个全表扫描`
-      });
-    }
-    
-    return points;
-  }
-  
-  /**
-   * 保存查询计划到数据库
-   * @param plan 查询计划
-   * @param dataSourceId 数据源ID
-   * @param userId 用户ID
-   * @returns 保存的查询计划记录
-   */
-  private async saveQueryPlan(plan: QueryPlan, dataSourceId: string, userId?: string): Promise<any> {
-    try {
-      // 使用模拟数据模式下，返回模拟ID而非实际保存
-      if (config.development.useMockData) {
-        logger.info('模拟保存查询计划', { dataSourceId });
-        return {
-          id: `mock-plan-${Date.now()}`,
-          queryId: `mock-query-${Date.now()}`,
-          dataSourceId,
-          name: `Mock Plan ${new Date().toISOString()}`,
-          sql: plan.query,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-      }
-
-      // 查找或创建查询记录
-      let queryId: string;
-      
-      // 检查是否有关联的查询
-      const existingQuery = await prisma.query.findFirst({
-        where: {
-          sqlContent: plan.query,
-          dataSourceId
-        }
-      });
-      
-      if (existingQuery) {
-        queryId = existingQuery.id;
-      } else {
-        // 创建新查询
-        const newQuery = await prisma.query.create({
-          data: {
-            name: `Query ${new Date().toISOString()}`,
-            sqlContent: plan.query,
-            dataSourceId,
-            createdBy: userId
-          }
-        });
-        queryId = newQuery.id;
-      }
-      
-      // 创建查询计划记录
-      const queryPlan = await prisma.queryPlan.create({
-        data: {
-          queryId,
-          dataSourceId,
-          name: `Plan ${new Date().toISOString()}`,
-          sql: plan.query,
-          planData: JSON.stringify(plan),
-          estimatedCost: plan.estimatedCost,
-          optimizationTips: JSON.stringify(plan.optimizationTips || []),
-          isAnalyzed: true,
-          createdBy: userId
-        }
-      });
-      
-      return queryPlan;
-    } catch (error) {
-      logger.error('保存查询计划失败', { error });
-      throw error;
-    }
-  }
-  
-  /**
-   * 获取查询计划历史
+   * 获取查询计划历史记录
    * @param req 请求对象
    * @param res 响应对象
    */
   public async getQueryPlanHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { queryId } = req.params;
+      const dataSourceId = req.query.dataSourceId as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
       
-      if (!queryId) {
-        throw new ApiError('缺少查询ID', 400);
-      }
+      // 获取查询计划历史
+      const result = await queryService.getQueryPlanHistory(
+        dataSourceId,
+        limit,
+        offset
+      );
       
-      // 获取查询的所有执行计划
-      const plans = await prisma.queryPlan.findMany({
-        where: { queryId },
-        orderBy: { createdAt: 'desc' }
-      });
-      
+      // 返回历史记录
       res.status(200).json({
         success: true,
-        data: plans
+        data: result
       });
     } catch (error) {
-      logger.error('获取查询计划历史失败', { error });
+      logger.error('获取查询计划历史记录失败', { error });
       
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({
@@ -504,314 +357,49 @@ export class QueryPlanController {
       } else {
         res.status(500).json({
           success: false,
-          message: '获取查询计划历史时发生错误',
+          message: '获取查询计划历史记录时发生错误',
           error: (error as Error).message
         });
       }
     }
   }
-
+  
   /**
-   * 保存查询执行计划
+   * 获取特定的查询计划
    * @param req 请求对象
    * @param res 响应对象
    */
-  public async savePlan(req: AuthenticatedRequest, res: Response): Promise<void> {
+  public async getQueryPlanById(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { dataSourceId, name, sql, planData } = req.body;
-      const userId = req.user?.id || 'system';
+      const { planId } = req.params;
       
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        // 返回成功响应
-        res.status(201).json({
-          success: true,
-          data: {
-            id: `mock-plan-${Date.now()}`,
-            dataSourceId,
-            name,
-            sql,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        });
-        return;
-      }
-      
-      // 解析计划数据
-      const plan = typeof planData === 'string' ? JSON.parse(planData) : planData;
-      
-      // 保存到数据库
-      const savedPlan = await prisma.queryPlan.create({
-        data: {
-          dataSourceId,
-          name,
-          sql,
-          planData: typeof planData === 'string' ? planData : JSON.stringify(planData),
-          estimatedCost: plan.estimatedCost,
-          optimizationTips: plan.optimizationTips ? JSON.stringify(plan.optimizationTips) : null,
-          isAnalyzed: true,
-          createdBy: userId
-        }
-      });
-      
-      res.status(201).json({
-        success: true,
-        data: savedPlan
-      });
-    } catch (error) {
-      logger.error('保存查询计划失败', { error });
-      
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({
-          success: false,
-          message: error.message
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: '保存查询计划时发生错误',
-          error: (error as Error).message
-        });
-      }
-    }
-  }
-
-  /**
-   * 获取所有保存的查询执行计划
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  public async getAllSavedPlans(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-      const { dataSourceId } = req.query;
-      const userId = req.user?.id;
-      
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        // 返回模拟数据
-        res.status(200).json({
-          success: true,
-          data: Array(5).fill(0).map((_, i) => ({
-            id: `mock-plan-${i + 1}`,
-            dataSourceId: dataSourceId || '1',
-            name: `模拟查询计划 ${i + 1}`,
-            sql: `SELECT * FROM table_${i + 1} WHERE id > 100 LIMIT 50`,
-            estimatedCost: Math.random() * 100,
-            createdAt: new Date(Date.now() - i * 86400000),
-            updatedAt: new Date(Date.now() - i * 86400000)
-          }))
-        });
-        return;
-      }
-      
-      // 构建查询条件
-      const where: any = {
-        createdBy: userId
-      };
-      
-      if (dataSourceId) {
-        where.dataSourceId = dataSourceId as string;
-      }
-      
-      // 获取所有保存的计划
-      const plans = await prisma.queryPlan.findMany({
-        where,
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
-      
-      res.status(200).json({
-        success: true,
-        data: plans
-      });
-    } catch (error) {
-      logger.error('获取查询计划列表失败', { error });
-      
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({
-          success: false,
-          message: error.message
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: '获取查询计划列表时发生错误',
-          error: (error as Error).message
-        });
-      }
-    }
-  }
-
-  /**
-   * 获取特定的查询执行计划
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  public async getSavedPlan(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      
-      // 使用模拟数据
-      if (config.development.useMockData) {
-        const mockPlan = getMockQueryPlanBySql('SELECT * FROM users WHERE id = 1');
-        
-        // 返回模拟数据
-        res.status(200).json({
-          success: true,
-          data: {
-            id,
-            dataSourceId: '1',
-            name: `模拟查询计划 ${id}`,
-            sql: mockPlan.query,
-            planData: JSON.stringify(mockPlan),
-            estimatedCost: mockPlan.estimatedCost,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        });
-        return;
-      }
-      
-      // 获取计划
-      const plan = await prisma.queryPlan.findUnique({
-        where: { id }
-      });
-      
-      if (!plan) {
-        throw new ApiError('查询计划不存在', 404);
-      }
-      
-      res.status(200).json({
-        success: true,
-        data: plan
-      });
-    } catch (error) {
-      logger.error('获取查询计划详情失败', { error });
-      
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({
-          success: false,
-          message: error.message
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: '获取查询计划详情时发生错误',
-          error: (error as Error).message
-        });
-      }
-    }
-  }
-
-  /**
-   * 删除查询执行计划
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  public async deletePlan(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const userId = req.user?.id;
-      
-      // 获取计划
-      const plan = await prisma.queryPlan.findUnique({
-        where: { id }
-      });
-      
-      if (!plan) {
-        throw new ApiError('查询计划不存在', 404);
-      }
-      
-      // 检查权限
-      if (plan.createdBy !== userId && req.user?.role !== 'admin') {
-        throw new ApiError('没有权限删除此查询计划', 403);
-      }
-      
-      // 删除计划
-      await prisma.queryPlan.delete({
-        where: { id }
-      });
-      
-      res.status(200).json({
-        success: true,
-        message: '查询计划已成功删除'
-      });
-    } catch (error) {
-      logger.error('删除查询计划失败', { error });
-      
-      if (error instanceof ApiError) {
-        res.status(error.statusCode).json({
-          success: false,
-          message: error.message
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: '删除查询计划时发生错误',
-          error: (error as Error).message
-        });
-      }
-    }
-  }
-
-  /**
-   * 获取优化后的SQL查询
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  public async getOptimizedQuery(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      
-      if (!id) {
+      if (!planId) {
         throw new ApiError('缺少查询计划ID', 400);
       }
       
       // 获取查询计划
-      const queryPlan = await prisma.queryPlan.findUnique({
-        where: { id }
-      });
+      const queryPlan = await queryService.getQueryPlanById(planId);
       
       if (!queryPlan) {
         throw new ApiError('查询计划不存在', 404);
       }
       
-      // 获取数据源
-      const dataSource = await dataSourceService.getDataSourceById(queryPlan.dataSourceId);
-      if (!dataSource) {
-        throw new ApiError('数据源不存在', 404);
-      }
-      
       // 解析计划数据
-      let planData: QueryPlan;
-      try {
-        planData = JSON.parse(queryPlan.planData);
-      } catch (e) {
-        throw new ApiError('无法解析查询计划数据', 500);
-      }
+      const planData = JSON.parse(queryPlan.planData);
       
-      // 获取优化器
-      const optimizer = getQueryOptimizer(dataSource.type as DatabaseType);
-      
-      // 分析SQL并生成优化建议
-      const suggestions = optimizer.analyzeSql(planData, queryPlan.sql);
-      
-      // 生成优化后的SQL
-      const optimizedSql = optimizer.generateOptimizedSql(queryPlan.sql, suggestions);
-      
-      // 返回结果
+      // 返回查询计划
       res.status(200).json({
         success: true,
         data: {
-          originalSql: queryPlan.sql,
-          optimizedSql: optimizedSql,
-          suggestions: suggestions
+          id: queryPlan.id,
+          sql: queryPlan.sql,
+          dataSourceId: queryPlan.dataSourceId,
+          createdAt: queryPlan.createdAt,
+          plan: planData
         }
       });
-    } catch (error: any) {
-      logger.error('获取优化后SQL查询失败', { error });
+    } catch (error) {
+      logger.error('获取查询计划失败', { error });
       
       if (error instanceof ApiError) {
         res.status(error.statusCode).json({
@@ -821,8 +409,8 @@ export class QueryPlanController {
       } else {
         res.status(500).json({
           success: false,
-          message: '获取优化后SQL查询失败',
-          error: error.message || '未知错误'
+          message: '获取查询计划时发生错误',
+          error: (error as Error).message
         });
       }
     }
