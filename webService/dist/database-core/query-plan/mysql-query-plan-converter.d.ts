@@ -1,59 +1,65 @@
-/**
- * MySQL查询计划转换器
- * 将MySQL的EXPLAIN结果转换为统一的查询计划格式
- */
 import { QueryPlan } from '../../types/query-plan';
 /**
- * EXPLAIN结果格式
+ * MySQL查询计划转换器
+ * 用于将MySQL的EXPLAIN结果转换为标准的QueryPlan格式
+ * 支持传统格式和JSON格式的EXPLAIN结果
  */
-type ExplainRow = {
-    id?: number | string;
-    select_type?: string;
-    table?: string;
-    partitions?: string;
-    type?: string;
-    possible_keys?: string | null;
-    key?: string | null;
-    key_len?: string | number | null;
-    ref?: string | null;
-    rows?: number | string;
-    filtered?: number | string;
-    Extra?: string | null;
-    [key: string]: any;
-};
 export declare class MySQLQueryPlanConverter {
     /**
-     * 转换传统EXPLAIN结果为标准查询计划格式
-     * @param explainRows EXPLAIN结果行
-     * @param sql 原始SQL查询
-     * @returns 标准查询计划
+     * 转换MySQL传统格式的EXPLAIN结果
+     * @param explainResult EXPLAIN命令的结果
+     * @param query 原始SQL查询
+     * @returns 转换后的查询计划
      */
-    convertTraditionalExplain(explainRows: ExplainRow[], sql: string): QueryPlan;
+    convertTraditionalExplain(explainResult: any[], query: string): QueryPlan;
     /**
-     * 转换JSON格式EXPLAIN结果为标准查询计划格式
-     * @param jsonExplain JSON格式EXPLAIN结果
-     * @param sql 原始SQL查询
-     * @returns 标准查询计划
+     * 转换MySQL JSON格式的EXPLAIN结果
+     * 支持MySQL 5.7+的EXPLAIN FORMAT=JSON结果
+     * @param jsonExplain JSON格式的EXPLAIN结果
+     * @param query 原始SQL查询
+     * @returns 转换后的查询计划
      */
-    convertJsonExplain(jsonExplain: any, sql: string): QueryPlan;
+    convertJsonExplain(jsonExplain: string, query: string): QueryPlan;
     /**
-     * 递归提取JSON EXPLAIN结果中的节点
-     * @param node JSON EXPLAIN节点
-     * @param planNodes 计划节点数组
-     * @param depth 当前深度
+     * 从JSON EXPLAIN结果中提取查询块
+     * @param explainData JSON格式的EXPLAIN数据
+     * @returns 查询块对象
      */
-    private extractJsonExplainNodes;
+    private extractQueryBlock;
     /**
-     * 从JSON EXPLAIN节点构建Extra字符串
-     * @param node JSON EXPLAIN节点
-     * @returns Extra字符串
+     * 从JSON查询块中提取计划节点
+     * @param queryBlock 查询块对象
+     * @returns 计划节点数组
      */
-    private buildExtraString;
+    private extractPlanNodesFromJson;
     /**
-     * 估算查询成本
-     * @param nodes 计划节点数组
-     * @returns 估算成本
+     * 处理表节点并添加到节点数组
+     * @param tableNode 表节点对象
+     * @param nodes 节点数组
      */
-    private estimateQueryCost;
+    private processTableNode;
+    /**
+     * 格式化可能的键
+     * @param possibleKeys 可能的键数组
+     * @returns 格式化后的可能键字符串
+     */
+    private formatPossibleKeys;
+    /**
+     * 格式化引用列
+     * @param ref 引用列对象
+     * @returns 格式化后的引用列字符串
+     */
+    private formatRefColumn;
+    /**
+     * 格式化额外信息
+     * @param tableNode 表节点对象
+     * @returns 格式化后的额外信息字符串
+     */
+    private formatExtraInfo;
+    /**
+     * 从JSON EXPLAIN结果中提取成本
+     * @param queryBlock 查询块对象
+     * @returns 提取的成本，如果无法提取则返回undefined
+     */
+    private extractCostFromJsonExplain;
 }
-export {};

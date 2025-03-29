@@ -10,7 +10,7 @@ export interface QueryPlanNode {
   /** 表名 */
   table: string;
   /** 分区信息（如果使用分区表） */
-  partitions?: string;
+  partitions?: string | null;
   /** 访问类型，如ALL, index, range, ref等 */
   type: string;
   /** 可能使用的索引 */
@@ -18,7 +18,7 @@ export interface QueryPlanNode {
   /** 实际使用的索引 */
   key?: string | null;
   /** 使用的索引长度 */
-  keyLen?: string | number | null;
+  keyLen: string | number | null;
   /** 与索引比较的列 */
   ref?: string | null;
   /** 预计扫描的行数 */
@@ -49,26 +49,7 @@ export interface QueryPlan {
   /** 查询性能优化建议 */
   optimizationTips: string[];
   /** 性能分析结果，可以是任意格式的性能数据 */
-  performanceAnalysis?: {
-    /** 瓶颈节点 */
-    bottlenecks?: {
-      nodeId: number;
-      reason: string;
-    }[];
-    /** 索引使用情况 */
-    indexUsage?: {
-      table: string;
-      index: string;
-      effectiveness: number;
-    }[];
-    /** 连接操作分析 */
-    joinAnalysis?: {
-      tables: string[];
-      joinType: string;
-      condition: string;
-      cost: number;
-    }[];
-  };
+  performanceAnalysis?: PerformanceAnalysis;
   /** 查询执行统计信息 */
   executionStats?: {
     /** 执行时间（毫秒） */

@@ -1,5 +1,10 @@
 import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
 import logger from '../../utils/logger';
+import { 
+  PerformanceConcern, 
+  PerformanceAnalysisResult, 
+  PerformanceAnalysis 
+} from '../../types/performance-analysis';
 
 /**
  * MySQL查询计划分析器
@@ -27,6 +32,13 @@ type PerformanceAnalysis = {
   };
   joinAnalysis: PerformanceConcern[];
 };
+
+// 性能分析输出接口
+interface PerformanceAnalysisOutput {
+  bottlenecks: Array<{nodeId: number; reason: string;}>;
+  indexUsage: Array<{table: string; index: string; effectiveness: number;}>;
+  joinAnalysis: Array<{tables: string[]; joinType: string; condition: string; cost: number;}>;
+}
 
 export class MySQLPlanAnalyzer {
   /**
@@ -83,8 +95,8 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @returns 性能分析结果
    */
-  private analyzePerformanceConcerns(plan: QueryPlan): PerformanceAnalysis {
-    const analysis: PerformanceAnalysis = {
+  private analyzePerformanceConcerns(plan: QueryPlan): PerformanceAnalysisResult {
+    const analysis: PerformanceAnalysisResult = {
       bottlenecks: [],
       indexUsage: {
         missingIndexes: [],
@@ -113,7 +125,7 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @param analysis 性能分析结果
    */
-  private checkFullTableScans(plan: QueryPlan, analysis: PerformanceAnalysis): void {
+  private checkFullTableScans(plan: QueryPlan, analysis: PerformanceAnalysisResult): void {
     if (!plan.planNodes) return;
     
     for (const node of plan.planNodes) {
@@ -133,7 +145,7 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @param analysis 性能分析结果
    */
-  private checkFileSortAndTemporaryTables(plan: QueryPlan, analysis: PerformanceAnalysis): void {
+  private checkFileSortAndTemporaryTables(plan: QueryPlan, analysis: PerformanceAnalysisResult): void {
     if (!plan.planNodes) return;
     
     for (const node of plan.planNodes) {
@@ -162,7 +174,7 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @param analysis 性能分析结果
    */
-  private checkIndexUsage(plan: QueryPlan, analysis: PerformanceAnalysis): void {
+  private checkIndexUsage(plan: QueryPlan, analysis: PerformanceAnalysisResult): void {
     if (!plan.planNodes) return;
     
     for (const node of plan.planNodes) {
@@ -203,7 +215,7 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @param analysis 性能分析结果
    */
-  private checkJoinOperations(plan: QueryPlan, analysis: PerformanceAnalysis): void {
+  private checkJoinOperations(plan: QueryPlan, analysis: PerformanceAnalysisResult): void {
     // 检测嵌套循环连接
     if (!plan.planNodes || plan.planNodes.length <= 1) return;
     
@@ -239,7 +251,7 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @param analysis 性能分析结果
    */
-  private updatePlanWithAnalysisResults(plan: QueryPlan, analysis: PerformanceAnalysis): void {
+  private updatePlanWithAnalysisResults(plan: QueryPlan, analysis: PerformanceAnalysisResult): void {
     if (!plan.warnings) plan.warnings = [];
     
     // 添加瓶颈警告
@@ -265,10 +277,79 @@ export class MySQLPlanAnalyzer {
     this.addOptimizationTips(plan, analysis);
     
     // 添加性能分析结果到计划
-    plan.performanceAnalysis = {
-      bottlenecks: analysis.bottlenecks,
-      indexUsage: analysis.indexUsage,
-      joinAnalysis: analysis.joinAnalysis
+    plan.performanceAnalysis = this.convertToPerformanceOutput(analysis, plan.planNodes);
+  }
+  
+  /**
+   * 将内部分析结果转换为标准输出格式
+   * @param analysis 性能分析结果
+   * @param planNodes 计划节点
+   * @returns 格式化的性能分析输出
+   */
+  private convertToPerformanceOutput(analysis: PerformanceAnalysisResult, planNodes: QueryPlanNode[]): PerformanceAnalysis {
+    // 转换瓶颈
+    const bottlenecks = analysis.bottlenecks.map(bottleneck => {
+      // 从描述中提取表名
+      const tableMatch = bottleneck.description.match(/表\s+(\w+)/);
+      const table = tableMatch ? tableMatch[1] : '';
+      
+      // 查找对应的节点ID
+      const nodeId = planNodes.findIndex(node => node.table === table) + 1;
+      
+      return {
+        nodeId: nodeId > 0 ? nodeId : 1,
+        reason: bottleneck.description
+      };
+    });
+    
+    // 转换索引使用情况
+    const indexUsage = [
+      ...analysis.indexUsage.missingIndexes.map(item => {
+        const tableMatch = item.description.match(/表\s+(\w+)/);
+        const table = tableMatch ? tableMatch[1] : '';
+        
+        return {
+          table,
+          index: '缺失',
+          effectiveness: 0
+        };
+      }),
+      ...analysis.indexUsage.inefficientIndexes.map(item => {
+        const tableMatch = item.description.match(/表\s+(\w+)/);
+        const table = tableMatch ? tableMatch[1] : '';
+        
+        const indexMatch = item.description.match(/索引\s+(\w+)/);
+        const index = indexMatch ? indexMatch[1] : '未知';
+        
+        // 从描述中提取过滤率
+        const filterMatch = item.description.match(/率低\s+\((\d+)%\)/);
+        const effectiveness = filterMatch ? parseInt(filterMatch[1]) : 50;
+        
+        return {
+          table,
+          index,
+          effectiveness
+        };
+      })
+    ];
+    
+    // 转换连接分析
+    const joinAnalysis = analysis.joinAnalysis.map(item => {
+      const tableMatch = item.description.match(/表\s+(\w+)/);
+      const table = tableMatch ? tableMatch[1] : '';
+      
+      return {
+        tables: [table],
+        joinType: item.type.includes('inefficient') ? 'inefficient' : 'suboptimal',
+        condition: item.description,
+        cost: 100 // 默认成本
+      };
+    });
+    
+    return {
+      bottlenecks,
+      indexUsage,
+      joinAnalysis
     };
   }
   
@@ -277,7 +358,7 @@ export class MySQLPlanAnalyzer {
    * @param plan 查询执行计划
    * @param analysis 性能分析结果
    */
-  private addOptimizationTips(plan: QueryPlan, analysis: PerformanceAnalysis): void {
+  private addOptimizationTips(plan: QueryPlan, analysis: PerformanceAnalysisResult): void {
     if (!plan.optimizationTips) plan.optimizationTips = [];
     if (!plan.warnings) plan.warnings = [];
     

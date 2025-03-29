@@ -1,11 +1,11 @@
-import morgan, { StreamOptions } from 'morgan';
+import morgan from 'morgan';
 import { Request, Response } from 'express';
 import logger from '../../utils/logger';
 
 // 日志流配置
-const stream: StreamOptions = {
+const stream = {
   // 使用winston日志记录器写入日志
-  write: (message: string) => logger.http(message.trim()),
+  write: (message: string) => logger.info(message.trim()),
 };
 
 // 跳过记录健康检查的日志
@@ -30,7 +30,9 @@ const requestFormat = (tokens: any, req: Request, res: Response) => {
 };
 
 // 导出配置好的morgan中间件
-export const loggerMiddleware = morgan(requestFormat, {
+const morganMiddleware = morgan(requestFormat, {
   stream,
   skip,
 });
+
+export default morganMiddleware;

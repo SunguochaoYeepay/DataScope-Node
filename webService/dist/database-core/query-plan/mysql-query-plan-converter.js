@@ -1,224 +1,265 @@
 "use strict";
-/**
- * MySQL查询计划转换器
- * 将MySQL的EXPLAIN结果转换为统一的查询计划格式
- */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MySQLQueryPlanConverter = void 0;
 const logger_1 = __importDefault(require("../../utils/logger"));
+/**
+ * MySQL查询计划转换器
+ * 用于将MySQL的EXPLAIN结果转换为标准的QueryPlan格式
+ * 支持传统格式和JSON格式的EXPLAIN结果
+ */
 class MySQLQueryPlanConverter {
     /**
-     * 转换传统EXPLAIN结果为标准查询计划格式
-     * @param explainRows EXPLAIN结果行
-     * @param sql 原始SQL查询
-     * @returns 标准查询计划
+     * 转换MySQL传统格式的EXPLAIN结果
+     * @param explainResult EXPLAIN命令的结果
+     * @param query 原始SQL查询
+     * @returns 转换后的查询计划
      */
-    convertTraditionalExplain(explainRows, sql) {
-        logger_1.default.debug('开始转换MySQL传统EXPLAIN结果', { rowCount: explainRows.length });
+    convertTraditionalExplain(explainResult, query) {
+        logger_1.default.debug('转换MySQL传统格式EXPLAIN结果', { rowCount: explainResult.length });
         try {
             // 创建计划节点
-            const planNodes = explainRows.map((row, index) => {
-                const node = {
-                    id: typeof row.id === 'string' ? parseInt(row.id) : (row.id || index + 1),
-                    selectType: row.select_type || 'SIMPLE',
-                    table: row.table || '未知表',
-                    type: row.type || 'ALL',
-                    possibleKeys: row.possible_keys,
-                    key: row.key,
-                    keyLen: row.key_len,
-                    ref: row.ref,
-                    rows: typeof row.rows === 'string' ? parseInt(row.rows) : (row.rows || 0),
-                    filtered: typeof row.filtered === 'string' ? parseFloat(row.filtered) : (row.filtered || 100),
-                    extra: row.Extra
+            const planNodes = explainResult.map((row, index) => {
+                return {
+                    id: index + 1,
+                    selectType: row.select_type || '',
+                    table: row.table || '',
+                    partitions: row.partitions || null,
+                    type: row.type || '',
+                    possibleKeys: row.possible_keys || null,
+                    key: row.key || null,
+                    keyLen: row.key_len || null,
+                    ref: row.ref || null,
+                    rows: parseInt(row.rows) || 0,
+                    filtered: parseFloat(row.filtered) || 100,
+                    extra: row.Extra || null
                 };
-                return node;
             });
-            // 创建查询计划
-            const queryPlan = {
+            // 创建并返回查询计划
+            return {
+                query,
                 planNodes,
-                query: sql,
                 estimatedRows: planNodes.reduce((sum, node) => sum + node.rows, 0),
                 warnings: [],
                 optimizationTips: []
             };
-            // 估算成本基于总扫描行数
-            queryPlan.estimatedCost = this.estimateQueryCost(planNodes);
-            logger_1.default.debug('MySQL传统EXPLAIN结果转换完成', { nodeCount: planNodes.length });
-            return queryPlan;
         }
         catch (error) {
-            logger_1.default.error('转换MySQL传统EXPLAIN结果时出错', { error });
-            // 返回最小可用计划
-            return {
-                planNodes: [],
-                query: sql,
-                estimatedRows: 0,
-                warnings: ['无法解析查询执行计划'],
-                optimizationTips: ['请检查查询语法或数据库连接']
-            };
+            logger_1.default.error('转换MySQL传统格式EXPLAIN结果时出错', { error });
+            throw new Error(`转换EXPLAIN结果失败: ${error.message}`);
         }
     }
     /**
-     * 转换JSON格式EXPLAIN结果为标准查询计划格式
-     * @param jsonExplain JSON格式EXPLAIN结果
-     * @param sql 原始SQL查询
-     * @returns 标准查询计划
+     * 转换MySQL JSON格式的EXPLAIN结果
+     * 支持MySQL 5.7+的EXPLAIN FORMAT=JSON结果
+     * @param jsonExplain JSON格式的EXPLAIN结果
+     * @param query 原始SQL查询
+     * @returns 转换后的查询计划
      */
-    convertJsonExplain(jsonExplain, sql) {
-        logger_1.default.debug('开始转换MySQL JSON EXPLAIN结果');
+    convertJsonExplain(jsonExplain, query) {
+        logger_1.default.debug('转换MySQL JSON格式EXPLAIN结果');
         try {
-            // 递归提取节点
-            const planNodes = [];
-            this.extractJsonExplainNodes(jsonExplain, planNodes);
-            // 创建查询计划
-            const queryPlan = {
+            // 解析JSON结果
+            const explainData = typeof jsonExplain === 'string'
+                ? JSON.parse(jsonExplain)
+                : jsonExplain;
+            // 提取执行计划
+            const queryBlock = this.extractQueryBlock(explainData);
+            if (!queryBlock) {
+                throw new Error('无法从JSON EXPLAIN结果中提取查询块');
+            }
+            // 转换节点
+            const planNodes = this.extractPlanNodesFromJson(queryBlock);
+            // 计算估算行数
+            const estimatedRows = planNodes.reduce((sum, node) => sum + node.rows, 0);
+            // 创建并返回查询计划
+            return {
+                query,
                 planNodes,
-                query: sql,
-                estimatedRows: planNodes.reduce((sum, node) => sum + node.rows, 0),
+                estimatedRows,
+                estimatedCost: this.extractCostFromJsonExplain(queryBlock),
                 warnings: [],
                 optimizationTips: []
             };
-            // 估算成本基于总扫描行数和操作类型
-            queryPlan.estimatedCost = this.estimateQueryCost(planNodes);
-            logger_1.default.debug('MySQL JSON EXPLAIN结果转换完成', { nodeCount: planNodes.length });
-            return queryPlan;
         }
         catch (error) {
-            logger_1.default.error('转换MySQL JSON EXPLAIN结果时出错', { error });
-            // 返回最小可用计划
-            return {
-                planNodes: [],
-                query: sql,
-                estimatedRows: 0,
-                warnings: ['无法解析JSON格式的查询执行计划'],
-                optimizationTips: ['请检查查询语法或MySQL版本兼容性']
-            };
+            logger_1.default.error('转换MySQL JSON格式EXPLAIN结果时出错', { error });
+            throw new Error(`转换JSON EXPLAIN结果失败: ${error.message}`);
         }
     }
     /**
-     * 递归提取JSON EXPLAIN结果中的节点
-     * @param node JSON EXPLAIN节点
-     * @param planNodes 计划节点数组
-     * @param depth 当前深度
+     * 从JSON EXPLAIN结果中提取查询块
+     * @param explainData JSON格式的EXPLAIN数据
+     * @returns 查询块对象
      */
-    extractJsonExplainNodes(node, planNodes, depth = 0) {
-        if (!node)
-            return;
-        // 处理当前节点
-        if (node.table_name || node.table) {
-            const planNode = {
-                id: planNodes.length + 1,
-                selectType: node.select_type || node.query_block_type || 'SIMPLE',
-                table: node.table_name || node.table || '未知表',
-                type: node.access_type || 'ALL',
-                possibleKeys: node.possible_keys ? node.possible_keys.join(', ') : null,
-                key: node.key || null,
-                keyLen: node.key_length || null,
-                ref: node.ref ? (Array.isArray(node.ref) ? node.ref.join(', ') : node.ref) : null,
-                rows: node.rows || 0,
-                filtered: node.filtered || 100,
-                extra: this.buildExtraString(node)
-            };
-            planNodes.push(planNode);
+    extractQueryBlock(explainData) {
+        // 处理JSON格式的EXPLAIN结果
+        if (explainData.query_block) {
+            return explainData.query_block;
         }
-        // 处理子节点
-        if (node.query_block) {
-            this.extractJsonExplainNodes(node.query_block, planNodes, depth + 1);
-        }
-        if (node.nested_loop) {
-            if (Array.isArray(node.nested_loop)) {
-                node.nested_loop.forEach((childNode) => {
-                    this.extractJsonExplainNodes(childNode, planNodes, depth + 1);
-                });
-            }
-            else {
-                this.extractJsonExplainNodes(node.nested_loop, planNodes, depth + 1);
+        // 尝试从包含多个查询的结果中提取
+        if (Array.isArray(explainData)) {
+            for (const item of explainData) {
+                if (item.query_block) {
+                    return item.query_block;
+                }
             }
         }
-        if (node.materialized_from_subquery) {
-            this.extractJsonExplainNodes(node.materialized_from_subquery, planNodes, depth + 1);
-        }
-        // 处理其他可能的子节点类型
-        const childProperties = [
-            'ordering_operation', 'grouping_operation', 'duplicates_removal',
-            'table', 'tables', 'used_columns', 'message'
-        ];
-        for (const prop of childProperties) {
-            if (node[prop] && typeof node[prop] === 'object') {
-                this.extractJsonExplainNodes(node[prop], planNodes, depth + 1);
-            }
-        }
+        return null;
     }
     /**
-     * 从JSON EXPLAIN节点构建Extra字符串
-     * @param node JSON EXPLAIN节点
-     * @returns Extra字符串
+     * 从JSON查询块中提取计划节点
+     * @param queryBlock 查询块对象
+     * @returns 计划节点数组
      */
-    buildExtraString(node) {
-        const extras = [];
-        if (node.using_index)
-            extras.push('Using index');
-        if (node.using_temporary)
-            extras.push('Using temporary');
-        if (node.using_filesort)
-            extras.push('Using filesort');
-        if (node.using_where)
-            extras.push('Using where');
-        if (node.using_join_buffer)
-            extras.push('Using join buffer');
-        if (node.using_index_condition)
-            extras.push('Using index condition');
-        if (node.using_mrr)
-            extras.push('Using MRR');
-        if (node.using_union)
-            extras.push('Using union');
-        if (node.using_sort_union)
-            extras.push('Using sort_union');
-        if (node.using_intersect)
-            extras.push('Using intersect');
-        if (node.ignored_indexes)
-            extras.push(`Ignored indexes: ${node.ignored_indexes}`);
-        return extras.length > 0 ? extras.join('; ') : null;
+    extractPlanNodesFromJson(queryBlock) {
+        const nodes = [];
+        // 处理表访问操作
+        if (queryBlock.table) {
+            this.processTableNode(queryBlock.table, nodes);
+        }
+        // 处理嵌套循环
+        if (queryBlock.nested_loop) {
+            for (const nestedItem of queryBlock.nested_loop) {
+                if (nestedItem.table) {
+                    this.processTableNode(nestedItem.table, nodes);
+                }
+            }
+        }
+        // 处理连接操作
+        if (queryBlock.join_preparation && queryBlock.join_preparation.expanded_query) {
+            // 可以提取扩展查询信息
+        }
+        // 处理排序操作
+        if (queryBlock.ordering_operation) {
+            // 可以提取排序信息
+        }
+        // 确保节点有唯一ID
+        nodes.forEach((node, index) => {
+            node.id = index + 1;
+        });
+        return nodes;
     }
     /**
-     * 估算查询成本
-     * @param nodes 计划节点数组
-     * @returns 估算成本
+     * 处理表节点并添加到节点数组
+     * @param tableNode 表节点对象
+     * @param nodes 节点数组
      */
-    estimateQueryCost(nodes) {
-        if (nodes.length === 0)
-            return 0;
-        // 基础成本因子
-        const costFactors = {
-            'ALL': 10, // 全表扫描成本最高
-            'index': 5, // 全索引扫描
-            'range': 2, // 范围扫描
-            'ref': 1, // 非唯一索引查找
-            'eq_ref': 0.5, // 唯一索引查找
-            'const': 0.1, // 常量查找
-            'system': 0.01, // 系统表查找
-            'NULL': 0 // 无需访问表
+    processTableNode(tableNode, nodes) {
+        const node = {
+            id: nodes.length + 1,
+            selectType: tableNode.select_type || tableNode.access_type || '',
+            table: tableNode.table_name || '',
+            partitions: null,
+            type: tableNode.access_type || '',
+            possibleKeys: this.formatPossibleKeys(tableNode.possible_keys),
+            key: tableNode.key ? tableNode.key : null,
+            keyLen: tableNode.key_length ? tableNode.key_length : null,
+            ref: this.formatRefColumn(tableNode.ref),
+            rows: parseInt(tableNode.rows) || 0,
+            filtered: parseFloat(tableNode.filtered) || 100,
+            extra: this.formatExtraInfo(tableNode)
         };
-        // 计算每个节点的成本并求和
-        let totalCost = 0;
-        for (const node of nodes) {
-            let nodeCost = node.rows;
-            // 应用访问类型系数
-            const typeFactor = costFactors[node.type] || 1;
-            nodeCost *= typeFactor;
-            // 考虑额外操作成本
-            if (node.extra) {
-                if (node.extra.includes('Using temporary'))
-                    nodeCost *= 2;
-                if (node.extra.includes('Using filesort'))
-                    nodeCost *= 1.5;
+        nodes.push(node);
+        // 处理子查询或派生表
+        if (tableNode.materialized_from_subquery) {
+            const subqueryBlock = tableNode.materialized_from_subquery.query_block;
+            if (subqueryBlock) {
+                const subNodes = this.extractPlanNodesFromJson(subqueryBlock);
+                nodes.push(...subNodes);
             }
-            totalCost += nodeCost;
         }
-        return Math.round(totalCost);
+    }
+    /**
+     * 格式化可能的键
+     * @param possibleKeys 可能的键数组
+     * @returns 格式化后的可能键字符串
+     */
+    formatPossibleKeys(possibleKeys) {
+        if (!possibleKeys || !Array.isArray(possibleKeys))
+            return null;
+        if (possibleKeys.length === 0)
+            return null;
+        return possibleKeys.map(key => key.key_name || key).join(', ');
+    }
+    /**
+     * 格式化引用列
+     * @param ref 引用列对象
+     * @returns 格式化后的引用列字符串
+     */
+    formatRefColumn(ref) {
+        if (!ref)
+            return null;
+        if (Array.isArray(ref)) {
+            return ref.join(', ');
+        }
+        if (typeof ref === 'object') {
+            return Object.values(ref).join(', ');
+        }
+        return ref.toString();
+    }
+    /**
+     * 格式化额外信息
+     * @param tableNode 表节点对象
+     * @returns 格式化后的额外信息字符串
+     */
+    formatExtraInfo(tableNode) {
+        const extraParts = [];
+        // 检查是否使用临时表
+        if (tableNode.using_temporary_table) {
+            extraParts.push('Using temporary');
+        }
+        // 检查是否使用文件排序
+        if (tableNode.using_filesort) {
+            extraParts.push('Using filesort');
+        }
+        // 检查是否使用索引条件下推
+        if (tableNode.index_condition) {
+            extraParts.push('Using index condition');
+        }
+        // 检查是否仅使用索引
+        if (tableNode.using_index) {
+            extraParts.push('Using index');
+        }
+        // 检查是否使用WHERE子句
+        if (tableNode.attached_condition) {
+            extraParts.push('Using where');
+        }
+        // 如果有预定义的extra字段，直接使用
+        if (tableNode.extra) {
+            extraParts.push(tableNode.extra);
+        }
+        return extraParts.length > 0 ? extraParts.join('; ') : null;
+    }
+    /**
+     * 从JSON EXPLAIN结果中提取成本
+     * @param queryBlock 查询块对象
+     * @returns 提取的成本，如果无法提取则返回undefined
+     */
+    extractCostFromJsonExplain(queryBlock) {
+        // 尝试获取总成本
+        if (queryBlock.cost_info && typeof queryBlock.cost_info.query_cost === 'number') {
+            return parseFloat(queryBlock.cost_info.query_cost);
+        }
+        // 尝试获取表成本
+        if (queryBlock.table && queryBlock.table.cost_info) {
+            return parseFloat(queryBlock.table.cost_info.read_cost || 0) +
+                parseFloat(queryBlock.table.cost_info.eval_cost || 0);
+        }
+        // 如果存在嵌套循环，累加所有表的成本
+        if (queryBlock.nested_loop) {
+            let totalCost = 0;
+            for (const nestedItem of queryBlock.nested_loop) {
+                if (nestedItem.table && nestedItem.table.cost_info) {
+                    totalCost += parseFloat(nestedItem.table.cost_info.read_cost || 0) +
+                        parseFloat(nestedItem.table.cost_info.eval_cost || 0);
+                }
+            }
+            return totalCost > 0 ? totalCost : undefined;
+        }
+        return undefined;
     }
 }
 exports.MySQLQueryPlanConverter = MySQLQueryPlanConverter;

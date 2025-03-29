@@ -10,7 +10,7 @@ export interface QueryPlanNode {
     /** 表名 */
     table: string;
     /** 分区信息（如果使用分区表） */
-    partitions?: string;
+    partitions?: string | null;
     /** 访问类型，如ALL, index, range, ref等 */
     type: string;
     /** 可能使用的索引 */
@@ -18,7 +18,7 @@ export interface QueryPlanNode {
     /** 实际使用的索引 */
     key?: string | null;
     /** 使用的索引长度 */
-    keyLen?: string | number | null;
+    keyLen: string | number | null;
     /** 与索引比较的列 */
     ref?: string | null;
     /** 预计扫描的行数 */
