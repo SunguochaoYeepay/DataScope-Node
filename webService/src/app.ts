@@ -36,6 +36,17 @@ app.use(apiPrefix, router);
 setupSwagger(app);
 
 // 健康检查端点
+app.get('/status', (req, res) => {
+  res.json({ 
+    status: 'UP',
+    timestamp: new Date(),
+    api: 'DataScope API',
+    version: process.env.npm_package_version || '1.0.0',
+    env: process.env.NODE_ENV || 'development'
+  });
+});
+
+// 为了向后兼容，保留原健康检查端点，但返回简化信息
 app.get('/health', (req, res) => {
   res.json({ status: 'UP' });
 });

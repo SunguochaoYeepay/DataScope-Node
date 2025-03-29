@@ -5,17 +5,7 @@ import metadataRoutes from './metadata.routes';
 
 const router = Router();
 
-// API健康检查端点
-router.get('/status', (req, res) => {
-  res.json({ 
-    status: 'UP',
-    timestamp: new Date(),
-    api: 'DataScope API',
-    version: '1.0.1'
-  });
-});
-
-// API 路由
+// API路由
 router.use('/datasources', dataSourceRoutes);
 router.use('/queries', queryRoutes);
 router.use('/metadata', metadataRoutes);
