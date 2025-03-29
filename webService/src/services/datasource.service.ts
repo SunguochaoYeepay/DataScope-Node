@@ -1,13 +1,12 @@
 import { PrismaClient, DataSource } from '@prisma/client';
 import { MySQLConnector } from './database/mysql.connector';
-import { IDatabaseConnector } from './database/dbInterface';
+import { IDatabaseConnector, DatabaseConnector } from './database/dbInterface';
 import { ApiError } from '../utils/error';
 import logger from '../utils/logger';
 import config from '../config/env';
-import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword } from '../utils/crypto';
+import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword, verifyPassword } from '../utils/crypto';
 import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
 import { DatabaseType } from "../types/datasource";
-import { DatabaseConnector } from "../types/datasource";
 import { DatabaseConnectorFactory } from "../types/database-factory";
 
 const prisma = new PrismaClient();
@@ -61,6 +60,27 @@ const connectorCache: Map<string, IDatabaseConnector> = new Map();
 
 export class DataSourceService {
   private connectors: Map<string, IDatabaseConnector> = new Map();
+  
+  /**
+   * 解密数据源密码
+   * @param encryptedPassword 加密的密码
+   * @param salt 盐值
+   * @returns 解密后的密码
+   */
+  private decryptPassword(encryptedPassword: string, salt: string): string {
+    try {
+      // 对于开发环境的模拟数据，直接返回一个测试密码
+      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
+        return 'test-password';
+      }
+      
+      // 尝试使用decrypt方法解密
+      return decrypt(encryptedPassword, salt);
+    } catch (error) {
+      logger.error('解密数据源密码失败', { error });
+      throw new ApiError('解密数据源密码失败', 500);
+    }
+  }
   
   /**
    * 创建数据源
@@ -248,7 +268,7 @@ export class DataSourceService {
    */
   async deleteDataSource(id: string): Promise<void> {
     try {
-      // 在开发环境直接返回
+      // 在开发环境直接返回模拟数据
       if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
         const index = mockDataSources.findIndex(ds => ds.id === id);
         if (index === -1) {
@@ -258,6 +278,7 @@ export class DataSourceService {
         return;
       }
       
+      // 检查数据源是否存在
       const dataSource = await prisma.dataSource.findUnique({
         where: { id }
       });
@@ -266,11 +287,17 @@ export class DataSourceService {
         throw new ApiError('数据源不存在', 404);
       }
       
-      await prisma.dataSource.delete({
-        where: { id }
+      // 删除数据源
+      await prisma.dataSource.update({
+        where: { id },
+        data: {
+          active: false,
+          updatedAt: new Date(),
+          updatedBy: 'system'
+        }
       });
       
-      // 从缓存中移除连接器
+      // 从连接器缓存中移除（如果存在）
       if (connectorCache.has(id)) {
         connectorCache.delete(id);
       }
@@ -286,18 +313,55 @@ export class DataSourceService {
   }
   
   /**
+   * 根据ID获取数据源（包含密码）
+   */
+  async getDataSourceByIdWithPassword(id: string): Promise<DataSource> {
+    try {
+      // 在开发环境直接返回模拟数据
+      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
+        const mockDataSource = mockDataSources.find(ds => ds.id === id);
+        if (!mockDataSource) {
+          throw new ApiError('数据源不存在', 404);
+        }
+        return mockDataSource as DataSource;
+      }
+      
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id }
+      });
+      
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', 404);
+      }
+      
+      return dataSource;
+    } catch (error: any) {
+      logger.error(`获取数据源失败 ID: ${id}`, { error });
+      
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      throw new ApiError('获取数据源失败', 500, error.message);
+    }
+  }
+  
+  /**
    * 测试数据源连接
    */
-  async testConnection(dataSource: DataSource): Promise<boolean> {
+  async testConnection(connectionData: TestConnectionDto): Promise<boolean> {
+    const { type, host, port, username, password, database } = connectionData;
+    
+    // 创建临时连接器
     const connector = DatabaseConnectorFactory.createConnector(
-      dataSource.id || 'temp-connection',
-      dataSource.type as DatabaseType,
+      'temp',
+      type as DatabaseType,
       {
-        host: dataSource.host,
-        port: dataSource.port,
-        user: dataSource.username,
-        password: dataSource.passwordEncrypted,
-        database: dataSource.databaseName,
+        host,
+        port,
+        user: username,
+        password,
+        database,
       }
     );
 
@@ -306,8 +370,21 @@ export class DataSourceService {
   
   /**
    * 获取连接器实例
+   * @param dataSourceOrId 数据源对象或数据源ID
+   * @returns 数据库连接器实例
    */
-  async getConnector(dataSource: DataSource): Promise<DatabaseConnector> {
+  async getConnector(dataSourceOrId: DataSource | string): Promise<DatabaseConnector> {
+    // 如果传入的是ID，先获取数据源对象（包含密码）
+    let dataSource: DataSource;
+    if (typeof dataSourceOrId === 'string') {
+      dataSource = await this.getDataSourceByIdWithPassword(dataSourceOrId);
+    } else {
+      dataSource = dataSourceOrId;
+    }
+    
+    // 获取解密后的密码
+    const password = this.decryptPassword(dataSource.passwordEncrypted, dataSource.passwordSalt);
+    
     return DatabaseConnectorFactory.createConnector(
       dataSource.id,
       dataSource.type as DatabaseType,
@@ -315,10 +392,10 @@ export class DataSourceService {
         host: dataSource.host,
         port: dataSource.port,
         user: dataSource.username,
-        password: dataSource.passwordEncrypted,
+        password,
         database: dataSource.databaseName,
       }
-    );
+    ) as DatabaseConnector;
   }
 }
 

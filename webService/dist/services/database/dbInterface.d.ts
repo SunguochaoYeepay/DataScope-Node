@@ -84,7 +84,7 @@ export interface QueryPlanNode {
     type: string;
     possibleKeys?: string;
     key?: string;
-    keyLen?: number;
+    keyLen?: string | number;
     ref?: string;
     rows: number;
     filtered?: number;
@@ -125,7 +125,7 @@ export interface DatabaseConnector {
      * @param params 查询参数
      * @returns 执行计划
      */
-    explainQuery(sql: string, params?: any[]): Promise<any>;
+    explainQuery(sql: string, params?: any[]): Promise<QueryPlan>;
     /**
      * 获取架构列表
      */

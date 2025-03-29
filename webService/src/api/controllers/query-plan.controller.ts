@@ -34,12 +34,9 @@ export class QueryPlanController {
       const { sql } = req.body;
 
       logger.debug('获取SQL查询执行计划', { dataSourceId, sql });
-
-      // 获取数据源
-      const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
       
       // 获取连接器
-      const connector = await dataSourceService.getConnector(dataSource);
+      const connector = await dataSourceService.getConnector(dataSourceId);
       
       // 执行EXPLAIN查询
       const queryPlan = await connector.explainQuery(sql);
@@ -68,12 +65,11 @@ export class QueryPlanController {
         throw new ApiError('请求参数验证失败', 400, JSON.stringify(errors.array()));
       }
 
-      const { queryId } = req.params;
-      const { plan, sql } = req.body;
+      const { queryId, sql, plan, dataSourceId } = req.body;
 
-      logger.debug('保存查询执行计划', { queryId, plan });
+      logger.debug('保存查询执行计划', { queryId, dataSourceId });
 
-      // 检查查询是否存在
+      // 确保查询存在
       const query = await prisma.query.findUnique({
         where: { id: queryId }
       });
@@ -86,10 +82,12 @@ export class QueryPlanController {
       const savedPlan = await prisma.queryPlan.create({
         data: {
           queryId,
-          sql: sql || query.sql,
-          plan: plan,
-          createdBy: 'system',
-          updatedBy: 'system'
+          dataSourceId: dataSourceId || query.dataSourceId,
+          sql: sql || query.sqlContent,
+          planData: JSON.stringify(plan),
+          estimatedCost: plan.estimatedCost,
+          optimizationTips: plan.optimizationTips?.join('\n'),
+          createdBy: 'system'
         }
       });
 
@@ -166,8 +164,7 @@ export class QueryPlanController {
 
       // 获取执行计划
       const plan = await prisma.queryPlan.findUnique({
-        where: { id: planId },
-        include: { query: true }
+        where: { id: planId }
       });
 
       if (!plan) {

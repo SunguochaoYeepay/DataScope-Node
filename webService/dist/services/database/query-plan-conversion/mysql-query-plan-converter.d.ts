@@ -1,4 +1,4 @@
-import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
+import { QueryPlan, QueryPlanNode } from '../../../types/query-plan';
 /**
  * MySQL查询计划转换器
  * 用于将MySQL原始执行计划转换为统一格式

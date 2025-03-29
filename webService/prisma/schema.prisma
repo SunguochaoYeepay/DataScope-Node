@@ -231,6 +231,43 @@ model MetadataSyncHistory {
   @@map("tbl_metadata_sync_history")
 }
 
+// 查询执行计划
+model QueryPlan {
+  id           String    @id @default(uuid())
+  queryId      String?   // 关联的查询ID
+  dataSourceId String
+  name         String?
+  sql          String    @db.Text
+  planData     String    @db.Text  // JSON字符串格式的执行计划数据
+  estimatedCost Float?   
+  optimizationTips String? @db.Text  // 优化建议
+  isAnalyzed   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdBy    String    @default("system")
+  
+  comparisons  QueryPlanComparison[] @relation("PlanA")
+  comparedWith QueryPlanComparison[] @relation("PlanB")
+
+  @@map("tbl_query_plan")
+}
+
+// 查询执行计划比较
+model QueryPlanComparison {
+  id           String    @id @default(uuid())
+  planAId      String    // 第一个计划ID
+  planBId      String    // 第二个计划ID
+  comparisonData String   @db.Text  // JSON字符串格式的比较数据
+  improvement  Float?    // 改进百分比
+  createdAt    DateTime  @default(now())
+  createdBy    String    @default("system")
+  
+  planA        QueryPlan @relation("PlanA", fields: [planAId], references: [id], onDelete: Cascade)
+  planB        QueryPlan @relation("PlanB", fields: [planBId], references: [id], onDelete: Cascade)
+
+  @@map("tbl_query_plan_comparison")
+}
+
 // 查询执行计划历史记录
 model QueryPlanHistory {
   id           String    @id @default(uuid())

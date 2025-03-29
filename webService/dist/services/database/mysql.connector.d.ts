@@ -1,4 +1,5 @@
 import { DatabaseConnector, QueryResult, ColumnInfo, PrimaryKeyInfo, ForeignKeyInfo, IndexInfo, TableInfo, QueryOptions } from './dbInterface';
+import { QueryPlan } from '../../types/query-plan';
 /**
  * MySQL连接器
  * 实现DatabaseConnector接口，提供MySQL数据库的连接和查询功能
@@ -35,19 +36,11 @@ export declare class MySQLConnector implements DatabaseConnector {
      * @param params 查询参数
      * @returns 执行计划
      */
-    explainQuery(sql: string, params?: any[]): Promise<any>;
+    explainQuery(sql: string, params?: any[]): Promise<QueryPlan>;
     /**
      * 检查SQL是否为SELECT查询
      */
     private isSelectQuery;
-    /**
-     * 将MySQL执行计划转换为统一格式
-     */
-    private convertToQueryPlan;
-    /**
-     * 分析执行计划并生成优化建议
-     */
-    private generateOptimizationTips;
     /**
      * 取消正在执行的查询
      * @param queryId 查询ID
@@ -61,6 +54,8 @@ export declare class MySQLConnector implements DatabaseConnector {
     getSchemas(): Promise<string[]>;
     /**
      * 获取表列表
+     * @param schema 架构名称，默认为当前连接的数据库
+     * @returns 表信息数组
      */
     getTables(schema?: string): Promise<TableInfo[]>;
     /**

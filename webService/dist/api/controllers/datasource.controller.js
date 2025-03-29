@@ -144,8 +144,8 @@ class DataSourceController {
             };
             const result = await datasource_service_1.default.testConnection(connectionData);
             res.status(200).json({
-                success: result.success,
-                message: result.message,
+                success: result,
+                message: result ? '连接成功' : '连接失败',
             });
         }
         catch (error) {

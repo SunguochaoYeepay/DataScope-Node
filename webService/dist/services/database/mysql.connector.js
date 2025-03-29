@@ -7,6 +7,7 @@ exports.MySQLConnector = void 0;
 const promise_1 = __importDefault(require("mysql2/promise"));
 const error_1 = require("../../utils/error");
 const logger_1 = __importDefault(require("../../utils/logger"));
+const mysql_plan_converter_1 = require("../../database-core/query-plan/mysql-plan-converter");
 /**
  * MySQL连接器
  * 实现DatabaseConnector接口，提供MySQL数据库的连接和查询功能
@@ -193,7 +194,6 @@ class MySQLConnector {
             // 如果提供了queryId，清理活动查询记录
             if (queryId) {
                 this.activeQueries.delete(queryId);
-                logger_1.default.debug('删除活动查询记录', { queryId, dataSourceId: this._dataSourceId });
             }
             if (connection) {
                 connection.release();
@@ -230,10 +230,10 @@ class MySQLConnector {
                     dataSourceId: this._dataSourceId
                 });
             }
-            // 将执行计划转换为统一格式
-            const queryPlan = this.convertToQueryPlan(traditionalRows, jsonData, sql);
+            // 使用转换器将执行计划转换为统一格式
+            const queryPlan = mysql_plan_converter_1.MySQLQueryPlanConverter.convertToQueryPlan(traditionalRows, jsonData, sql);
             // 生成优化建议
-            queryPlan.optimizationTips = this.generateOptimizationTips(queryPlan);
+            queryPlan.optimizationTips = mysql_plan_converter_1.MySQLQueryPlanConverter.generateOptimizationTips(queryPlan);
             return queryPlan;
         }
         catch (error) {
@@ -256,78 +256,6 @@ class MySQLConnector {
     isSelectQuery(sql) {
         const trimmedSql = sql.trim().toLowerCase();
         return trimmedSql.startsWith('select');
-    }
-    /**
-     * 将MySQL执行计划转换为统一格式
-     */
-    convertToQueryPlan(traditionalRows, jsonData, originalQuery) {
-        const planNodes = [];
-        // 处理传统格式的执行计划行
-        for (const row of traditionalRows) {
-            const planNode = {
-                id: row.id || 1,
-                selectType: row.select_type || 'SIMPLE',
-                table: row.table || '',
-                type: row.type || '',
-                possibleKeys: row.possible_keys,
-                key: row.key,
-                keyLen: row.key_len,
-                ref: row.ref,
-                rows: parseInt(row.rows || '0', 10),
-                filtered: parseFloat(row.filtered || '100'),
-                extra: row.Extra
-            };
-            planNodes.push(planNode);
-        }
-        // 从 JSON 格式中提取其他有用信息
-        let estimatedRows = 0;
-        let estimatedCost;
-        if (jsonData && jsonData.query_block) {
-            const queryBlock = jsonData.query_block;
-            estimatedRows = queryBlock.select_id ? parseInt(queryBlock.select_id, 10) : 0;
-            if (queryBlock.cost_info && queryBlock.cost_info.query_cost) {
-                estimatedCost = parseFloat(queryBlock.cost_info.query_cost);
-            }
-        }
-        // 使用传统行数如果JSON格式没有提供
-        if (estimatedRows === 0 && planNodes.length > 0) {
-            estimatedRows = planNodes.reduce((total, node) => total + node.rows, 0);
-        }
-        // 构建完整的执行计划对象
-        return {
-            planNodes,
-            query: originalQuery,
-            estimatedRows,
-            estimatedCost,
-            warnings: [],
-            optimizationTips: []
-        };
-    }
-    /**
-     * 分析执行计划并生成优化建议
-     */
-    generateOptimizationTips(plan) {
-        const tips = [];
-        // 检查表扫描
-        const fullScanNodes = plan.planNodes.filter(node => node.type === 'ALL');
-        if (fullScanNodes.length > 0) {
-            tips.push(`发现${fullScanNodes.length}个全表扫描，考虑为表${fullScanNodes.map(n => n.table).join(', ')}添加索引`);
-        }
-        // 检查索引使用
-        const noIndexNodes = plan.planNodes.filter(node => !node.key && node.rows > 100);
-        if (noIndexNodes.length > 0) {
-            tips.push(`表${noIndexNodes.map(n => n.table).join(', ')}没有使用索引，且扫描行数较大`);
-        }
-        // 检查临时表和文件排序
-        const fileSort = plan.planNodes.some(node => node.extra && node.extra.includes('Using filesort'));
-        const tempTable = plan.planNodes.some(node => node.extra && node.extra.includes('Using temporary'));
-        if (fileSort) {
-            tips.push('查询使用了文件排序，考虑添加适当的索引以避免排序');
-        }
-        if (tempTable) {
-            tips.push('查询使用了临时表，考虑简化查询或添加适当的索引');
-        }
-        return tips;
     }
     /**
      * 取消正在执行的查询
@@ -370,60 +298,78 @@ class MySQLConnector {
      * 在MySQL中，数据库名称相当于schema
      */
     async getSchemas() {
+        let connection;
         try {
-            const query = `
-        SELECT schema_name AS \`database\`
-        FROM information_schema.schemata
-        WHERE schema_name NOT IN (
-          'information_schema', 'mysql', 'performance_schema', 'sys'
-        )
-        ORDER BY schema_name
-      `;
-            const result = await this.executeQuery(query);
-            return result.rows.map(row => row.database);
+            connection = await this.pool.getConnection();
+            // 执行查询获取所有数据库
+            const [rows] = await connection.query('SHOW DATABASES');
+            // 处理结果
+            const schemas = rows.map(row => row.Database);
+            return schemas;
         }
         catch (error) {
-            logger_1.default.error('获取数据库架构列表失败', {
+            logger_1.default.error('获取MySQL数据库列表失败', {
                 error: error?.message || '未知错误',
                 dataSourceId: this._dataSourceId
             });
-            throw new error_1.DataSourceConnectionError(`获取数据库架构列表失败: ${error?.message || '未知错误'}`, this._dataSourceId);
+            throw new Error(`获取MySQL数据库列表失败: ${error?.message || '未知错误'}`);
+        }
+        finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
     /**
      * 获取表列表
+     * @param schema 架构名称，默认为当前连接的数据库
+     * @returns 表信息数组
      */
-    async getTables(schema = this.config.database) {
+    async getTables(schema) {
+        const targetSchema = schema || this.config.database;
+        if (!targetSchema) {
+            throw new Error('未指定数据库名称');
+        }
+        let connection;
         try {
-            const query = `
-        SELECT 
-          table_name AS name,
-          table_type AS type,
-          table_schema AS \`schema\`,
-          table_comment AS description,
-          create_time AS createTime,
-          update_time AS updateTime
-        FROM information_schema.tables
-        WHERE table_schema = ?
-        ORDER BY table_name
-      `;
-            const result = await this.executeQuery(query, [schema]);
-            return result.rows.map(row => ({
+            connection = await this.pool.getConnection();
+            // 查询表列表
+            const [rows] = await connection.query(`SELECT 
+          TABLE_NAME AS name,
+          TABLE_TYPE AS type,
+          TABLE_SCHEMA AS \`schema\`,
+          TABLE_COMMENT AS description,
+          CREATE_TIME AS createTime,
+          UPDATE_TIME AS updateTime
+        FROM 
+          INFORMATION_SCHEMA.TABLES 
+        WHERE 
+          TABLE_SCHEMA = ?
+        ORDER BY
+          TABLE_NAME`, [targetSchema]);
+            // 处理结果
+            const tables = rows.map(row => ({
                 name: row.name,
-                type: row.type === 'BASE TABLE' ? 'TABLE' : row.type,
+                type: row.type === 'BASE TABLE' ? 'table' : row.type.toLowerCase(),
                 schema: row.schema,
-                description: row.description,
+                description: row.description || null,
                 createTime: row.createTime,
                 updateTime: row.updateTime
             }));
+            return tables;
         }
         catch (error) {
-            logger_1.default.error('获取表列表失败', {
+            logger_1.default.error('获取MySQL表列表失败', {
                 error: error?.message || '未知错误',
-                dataSourceId: this._dataSourceId,
-                schema
+                schema: targetSchema,
+                dataSourceId: this._dataSourceId
             });
-            throw new error_1.DataSourceConnectionError(`获取表列表失败: ${error?.message || '未知错误'}`, this._dataSourceId);
+            throw new Error(`获取MySQL表列表失败: ${error?.message || '未知错误'}`);
+        }
+        finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
     /**

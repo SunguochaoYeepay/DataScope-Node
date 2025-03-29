@@ -1,8 +1,15 @@
 import { DataSource } from '@prisma/client';
-import { CreateDataSourceDto, UpdateDataSourceDto } from '../types/datasource';
-import { DatabaseConnector } from "../types/datasource";
+import { DatabaseConnector } from './database/dbInterface';
+import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
 export declare class DataSourceService {
     private connectors;
+    /**
+     * 解密数据源密码
+     * @param encryptedPassword 加密的密码
+     * @param salt 盐值
+     * @returns 解密后的密码
+     */
+    private decryptPassword;
     /**
      * 创建数据源
      */
@@ -24,13 +31,19 @@ export declare class DataSourceService {
      */
     deleteDataSource(id: string): Promise<void>;
     /**
+     * 根据ID获取数据源（包含密码）
+     */
+    getDataSourceByIdWithPassword(id: string): Promise<DataSource>;
+    /**
      * 测试数据源连接
      */
-    testConnection(dataSource: DataSource): Promise<boolean>;
+    testConnection(connectionData: TestConnectionDto): Promise<boolean>;
     /**
      * 获取连接器实例
+     * @param dataSourceOrId 数据源对象或数据源ID
+     * @returns 数据库连接器实例
      */
-    getConnector(dataSource: DataSource): Promise<DatabaseConnector>;
+    getConnector(dataSourceOrId: DataSource | string): Promise<DatabaseConnector>;
 }
 declare const _default: DataSourceService;
 export default _default;
