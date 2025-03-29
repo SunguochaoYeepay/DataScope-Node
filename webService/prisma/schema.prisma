@@ -1,0 +1,265 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 数据源表
+model DataSource {
+  id               String          @id @default(uuid())
+  name             String
+  description      String?         @db.Text
+  type             String          // MYSQL,POSTGRESQL,ORACLE,SQLSERVER,MONGODB,ELASTICSEARCH
+  host             String
+  port             Int
+  databaseName     String
+  username         String
+  passwordEncrypted String
+  passwordSalt     String
+  connectionParams Json?
+  status           String          // ACTIVE,INACTIVE,ERROR,SYNCING
+  syncFrequency    String?         // MANUAL,HOURLY,DAILY,WEEKLY,MONTHLY
+  lastSyncTime     DateTime?
+  nonce            Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  createdBy        String          @default("system")
+  updatedBy        String          @default("system")
+  active           Boolean         @default(true) // 添加active字段
+  schemas          Schema[]
+  queries          Query[]
+  savedQueries     SavedQuery[]
+
+  @@map("tbl_data_source")
+}
+
+// 数据库模式表
+model Schema {
+  id           String   @id @default(uuid())
+  dataSourceId String
+  name         String
+  description  String?  @db.Text
+  nonce        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String   @default("system")
+  updatedBy    String   @default("system")
+  
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  tables       Table[]
+
+  @@map("tbl_schema")
+}
+
+// 表元数据
+model Table {
+  id           String   @id @default(uuid())
+  schemaId     String
+  name         String
+  description  String?  @db.Text
+  type         String   @default("TABLE") // TABLE, VIEW
+  nonce        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String   @default("system")
+  updatedBy    String   @default("system")
+  
+  schema       Schema   @relation(fields: [schemaId], references: [id], onDelete: Cascade)
+  columns      Column[]
+  sourceRelationships TableRelationship[] @relation("SourceTable")
+  targetRelationships TableRelationship[] @relation("TargetTable")
+
+  @@map("tbl_table")
+}
+
+// 列元数据
+model Column {
+  id           String   @id @default(uuid())
+  tableId      String
+  name         String
+  dataType     String
+  length       Int?
+  precision    Int?
+  scale        Int?
+  nullable     Boolean  @default(true)
+  isPrimaryKey Boolean  @default(false)
+  isForeignKey Boolean  @default(false)
+  defaultValue String?
+  description  String?  @db.Text
+  nonce        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String   @default("system")
+  updatedBy    String   @default("system")
+
+  table        Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  sourceRelationships ColumnRelationship[] @relation("SourceColumn")
+  targetRelationships ColumnRelationship[] @relation("TargetColumn")
+
+  @@map("tbl_column")
+}
+
+// 表关系
+model TableRelationship {
+  id             String   @id @default(uuid())
+  sourceTableId  String
+  targetTableId  String
+  type           String   // ONE_TO_ONE, ONE_TO_MANY, MANY_TO_ONE, MANY_TO_MANY
+  confidence     Float    @default(1.0)
+  isAutoDetected Boolean  @default(false)
+  nonce          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdBy      String   @default("system")
+  updatedBy      String   @default("system")
+
+  sourceTable    Table    @relation("SourceTable", fields: [sourceTableId], references: [id], onDelete: Cascade)
+  targetTable    Table    @relation("TargetTable", fields: [targetTableId], references: [id], onDelete: Cascade)
+  columnRelationships ColumnRelationship[]
+
+  @@map("tbl_table_relationship")
+}
+
+// 列关系
+model ColumnRelationship {
+  id                  String   @id @default(uuid())
+  tableRelationshipId String
+  sourceColumnId      String
+  targetColumnId      String
+  nonce               Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  createdBy           String   @default("system")
+  updatedBy           String   @default("system")
+
+  tableRelationship   TableRelationship @relation(fields: [tableRelationshipId], references: [id], onDelete: Cascade)
+  sourceColumn        Column   @relation("SourceColumn", fields: [sourceColumnId], references: [id], onDelete: Cascade)
+  targetColumn        Column   @relation("TargetColumn", fields: [targetColumnId], references: [id], onDelete: Cascade)
+
+  @@map("tbl_column_relationship")
+}
+
+// 查询表
+model Query {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.Text
+  dataSourceId String
+  sqlContent   String   @db.Text
+  status       String   @default("DRAFT") // DRAFT, PUBLISHED
+  queryType    String   @default("SQL") // SQL, NATURAL_LANGUAGE
+  isFavorite   Boolean  @default(false)
+  executionCount Int    @default(0)
+  lastExecutedAt DateTime?
+  tags         String?  // 逗号分隔的标签
+  nonce        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String   @default("system")
+  updatedBy    String   @default("system")
+
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  displayConfigs DisplayConfig[]
+  queryHistory QueryHistory[]
+
+  @@map("tbl_query")
+}
+
+// 查询历史
+model QueryHistory {
+  id           String   @id @default(uuid())
+  queryId      String?  // 如果是一次性查询，可能没有保存的查询ID
+  dataSourceId String
+  sqlContent   String   @db.Text
+  status       String   // RUNNING, COMPLETED, FAILED, CANCELLED
+  startTime    DateTime
+  endTime      DateTime?
+  duration     Int?     // 执行时间(毫秒)
+  rowCount     Int?     // 返回的行数
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+  createdBy    String   @default("system")
+
+  query        Query?   @relation(fields: [queryId], references: [id], onDelete: SetNull)
+
+  @@map("tbl_query_history")
+}
+
+// 显示配置
+model DisplayConfig {
+  id           String   @id @default(uuid())
+  queryId      String
+  displayType  String   // TABLE, CHART
+  chartType    String?  // BAR, LINE, PIE, SCATTER
+  title        String?
+  description  String?  @db.Text
+  config       Json     // 配置对象
+  isDefault    Boolean  @default(false)
+  nonce        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String   @default("system")
+  updatedBy    String   @default("system")
+
+  query        Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  @@map("tbl_display_config")
+}
+
+// 元数据同步历史
+model MetadataSyncHistory {
+  id           String   @id @default(uuid())
+  dataSourceId String
+  status       String   // RUNNING, COMPLETED, FAILED
+  startTime    DateTime
+  endTime      DateTime?
+  duration     Int?     // 执行时间(毫秒)
+  syncType     String   // FULL, INCREMENTAL
+  tablesCount  Int?
+  viewsCount   Int?
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+  createdBy    String   @default("system")
+
+  @@map("tbl_metadata_sync_history")
+}
+
+// 保存的查询
+model SavedQuery {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.Text
+  sql          String   @db.Text
+  dataSourceId String
+  tags         String   // 标签，用逗号分隔
+  folderId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  folder       QueryFolder? @relation(fields: [folderId], references: [id])
+
+  @@map("tbl_saved_query")
+}
+
+// 查询文件夹
+model QueryFolder {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.Text
+  parentId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  parent       QueryFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children     QueryFolder[] @relation("FolderHierarchy")
+  queries      SavedQuery[]
+
+  @@map("tbl_query_folder")
+}

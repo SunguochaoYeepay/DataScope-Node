@@ -1,0 +1,84 @@
+{
+    "meta": {
+      "database": "数据库名",
+      "schema": "schema名",
+      "table": "表名",
+      "pageCode": "demoPage"
+    },
+    "filter": [
+      {
+        "key": "inputName",
+        "label": "输入框",
+        "fieldType": "string",
+        "dataFormat": "string",
+        "displayType": "input",
+        "config": {
+          "required": true
+        }
+      },
+      {
+        "key": "dateRangeName",
+        "label": "日期范围",
+        "fieldType": "string",
+        "dataFormat": "date",
+        "displayType": "date-range-picker",
+        "config": {
+          "maxDaysRange": "30"
+        }
+      },
+      {
+        "key": "selectName",
+        "label": "下拉选择",
+        "fieldType": "string",
+        "dataFormat": "string",
+        "displayType": "select",
+        "config": {
+          "isMultiValue": true,
+          "enumKey": "ab"
+        }
+      }
+    ],
+    "list": [
+      {
+        "isPrimaryKey": true,
+        "key": "name",
+        "label": "列名称",
+        "fieldType": "string",
+        "dataFormat": "string",
+        "columnType": "text",
+        "config": {
+          "width": "100",
+          "help": "帮助信息",
+          "fixedPoint": "2",
+          "thousandSeparator": true
+        }
+      }
+    ],
+    "operation": {
+      "paginationEnable": true,
+      "totalEnable": true,
+      "downloadEnable": true,
+      "operationColumnFixed": "right",
+      "batchEnable": true,
+      "tableActions": [
+        {
+          "name": "表头操作",
+          "hybridEvent": "tableHeaderAction"
+        },
+        {
+          "name": "表头操作2",
+          "hybridEvent": "tableHeaderAction2"
+        }
+      ],
+      "rowActions": [
+        {
+          "name": "编辑",
+          "hybridEvent": "edit"
+        },
+        {
+          "name": "删除",
+          "hybridEvent": "delete"
+        }
+      ]
+    }
+  }
