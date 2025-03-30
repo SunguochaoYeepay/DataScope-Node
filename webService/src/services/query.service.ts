@@ -20,8 +20,12 @@ export class QueryService {
     order?: 'asc' | 'desc';
   }): Promise<any> {
     try {
+      logger.info('开始执行查询', { dataSourceId, sql, params });
+      
       // 获取数据源连接器
+      logger.debug('尝试获取数据源连接器');
       const connector = await dataSourceService.getConnector(dataSourceId);
+      logger.debug('成功获取数据源连接器', { dataSourceId, connectorType: connector.constructor.name });
       
       // 记录查询开始
       const startTime = new Date();
@@ -29,6 +33,7 @@ export class QueryService {
       
       try {
         // 创建查询历史记录
+        logger.debug('创建查询历史记录');
         const queryHistory = await prisma.queryHistory.create({
           data: {
             dataSourceId,
@@ -38,9 +43,12 @@ export class QueryService {
           }
         });
         queryHistoryId = queryHistory.id;
+        logger.debug('查询历史记录已创建', { queryHistoryId });
         
         // 执行查询 - 传递queryHistoryId作为queryId以支持取消功能
+        logger.debug('开始执行数据库查询');
         const result = await connector.executeQuery(sql, params, queryHistoryId, options);
+        logger.debug('数据库查询执行成功', { rowCount: result.rows.length });
         
         // 更新查询历史为成功
         const endTime = new Date();
@@ -55,9 +63,20 @@ export class QueryService {
             rowCount: result.rows.length,
           }
         });
+        logger.debug('查询历史记录已更新为完成状态');
         
         return result;
       } catch (error: any) {
+        // 详细记录错误信息
+        logger.error('执行数据库查询失败', { 
+          error: error?.message || '未知错误',
+          stack: error?.stack,
+          sql,
+          params,
+          dataSourceId,
+          queryHistoryId
+        });
+        
         // 更新查询历史为失败
         if (queryHistoryId) {
           const endTime = new Date();
@@ -72,16 +91,23 @@ export class QueryService {
               errorMessage: error?.message || '未知错误',
             }
           });
+          logger.debug('查询历史记录已更新为失败状态', { queryHistoryId });
         }
         
-        logger.error('执行查询失败', { error, dataSourceId, sql });
         if (error instanceof ApiError) {
           throw error;
         }
         throw new ApiError('执行查询失败', 500, error?.message || '未知错误');
       }
     } catch (error: any) {
-      logger.error('执行查询失败', { error, dataSourceId, sql });
+      // 详细记录服务层错误
+      logger.error('查询服务执行查询失败', { 
+        error: error?.message || '未知错误',
+        stack: error?.stack,
+        dataSourceId,
+        sql
+      });
+      
       if (error instanceof ApiError) {
         throw error;
       }

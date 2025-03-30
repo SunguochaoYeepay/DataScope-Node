@@ -85,6 +85,9 @@
 ## [1.0.3] - 2024-04-17
 
 ### 修复 (Fixes)
+- 修复了MySQL连接器（mysql.connector.ts）中的问题：
+  - 删除了无效的execute方法，该方法使用了不存在的connection对象
+  - 使用正确的executeQuery方法代替，确保所有数据库操作都能正常工作
 - 修复了query-plan.controller.test.js测试文件中的模拟问题：
   - 修正了PrismaClient模拟实现，使其返回合适的查询计划数据
   - 补全了getQueryPlanHistory和getQueryPlanById测试中缺失的模拟方法调用
