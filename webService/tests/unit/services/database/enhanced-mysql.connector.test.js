@@ -3,8 +3,10 @@
  * 用于测试查询计划和高级功能
  */
 
-const { jest } = require('@jest/globals');
+// 测试 EnhancedMySQLConnector
 const { EnhancedMySQLConnector } = require('../../../../src/services/database/enhanced-mysql.connector');
+// 不再重复导入 jest
+// const { jest } = require('@jest/globals');
 const { DatabaseError } = require('../../../../src/utils/errors');
 
 // 模拟mysql2/promise模块

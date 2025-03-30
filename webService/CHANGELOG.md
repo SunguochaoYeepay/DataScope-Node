@@ -82,34 +82,24 @@
 - 优化了测试覆盖率，所有测试现在都可以正常通过
 - 修复了query控制器测试，使用JavaScript编写并正确模拟了所有依赖项
 
-## [Unreleased]
-
-### Fixed
-- 修复了ApiError导入路径问题，从`utils/error`更新为`utils/errors/types/api-error`
-- 修复了ApiError构造函数参数顺序问题
-- 更新了所有控制器测试文件中的ApiError导入和使用方式
-- 修改了plan-visualization.controller.test.js测试文件，使测试方法与实际控制器方法匹配
-- 恢复和修复了3个关键测试文件，并将它们转换为JavaScript格式避免类型冲突：
-  - 修复并恢复了`tests/unit/controllers/query.controller.test.js`
-  - 修复并恢复了`tests/unit/controllers/query-plan.controller.test.js`
-  - 确保了这些测试文件中所有的mock正确模拟了服务层依赖
-- 修复了测试文件中的模拟单例模式实现，使控制器测试能够正确初始化服务实例
+## [1.0.3] - 2024-04-17
 
 ### 修复 (Fixes)
-
-- 修复了TypeScript编译错误，统一了接口定义
-  - 添加了`encryptPassword`和`comparePassword`函数作为现有加密函数的别名
-  - 在`dbInterface.ts`中添加了`IDatabaseConnector`类型作为`DatabaseConnector`的别名
-  - 修复了`MySQLConnector`构造函数的重载问题，支持两种不同的参数格式
-  - 完善了`datasource.service.ts`中对模拟数据的类型定义
-  - 改进了错误处理，确保类型兼容性
+- 修复了query-plan.controller.test.js测试文件中的模拟问题：
+  - 修正了PrismaClient模拟实现，使其返回合适的查询计划数据
+  - 补全了getQueryPlanHistory和getQueryPlanById测试中缺失的模拟方法调用
+  - 完善了comparePlans测试，添加了正确的数据模拟和验证逻辑
+  - 解决了所有测试断言失败问题
+- 全部修复关键控制器的测试，包括：
+  - datasource.controller.test.js - 17个测试全部通过
+  - query.controller.test.js - 16个测试全部通过
+  - query-plan.controller.test.js - 10个测试全部通过
+- 增强了测试文件的鲁棒性，使用更严格的验证逻辑
 
 ### 变更 (Changes)
-
-- 优化了项目结构，确保了代码的类型安全
-- 添加了类型定义文件`datasource.ts`，定义了所有数据源相关的DTO接口
-- 重构了数据库连接器的实现，提高了代码的可维护性和类型安全性
-- 优化了模拟数据模式，方便开发和测试
+- 优化了测试代码组织，确保每个测试函数独立设置依赖并清理模拟状态
+- 添加了更详细的测试覆盖，确保所有控制器方法都有成功和失败场景的测试
+- 改进了模拟对象结构，更准确地反映实际应用程序行为
 
 ### 待实现功能
 

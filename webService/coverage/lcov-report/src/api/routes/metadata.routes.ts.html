@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/9</span>
+                <span class='fraction'>0/9</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/9</span>
+                <span class='fraction'>0/9</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -716,10 +716,10 @@
 <a name='L651'></a><a href='#L651'>651</a>
 <a name='L652'></a><a href='#L652'>652</a>
 <a name='L653'></a><a href='#L653'>653</a>
-<a name='L654'></a><a href='#L654'>654</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<a name='L654'></a><a href='#L654'>654</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -821,7 +821,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -998,7 +998,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1104,7 +1104,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1230,7 +1230,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1363,16 +1363,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span></td><td class="text"><pre class="prettyprint lang-js">import { Router } from 'express';
-import metadataController from '../controllers/metadata.controller';
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { Router } from 'express';</span>
+<span class="cstat-no" title="statement not covered" >import metadataController from '../controllers/metadata.controller';</span>
 &nbsp;
-const router = Router();
+const router = <span class="cstat-no" title="statement not covered" >Router();</span>
 &nbsp;
 /**
  * @swagger
@@ -1474,7 +1474,7 @@ const router = Router();
  *                 details: "未找到ID为123e4567-e89b-12d3-a456-426614174000的数据源"
  *               }
  */
-router.post(
+<span class="cstat-no" title="statement not covered" >router.post(</span>
   '/datasources/:dataSourceId/sync',
   metadataController.validateSyncMetadata(),
   metadataController.syncMetadata
@@ -1651,7 +1651,7 @@ router.post(
  *                 details: "数据源的元数据尚未同步，请先执行同步操作"
  *               }
  */
-router.get(
+<span class="cstat-no" title="statement not covered" >router.get(</span>
   '/datasources/:dataSourceId/structure',
   metadataController.getMetadataStructure
 );
@@ -1757,7 +1757,7 @@ router.get(
  *                 details: "未找到ID为123e4567-e89b-12d3-a456-426614174000的数据源"
  *               }
  */
-router.get(
+<span class="cstat-no" title="statement not covered" >router.get(</span>
   '/datasources/:dataSourceId/sync-history',
   metadataController.getSyncHistory
 );
@@ -1883,7 +1883,7 @@ router.get(
  *                 details: "指定的表 'users' 在架构 'public' 中不存在"
  *               }
  */
-router.get(
+<span class="cstat-no" title="statement not covered" >router.get(</span>
   '/datasources/:dataSourceId/preview',
   metadataController.validatePreviewTableData(),
   metadataController.previewTableData
@@ -2016,20 +2016,20 @@ router.get(
  *                 details: "指定的列 'status' 在表 'users' 中不存在"
  *               }
  */
-router.get(
+<span class="cstat-no" title="statement not covered" >router.get(</span>
   '/datasources/:dataSourceId/columns/analyze',
   metadataController.validateColumnAnalysis(),
   metadataController.analyzeColumn
 );
 &nbsp;
-export default router;</pre></td></tr></table></pre>
+<span class="cstat-no" title="statement not covered" >export default router;</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T16:12:12.174Z
+                at 2025-03-30T07:30:49.720Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">72.72% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>8/11</span>
+                <span class='fraction'>0/11</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">57.14% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>4/7</span>
+                <span class='fraction'>0/7</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/1</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">72.72% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/11</span>
+                <span class='fraction'>0/11</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -130,33 +130,33 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -193,19 +193,19 @@
  * 全局错误处理中间件
  */
 import { Request, Response, NextFunction } from 'express';
-import { AppError, ApiError } from '../utils/errors';
-import logger from '../utils/logger';
+<span class="cstat-no" title="statement not covered" >import { AppError, ApiError } from '../utils/errors';</span>
+<span class="cstat-no" title="statement not covered" >import logger from '../utils/logger';</span>
 &nbsp;
 /**
  * 全局错误处理中间件
  * 捕获并统一处理应用中抛出的所有错误
  */
-export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction): Response | void {
+<span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >e</span>rrorHandler(</span>err: Error, req: Request, res: Response, next: NextFunction): Response | void {
   // 获取请求ID (假设使用了request-id中间件)
-  const requestId = req.headers['x-request-id'] || <span class="branch-1 cbranch-no" title="branch not covered" >'unknown';</span>
+  const requestId = <span class="cstat-no" title="statement not covered" >req.headers['x-request-id'] || 'unknown';</span>
   
   // 日志记录错误
-  logger.error(`[${requestId}] 请求错误: ${err.message}`, {
+<span class="cstat-no" title="statement not covered" >  logger.error(`[${requestId}] 请求错误: ${err.message}`, {</span>
     error: err,
     path: req.path,
     method: req.method,
@@ -214,12 +214,12 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   });
 &nbsp;
   // 如果是AppError类型的错误，使用其定义的状态码和错误信息
-  if (err instanceof AppError) {
+<span class="cstat-no" title="statement not covered" >  <span class="missing-if-branch" title="if path not taken" >I</span>if (err instanceof AppError) {</span>
     // 设置请求路径和请求ID
-    err.setPath(req.path).setRequestId(requestId as string);
+<span class="cstat-no" title="statement not covered" >    err.setPath(req.path).setRequestId(requestId as string);</span>
     
     // 发送错误响应 - 确保格式符合测试要求
-    return res.status(err.statusCode).json({
+<span class="cstat-no" title="statement not covered" >    return res.status(err.statusCode).json({</span>
       error: {
         code: err.errorCode,
         type: err.errorType,
@@ -259,7 +259,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T16:12:12.174Z
+                at 2025-03-30T07:30:49.720Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

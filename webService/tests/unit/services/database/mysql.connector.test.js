@@ -3,7 +3,6 @@
  * 用于测试数据库连接、查询执行和错误处理
  */
 
-const { jest } = require('@jest/globals');
 const { MySQLConnector } = require('../../../../src/services/database/mysql.connector');
 const { DatabaseError } = require('../../../../src/utils/errors');
 

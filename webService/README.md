@@ -81,15 +81,22 @@ npm test -- --testNamePattern="应当同步元数据并返回结果"
 
 # 生成测试覆盖率报告
 npm test -- --coverage
+
+# 仅运行控制器测试
+npm test -- --testPathPattern='controllers'
+
+# 指定运行某几个控制器测试
+npm test -- --testPathPattern='(datasource|query|query-plan)\.controller\.test\.js'
 ```
 
 ### 接口测试状态
 
 已完成的接口测试：
 
-- 控制器测试
-  - query.controller.test.js - 查询控制器测试
-  - query-plan.controller.test.js - 查询计划控制器测试
+- 控制器测试（所有核心控制器测试已修复并通过）
+  - datasource.controller.test.js - 数据源控制器测试 (17个测试用例)
+  - query.controller.test.js - 查询控制器测试 (16个测试用例)
+  - query-plan.controller.test.js - 查询计划控制器测试 (10个测试用例)
 
 - 服务测试
   - metadata.service.test.js - 元数据服务测试（syncMetadata, getMetadataStructure等）
@@ -98,7 +105,29 @@ npm test -- --coverage
 
 测试中的注意事项：
 - 所有测试需要正确引用错误类型，例如从`../../../src/utils/errors/types/api-error`导入`ApiError`
-- 测试运行失败可能是由于数据库连接问题，在CI环境中会配置正确的模拟对象
+- 为避免TypeScript类型冲突，核心控制器测试已使用JavaScript重写
+- 测试中使用mock代替实际数据库连接，确保单元测试独立性
+- 每个测试函数需要独立设置mock和断言，避免测试间相互影响
+
+### 数据库测试环境
+
+针对集成测试和手动测试，推荐使用Docker环境：
+
+```bash
+# 启动MySQL测试容器
+docker run -d \
+  --name datascope-mysql \
+  -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=datascope \
+  -e MYSQL_DATABASE=datascope \
+  mysql:8
+
+# 配置环境变量
+DATABASE_URL="mysql://root:datascope@localhost:3306/datascope"
+
+# 运行Prisma迁移
+npx prisma migrate dev
+```
 
 ## API文档
 

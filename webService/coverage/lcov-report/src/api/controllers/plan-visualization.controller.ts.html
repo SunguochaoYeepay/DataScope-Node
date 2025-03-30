@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">5.14% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>7/136</span>
+                <span class='fraction'>0/137</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">5.46% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>7/128</span>
+                <span class='fraction'>0/129</span>
             </div>
         
             
@@ -605,15 +605,17 @@
 <a name='L540'></a><a href='#L540'>540</a>
 <a name='L541'></a><a href='#L541'>541</a>
 <a name='L542'></a><a href='#L542'>542</a>
-<a name='L543'></a><a href='#L543'>543</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
+<a name='L543'></a><a href='#L543'>543</a>
+<a name='L544'></a><a href='#L544'>544</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -686,7 +688,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1147,15 +1149,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span></td><td class="text"><pre class="prettyprint lang-js">import { Request, Response, NextFunction } from 'express';
-import { body, param, validationResult } from 'express-validator';
-import queryService from '../../services/query.service';
-import { ApiError } from '../../utils/error';
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Request, Response, NextFunction } from 'express';
+<span class="cstat-no" title="statement not covered" >import { body, param, validationResult } from 'express-validator';</span>
+<span class="cstat-no" title="statement not covered" >import queryService from '../../services/query.service';</span>
+<span class="cstat-no" title="statement not covered" >import { ApiError } from '../../utils/errors/types/api-error';</span>
+<span class="cstat-no" title="statement not covered" >import { ERROR_CODES } from '../../utils/errors/error-codes';</span>
 import logger from '../../utils/logger';
-import { PrismaClient } from '@prisma/client';
+<span class="cstat-no" title="statement not covered" >import { PrismaClient } from '@prisma/client';</span>
 import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
 &nbsp;
-const prisma = new PrismaClient();
+const prisma = <span class="cstat-no" title="statement not covered" >new PrismaClient();</span>
 &nbsp;
 // 可视化数据接口定义
 interface VisualizationData {
@@ -1228,7 +1231,7 @@ interface PlanComparisonResult {
  * 查询执行计划可视化控制器
  * 提供查询执行计划可视化相关的API接口
  */
-export class PlanVisualizationController {
+<span class="cstat-no" title="statement not covered" >export class P</span>lanVisualizationController {
   /**
    * 获取查询执行计划的可视化数据
    * @param req 请求对象
@@ -1239,7 +1242,7 @@ export class PlanVisualizationController {
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const errors = <span class="cstat-no" title="statement not covered" >validationResult(req);</span>
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!errors.isEmpty()) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', 400, { errors: errors.array() });</span>
+<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());</span>
       }
 &nbsp;
       const { planId } = <span class="cstat-no" title="statement not covered" >req.params;</span>
@@ -1248,7 +1251,7 @@ export class PlanVisualizationController {
       const planHistory = <span class="cstat-no" title="statement not covered" >await queryService.getQueryPlanById(planId);</span>
       
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!planHistory) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('查询计划不存在', 404);</span>
+<span class="cstat-no" title="statement not covered" >        throw ApiError.notFound('查询计划不存在');</span>
       }
       
       // 解析计划数据
@@ -1276,7 +1279,7 @@ export class PlanVisualizationController {
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const errors = <span class="cstat-no" title="statement not covered" >validationResult(req);</span>
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!errors.isEmpty()) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', 400, { errors: errors.array() });</span>
+<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());</span>
       }
 &nbsp;
       const { planId1, planId2 } = <span class="cstat-no" title="statement not covered" >req.params;</span>
@@ -1288,7 +1291,7 @@ export class PlanVisualizationController {
       ]);
       
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!plan1 || !plan2) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('一个或多个查询计划不存在', 404);</span>
+<span class="cstat-no" title="statement not covered" >        throw ApiError.notFound('一个或多个查询计划不存在');</span>
       }
       
       // 解析计划数据
@@ -1317,7 +1320,7 @@ export class PlanVisualizationController {
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const errors = <span class="cstat-no" title="statement not covered" >validationResult(req);</span>
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!errors.isEmpty()) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', 400, { errors: errors.array() });</span>
+<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());</span>
       }
 &nbsp;
       const { planId } = <span class="cstat-no" title="statement not covered" >req.params;</span>
@@ -1327,7 +1330,7 @@ export class PlanVisualizationController {
       const planHistory = <span class="cstat-no" title="statement not covered" >await queryService.getQueryPlanById(planId);</span>
       
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!planHistory) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('查询计划不存在', 404);</span>
+<span class="cstat-no" title="statement not covered" >        throw ApiError.notFound('查询计划不存在');</span>
       }
       
       // 保存注释
@@ -1369,7 +1372,7 @@ export class PlanVisualizationController {
 <span class="cstat-no" title="statement not covered" >    try {</span>
       const errors = <span class="cstat-no" title="statement not covered" >validationResult(req);</span>
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!errors.isEmpty()) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', 400, { errors: errors.array() });</span>
+<span class="cstat-no" title="statement not covered" >        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());</span>
       }
 &nbsp;
       const { planId } = <span class="cstat-no" title="statement not covered" >req.params;</span>
@@ -1378,7 +1381,7 @@ export class PlanVisualizationController {
       const planHistory = <span class="cstat-no" title="statement not covered" >await queryService.getQueryPlanById(planId);</span>
       
 <span class="cstat-no" title="statement not covered" >      <span class="missing-if-branch" title="if path not taken" >I</span>if (!planHistory) {</span>
-<span class="cstat-no" title="statement not covered" >        throw new ApiError('查询计划不存在', 404);</span>
+<span class="cstat-no" title="statement not covered" >        throw ApiError.notFound('查询计划不存在');</span>
       }
       
       // 解析计划数据
@@ -1689,14 +1692,14 @@ export class PlanVisualizationController {
 }
 &nbsp;
 // 导出控制器实例
-export default new PlanVisualizationController();</pre></td></tr></table></pre>
+<span class="cstat-no" title="statement not covered" >export default new PlanVisualizationController();</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T16:12:12.174Z
+                at 2025-03-30T07:30:49.720Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

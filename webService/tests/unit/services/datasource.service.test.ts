@@ -1,23 +1,31 @@
-import { DataSourceService } from '../../../src/services/datasource.service';
-import { ApiError } from '../../../src/utils/error';
+import { DatasourceService } from '../../../src/services/datasource.service';
 import { PrismaClient } from '@prisma/client';
-import { jest, describe, beforeEach, it, expect } from '@jest/globals';
+import { DatabaseError } from '../../../src/utils/errors';
 
-// 模拟Prisma客户端
+// 首先定义模拟对象
 const mockPrismaClient = {
   dataSource: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
-  },
+    delete: jest.fn()
+  }
 };
 
-// 模拟数据
+// 然后使用模拟对象
 jest.mock('@prisma/client', () => {
   return {
-    PrismaClient: jest.fn().mockImplementation(() => mockPrismaClient),
+    PrismaClient: jest.fn().mockImplementation(() => mockPrismaClient)
+  };
+});
+
+// 模拟数据库连接器工厂
+jest.mock('../../../src/types/database-factory', () => {
+  return {
+    DatabaseFactory: {
+      getConnector: jest.fn()
+    }
   };
 });
 
@@ -30,11 +38,11 @@ jest.mock('../../../src/utils/crypto', () => {
 });
 
 describe('DataSourceService', () => {
-  let dataSourceService: DataSourceService;
+  let dataSourceService: DatasourceService;
   
   beforeEach(() => {
     jest.clearAllMocks();
-    dataSourceService = new DataSourceService();
+    dataSourceService = new DatasourceService();
   });
   
   describe('getAllDataSources', () => {
@@ -114,7 +122,7 @@ describe('DataSourceService', () => {
       // 设置模拟返回值为null（未找到数据）
       mockPrismaClient.dataSource.findUnique.mockResolvedValue(null);
       
-      await expect(dataSourceService.getDataSourceById('999')).rejects.toThrow(ApiError);
+      await expect(dataSourceService.getDataSourceById('999')).rejects.toThrow(DatabaseError);
     });
   });
   
@@ -216,7 +224,7 @@ describe('DataSourceService', () => {
       // 设置模拟返回值为null（未找到数据）
       mockPrismaClient.dataSource.findUnique.mockResolvedValue(null);
       
-      await expect(dataSourceService.updateDataSource('999', { name: 'New Name' })).rejects.toThrow(ApiError);
+      await expect(dataSourceService.updateDataSource('999', { name: 'New Name' })).rejects.toThrow(DatabaseError);
     });
   });
   
@@ -259,7 +267,7 @@ describe('DataSourceService', () => {
       // 设置模拟返回值为null（未找到数据）
       mockPrismaClient.dataSource.findUnique.mockResolvedValue(null);
       
-      await expect(dataSourceService.deleteDataSource('999')).rejects.toThrow(ApiError);
+      await expect(dataSourceService.deleteDataSource('999')).rejects.toThrow(DatabaseError);
     });
   });
 }); 

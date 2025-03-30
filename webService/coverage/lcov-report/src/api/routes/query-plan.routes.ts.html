@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>12/12</span>
+                <span class='fraction'>0/12</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>12/12</span>
+                <span class='fraction'>0/12</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -405,13 +405,13 @@
 <a name='L340'></a><a href='#L340'>340</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -490,7 +490,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -544,7 +544,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -607,7 +607,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -682,7 +682,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -733,7 +733,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -741,16 +741,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span></td><td class="text"><pre class="prettyprint lang-js">/**
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * 查询执行计划相关路由
  */
-import { Router } from 'express';
-import { param, body } from 'express-validator';
-import { authenticate } from '../../middleware/auth';
-import { QueryPlanController } from '../controllers/query-plan.controller';
+<span class="cstat-no" title="statement not covered" >import { Router } from 'express';</span>
+<span class="cstat-no" title="statement not covered" >import { param, body } from 'express-validator';</span>
+<span class="cstat-no" title="statement not covered" >import { authenticate } from '../../middleware/auth';</span>
+<span class="cstat-no" title="statement not covered" >import { QueryPlanController } from '../controllers/query-plan.controller';</span>
 &nbsp;
-const router = Router();
-const queryPlanController = new QueryPlanController();
+const router = <span class="cstat-no" title="statement not covered" >Router();</span>
+const queryPlanController = <span class="cstat-no" title="statement not covered" >new QueryPlanController();</span>
 &nbsp;
 /**
  * @swagger
@@ -829,7 +829,7 @@ const queryPlanController = new QueryPlanController();
  *                     - "考虑添加覆盖索引包含常用的查询字段"
  *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
  */
-router.post('/analyze',
+<span class="cstat-no" title="statement not covered" >router.post('/analyze',</span>
   authenticate,
   [
     body('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
@@ -883,7 +883,7 @@ router.post('/analyze',
  *                     fix: "CREATE INDEX idx_users_status ON users(status)"
  *                 optimizedSql: "SELECT * FROM users FORCE INDEX(idx_users_status) JOIN orders ON users.id = orders.user_id WHERE users.status = 'active'"
  */
-router.get('/:planId/optimize',
+<span class="cstat-no" title="statement not covered" >router.get('/:planId/optimize',</span>
   authenticate,
   [
     param('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
@@ -946,7 +946,7 @@ router.get('/:planId/optimize',
  *                   - key: "reduced_cost"
  *                     description: "优化后估算成本降低了 40%"
  */
-router.post('/compare',
+<span class="cstat-no" title="statement not covered" >router.post('/compare',</span>
   authenticate,
   [
     body('planAId').isString().notEmpty().withMessage('原始执行计划ID不能为空'),
@@ -1021,7 +1021,7 @@ router.post('/compare',
  *                 limit: 20
  *                 offset: 0
  */
-router.get('/history',
+<span class="cstat-no" title="statement not covered" >router.get('/history',</span>
   authenticate,
   queryPlanController.getQueryPlanHistory.bind(queryPlanController)
 );
@@ -1072,7 +1072,7 @@ router.get('/history',
  *                       filtered: 100
  *                       key: "idx_status"
  */
-router.get('/:planId',
+<span class="cstat-no" title="statement not covered" >router.get('/:planId',</span>
   authenticate,
   [
     param('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
@@ -1080,14 +1080,14 @@ router.get('/:planId',
   queryPlanController.getQueryPlanById.bind(queryPlanController)
 );
 &nbsp;
-export default router;</pre></td></tr></table></pre>
+<span class="cstat-no" title="statement not covered" >export default router;</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T16:12:12.174Z
+                at 2025-03-30T07:30:49.720Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

@@ -80,10 +80,10 @@ const mockQueryPlanService = {
   ])
 };
 
-// 创建模拟 PrismaClient
-const mockPrismaClient = jest.fn().mockImplementation(() => ({
+// 创建预先初始化的模拟PrismaClient
+const mockPrismaClient = {
   queryPlan: {
-    findUnique: jest.fn().mockImplementation(() => ({
+    findUnique: jest.fn().mockResolvedValue({
       id: 'plan-123',
       sql: 'SELECT * FROM users',
       planData: JSON.stringify({
@@ -92,11 +92,11 @@ const mockPrismaClient = jest.fn().mockImplementation(() => ({
       }),
       dataSourceId: 'test-ds-id',
       createdAt: new Date()
-    })),
+    }),
     create: jest.fn().mockResolvedValue({ id: 'new-plan-123' }),
     update: jest.fn().mockResolvedValue({ id: 'plan-123' })
   }
-}));
+};
 
 // 模拟ApiError
 jest.mock('../../../src/utils/errors/types/api-error', () => {
@@ -124,7 +124,7 @@ jest.mock('../../../src/utils/errors/types/api-error', () => {
 
 // 模拟PrismaClient
 jest.mock('@prisma/client', () => ({
-  PrismaClient: mockPrismaClient
+  PrismaClient: jest.fn().mockImplementation(() => mockPrismaClient)
 }));
 
 // 模拟服务，使用ES6导入语法模拟
@@ -308,10 +308,26 @@ describe('QueryPlanController', () => {
         planId: 'plan-123'
       };
       
+      // 确保正确模拟findUnique方法
+      mockPrismaClient.queryPlan.findUnique.mockResolvedValueOnce({
+        id: 'plan-123',
+        sql: 'SELECT * FROM users',
+        planData: JSON.stringify({
+          steps: [{ id: 1, operation: 'TABLE SCAN' }],
+          costEstimate: 100
+        }),
+        dataSourceId: 'test-ds-id',
+        createdAt: new Date()
+      });
+      
       // 执行测试
       await queryPlanController.getOptimizationTips(mockReq, mockRes, mockNext);
       
       // 验证
+      expect(mockPrismaClient.queryPlan.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'plan-123' }
+      }));
+      expect(mockDataSourceService.getDataSourceById).toHaveBeenCalledWith('test-ds-id');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
@@ -341,18 +357,26 @@ describe('QueryPlanController', () => {
     it('应当返回查询计划历史记录', async () => {
       // 准备测试数据
       mockReq.query = {
-        dataSourceId: 'test-ds-id'
+        dataSourceId: 'test-ds-id',
+        limit: '20'
       };
+      
+      // 确保mock方法正确返回
+      mockQueryService.getQueryPlanHistory.mockResolvedValueOnce({
+        history: [
+          { id: 'plan-1', sql: 'SELECT * FROM users', createdAt: new Date() },
+          { id: 'plan-2', sql: 'SELECT * FROM orders', createdAt: new Date() }
+        ],
+        total: 2,
+        limit: 20,
+        offset: 0
+      });
       
       // 执行测试
       await queryPlanController.getQueryPlanHistory(mockReq, mockRes, mockNext);
       
       // 验证
-      expect(mockQueryService.getQueryPlanHistory).toHaveBeenCalledWith(
-        'test-ds-id',
-        expect.any(Number),
-        expect.any(Number)
-      );
+      expect(mockQueryService.getQueryPlanHistory).toHaveBeenCalledWith('test-ds-id', 20, 0);
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
@@ -367,6 +391,17 @@ describe('QueryPlanController', () => {
       mockReq.params = {
         planId: 'plan-123'
       };
+      
+      // 确保mock方法正确返回
+      mockQueryService.getQueryPlanById.mockResolvedValueOnce({
+        id: 'plan-123',
+        sql: 'SELECT * FROM users',
+        planData: JSON.stringify({
+          steps: [{ id: 1, operation: 'TABLE SCAN' }],
+          costEstimate: 100
+        }),
+        createdAt: new Date()
+      });
       
       // 执行测试
       await queryPlanController.getQueryPlanById(mockReq, mockRes, mockNext);
@@ -401,15 +436,43 @@ describe('QueryPlanController', () => {
   describe('comparePlans', () => {
     it('应当比较两个查询计划', async () => {
       // 准备测试数据
+      const mockPlanA = {
+        id: 'plan-1',
+        sql: 'SELECT * FROM users',
+        planData: JSON.stringify({steps: []}),
+        dataSourceId: 'ds-1',
+        createdAt: new Date()
+      };
+      
+      const mockPlanB = {
+        id: 'plan-2',
+        sql: 'SELECT * FROM users WHERE id > 100',
+        planData: JSON.stringify({steps: []}),
+        dataSourceId: 'ds-1',
+        createdAt: new Date()
+      };
+      
       mockReq.body = {
         planAId: 'plan-1',
         planBId: 'plan-2'
       };
       
+      // 设置成功的模拟返回
+      mockPrismaClient.queryPlan.findUnique
+        .mockResolvedValueOnce(mockPlanA)
+        .mockResolvedValueOnce(mockPlanB);
+      
+      mockQueryPlanService.comparePlans.mockResolvedValueOnce({
+        summary: { improvement: true },
+        nodeComparison: []
+      });
+      
       // 执行测试
       await queryPlanController.comparePlans(mockReq, mockRes, mockNext);
       
       // 验证
+      expect(mockPrismaClient.queryPlan.findUnique).toHaveBeenCalledTimes(2);
+      expect(mockDataSourceService.getDataSourceById).toHaveBeenCalledWith(mockPlanA.dataSourceId);
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,

@@ -1,7 +1,6 @@
-// 将测试文件从TypeScript转换为JavaScript，以避免类型问题
+// 测试 QueryService
 const { QueryService } = require('../../../src/services/query.service');
-const { ApiError } = require('../../../src/utils/error');
-const { jest } = require('@jest/globals');
+const { QueryError } = require('../../../src/utils/errors');
 
 // 模拟PrismaClient
 const mockPrismaClient = {
@@ -140,7 +139,7 @@ describe('QueryService', () => {
       // 执行测试并期望抛出错误
       await expect(
         queryService.executeQuery('data-source-id', 'SELECT * FROM test')
-      ).rejects.toThrow(ApiError);
+      ).rejects.toThrow(QueryError);
       
       // 验证
       expect(dataSourceService.getConnector).toHaveBeenCalledWith('data-source-id');
@@ -216,7 +215,7 @@ describe('QueryService', () => {
       mockPrismaClient.queryHistory.findMany.mockRejectedValue(new Error('Database error'));
       
       // 执行测试并期望抛出错误
-      await expect(queryService.getQueryHistory('data-source-id')).rejects.toThrow(ApiError);
+      await expect(queryService.getQueryHistory('data-source-id')).rejects.toThrow(QueryError);
       
       // 验证
       expect(require('../../../src/utils/logger').default.error).toHaveBeenCalled();

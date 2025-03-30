@@ -5,31 +5,28 @@ import { jest, describe, beforeEach, it, expect } from '@jest/globals';
 import dataSourceService from '../../../src/services/datasource.service';
 import logger from '../../../src/utils/logger';
 
-// 模拟PrismaClient
+// 首先定义mockPrismaClient
 const mockPrismaClient = {
   queryHistory: {
-    create: jest.fn(),
-    update: jest.fn(),
-    findUnique: jest.fn(),
     findMany: jest.fn(),
-    count: jest.fn()
+    create: jest.fn(),
+    delete: jest.fn()
   },
-  queryPlanHistory: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
+  queryPlan: {
     findMany: jest.fn(),
-    count: jest.fn()
+    findUnique: jest.fn(),
+    create: jest.fn()
   },
-  query: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
+  savedQuery: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn()
   }
 };
 
-// 模拟Prisma客户端
+// 模拟PrismaClient
 jest.mock('@prisma/client', () => {
   return {
     PrismaClient: jest.fn().mockImplementation(() => mockPrismaClient)

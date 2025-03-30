@@ -150,6 +150,18 @@ POST /api/query-plans/compare
   - 查询错误 (QueryError)
   - 验证错误 (ValidationError)
 
+### 测试体系
+
+- 完整的测试架构，包括单元测试和集成测试
+- 使用Jest测试框架进行自动化测试
+- 所有核心控制器已完成测试用例并全部通过：
+  - datasource.controller.test.js (17个测试通过)
+  - query.controller.test.js (16个测试通过)
+  - query-plan.controller.test.js (10个测试通过)
+- 使用Docker容器创建隔离的测试数据库环境
+- 测试中使用mock对象替代真实依赖，确保单元测试的隔离性和可靠性
+- 支持测试覆盖率分析，确保代码质量
+
 ## 快速开始
 
 ### 安装依赖

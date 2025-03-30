@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.11% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>16/17</span>
+                <span class='fraction'>0/17</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.11% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>16/17</span>
+                <span class='fraction'>0/17</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -86,60 +86,60 @@
 <a name='L21'></a><a href='#L21'>21</a>
 <a name='L22'></a><a href='#L22'>22</a>
 <a name='L23'></a><a href='#L23'>23</a>
-<a name='L24'></a><a href='#L24'>24</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<a name='L24'></a><a href='#L24'>24</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span></td><td class="text"><pre class="prettyprint lang-js">import { Router } from 'express';
-import dataSourceRoutes from './datasource.routes';
-import queryRoutes from './query.routes';
-import metadataRoutes from './metadata.routes';
-import examplesRoutes from './examples.routes';
-import planVisualizationRoutes from './plan-visualization.routes';
-import queryPlanRoutes from './query-plan.routes';
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { Router } from 'express';</span>
+<span class="cstat-no" title="statement not covered" >import dataSourceRoutes from './datasource.routes';</span>
+<span class="cstat-no" title="statement not covered" >import queryRoutes from './query.routes';</span>
+<span class="cstat-no" title="statement not covered" >import metadataRoutes from './metadata.routes';</span>
+<span class="cstat-no" title="statement not covered" >import examplesRoutes from './examples.routes';</span>
+<span class="cstat-no" title="statement not covered" >import planVisualizationRoutes from './plan-visualization.routes';</span>
+<span class="cstat-no" title="statement not covered" >import queryPlanRoutes from './query-plan.routes';</span>
 &nbsp;
-const router = Router();
+const router = <span class="cstat-no" title="statement not covered" >Router();</span>
 &nbsp;
 // API路由
-router.use('/datasources', dataSourceRoutes);
-router.use('/queries', queryRoutes);
-router.use('/metadata', metadataRoutes);
-router.use('/examples', examplesRoutes);
-router.use('/plan-visualization', planVisualizationRoutes);
-router.use('/query-plans', queryPlanRoutes);
+<span class="cstat-no" title="statement not covered" >router.use('/datasources', dataSourceRoutes);</span>
+<span class="cstat-no" title="statement not covered" >router.use('/queries', queryRoutes);</span>
+<span class="cstat-no" title="statement not covered" >router.use('/metadata', metadataRoutes);</span>
+<span class="cstat-no" title="statement not covered" >router.use('/examples', examplesRoutes);</span>
+<span class="cstat-no" title="statement not covered" >router.use('/plan-visualization', planVisualizationRoutes);</span>
+<span class="cstat-no" title="statement not covered" >router.use('/query-plans', queryPlanRoutes);</span>
 &nbsp;
 // API文档
-router.get('/', <span class="fstat-no" title="function not covered" >(r</span>eq, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >router.get('/', <span class="fstat-no" title="function not covered" >(r</span>eq, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  res.redirect('/api-docs');</span>
 });
 &nbsp;
-export default router;</pre></td></tr></table></pre>
+<span class="cstat-no" title="statement not covered" >export default router;</span></pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-03-29T16:12:12.174Z
+                at 2025-03-30T07:30:49.720Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>
