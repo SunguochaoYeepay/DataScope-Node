@@ -1,6 +1,6 @@
 // 将测试文件从TypeScript转换为JavaScript，以避免类型问题
 const { QueryController } = require('../../../src/api/controllers/query.controller');
-const { ApiError } = require('../../../src/utils/errors/api-error');
+const { ApiError } = require('../../../src/utils/errors/types/api-error');
 
 // 模拟dependencies
 const mockConnector = {
