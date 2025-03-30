@@ -4,7 +4,7 @@ import { IDatabaseConnector, DatabaseConnector } from './database/dbInterface';
 import { ApiError } from '../utils/error';
 import logger from '../utils/logger';
 import config from '../config/env';
-import { encrypt, decrypt, generateSalt, encryptPassword, comparePassword, verifyPassword } from '../utils/crypto';
+import { encrypt, decrypt, generateSalt } from '../utils/crypto';
 import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../types/datasource';
 import { DatabaseType } from '../types/database';
 import { DatabaseConnectorFactory } from '../types/database-factory';
@@ -48,8 +48,8 @@ export class DataSourceService {
     try {
       const { name, description, type, host, port, username, password, database, connectionParams } = data;
 
-      // 密码加密
-      const { hash, salt } = encryptPassword(password);
+      // 使用可逆加密而非哈希
+      const { encrypted, salt } = encrypt(password);
       
       return await prisma.dataSource.create({
         data: {
@@ -60,7 +60,7 @@ export class DataSourceService {
           port,
           databaseName: database,
           username,
-          passwordEncrypted: hash,
+          passwordEncrypted: encrypted,
           passwordSalt: salt,
           connectionParams,
           status: 'ACTIVE',
@@ -141,10 +141,10 @@ export class DataSourceService {
       
       const updateData: any = { ...data };
       
-      // 如果提供了新密码，重新加密
+      // 如果提供了新密码，使用可逆加密而非哈希
       if (data.password) {
-        const salt = generateSalt();
-        updateData.passwordEncrypted = encryptPassword(data.password, salt);
+        const { encrypted, salt } = encrypt(data.password);
+        updateData.passwordEncrypted = encrypted;
         updateData.passwordSalt = salt;
         delete updateData.password;
       }

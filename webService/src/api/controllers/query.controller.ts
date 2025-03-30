@@ -4,6 +4,7 @@ import queryService from '../../services/query.service';
 import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
+import dataSourceService from '../../services/datasource.service';
 
 export class QueryController {
   /**
@@ -280,8 +281,24 @@ export class QueryController {
    */
   validateExecuteQuery() {
     return [
-      body('dataSourceId').notEmpty().withMessage('数据源ID不能为空'),
-      body('sql').notEmpty().withMessage('SQL查询语句不能为空'),
+      body('dataSourceId')
+        .notEmpty().withMessage('数据源ID不能为空')
+        .isString().withMessage('数据源ID必须是字符串')
+        .custom(async (dataSourceId) => {
+          try {
+            // 检查数据源是否存在
+            const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
+            if (!dataSource) {
+              throw new Error('数据源不存在');
+            }
+            return true;
+          } catch (error) {
+            throw new Error('无效的数据源ID');
+          }
+        }),
+      body('sql')
+        .notEmpty().withMessage('SQL查询不能为空')
+        .isString().withMessage('SQL查询必须是字符串')
     ];
   }
 
