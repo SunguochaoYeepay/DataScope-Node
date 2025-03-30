@@ -220,6 +220,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 修复分页逻辑，处理后端返回数组而非标准分页对象的情况
   - 优化测试连接和同步元数据API请求和响应处理
   - 完善错误处理和默认值逻辑，提高代码健壮性
+- 按照前端指南要求，修复数据源API适配问题
+  - 修正数据库字段名，将前端的databaseName转换为后端的database
+  - 确保发送包含正确格式的请求体到后端API
+  - 添加响应格式处理兼容层，支持{success: true, data: {...}}格式
+  - 完善数据类型转换，确保字符串数值正确解析
 
 ## 2023年7月15日
 
