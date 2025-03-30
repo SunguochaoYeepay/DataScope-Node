@@ -2,12 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { check, validationResult } from 'express-validator';
 import metadataService from '../../services/metadata.service';
 import columnAnalyzer from '../../services/metadata/column-analyzer';
-import { ApiError } from '../../utils/error';
+import ApiError from '../../utils/apiError';
 import logger from '../../utils/logger';
 import { DataSourceService } from '../../services/datasource.service';
 import config from '../../config';
+import { PrismaClient } from '@prisma/client';
 
 const dataSourceService = new DataSourceService();
+const prisma = new PrismaClient();
 
 // 扩展Request接口以支持用户信息
 interface AuthenticatedRequest extends Request {
@@ -18,7 +20,7 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-export class MetadataController {
+class MetadataController {
   /**
    * 同步数据源元数据
    */
@@ -26,7 +28,7 @@ export class MetadataController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', 400);
       }
 
       const { dataSourceId } = req.params;
@@ -99,7 +101,7 @@ export class MetadataController {
         // 验证输入
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-          throw new ApiError('验证错误', 400, { errors: errors.array() });
+          throw new ApiError('验证错误', 400);
         }
 
         const { dataSourceId, schemaName, tableName } = req.params;
@@ -152,14 +154,14 @@ export class MetadataController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', 400);
       }
 
       const { dataSourceId } = req.params;
       const { schema, table, column } = req.query;
       
       if (!schema || !table || !column) {
-        throw new ApiError('缺少必要参数', 400, { message: '必须提供schema、table和column参数' });
+        throw new ApiError('缺少必要参数：必须提供schema、table和column参数', 400);
       }
       
       const result = await columnAnalyzer.analyzeColumn(
@@ -265,7 +267,7 @@ export class MetadataController {
         }
       } catch (err) {
         logger.error('获取数据库结构失败', { error: err, dataSourceId: id });
-        throw new ApiError('获取数据库结构失败', 500, { message: (err as Error).message });
+        throw new ApiError(`获取数据库结构失败: ${(err as Error).message}`, 500);
       }
       
       // 返回结构
@@ -394,6 +396,107 @@ export class MetadataController {
           error: (error as Error).message
         });
       }
+    }
+  }
+
+  /**
+   * 获取表列表
+   * @param req 请求对象
+   * @param res 响应对象
+   * @param next 下一个中间件
+   */
+  async getTables(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { dataSourceId } = req.params;
+      
+      logger.info(`获取数据源 ${dataSourceId} 的表列表`);
+      
+      // 验证数据源是否存在
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id: dataSourceId }
+      });
+      
+      if (!dataSource) {
+        return next(new ApiError(`数据源 ${dataSourceId} 不存在`, 404));
+      }
+      
+      // 获取数据源的表列表
+      const tables = await metadataService.getTables(dataSourceId);
+      
+      logger.info(`成功获取数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
+      
+      return res.status(200).json({
+        success: true,
+        data: tables
+      });
+    } catch (error) {
+      logger.error('获取表列表失败', { error });
+      return next(error);
+    }
+  }
+  
+  /**
+   * 获取表结构
+   * @param req 请求对象
+   * @param res 响应对象
+   * @param next 下一个中间件
+   */
+  async getTableStructure(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { dataSourceId, tableName } = req.params;
+      
+      if (!dataSourceId || !tableName) {
+        throw new ApiError('缺少必要参数', 400);
+      }
+      
+      // 获取数据源
+      const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', 404);
+      }
+      
+      // 获取表结构
+      const structure = await metadataService.getTableStructure(dataSourceId, tableName);
+      
+      res.status(200).json({
+        success: true,
+        data: structure
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  /**
+   * 获取数据源的统计信息
+   */
+  async getStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dataSourceId = req.params.id || req.params.dataSourceId;
+      
+      logger.info(`获取数据源 ${dataSourceId} 的统计信息`);
+      
+      // 验证数据源是否存在
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id: dataSourceId }
+      });
+      
+      if (!dataSource) {
+        return next(new ApiError(`数据源 ${dataSourceId} 不存在`, 404));
+      }
+      
+      // 获取数据源的统计信息
+      const stats = await metadataService.getStats(dataSourceId);
+      
+      logger.info(`成功获取数据源 ${dataSourceId} 的统计信息`);
+      
+      return res.status(200).json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      logger.error('获取统计信息失败', { error });
+      return next(error);
     }
   }
 }

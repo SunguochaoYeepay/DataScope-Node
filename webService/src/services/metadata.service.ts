@@ -4,18 +4,30 @@
  * 负责从数据源同步元数据，包括数据库结构、表、列和关系
  */
 import { PrismaClient } from '@prisma/client';
-import { ApiError } from '../utils/error';
-import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
-import relationshipDetector from './metadata/relationship-detector';
-import columnAnalyzer from './metadata/column-analyzer';
+import ApiError from '../utils/apiError';
+import { DatabaseConnectorFactory } from '../utils/database-utils';
+import dataSourceService from './datasource.service';
+import { v4 as uuidv4 } from 'uuid';
 
+// 定义自定义类型，用于表示元数据表
+type PrismaMetadata = {
+  id: string;
+  dataSourceId: string;
+  structure: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+// 创建Prisma客户端实例
 const prisma = new PrismaClient();
 
-export class MetadataService {
+/**
+ * 元数据服务类，处理数据源的元数据管理
+ */
+class MetadataService {
   /**
-   * 同步数据源元数据
-   * 
+   * 同步数据源的元数据
    * @param dataSourceId 数据源ID
    * @param options 同步选项
    * @returns 同步结果
@@ -45,6 +57,7 @@ export class MetadataService {
           status: 'RUNNING',
           startTime: new Date(),
           syncType,
+          createdBy: 'system'
         },
       });
       
@@ -52,365 +65,95 @@ export class MetadataService {
       logger.info(`开始同步数据源元数据 [${dataSourceId}], 同步历史ID: ${syncHistoryId}`);
       
       // 获取数据源连接器
-      const connector = await dataSourceService.getConnector(dataSourceId);
+      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
       
-      // 1. 先获取数据库架构列表
-      const schemas = await connector.getSchemas();
-      logger.info(`发现 ${schemas.length} 个数据库架构: ${schemas.join(', ')}`);
+      // 获取元数据结构
+      const structure = await this.getStructure(dataSourceId);
       
-      for (const schemaName of schemas) {
-        // 检查schema名称是否匹配模式
-        if (options.schemaPattern && !new RegExp(options.schemaPattern).test(schemaName)) {
-          logger.debug(`跳过架构: ${schemaName}, 不符合模式: ${options.schemaPattern}`);
-          continue;
-        }
-        
-        // 2. 创建或更新Schema记录
-        let schema = await prisma.schema.findFirst({
-          where: {
-            dataSourceId,
-            name: schemaName,
-          },
-        });
-        
-        if (!schema) {
-          schema = await prisma.schema.create({
-            data: {
-              dataSourceId,
-              name: schemaName,
-              description: `${schemaName} 架构`,
-            },
-          });
-          logger.debug(`创建新架构: ${schemaName}, ID: ${schema.id}`);
-        } else {
-          schema = await prisma.schema.update({
-            where: { id: schema.id },
-            data: {
-              updatedAt: new Date(),
-              nonce: { increment: 1 },
-            },
-          });
-          logger.debug(`更新现有架构: ${schemaName}, ID: ${schema.id}`);
-        }
-        
-        // 3. 获取表列表
-        const tables = await connector.getTables(schemaName);
-        logger.info(`在架构 ${schemaName} 中发现 ${tables.length} 个表/视图`);
-        
-        for (const tableInfo of tables) {
-          // 检查表名是否匹配模式
-          if (options.tablePattern && !new RegExp(options.tablePattern).test(tableInfo.name)) {
-            logger.debug(`跳过表: ${tableInfo.name}, 不符合模式: ${options.tablePattern}`);
-            continue;
-          }
-          
-          // 表类型 TABLE 或 VIEW
-          if (tableInfo.type === 'TABLE') {
-            tablesCount++;
-          } else if (tableInfo.type === 'VIEW') {
-            viewsCount++;
-          }
-          
-          // 4. 创建或更新Table记录
-          let table = await prisma.table.findFirst({
-            where: {
-              schemaId: schema.id,
-              name: tableInfo.name,
-            },
-          });
-          
-          if (!table) {
-            table = await prisma.table.create({
-              data: {
-                schemaId: schema.id,
-                name: tableInfo.name,
-                type: tableInfo.type || 'TABLE',
-                description: tableInfo.description || `${tableInfo.name} 表`,
-              },
-            });
-            logger.debug(`创建新表: ${tableInfo.name}, ID: ${table.id}`);
-          } else {
-            table = await prisma.table.update({
-              where: { id: table.id },
-              data: {
-                type: tableInfo.type || 'TABLE',
-                description: tableInfo.description || table.description,
-                updatedAt: new Date(),
-                nonce: { increment: 1 },
-              },
-            });
-            logger.debug(`更新现有表: ${tableInfo.name}, ID: ${table.id}`);
-          }
-          
-          // 如果是全量同步，先删除旧的列记录
-          if (syncType === 'FULL') {
-            await prisma.column.deleteMany({
-              where: { tableId: table.id },
-            });
-            logger.debug(`删除表 ${tableInfo.name} 的所有列记录`);
-          }
-          
-          // 5. 获取表的列信息
-          const columns = await connector.getColumns(schemaName, tableInfo.name);
-          logger.info(`在表 ${tableInfo.name} 中发现 ${columns.length} 个列`);
-          
-          // 6. 获取主键信息
-          const primaryKeys = await connector.getPrimaryKeys(schemaName, tableInfo.name);
-          const primaryKeyNames = primaryKeys.map(pk => pk.columnName);
-          
-          // 7. 获取外键信息
-          const foreignKeys = await connector.getForeignKeys(schemaName, tableInfo.name);
-          
-          // 8. 创建或更新列记录
-          for (const columnInfo of columns) {
-            // 判断是否为主键
-            const isPrimaryKey = primaryKeyNames.includes(columnInfo.name);
-            
-            // 判断是否为外键
-            const isForeignKey = foreignKeys.some(fk => 
-              fk.columnName === columnInfo.name
-            );
-            
-            // 创建或更新列记录
-            let column = await prisma.column.findFirst({
-              where: {
-                tableId: table.id,
-                name: columnInfo.name,
-              },
-            });
-            
-            if (!column) {
-              column = await prisma.column.create({
-                data: {
-                  tableId: table.id,
-                  name: columnInfo.name,
-                  dataType: columnInfo.dataType,
-                  length: columnInfo.maxLength,
-                  precision: columnInfo.precision,
-                  scale: columnInfo.scale,
-                  nullable: columnInfo.isNullable,
-                  isPrimaryKey,
-                  isForeignKey,
-                  defaultValue: columnInfo.defaultValue,
-                  description: columnInfo.description || `${columnInfo.name} 列`,
-                },
-              });
-              logger.debug(`创建新列: ${columnInfo.name}, ID: ${column.id}`);
-            } else if (syncType === 'INCREMENTAL') {
-              column = await prisma.column.update({
-                where: { id: column.id },
-                data: {
-                  dataType: columnInfo.dataType,
-                  length: columnInfo.maxLength,
-                  precision: columnInfo.precision,
-                  scale: columnInfo.scale,
-                  nullable: columnInfo.isNullable,
-                  isPrimaryKey,
-                  isForeignKey,
-                  defaultValue: columnInfo.defaultValue,
-                  description: columnInfo.description || column.description,
-                  updatedAt: new Date(),
-                  nonce: { increment: 1 },
-                },
-              });
-              logger.debug(`更新现有列: ${columnInfo.name}, ID: ${column.id}`);
-            }
-          }
-          
-          // 9. 处理外键关系
-          if (syncType === 'FULL') {
-            // 先删除旧的关系
-            await prisma.columnRelationship.deleteMany({
-              where: {
-                tableRelationship: {
-                  sourceTableId: table.id,
-                },
-              },
-            });
-            
-            await prisma.tableRelationship.deleteMany({
-              where: {
-                sourceTableId: table.id,
-              },
-            });
-            
-            logger.debug(`删除表 ${tableInfo.name} 的所有关系记录`);
-          }
-          
-          // 处理新的外键关系
-          for (const fk of foreignKeys) {
-            // 寻找目标表
-            const targetSchemaName = fk.referencedSchema || schemaName;
-            
-            // 先找到目标Schema
-            const targetSchema = await prisma.schema.findFirst({
-              where: {
-                dataSourceId,
-                name: targetSchemaName,
-              },
-            });
-            
-            if (!targetSchema) {
-              logger.warn(`找不到目标架构: ${targetSchemaName}, 跳过外键关系`);
-              continue;
-            }
-            
-            // 寻找目标表
-            const targetTable = await prisma.table.findFirst({
-              where: {
-                schemaId: targetSchema.id,
-                name: fk.referencedTable,
-              },
-            });
-            
-            if (!targetTable) {
-              logger.warn(`找不到目标表: ${fk.referencedTable}, 跳过外键关系`);
-              continue;
-            }
-            
-            // 寻找源列和目标列
-            const sourceColumn = await prisma.column.findFirst({
-              where: {
-                tableId: table.id,
-                name: fk.columnName,
-              },
-            });
-            
-            const targetColumn = await prisma.column.findFirst({
-              where: {
-                tableId: targetTable.id,
-                name: fk.referencedColumn,
-              },
-            });
-            
-            if (!sourceColumn || !targetColumn) {
-              logger.warn(`找不到外键关系的源列或目标列, 跳过此关系`);
-              continue;
-            }
-            
-            // 创建表关系
-            const tableRelationship = await prisma.tableRelationship.create({
-              data: {
-                sourceTableId: table.id,
-                targetTableId: targetTable.id,
-                type: 'MANY_TO_ONE', // 默认外键关系类型
-                confidence: 1.0,
-                isAutoDetected: true,
-              },
-            });
-            
-            // 创建列关系
-            await prisma.columnRelationship.create({
-              data: {
-                tableRelationshipId: tableRelationship.id,
-                sourceColumnId: sourceColumn.id,
-                targetColumnId: targetColumn.id,
-              },
-            });
-            
-            logger.debug(`创建外键关系: ${fk.constraintName} (${table.name}.${sourceColumn.name} -> ${targetTable.name}.${targetColumn.name})`);
-          }
-        }
+      // 保存元数据结构到数据库
+      // 检查是否已存在元数据记录
+      const existingMetadata = await prisma.$queryRaw<PrismaMetadata[]>`
+        SELECT id FROM "Metadata" WHERE "dataSourceId" = ${dataSourceId} LIMIT 1
+      `;
+      
+      const structureJson = JSON.stringify(structure);
+      const now = new Date();
+      
+      if (existingMetadata && existingMetadata.length > 0) {
+        // 更新现有记录
+        await prisma.$executeRaw`
+          UPDATE "Metadata"
+          SET structure = ${structureJson}, "updatedAt" = ${now}
+          WHERE id = ${existingMetadata[0].id}
+        `;
+        logger.debug(`更新元数据记录 ID: ${existingMetadata[0].id}`);
+      } else {
+        // 创建新记录
+        const metadataId = uuidv4();
+        await prisma.$executeRaw`
+          INSERT INTO "Metadata" (id, "dataSourceId", structure, "createdAt", "updatedAt")
+          VALUES (${metadataId}, ${dataSourceId}, ${structureJson}, ${now}, ${now})
+        `;
+        logger.debug(`创建新元数据记录 ID: ${metadataId}`);
       }
       
-      // 使用关系检测器检测表关系
-      logger.info(`开始检测表关系 [${dataSourceId}]`);
-      const detectedRelationships = await relationshipDetector.detectRelationships(dataSourceId);
-      logger.info(`检测到 ${detectedRelationships} 个表关系 [${dataSourceId}]`);
+      // 关闭连接
+      await connector.close();
       
-      // 更新同步历史记录为完成状态
+      // 更新同步历史记录
+      const endTime = new Date();
+      const duration = endTime.getTime() - syncHistory.startTime.getTime();
+      
+      tablesCount = structure.tables ? structure.tables.length : 0;
+      
       await prisma.metadataSyncHistory.update({
         where: { id: syncHistoryId },
         data: {
-          endTime: new Date(),
           status: 'COMPLETED',
+          endTime,
+          duration,
           tablesCount,
-          viewsCount,
-        },
+          viewsCount
+        }
       });
       
-      logger.info(`数据源元数据同步完成 [${dataSourceId}], 共同步了 ${tablesCount} 个表和 ${viewsCount} 个视图, 检测了 ${detectedRelationships} 个表关系`);
+      logger.info(`同步数据源 ${dataSourceId} 的元数据成功, 共同步了 ${tablesCount} 张表`);
       
       return {
         tablesCount,
         viewsCount,
-        syncHistoryId,
+        syncHistoryId
       };
     } catch (error: any) {
-      logger.error(`数据源元数据同步失败 [${dataSourceId}]`, { error });
+      logger.error(`同步数据源 ${dataSourceId} 的元数据失败`, { error });
       
       // 更新同步历史记录为失败状态
       if (syncHistoryId) {
-        await prisma.metadataSyncHistory.update({
-          where: { id: syncHistoryId },
-          data: {
-            endTime: new Date(),
-            status: 'FAILED',
-            errorMessage: error.message,
-          },
-        });
+        try {
+          await prisma.metadataSyncHistory.update({
+            where: { id: syncHistoryId },
+            data: {
+              status: 'FAILED',
+              endTime: new Date(),
+              errorMessage: error.message
+            }
+          });
+        } catch (err) {
+          logger.error('更新同步历史记录失败', { err });
+        }
       }
       
-      throw new ApiError(
-        `数据源元数据同步失败: ${error.message}`,
-        500,
-        { dataSourceId, error: error.stack }
-      );
-    }
-  }
-  
-  /**
-   * 获取数据源的元数据结构
-   * 
-   * @param dataSourceId 数据源ID
-   * @returns 元数据结构
-   */
-  async getMetadataStructure(dataSourceId: string): Promise<any> {
-    try {
-      // 获取该数据源下的所有Schema
-      const schemas = await prisma.schema.findMany({
-        where: {
-          dataSourceId,
-        },
-        include: {
-          tables: {
-            include: {
-              columns: true,
-              sourceRelationships: {
-                include: {
-                  targetTable: true,
-                  columnRelationships: {
-                    include: {
-                      sourceColumn: true,
-                      targetColumn: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-      
-      if (schemas.length === 0) {
-        throw new ApiError('数据源元数据未同步', 404);
-      }
-      
-      return schemas;
-    } catch (error: any) {
-      logger.error('获取元数据结构失败', { error, dataSourceId });
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError('获取元数据结构失败', 500, { message: error?.message || '未知错误' });
+      throw new ApiError(`同步元数据失败: ${error.message}`, 500);
     }
   }
-  
+
   /**
-   * 获取同步历史记录
-   * 
+   * 获取元数据同步历史
    * @param dataSourceId 数据源ID
-   * @param limit 限制返回数量
+   * @param limit 记录数限制
    * @param offset 偏移量
    * @returns 同步历史记录
    */
@@ -425,37 +168,37 @@ export class MetadataService {
     offset: number;
   }> {
     try {
-      const [history, total] = await Promise.all([
-        prisma.metadataSyncHistory.findMany({
-          where: { dataSourceId },
-          orderBy: { startTime: 'desc' },
-          take: limit,
-          skip: offset,
-        }),
-        prisma.metadataSyncHistory.count({
-          where: { dataSourceId },
-        }),
-      ]);
+      // 获取同步历史记录
+      const history = await prisma.metadataSyncHistory.findMany({
+        where: { dataSourceId },
+        orderBy: { startTime: 'desc' },
+        take: limit,
+        skip: offset
+      });
+      
+      // 获取总记录数
+      const total = await prisma.metadataSyncHistory.count({
+        where: { dataSourceId }
+      });
       
       return {
         history,
         total,
         limit,
-        offset,
+        offset
       };
     } catch (error: any) {
-      logger.error('获取同步历史失败', { error, dataSourceId });
-      throw new ApiError('获取同步历史失败', 500, { message: error?.message || '未知错误' });
+      logger.error(`获取数据源 ${dataSourceId} 的同步历史失败`, { error });
+      throw new ApiError(`获取同步历史失败: ${error.message}`, 500);
     }
   }
-  
+
   /**
-   * 获取表数据预览
-   * 
+   * 预览表数据
    * @param dataSourceId 数据源ID
-   * @param schemaName 架构名称
-   * @param tableName 表名称
-   * @param limit 限制返回行数
+   * @param schemaName 模式名
+   * @param tableName 表名
+   * @param limit 记录数限制
    * @returns 表数据预览
    */
   async previewTableData(
@@ -465,17 +208,344 @@ export class MetadataService {
     limit: number = 100
   ): Promise<any> {
     try {
-      // 获取数据源连接器
-      const connector = await dataSourceService.getConnector(dataSourceId);
+      // 创建连接器
+      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
       
-      // 预览表数据
-      return await connector.previewTableData(schemaName, tableName, limit);
+      // 构建查询
+      let query = `SELECT * FROM `;
+      if (schemaName && schemaName !== 'public') {
+        query += `"${schemaName}"."${tableName}"`;
+      } else {
+        query += `"${tableName}"`;
+      }
+      query += ` LIMIT ${limit}`;
+      
+      // 执行查询
+      const result = await connector.executeQuery(query);
+      
+      // 关闭连接
+      await connector.close();
+      
+      return result;
     } catch (error: any) {
-      logger.error('获取表数据预览失败', { error, dataSourceId, schemaName, tableName });
+      logger.error(`预览表 ${tableName} 数据失败`, { error });
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError('获取表数据预览失败', 500, { message: error?.message || '未知错误' });
+      throw new ApiError(`预览表数据失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取表结构列表
+   * @param dataSourceId 数据源ID
+   * @returns 表结构列表
+   */
+  async getTableList(dataSourceId: string): Promise<any[]> {
+    try {
+      // 与getTables方法类似，但返回格式不同
+      const tables = await this.getTables(dataSourceId);
+      return tables;
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 的表结构列表失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取表结构列表失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取表结构
+   * @param dataSourceId 数据源ID
+   * @param tableName 表名
+   * @returns 表结构
+   */
+  async getTableStructure(dataSourceId: string, tableName: string): Promise<any> {
+    try {
+      // 获取表列信息
+      const columns = await this.getColumns(dataSourceId, tableName);
+      
+      // 获取数据源信息
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id: dataSourceId }
+      });
+      
+      if (!dataSource) {
+        throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
+      }
+      
+      return {
+        name: tableName,
+        schema: 'public',
+        columns: columns
+      };
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 表 ${tableName} 的结构失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取表结构失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取数据源的表列表
+   * @param dataSourceId 数据源ID
+   * @returns 表名列表
+   */
+  async getTables(dataSourceId: string): Promise<any[]> {
+    try {
+      logger.info(`获取数据源 ${dataSourceId} 的表列表`);
+      
+      // 获取数据源信息
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id: dataSourceId }
+      });
+      
+      if (!dataSource) {
+        throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
+      }
+      
+      // 创建连接器
+      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+      
+      // 获取表列表
+      const tables = await connector.getTables();
+      
+      // 关闭连接
+      await connector.close();
+      
+      logger.info(`获取到数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
+      
+      // 格式化返回结果
+      return tables.map(tableName => ({
+        name: tableName,
+        type: 'TABLE',
+        schema: 'public'
+      }));
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 的表列表失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取表列表失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取表的列信息
+   * @param dataSourceId 数据源ID
+   * @param tableName 表名
+   * @returns 列信息列表
+   */
+  async getColumns(dataSourceId: string, tableName: string): Promise<any[]> {
+    try {
+      logger.info(`获取数据源 ${dataSourceId} 表 ${tableName} 的列信息`);
+      
+      // 创建连接器
+      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+      
+      // 获取列信息
+      const columns = await connector.getColumns(tableName);
+      
+      // 关闭连接
+      await connector.close();
+      
+      logger.info(`获取到数据源 ${dataSourceId} 表 ${tableName} 的列信息，共 ${columns.length} 列`);
+      
+      return columns;
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 表 ${tableName} 的列信息失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取列信息失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取数据源的元数据结构
+   * @param dataSourceId 数据源ID
+   * @returns 元数据结构
+   */
+  async getStructure(dataSourceId: string): Promise<any> {
+    try {
+      logger.info(`获取数据源 ${dataSourceId} 的元数据结构`);
+      
+      // 获取数据源信息
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id: dataSourceId }
+      });
+      
+      if (!dataSource) {
+        throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
+      }
+      
+      // 创建连接器
+      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+      
+      // 获取表列表
+      const tables = await connector.getTables();
+      
+      // 获取每个表的列信息
+      const tablesWithColumns = await Promise.all(
+        tables.map(async (tableName: string) => {
+          const columns = await connector.getColumns(tableName);
+          return {
+            name: tableName,
+            columns: columns
+          };
+        })
+      );
+      
+      // 关闭连接
+      await connector.close();
+      
+      logger.info(`获取到数据源 ${dataSourceId} 的元数据结构，共 ${tables.length} 张表`);
+      
+      return {
+        databaseName: dataSource.databaseName,
+        tables: tablesWithColumns
+      };
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 的元数据结构失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取元数据结构失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取元数据结构
+   * @param dataSourceId 数据源ID
+   * @returns 元数据结构
+   */
+  async getMetadataStructure(dataSourceId: string): Promise<any> {
+    try {
+      // 从数据库中获取保存的元数据结构
+      const metadata = await prisma.$queryRaw<PrismaMetadata[]>`
+        SELECT structure FROM "Metadata" 
+        WHERE "dataSourceId" = ${dataSourceId}
+        ORDER BY "updatedAt" DESC
+        LIMIT 1
+      `;
+      
+      if (metadata && metadata.length > 0 && metadata[0].structure) {
+        // 解析存储的结构
+        return JSON.parse(metadata[0].structure);
+      }
+      
+      // 如果没有找到存储的元数据，则实时获取
+      return await this.getStructure(dataSourceId);
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 的元数据结构失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取元数据结构失败: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * 获取数据源的统计信息
+   * @param dataSourceId 数据源ID
+   * @returns 统计信息
+   */
+  async getStats(dataSourceId: string): Promise<any> {
+    try {
+      logger.info(`获取数据源 ${dataSourceId} 的统计信息`);
+      
+      // 获取数据源信息
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id: dataSourceId }
+      });
+      
+      if (!dataSource) {
+        throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
+      }
+      
+      // 创建连接器
+      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+      
+      // 获取表列表
+      const tables = await connector.getTables();
+      
+      // 获取每个表的行数（最多查询前10张表）
+      const tablesWithStats = await Promise.all(
+        tables.slice(0, 10).map(async (tableName: string) => {
+          try {
+            // 查询表行数
+            const countResult = await connector.executeQuery(`SELECT COUNT(*) as count FROM "${tableName}"`);
+            const rowCount = countResult.rows[0]?.count || 0;
+            
+            // 获取表的列数
+            const columns = await connector.getColumns(tableName);
+            
+            return {
+              name: tableName,
+              rowCount: Number(rowCount),
+              columnCount: columns.length
+            };
+          } catch (error) {
+            logger.warn(`无法获取表 ${tableName} 的统计信息`, { error });
+            return {
+              name: tableName,
+              rowCount: null,
+              columnCount: null,
+              error: '无法获取统计信息'
+            };
+          }
+        })
+      );
+      
+      // 获取数据库大小（仅PostgreSQL支持）
+      let databaseSize = null;
+      if (dataSource.type === 'postgres') {
+        try {
+          const sizeResult = await connector.executeQuery(`
+            SELECT pg_size_pretty(pg_database_size('${dataSource.databaseName}')) as size,
+                  pg_database_size('${dataSource.databaseName}') as size_bytes
+          `);
+          databaseSize = {
+            pretty: sizeResult.rows[0]?.size,
+            bytes: Number(sizeResult.rows[0]?.size_bytes)
+          };
+        } catch (error) {
+          logger.warn(`无法获取数据库 ${dataSource.databaseName} 的大小信息`, { error });
+        }
+      }
+      
+      // 关闭连接
+      await connector.close();
+      
+      // 获取上次更新时间
+      const metadataResults = await prisma.$queryRaw<any[]>`
+        SELECT "updatedAt" FROM "Metadata" 
+        WHERE "dataSourceId" = ${dataSourceId}
+        ORDER BY "updatedAt" DESC
+        LIMIT 1
+      `;
+      
+      const lastUpdated = metadataResults && metadataResults.length > 0 
+        ? metadataResults[0].updatedAt 
+        : null;
+      
+      logger.info(`获取到数据源 ${dataSourceId} 的统计信息`);
+      
+      return {
+        tableCount: tables.length,
+        tables: tablesWithStats,
+        databaseSize,
+        lastUpdated
+      };
+    } catch (error: any) {
+      logger.error(`获取数据源 ${dataSourceId} 的统计信息失败`, { error });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(`获取统计信息失败: ${error.message}`, 500);
     }
   }
 }
