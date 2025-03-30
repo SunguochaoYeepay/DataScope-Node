@@ -37,6 +37,11 @@
 - 修复数据源控制器（DataSourceController）中的ApiError导入路径和构造方法参数
   - 更新旧的导入路径从utils/error到utils/errors/types/api-error
   - 修正ApiError构造函数参数顺序和错误码使用
+- 修复所有其他控制器中的ApiError导入路径和使用
+  - 更新QueryController中的ApiError导入和调用
+  - 更新QueryPlanController中的ApiError导入和调用
+  - 更新PlanVisualizationController中的ApiError导入和调用
+  - 在测试中模拟ApiError，修复测试中的ApiError调用
 
 ## [未发布]
 
