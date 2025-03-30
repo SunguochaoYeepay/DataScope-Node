@@ -40,6 +40,11 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 
 // 将后端返回的数据源对象转换为前端所需的格式
 const adaptDataSource = (source: any): DataSource => {
+  // 如果没有获取到数据，返回空对象
+  if (!source) {
+    return {} as DataSource;
+  }
+
   return {
     id: source.id,
     name: source.name,
@@ -47,7 +52,7 @@ const adaptDataSource = (source: any): DataSource => {
     type: (source.type?.toUpperCase() || 'MYSQL') as DataSourceType, // 后端返回小写的类型
     host: source.host,
     port: source.port,
-    databaseName: source.databaseName,
+    databaseName: source.databaseName || source.database, // 兼容后端可能使用database字段
     username: source.username,
     // 密码通常不会返回
     status: (source.status || 'ACTIVE') as DataSourceStatus,
@@ -142,7 +147,7 @@ export const dataSourceService = {
         type: params.type.toLowerCase(), // 后端期望小写的类型
         host: params.host,
         port: params.port,
-        databaseName: params.databaseName,
+        database: params.databaseName, // 注意：后端期望 database 而不是 databaseName
         username: params.username,
         password: params.password,
         syncFrequency: params.syncFrequency,
@@ -150,7 +155,7 @@ export const dataSourceService = {
         connectionParams: params.connectionOptions || {} // 后端使用connectionParams
       }
       
-      const response = await fetch(API_BASE_URL, {
+      const response = await fetch(`${API_BASE_URL}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -162,7 +167,10 @@ export const dataSourceService = {
         throw new Error(`创建数据源失败: ${response.statusText}`)
       }
       
-      const data = await handleResponse<any>(response)
+      // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
+      const result = await response.json()
+      const data = result.data || result  // 兼容不同的响应格式
+      
       return adaptDataSource(data)
     } catch (error) {
       console.error('创建数据源错误:', error)
@@ -184,7 +192,7 @@ export const dataSourceService = {
         description: params.description,
         host: params.host,
         port: params.port,
-        databaseName: params.databaseName,
+        database: params.databaseName, // 后端期望 database 而不是 databaseName
         username: params.username,
         // 只有在明确提供时才发送密码
         ...(params.password && { password: params.password }),
@@ -205,7 +213,10 @@ export const dataSourceService = {
         throw new Error(`更新数据源失败: ${response.statusText}`)
       }
       
-      const data = await handleResponse<any>(response)
+      // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
+      const result = await response.json()
+      const data = result.data || result  // 兼容不同的响应格式
+      
       return adaptDataSource(data)
     } catch (error) {
       console.error(`更新数据源${params.id}错误:`, error)
@@ -248,7 +259,7 @@ export const dataSourceService = {
         type: params.type.toLowerCase(), // 转小写
         host: params.host,
         port: params.port,
-        databaseName: params.databaseName,
+        database: params.databaseName, // 后端期望 database 而不是 databaseName
         username: params.username,
         password: params.password,
         // 转换字段名不同的属性
@@ -267,7 +278,10 @@ export const dataSourceService = {
         throw new Error(`测试连接失败: ${response.statusText}`)
       }
       
-      const result = await handleResponse<any>(response)
+      // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
+      const responseData = await response.json()
+      const result = responseData.data || responseData  // 兼容不同的响应格式
+      
       // 适配后端返回的测试结果格式为前端需要的格式
       return {
         success: result.success || false,
@@ -447,7 +461,8 @@ export const dataSourceService = {
       }
       
       // 获取后端原始数据
-      const data = await handleResponse<any>(response)
+      const responseData = await response.json()
+      const data = responseData.data || responseData
       
       // 构造前端需要的格式
       // 确保按照DataSourceStats接口定义进行转换
@@ -456,9 +471,11 @@ export const dataSourceService = {
         totalTables: data.tablesCount || 0,
         totalViews: data.viewsCount || 0,
         totalQueries: data.queriesCount || 0,
-        avgQueryTime: data.avgQueryTime ? parseFloat(data.avgQueryTime) : 0,
+        avgQueryTime: typeof data.avgQueryTime === 'string' 
+          ? parseFloat(data.avgQueryTime) : data.avgQueryTime || 0,
         lastAccessTime: data.lastUpdate || new Date().toISOString(),
-        storageUsed: data.totalSize ? parseFloat(data.totalSize) : 0,
+        storageUsed: typeof data.totalSize === 'string' 
+          ? parseFloat(data.totalSize) : data.totalSize || 0,
         popularity: data.activeConnections || 0
       };
       
