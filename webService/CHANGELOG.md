@@ -34,6 +34,9 @@
 - 修复测试文件中的import路径问题
   - 更新ApiError导入路径从api-error到types/api-error
   - 更新JavaScript测试文件的导入路径以匹配代码实现
+- 修复数据源控制器（DataSourceController）中的ApiError导入路径和构造方法参数
+  - 更新旧的导入路径从utils/error到utils/errors/types/api-error
+  - 修正ApiError构造函数参数顺序和错误码使用
 
 ## [未发布]
 
