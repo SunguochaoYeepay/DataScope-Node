@@ -14,6 +14,12 @@ import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
 import logger from '../../utils/logger';
 import { MySQLQueryPlanConverter } from '../../database-core/query-plan/mysql-plan-converter';
 
+// 主机名映射，解决localhost/127.0.0.1转换问题
+const HOST_ALIASES: Record<string, string> = {
+  'localhost': 'host.docker.internal',
+  '127.0.0.1': 'host.docker.internal'
+};
+
 /**
  * MySQL连接器
  * 实现DatabaseConnector接口，提供MySQL数据库的连接和查询功能
@@ -67,8 +73,11 @@ export class MySQLConnector implements DatabaseConnector {
         throw new Error('使用单独参数模式时，所有参数都必须提供');
       }
       
+      // 处理主机名映射
+      const host = this.resolveHostAlias(hostOrConfig);
+      
       this.config = {
-        host: hostOrConfig,
+        host: host,
         port: port,
         user: username,
         password: password,
@@ -79,8 +88,11 @@ export class MySQLConnector implements DatabaseConnector {
       };
     } else {
       // 使用配置对象模式
+      // 处理主机名映射
+      const host = this.resolveHostAlias(hostOrConfig.host);
+      
       this.config = {
-        host: hostOrConfig.host,
+        host: host,
         port: hostOrConfig.port,
         user: hostOrConfig.user,
         password: hostOrConfig.password,
@@ -100,6 +112,20 @@ export class MySQLConnector implements DatabaseConnector {
       port: this.config.port, 
       database: this.config.database 
     });
+  }
+  
+  /**
+   * 解析主机名别名
+   * @param host 原始主机名
+   * @returns 解析后的主机名
+   */
+  private resolveHostAlias(host: string): string {
+    // 检查是否有主机名映射
+    if (HOST_ALIASES[host]) {
+      logger.info(`将主机名 ${host} 映射为 ${HOST_ALIASES[host]}`);
+      return HOST_ALIASES[host];
+    }
+    return host;
   }
   
   // 公开getter以便访问dataSourceId
