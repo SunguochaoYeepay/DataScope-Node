@@ -9,7 +9,10 @@ import type {
   ConnectionTestResult,
   MetadataSyncResult,
   DataSourceStats,
-  DataSourcePermissions
+  DataSourcePermissions,
+  DataSourceType,
+  DataSourceStatus,
+  SyncFrequency
 } from '@/types/datasource'
 import type { TableMetadata, TableRelationship } from '@/types/metadata'
 import { mockDataSourceApi } from '@/mocks/datasource'
@@ -35,6 +38,31 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
   return data.success === undefined ? data : data.data
 }
 
+// 将后端返回的数据源对象转换为前端所需的格式
+const adaptDataSource = (source: any): DataSource => {
+  return {
+    id: source.id,
+    name: source.name,
+    description: source.description || '',
+    type: source.type?.toUpperCase() as DataSourceType, // 后端可能返回小写的类型
+    host: source.host,
+    port: source.port,
+    databaseName: source.databaseName,
+    username: source.username,
+    // 密码通常不会返回
+    status: source.status as DataSourceStatus,
+    syncFrequency: source.syncFrequency as SyncFrequency || 'MANUAL',
+    lastSyncTime: source.lastSyncTime,
+    createdAt: source.createdAt,
+    updatedAt: source.updatedAt,
+    // 其他可选字段
+    errorMessage: source.errorMessage,
+    connectionOptions: source.connectionParams || {},
+    // 额外字段处理
+    metadata: source.metadata
+  }
+}
+
 // 数据源服务
 export const dataSourceService = {
   // 获取数据源列表
@@ -58,7 +86,19 @@ export const dataSourceService = {
         throw new Error(`获取数据源列表失败: ${response.statusText}`)
       }
       
-      return handleResponse<PageResponse<DataSource>>(response)
+      // 处理响应数据
+      const rawData = await handleResponse<any[]>(response)
+      
+      // 将后端数据适配为前端需要的格式
+      const adaptedData: DataSource[] = rawData.map(adaptDataSource)
+      
+      return {
+        items: adaptedData,
+        total: adaptedData.length,
+        page: params.page || 1,
+        size: params.size || adaptedData.length,
+        totalPages: Math.ceil(adaptedData.length / (params.size || 10))
+      }
     } catch (error) {
       console.error('获取数据源列表错误:', error)
       throw error
@@ -77,7 +117,8 @@ export const dataSourceService = {
         throw new Error(`获取数据源详情失败: ${response.statusText}`)
       }
       
-      return handleResponse<DataSource>(response)
+      const data = await handleResponse<any>(response)
+      return adaptDataSource(data)
     } catch (error) {
       console.error(`获取数据源${id}详情错误:`, error)
       throw error
@@ -91,19 +132,28 @@ export const dataSourceService = {
     }
 
     try {
+      // 转换参数格式以匹配后端期望
+      const requestBody = {
+        ...params,
+        // 转换特定字段
+        type: params.type.toLowerCase(), // 后端可能期望小写的类型
+        connectionParams: params.connectionOptions // 字段名不同
+      }
+      
       const response = await fetch(API_BASE_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(params)
+        body: JSON.stringify(requestBody)
       })
       
       if (!response.ok) {
         throw new Error(`创建数据源失败: ${response.statusText}`)
       }
       
-      return handleResponse<DataSource>(response)
+      const data = await handleResponse<any>(response)
+      return adaptDataSource(data)
     } catch (error) {
       console.error('创建数据源错误:', error)
       throw error
@@ -117,19 +167,29 @@ export const dataSourceService = {
     }
 
     try {
+      // 转换参数格式以匹配后端期望
+      const requestBody: any = { ...params }
+      
+      // 字段名不同
+      if (params.connectionOptions) {
+        requestBody.connectionParams = params.connectionOptions
+        delete requestBody.connectionOptions
+      }
+      
       const response = await fetch(`${API_BASE_URL}/${params.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(params)
+        body: JSON.stringify(requestBody)
       })
       
       if (!response.ok) {
         throw new Error(`更新数据源失败: ${response.statusText}`)
       }
       
-      return handleResponse<DataSource>(response)
+      const data = await handleResponse<any>(response)
+      return adaptDataSource(data)
     } catch (error) {
       console.error(`更新数据源${params.id}错误:`, error)
       throw error
