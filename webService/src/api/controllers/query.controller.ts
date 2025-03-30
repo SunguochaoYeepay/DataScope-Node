@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import queryService from '../../services/query.service';
-import { ApiError } from '../../utils/error';
+import { ApiError } from '../../utils/errors/types/api-error';
+import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 
 export class QueryController {
@@ -12,7 +13,7 @@ export class QueryController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { dataSourceId, sql, params, includeAnalysis = true } = req.body;
@@ -45,7 +46,7 @@ export class QueryController {
       const planHistory = await queryService.getQueryPlanById(id);
       
       if (!planHistory) {
-        throw new ApiError('查询计划不存在', 404);
+        throw ApiError.notFound('查询计划不存在');
       }
       
       // 获取优化建议
@@ -117,7 +118,7 @@ export class QueryController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
@@ -141,7 +142,7 @@ export class QueryController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const {
@@ -218,7 +219,7 @@ export class QueryController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { id } = req.params;

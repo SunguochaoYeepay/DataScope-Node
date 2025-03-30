@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import queryService from '../../services/query.service';
-import { ApiError } from '../../utils/error';
+import { ApiError } from '../../utils/errors/types/api-error';
+import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 import { PrismaClient } from '@prisma/client';
 import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
@@ -90,7 +91,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId } = req.params;
@@ -99,7 +100,7 @@ export class PlanVisualizationController {
       const planHistory = await queryService.getQueryPlanById(planId);
       
       if (!planHistory) {
-        throw new ApiError('查询计划不存在', 404);
+        throw ApiError.notFound('查询计划不存在');
       }
       
       // 解析计划数据
@@ -127,7 +128,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId1, planId2 } = req.params;
@@ -139,7 +140,7 @@ export class PlanVisualizationController {
       ]);
       
       if (!plan1 || !plan2) {
-        throw new ApiError('一个或多个查询计划不存在', 404);
+        throw ApiError.notFound('一个或多个查询计划不存在');
       }
       
       // 解析计划数据
@@ -168,7 +169,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId } = req.params;
@@ -178,7 +179,7 @@ export class PlanVisualizationController {
       const planHistory = await queryService.getQueryPlanById(planId);
       
       if (!planHistory) {
-        throw new ApiError('查询计划不存在', 404);
+        throw ApiError.notFound('查询计划不存在');
       }
       
       // 保存注释
@@ -220,7 +221,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId } = req.params;
@@ -229,7 +230,7 @@ export class PlanVisualizationController {
       const planHistory = await queryService.getQueryPlanById(planId);
       
       if (!planHistory) {
-        throw new ApiError('查询计划不存在', 404);
+        throw ApiError.notFound('查询计划不存在');
       }
       
       // 解析计划数据

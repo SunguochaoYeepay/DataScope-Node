@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { param, body, validationResult } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
-import { ApiError } from '../../utils/error';
+import { ApiError } from '../../utils/errors/types/api-error';
+import { ERROR_CODES } from '../../utils/errors/error-codes';
 import { DataSourceService } from '../../services/datasource.service';
 import { QueryService } from '../../services/query.service';
 import logger from '../../utils/logger';
@@ -65,13 +66,13 @@ export class QueryPlanController {
       const { dataSourceId, sql } = req.body as GetPlanRequest;
       
       if (!dataSourceId || !sql) {
-        throw new ApiError('缺少必要参数', 400);
+        throw ApiError.badRequest('缺少必要参数');
       }
       
       // 获取数据源
       const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
       if (!dataSource) {
-        throw new ApiError('数据源不存在', 404);
+        throw ApiError.notFound('数据源不存在');
       }
       
       // 实际执行逻辑
@@ -88,7 +89,7 @@ export class QueryPlanController {
         // 回退到explainQuery方法
         planResult = await connector.explainQuery(sql);
       } else {
-        throw new ApiError('数据库连接器不支持查询计划功能', 400);
+        throw ApiError.badRequest('数据库连接器不支持查询计划功能');
       }
       
       // 获取转换器并转换为统一格式
@@ -157,7 +158,7 @@ export class QueryPlanController {
       const { planId } = req.params;
       
       if (!planId) {
-        throw new ApiError('缺少查询计划ID', 400);
+        throw ApiError.badRequest('缺少查询计划ID');
       }
       
       // 从数据库获取计划
@@ -169,7 +170,7 @@ export class QueryPlanController {
       });
       
       if (!queryPlan) {
-        throw new ApiError('查询计划不存在', 404);
+        throw ApiError.notFound('查询计划不存在');
       }
       
       // 获取相关的数据源
@@ -258,7 +259,7 @@ export class QueryPlanController {
       const { planAId, planBId } = req.body;
       
       if (!planAId || !planBId) {
-        throw new ApiError('缺少必要参数', 400);
+        throw ApiError.badRequest('缺少必要参数');
       }
       
       // 获取两个计划的数据
@@ -272,7 +273,7 @@ export class QueryPlanController {
       ]);
       
       if (!planA || !planB) {
-        throw new ApiError('一个或多个查询计划不存在', 404);
+        throw ApiError.notFound('一个或多个查询计划不存在');
       }
       
       // 解析计划数据
@@ -282,7 +283,7 @@ export class QueryPlanController {
       // 获取数据源类型
       const dataSource = await dataSourceService.getDataSourceById(planA.dataSourceId);
       if (!dataSource) {
-        throw new ApiError('数据源不存在', 404);
+        throw ApiError.notFound('数据源不存在');
       }
       
       // 计算性能改进
@@ -374,14 +375,14 @@ export class QueryPlanController {
       const { planId } = req.params;
       
       if (!planId) {
-        throw new ApiError('缺少查询计划ID', 400);
+        throw ApiError.badRequest('缺少查询计划ID');
       }
       
       // 获取查询计划
       const queryPlan = await queryService.getQueryPlanById(planId);
       
       if (!queryPlan) {
-        throw new ApiError('查询计划不存在', 404);
+        throw ApiError.notFound('查询计划不存在');
       }
       
       // 解析计划数据
