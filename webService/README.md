@@ -65,47 +65,40 @@ src/
 
 ## 测试
 
-项目使用Jest进行单元测试和集成测试。
+本项目包含全面的测试套件，以确保代码质量和功能正确性：
 
-### 运行所有测试
+### 单元测试
 
 ```bash
+# 运行所有测试
 npm test
+
+# 运行特定测试文件
+npm test -- tests/unit/services/metadata.service.test.js
+
+# 运行带有特定名称的测试
+npm test -- --testNamePattern="应当同步元数据并返回结果"
+
+# 生成测试覆盖率报告
+npm test -- --coverage
 ```
 
-### 运行特定测试
+### 接口测试状态
 
-```bash
-npx jest tests/unit/controllers/query.controller.test.ts
-```
+已完成的接口测试：
 
-### 测试覆盖率
+- 控制器测试
+  - query.controller.test.js - 查询控制器测试
+  - query-plan.controller.test.js - 查询计划控制器测试
 
-```bash
-npm run test:coverage
-```
+- 服务测试
+  - metadata.service.test.js - 元数据服务测试（syncMetadata, getMetadataStructure等）
+  - metadata/relationship-detector.test.ts - 关系检测器测试
+  - metadata/column-analyzer.test.ts - 列分析器测试
 
-### 测试结构
-
-项目的测试文件组织如下：
-
-```
-tests/
-├── unit/             # 单元测试
-│   ├── controllers/  # 控制器测试
-│   ├── services/     # 服务测试
-│   └── utils/        # 工具函数测试
-├── integration/      # 集成测试
-├── e2e/              # 端到端测试
-└── mocks/            # 测试模拟数据
-```
-
-### 编写测试
-
-- 单元测试应关注单个函数或组件的行为，使用mock隔离依赖
-- 集成测试验证多个组件一起工作的情况
-- 所有API端点都应有相应的测试
-- 使用测试覆盖率报告找出未测试的代码路径
+测试中的注意事项：
+- 所有测试需要正确引用错误类型，例如从`../../../src/utils/errors/types/api-error`导入`ApiError`
+- 测试运行失败可能是由于数据库连接问题，在CI环境中会配置正确的模拟对象
 
 ## API文档
 
