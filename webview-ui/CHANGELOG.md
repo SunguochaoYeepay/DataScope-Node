@@ -61,8 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 优化数据源服务(datasource.ts)，实现与后端API的对接
   - 支持实际后端接口和模拟数据的无缝切换
   - 添加统一的响应处理逻辑，适配后端统一返回格式
-  - 调整元数据API路径，使用 `/metadata/datasources` 代替原来的路径
+  - 调整元数据API路径，使用 `/api/metadata/datasources` 代替原来的路径
   - 增加新的API支持，如获取同步历史、分析表列详情等
+  - 添加数据结构适配层，处理前后端数据格式差异
+  - 实现数据源对象的字段映射和类型转换
 - 实现查询管理功能
   - 查询类型定义 (query.ts)
   - 元数据类型定义 (metadata.ts)
