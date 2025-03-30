@@ -1,10 +1,11 @@
 /**
  * 元数据服务测试
- * 测试表结构分析和元数据获取功能
+ * 测试元数据同步和获取功能
  */
 
 const { MetadataService } = require('../../../src/services/metadata.service');
 const { DatabaseError } = require('../../../src/utils/errors');
+const { ApiError } = require('../../../src/utils/errors/types/api-error');
 
 // 创建模拟数据源服务
 const mockDataSourceService = {
@@ -21,54 +22,62 @@ const mockDataSourceService = {
 // 创建模拟数据库连接器
 const mockConnector = {
   getSchemas: jest.fn().mockResolvedValue(['test_db', 'information_schema']),
-  getTables: jest.fn().mockResolvedValue(['users', 'orders']),
+  getTables: jest.fn().mockResolvedValue([
+    { name: 'users', type: 'TABLE' },
+    { name: 'orders', type: 'TABLE' }
+  ]),
   getColumns: jest.fn().mockResolvedValue([
     {
       name: 'id',
       dataType: 'int(11)',
-      nullable: false,
+      isNullable: false,
       defaultValue: null,
-      isPrimary: true,
-      extra: 'auto_increment'
+      isPrimaryKey: true,
+      maxLength: null,
+      precision: null,
+      scale: null
     },
     {
       name: 'name',
       dataType: 'varchar(255)',
-      nullable: true,
+      isNullable: true,
       defaultValue: null,
-      isPrimary: false,
-      extra: ''
+      isPrimaryKey: false,
+      maxLength: 255,
+      precision: null,
+      scale: null
     },
     {
       name: 'email',
       dataType: 'varchar(255)',
-      nullable: true,
+      isNullable: true,
       defaultValue: null,
-      isPrimary: false,
-      extra: ''
+      isPrimaryKey: false,
+      maxLength: 255,
+      precision: null,
+      scale: null
     }
   ]),
-  getPrimaryKeys: jest.fn().mockResolvedValue(['id']),
+  getPrimaryKeys: jest.fn().mockResolvedValue([
+    { columnName: 'id' }
+  ]),
   getForeignKeys: jest.fn().mockResolvedValue([
     {
-      column: 'user_id',
+      columnName: 'user_id',
       referencedTable: 'users',
       referencedColumn: 'id',
-      constraintName: 'fk_orders_users'
+      constraintName: 'fk_orders_users',
+      referencedSchema: 'test_db'
     }
   ]),
-  getIndexes: jest.fn().mockResolvedValue([
-    {
-      name: 'PRIMARY',
-      columns: ['id'],
-      isUnique: true
-    },
-    {
-      name: 'idx_email',
-      columns: ['email'],
-      isUnique: true
-    }
-  ]),
+  previewTableData: jest.fn().mockResolvedValue({
+    rows: [
+      { id: 1, name: 'User 1', email: 'user1@example.com' },
+      { id: 2, name: 'User 2', email: 'user2@example.com' }
+    ],
+    columns: ['id', 'name', 'email'],
+    rowCount: 2
+  }),
   executeQuery: jest.fn().mockImplementation((sql) => {
     if (sql.includes('COUNT(*)')) {
       return Promise.resolve({
@@ -90,16 +99,84 @@ const mockConnector = {
 
 // 模拟数据源服务
 jest.mock('../../../src/services/datasource.service', () => {
-  return { DataSourceService: jest.fn().mockImplementation(() => mockDataSourceService) };
+  return { 
+    __esModule: true,
+    default: mockDataSourceService,
+    DataSourceService: jest.fn().mockImplementation(() => mockDataSourceService)
+  };
+});
+
+// 模拟关系检测器
+const mockRelationshipDetector = {
+  detectRelationships: jest.fn().mockResolvedValue(5)
+};
+
+// 模拟关系检测器
+jest.mock('../../../src/services/metadata/relationship-detector', () => {
+  return {
+    __esModule: true,
+    default: mockRelationshipDetector
+  };
 });
 
 // 模拟PrismaClient
 const mockPrismaClient = {
-  tableMetadata: {
+  schema: {
     findFirst: jest.fn().mockResolvedValue(null),
-    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'metadata-id', ...data.data })),
-    update: jest.fn().mockImplementation(data => Promise.resolve({ id: 'metadata-id', ...data.data })),
-    findMany: jest.fn().mockResolvedValue([])
+    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'schema-1', ...data.data })),
+    update: jest.fn().mockImplementation(data => Promise.resolve({ id: 'schema-1', ...data.data })),
+    findMany: jest.fn().mockResolvedValue([
+      { 
+        id: 'schema-1', 
+        name: 'test_db', 
+        dataSourceId: 'test-ds-id',
+        tables: [
+          { 
+            id: 'table-1', 
+            name: 'users', 
+            columns: [
+              { id: 'column-1', name: 'id', dataType: 'int' },
+              { id: 'column-2', name: 'name', dataType: 'varchar' }
+            ]
+          }
+        ]
+      }
+    ])
+  },
+  table: {
+    findFirst: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'table-1', ...data.data })),
+    update: jest.fn().mockImplementation(data => Promise.resolve({ id: 'table-1', ...data.data }))
+  },
+  column: {
+    findFirst: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'column-1', ...data.data })),
+    update: jest.fn().mockImplementation(data => Promise.resolve({ id: 'column-1', ...data.data })),
+    deleteMany: jest.fn().mockResolvedValue({ count: 3 })
+  },
+  tableRelationship: {
+    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'relationship-1', ...data.data })),
+    deleteMany: jest.fn().mockResolvedValue({ count: 1 })
+  },
+  columnRelationship: {
+    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'col-rel-1', ...data.data })),
+    deleteMany: jest.fn().mockResolvedValue({ count: 1 })
+  },
+  metadataSyncHistory: {
+    create: jest.fn().mockImplementation(data => Promise.resolve({ id: 'sync-1', ...data.data })),
+    update: jest.fn().mockImplementation(data => Promise.resolve({ id: 'sync-1', ...data.data })),
+    findMany: jest.fn().mockResolvedValue([
+      { 
+        id: 'sync-1', 
+        dataSourceId: 'test-ds-id', 
+        startTime: new Date(), 
+        endTime: new Date(),
+        status: 'COMPLETED',
+        tablesCount: 2,
+        viewsCount: 0
+      }
+    ]),
+    count: jest.fn().mockResolvedValue(1)
   }
 };
 
@@ -131,173 +208,156 @@ describe('MetadataService', () => {
     metadataService = new MetadataService();
   });
   
-  describe('getSchemas', () => {
-    it('应当获取数据库架构列表', async () => {
+  describe('基本功能测试', () => {
+    it('应该能够实例化', () => {
+      expect(metadataService).toBeDefined();
+    });
+  });
+  
+  describe('syncMetadata', () => {
+    it('应当同步元数据并返回结果', async () => {
       // 执行测试
-      const result = await metadataService.getSchemas('test-ds-id');
+      const result = await metadataService.syncMetadata('test-ds-id');
       
       // 验证
-      expect(result).toEqual(['test_db', 'information_schema']);
       expect(mockDataSourceService.getConnector).toHaveBeenCalledWith('test-ds-id');
       expect(mockConnector.getSchemas).toHaveBeenCalled();
+      expect(mockConnector.getTables).toHaveBeenCalled();
+      expect(mockConnector.getColumns).toHaveBeenCalled();
+      expect(mockPrismaClient.metadataSyncHistory.create).toHaveBeenCalled();
+      expect(mockRelationshipDetector.detectRelationships).toHaveBeenCalledWith('test-ds-id');
+      expect(result).toEqual(expect.objectContaining({
+        tablesCount: expect.any(Number),
+        viewsCount: expect.any(Number),
+        syncHistoryId: expect.any(String)
+      }));
     });
     
-    it('应当处理数据源不存在的情况', async () => {
-      // 模拟数据源不存在
-      mockDataSourceService.getDataSourceById.mockResolvedValueOnce(null);
-      
-      // 执行测试并验证抛出的错误
-      await expect(metadataService.getSchemas('non-existent-ds-id')).rejects.toThrow();
-    });
-    
-    it('应当处理获取架构失败的情况', async () => {
+    it('应当处理同步失败的情况', async () => {
       // 模拟获取架构失败
       mockConnector.getSchemas.mockRejectedValueOnce(new Error('获取架构失败'));
       
       // 执行测试并验证抛出的错误
-      await expect(metadataService.getSchemas('test-ds-id')).rejects.toThrow();
-    });
-  });
-  
-  describe('getTables', () => {
-    it('应当获取表列表', async () => {
-      // 执行测试
-      const result = await metadataService.getTables('test-ds-id', 'test_db');
-      
-      // 验证
-      expect(result).toEqual(['users', 'orders']);
-      expect(mockConnector.getTables).toHaveBeenCalledWith('test_db');
-    });
-  });
-  
-  describe('getTableInfo', () => {
-    it('应当获取表详细信息', async () => {
-      // 执行测试
-      const result = await metadataService.getTableInfo('test-ds-id', 'test_db', 'users');
-      
-      // 验证
-      expect(result).toEqual({
-        name: 'users',
-        columns: expect.any(Array),
-        primaryKeys: ['id'],
-        foreignKeys: expect.any(Array),
-        indexes: expect.any(Array),
-        approxRowCount: 100
-      });
-      expect(mockConnector.getColumns).toHaveBeenCalledWith('test_db', 'users');
-      expect(mockConnector.getPrimaryKeys).toHaveBeenCalledWith('test_db', 'users');
-      expect(mockConnector.getForeignKeys).toHaveBeenCalledWith('test_db', 'users');
-      expect(mockConnector.getIndexes).toHaveBeenCalledWith('test_db', 'users');
-      expect(mockConnector.executeQuery).toHaveBeenCalledWith(expect.stringContaining('COUNT(*)'));
-    });
-  });
-  
-  describe('analyzeTableData', () => {
-    it('应当分析表数据并生成统计信息', async () => {
-      // 执行测试
-      const result = await metadataService.analyzeTableData('test-ds-id', 'test_db', 'users');
-      
-      // 验证
-      expect(result).toEqual({
-        name: 'users',
-        rowCount: 100,
-        columnStats: expect.any(Object),
-        samples: expect.any(Array)
-      });
-      expect(mockConnector.executeQuery).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM'));
+      await expect(metadataService.syncMetadata('test-ds-id')).rejects.toThrow(ApiError);
+      expect(mockPrismaClient.metadataSyncHistory.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.any(Object),
+          data: expect.objectContaining({
+            status: 'FAILED'
+          })
+        })
+      );
     });
     
-    it('应当处理表不存在的情况', async () => {
-      // 模拟表不存在
-      mockConnector.executeQuery.mockRejectedValueOnce(new Error('Table not found'));
+    it('应当使用正确的同步选项', async () => {
+      // 执行测试，带同步选项
+      await metadataService.syncMetadata('test-ds-id', {
+        syncType: 'INCREMENTAL',
+        schemaPattern: 'test.*',
+        tablePattern: 'user.*'
+      });
+      
+      // 验证
+      expect(mockPrismaClient.metadataSyncHistory.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            syncType: 'INCREMENTAL'
+          })
+        })
+      );
+    });
+  });
+  
+  describe('getMetadataStructure', () => {
+    it('应当返回数据源的元数据结构', async () => {
+      // 执行测试
+      const result = await metadataService.getMetadataStructure('test-ds-id');
+      
+      // 验证
+      expect(mockPrismaClient.schema.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            dataSourceId: 'test-ds-id'
+          }
+        })
+      );
+      expect(result).toEqual(expect.any(Array));
+    });
+    
+    it('应当处理数据源元数据未同步的情况', async () => {
+      // 模拟没有找到架构
+      mockPrismaClient.schema.findMany.mockResolvedValueOnce([]);
       
       // 执行测试并验证抛出的错误
-      await expect(metadataService.analyzeTableData('test-ds-id', 'test_db', 'non_existent_table')).rejects.toThrow();
+      await expect(metadataService.getMetadataStructure('test-ds-id')).rejects.toThrow(ApiError);
     });
   });
   
-  describe('getColumnStatistics', () => {
-    it('应当获取列统计信息', async () => {
+  describe('getSyncHistory', () => {
+    it('应当返回同步历史记录', async () => {
       // 执行测试
-      const result = await metadataService.getColumnStatistics('test-ds-id', 'test_db', 'users', 'name');
+      const result = await metadataService.getSyncHistory('test-ds-id', 10, 0);
       
       // 验证
-      expect(result).toEqual({
-        column: 'name',
-        dataType: expect.any(String),
-        valueDistribution: expect.any(Object),
-        nullPercentage: expect.any(Number),
-        samples: expect.any(Array)
-      });
-      expect(mockConnector.executeQuery).toHaveBeenCalled();
-    });
-  });
-  
-  describe('syncTableMetadata', () => {
-    it('应当同步表元数据到数据库', async () => {
-      // 执行测试
-      const result = await metadataService.syncTableMetadata('test-ds-id', 'test_db', 'users');
-      
-      // 验证
-      expect(result).toEqual({
-        id: 'metadata-id',
-        dataSourceId: 'test-ds-id',
-        schema: 'test_db',
-        tableName: 'users',
-        columns: expect.any(Array),
-        primaryKeys: ['id'],
-        foreignKeys: expect.any(Array),
-        indexes: expect.any(Array),
-        rowCount: 100,
-        lastSyncAt: expect.any(Date)
-      });
-      expect(mockPrismaClient.tableMetadata.findFirst).toHaveBeenCalled();
-      expect(mockPrismaClient.tableMetadata.create).toHaveBeenCalled();
+      expect(mockPrismaClient.metadataSyncHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { dataSourceId: 'test-ds-id' },
+          orderBy: { startTime: 'desc' },
+          take: 10,
+          skip: 0
+        })
+      );
+      expect(result).toEqual(expect.objectContaining({
+        history: expect.any(Array),
+        total: expect.any(Number),
+        limit: 10,
+        offset: 0
+      }));
     });
     
-    it('应当更新已存在的表元数据', async () => {
-      // 模拟元数据已存在
-      mockPrismaClient.tableMetadata.findFirst.mockResolvedValueOnce({
-        id: 'existing-metadata-id',
-        dataSourceId: 'test-ds-id',
-        schema: 'test_db',
-        tableName: 'users'
-      });
-      
-      // 执行测试
-      const result = await metadataService.syncTableMetadata('test-ds-id', 'test_db', 'users');
+    it('应当使用默认分页参数', async () => {
+      // 执行测试，不传分页参数
+      await metadataService.getSyncHistory('test-ds-id');
       
       // 验证
-      expect(mockPrismaClient.tableMetadata.update).toHaveBeenCalled();
+      expect(mockPrismaClient.metadataSyncHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 10,
+          skip: 0
+        })
+      );
     });
   });
   
-  describe('detectRelationships', () => {
-    it('应当检测表之间的关系', async () => {
+  describe('previewTableData', () => {
+    it('应当返回表数据预览', async () => {
       // 执行测试
-      const result = await metadataService.detectRelationships('test-ds-id', 'test_db');
+      const result = await metadataService.previewTableData('test-ds-id', 'test_db', 'users');
       
       // 验证
-      expect(result).toEqual({
-        relationships: expect.any(Array),
-        summary: expect.any(Object)
-      });
-      expect(mockConnector.getTables).toHaveBeenCalled();
+      expect(mockDataSourceService.getConnector).toHaveBeenCalledWith('test-ds-id');
+      expect(mockConnector.previewTableData).toHaveBeenCalledWith('test_db', 'users', 100);
+      expect(result).toEqual(expect.objectContaining({
+        rows: expect.any(Array),
+        columns: expect.any(Array),
+        rowCount: expect.any(Number)
+      }));
     });
-  });
-  
-  describe('scanDatabase', () => {
-    it('应当扫描整个数据库并收集元数据', async () => {
-      // 执行测试
-      const result = await metadataService.scanDatabase('test-ds-id', 'test_db');
+    
+    it('应当处理表预览失败的情况', async () => {
+      // 模拟预览失败
+      mockConnector.previewTableData.mockRejectedValueOnce(new Error('预览表数据失败'));
+      
+      // 执行测试并验证抛出的错误
+      await expect(metadataService.previewTableData('test-ds-id', 'test_db', 'users')).rejects.toThrow(ApiError);
+    });
+    
+    it('应当使用自定义行数限制', async () => {
+      // 执行测试，使用自定义行数
+      await metadataService.previewTableData('test-ds-id', 'test_db', 'users', 50);
       
       // 验证
-      expect(result).toEqual({
-        tables: expect.any(Array),
-        relationships: expect.any(Array),
-        scanTime: expect.any(Number)
-      });
-      expect(mockConnector.getTables).toHaveBeenCalled();
+      expect(mockConnector.previewTableData).toHaveBeenCalledWith('test_db', 'users', 50);
     });
   });
 });
