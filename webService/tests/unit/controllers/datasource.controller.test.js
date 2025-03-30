@@ -1,21 +1,29 @@
 // 将测试文件使用JavaScript编写，避免类型问题
 const { DataSourceController } = require('../../../src/api/controllers/datasource.controller');
-const dataSourceService = require('../../../src/services/datasource.service').default;
-const { ApiError } = require('../../../src/utils/error');
+const { ApiError } = require('../../../src/utils/errors/types/api-error');
 const { validationResult } = require('express-validator');
 
+// 在测试前修改控制器导入的ApiError路径，避免真实API调用
+jest.mock('../../../src/utils/error', () => {
+  const { ApiError } = require('../../../src/utils/errors/types/api-error');
+  return { ApiError };
+});
+
 // 模拟dataSourceService
+const mockDataSourceService = {
+  getAllDataSources: jest.fn(),
+  getDataSourceById: jest.fn(),
+  createDataSource: jest.fn(),
+  updateDataSource: jest.fn(),
+  deleteDataSource: jest.fn(),
+  testConnection: jest.fn()
+};
+
 jest.mock('../../../src/services/datasource.service', () => {
   return {
     __esModule: true,
-    default: {
-      getAllDataSources: jest.fn(),
-      getDataSourceById: jest.fn(),
-      createDataSource: jest.fn(),
-      updateDataSource: jest.fn(),
-      deleteDataSource: jest.fn(),
-      testConnection: jest.fn()
-    }
+    default: mockDataSourceService,
+    DataSourceService: jest.fn().mockImplementation(() => mockDataSourceService)
   };
 });
 
@@ -90,13 +98,13 @@ describe('DataSourceController', () => {
       ];
       
       // 设置服务返回值
-      dataSourceService.getAllDataSources.mockResolvedValue(mockDataSources);
+      mockDataSourceService.getAllDataSources.mockResolvedValue(mockDataSources);
       
       // 执行测试
       await dataSourceController.getAllDataSources(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.getAllDataSources).toHaveBeenCalled();
+      expect(mockDataSourceService.getAllDataSources).toHaveBeenCalled();
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -108,13 +116,13 @@ describe('DataSourceController', () => {
     it('应当处理获取数据源失败的情况', async () => {
       // 设置服务抛出错误
       const mockError = new ApiError('获取数据源失败', 500);
-      dataSourceService.getAllDataSources.mockRejectedValue(mockError);
+      mockDataSourceService.getAllDataSources.mockRejectedValue(mockError);
       
       // 执行测试
       await dataSourceController.getAllDataSources(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.getAllDataSources).toHaveBeenCalled();
+      expect(mockDataSourceService.getAllDataSources).toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalledWith(mockError);
       expect(mockRes.status).not.toHaveBeenCalled();
       expect(mockRes.json).not.toHaveBeenCalled();
@@ -137,13 +145,13 @@ describe('DataSourceController', () => {
       mockReq.params.id = 'ds-1';
       
       // 设置服务返回值
-      dataSourceService.getDataSourceById.mockResolvedValue(mockDataSource);
+      mockDataSourceService.getDataSourceById.mockResolvedValue(mockDataSource);
       
       // 执行测试
       await dataSourceController.getDataSourceById(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.getDataSourceById).toHaveBeenCalledWith('ds-1');
+      expect(mockDataSourceService.getDataSourceById).toHaveBeenCalledWith('ds-1');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -157,13 +165,13 @@ describe('DataSourceController', () => {
       mockReq.params.id = 'non-existent-id';
       
       // 设置服务返回值
-      dataSourceService.getDataSourceById.mockResolvedValue(null);
+      mockDataSourceService.getDataSourceById.mockResolvedValue(null);
       
       // 执行测试
       await dataSourceController.getDataSourceById(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.getDataSourceById).toHaveBeenCalledWith('non-existent-id');
+      expect(mockDataSourceService.getDataSourceById).toHaveBeenCalledWith('non-existent-id');
       expect(mockNext).toHaveBeenCalled();
       const error = mockNext.mock.calls[0][0];
       expect(error).toBeInstanceOf(ApiError);
@@ -215,13 +223,13 @@ describe('DataSourceController', () => {
       mockReq.body = dataSourceData;
       
       // 设置服务返回值
-      dataSourceService.createDataSource.mockResolvedValue(createdDataSource);
+      mockDataSourceService.createDataSource.mockResolvedValue(createdDataSource);
       
       // 执行测试
       await dataSourceController.createDataSource(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.createDataSource).toHaveBeenCalledWith(dataSourceData);
+      expect(mockDataSourceService.createDataSource).toHaveBeenCalledWith(dataSourceData);
       expect(mockRes.status).toHaveBeenCalledWith(201);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -260,13 +268,13 @@ describe('DataSourceController', () => {
       
       // 设置服务抛出错误
       const mockError = new ApiError('创建数据源失败', 500);
-      dataSourceService.createDataSource.mockRejectedValue(mockError);
+      mockDataSourceService.createDataSource.mockRejectedValue(mockError);
       
       // 执行测试
       await dataSourceController.createDataSource(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.createDataSource).toHaveBeenCalled();
+      expect(mockDataSourceService.createDataSource).toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalledWith(mockError);
     });
   });
@@ -296,13 +304,13 @@ describe('DataSourceController', () => {
       mockReq.body = updateData;
       
       // 设置服务返回值
-      dataSourceService.updateDataSource.mockResolvedValue(updatedDataSource);
+      mockDataSourceService.updateDataSource.mockResolvedValue(updatedDataSource);
       
       // 执行测试
       await dataSourceController.updateDataSource(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.updateDataSource).toHaveBeenCalledWith(dataSourceId, updateData);
+      expect(mockDataSourceService.updateDataSource).toHaveBeenCalledWith(dataSourceId, updateData);
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -337,13 +345,13 @@ describe('DataSourceController', () => {
       
       // 设置服务抛出错误
       const mockError = new ApiError('更新数据源失败', 500);
-      dataSourceService.updateDataSource.mockRejectedValue(mockError);
+      mockDataSourceService.updateDataSource.mockRejectedValue(mockError);
       
       // 执行测试
       await dataSourceController.updateDataSource(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.updateDataSource).toHaveBeenCalled();
+      expect(mockDataSourceService.updateDataSource).toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalledWith(mockError);
     });
   });
@@ -354,13 +362,13 @@ describe('DataSourceController', () => {
       mockReq.params.id = 'ds-1';
       
       // 设置服务返回值
-      dataSourceService.deleteDataSource.mockResolvedValue(true);
+      mockDataSourceService.deleteDataSource.mockResolvedValue(true);
       
       // 执行测试
       await dataSourceController.deleteDataSource(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.deleteDataSource).toHaveBeenCalledWith('ds-1');
+      expect(mockDataSourceService.deleteDataSource).toHaveBeenCalledWith('ds-1');
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -394,13 +402,13 @@ describe('DataSourceController', () => {
       
       // 设置服务抛出错误
       const mockError = new ApiError('删除数据源失败', 500);
-      dataSourceService.deleteDataSource.mockRejectedValue(mockError);
+      mockDataSourceService.deleteDataSource.mockRejectedValue(mockError);
       
       // 执行测试
       await dataSourceController.deleteDataSource(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.deleteDataSource).toHaveBeenCalled();
+      expect(mockDataSourceService.deleteDataSource).toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalledWith(mockError);
     });
   });
@@ -426,13 +434,13 @@ describe('DataSourceController', () => {
       mockReq.body = connectionData;
       
       // 设置服务返回值
-      dataSourceService.testConnection.mockResolvedValue(testResult);
+      mockDataSourceService.testConnection.mockResolvedValue(testResult);
       
       // 执行测试
       await dataSourceController.testConnection(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.testConnection).toHaveBeenCalledWith(connectionData);
+      expect(mockDataSourceService.testConnection).toHaveBeenCalledWith(connectionData);
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
@@ -457,13 +465,13 @@ describe('DataSourceController', () => {
       
       // 设置服务抛出错误
       const mockError = new ApiError('连接测试失败', 500);
-      dataSourceService.testConnection.mockRejectedValue(mockError);
+      mockDataSourceService.testConnection.mockRejectedValue(mockError);
       
       // 执行测试
       await dataSourceController.testConnection(mockReq, mockRes, mockNext);
       
       // 验证结果
-      expect(dataSourceService.testConnection).toHaveBeenCalled();
+      expect(mockDataSourceService.testConnection).toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalledWith(mockError);
     });
     

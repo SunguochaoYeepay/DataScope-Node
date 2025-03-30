@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import dataSourceService from '../../services/datasource.service';
-import { ApiError } from '../../utils/error';
+import { ApiError } from '../../utils/errors/types/api-error';
+import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 
 export class DataSourceController {
@@ -43,7 +44,7 @@ export class DataSourceController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const dataSourceData = {
@@ -77,7 +78,7 @@ export class DataSourceController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { id } = req.params;
@@ -128,7 +129,7 @@ export class DataSourceController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', 400, { errors: errors.array() });
+        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const connectionData = {
