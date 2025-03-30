@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param, query } from 'express-validator';
+import { check } from 'express-validator';
 import queryController from '../controllers/query.controller';
 import { Request, Response, NextFunction } from 'express';
 import { QueryPlanController } from '../controllers/query-plan.controller';
@@ -191,8 +191,8 @@ router.get('/history', queryController.getQueryHistory);
 router.post(
   '/execute',
   [
-    body('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-    body('sql').notEmpty().withMessage('SQL语句不能为空'),
+    check('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
   ],
   queryController.executeQuery
 );
@@ -218,9 +218,9 @@ router.post(
 router.post(
   '/',
   [
-    body('name').notEmpty().withMessage('查询名称不能为空'),
-    body('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-    body('sql').notEmpty().withMessage('SQL语句不能为空'),
+    check('name').not().isEmpty().withMessage('查询名称不能为空'),
+    check('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
   ],
   queryController.saveQuery
 );
@@ -314,9 +314,9 @@ router.get('/:id', queryController.getQueryById);
 router.post(
   '/explain',
   [
-    body('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-    body('sql').notEmpty().withMessage('SQL语句不能为空'),
-    body('includeAnalysis').optional().isBoolean().withMessage('必须是布尔值'),
+    check('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
+    check('includeAnalysis').optional().isBoolean().withMessage('必须是布尔值'),
   ],
   queryController.explainQuery
 );
@@ -342,7 +342,7 @@ router.post(
 router.get(
   '/plans/:id/tips',
   [
-    param('id').isUUID().withMessage('无效的查询计划ID'),
+    check('id').isUUID().withMessage('无效的查询计划ID'),
   ],
   queryController.getQueryOptimizationTips
 );
@@ -375,9 +375,9 @@ router.get(
 router.get(
   '/plans',
   [
-    query('dataSourceId').optional().isUUID().withMessage('无效的数据源ID'),
-    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
-    query('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
+    check('dataSourceId').optional().isUUID().withMessage('无效的数据源ID'),
+    check('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
+    check('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
   ],
   queryController.getQueryPlanHistory
 );
@@ -403,7 +403,7 @@ router.get(
 router.post(
   '/:id/cancel',
   [
-    param('id').isUUID().withMessage('无效的查询ID'),
+    check('id').isUUID().withMessage('无效的查询ID'),
   ],
   queryController.cancelQuery
 );
@@ -435,7 +435,7 @@ router.post(
 router.put(
   '/:id',
   [
-    param('id').isUUID().withMessage('无效的查询ID'),
+    check('id').isUUID().withMessage('无效的查询ID'),
   ],
   queryController.updateQuery
 );
@@ -461,7 +461,7 @@ router.put(
 router.delete(
   '/:id',
   [
-    param('id').isUUID().withMessage('无效的查询ID'),
+    check('id').isUUID().withMessage('无效的查询ID'),
   ],
   queryController.deleteQuery
 );
@@ -489,7 +489,7 @@ router.delete(
 router.get(
   '/:queryId/execution-plan',
   [
-    param('queryId').isUUID().withMessage('无效的查询ID'),
+    check('queryId').isUUID().withMessage('无效的查询ID'),
   ],
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -525,7 +525,7 @@ router.get(
 router.get(
   '/:queryId/visualization',
   [
-    param('queryId').isUUID().withMessage('无效的查询ID'),
+    check('queryId').isUUID().withMessage('无效的查询ID'),
   ],
   async (req: Request, res: Response, next: NextFunction) => {
     try {

@@ -162,6 +162,39 @@ POST /api/query-plans/compare
 - 测试中使用mock对象替代真实依赖，确保单元测试的隔离性和可靠性
 - 支持测试覆盖率分析，确保代码质量
 
+#### 运行测试
+
+##### 单元测试
+
+单元测试不依赖实际数据库连接，可以直接运行：
+
+```bash
+cd webService
+npm test                                    # 运行所有单元测试
+npm test tests/unit/controllers             # 运行所有控制器测试
+npm test tests/unit/controllers/datasource.controller.test.js  # 运行特定控制器测试
+```
+
+##### 集成测试
+
+集成测试需要启动一个测试数据库环境：
+
+```bash
+cd webService
+npm run test:integration                    # 运行所有集成测试
+```
+
+#### 测试覆盖率
+
+查看测试覆盖率报告：
+
+```bash
+cd webService
+npm run test:coverage
+```
+
+覆盖率报告将生成在`webService/coverage`目录中。
+
 ## 最近更新
 
 ### 密码加密方案优化 (1.0.3)

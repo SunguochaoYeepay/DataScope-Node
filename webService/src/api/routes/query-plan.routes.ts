@@ -2,7 +2,7 @@
  * 查询执行计划相关路由
  */
 import { Router } from 'express';
-import { param, body } from 'express-validator';
+import { check } from 'express-validator';
 import { authenticate } from '../../middleware/auth';
 import { QueryPlanController } from '../controllers/query-plan.controller';
 
@@ -89,8 +89,8 @@ const queryPlanController = new QueryPlanController();
 router.post('/analyze',
   authenticate,
   [
-    body('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
-    body('sql').isString().notEmpty().withMessage('SQL查询语句不能为空')
+    check('dataSourceId').isString().not().isEmpty().withMessage('数据源ID不能为空'),
+    check('sql').isString().not().isEmpty().withMessage('SQL查询语句不能为空')
   ],
   queryPlanController.getQueryPlan.bind(queryPlanController)
 );
@@ -143,7 +143,7 @@ router.post('/analyze',
 router.get('/:planId/optimize',
   authenticate,
   [
-    param('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
+    check('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
   ],
   queryPlanController.getOptimizationTips.bind(queryPlanController)
 );
@@ -206,8 +206,8 @@ router.get('/:planId/optimize',
 router.post('/compare',
   authenticate,
   [
-    body('planAId').isString().notEmpty().withMessage('原始执行计划ID不能为空'),
-    body('planBId').isString().notEmpty().withMessage('对比执行计划ID不能为空')
+    check('planAId').isString().not().isEmpty().withMessage('原始执行计划ID不能为空'),
+    check('planBId').isString().not().isEmpty().withMessage('对比执行计划ID不能为空')
   ],
   queryPlanController.comparePlans.bind(queryPlanController)
 );
@@ -332,7 +332,7 @@ router.get('/history',
 router.get('/:planId',
   authenticate,
   [
-    param('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
+    check('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
   ],
   queryPlanController.getQueryPlanById.bind(queryPlanController)
 );

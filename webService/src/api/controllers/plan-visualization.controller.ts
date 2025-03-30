@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { check, validationResult } from 'express-validator';
 import queryService from '../../services/query.service';
 import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
+import { check, param } from 'express-validator';
 import dataSourceController from '../controllers/datasource.controller';
 
 const router = Router();
@@ -25,13 +25,13 @@ const router = Router();
 router.post(
   '/',
   [
-    body('name').notEmpty().withMessage('数据源名称不能为空'),
-    body('type').notEmpty().withMessage('数据源类型不能为空'),
-    body('host').notEmpty().withMessage('主机地址不能为空'),
-    body('port').isNumeric().withMessage('端口必须为数字'),
-    body('username').notEmpty().withMessage('用户名不能为空'),
-    body('password').notEmpty().withMessage('密码不能为空'),
-    body('database').notEmpty().withMessage('数据库名不能为空'),
+    check('name').not().isEmpty().withMessage('数据源名称不能为空'),
+    check('type').not().isEmpty().withMessage('数据源类型不能为空'),
+    check('host').not().isEmpty().withMessage('主机地址不能为空'),
+    check('port').isNumeric().withMessage('端口必须为数字'),
+    check('username').not().isEmpty().withMessage('用户名不能为空'),
+    check('password').not().isEmpty().withMessage('密码不能为空'),
+    check('database').not().isEmpty().withMessage('数据库名不能为空'),
   ],
   dataSourceController.createDataSource
 );
@@ -170,7 +170,7 @@ router.get('/:id', dataSourceController.getDataSourceById);
 router.put(
   '/:id',
   [
-    param('id').isUUID().withMessage('无效的数据源ID'),
+    check('id').isUUID().withMessage('无效的数据源ID'),
   ],
   dataSourceController.updateDataSource
 );
@@ -196,7 +196,7 @@ router.put(
 router.delete(
   '/:id',
   [
-    param('id').isUUID().withMessage('无效的数据源ID'),
+    check('id').isUUID().withMessage('无效的数据源ID'),
   ],
   dataSourceController.deleteDataSource
 );
@@ -268,12 +268,12 @@ router.delete(
 router.post(
   '/test-connection',
   [
-    body('type').notEmpty().withMessage('数据源类型不能为空'),
-    body('host').notEmpty().withMessage('主机地址不能为空'),
-    body('port').isNumeric().withMessage('端口必须为数字'),
-    body('username').notEmpty().withMessage('用户名不能为空'),
-    body('password').notEmpty().withMessage('密码不能为空'),
-    body('database').notEmpty().withMessage('数据库名不能为空'),
+    check('type').not().isEmpty().withMessage('数据源类型不能为空'),
+    check('host').not().isEmpty().withMessage('主机地址不能为空'),
+    check('port').isNumeric().withMessage('端口必须为数字'),
+    check('username').not().isEmpty().withMessage('用户名不能为空'),
+    check('password').not().isEmpty().withMessage('密码不能为空'),
+    check('database').not().isEmpty().withMessage('数据库名不能为空'),
   ],
   dataSourceController.testConnection
 );

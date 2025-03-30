@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { check, validationResult } from 'express-validator';
 import dataSourceService from '../../services/datasource.service';
 import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';
@@ -157,13 +157,13 @@ export class DataSourceController {
    */
   validateCreateDataSource() {
     return [
-      body('name').notEmpty().withMessage('名称不能为空'),
-      body('type').notEmpty().withMessage('类型不能为空'),
-      body('host').notEmpty().withMessage('主机不能为空'),
-      body('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
-      body('username').notEmpty().withMessage('用户名不能为空'),
-      body('password').notEmpty().withMessage('密码不能为空'),
-      body('database').notEmpty().withMessage('数据库名不能为空'),
+      check('name').not().isEmpty().withMessage('名称不能为空'),
+      check('type').not().isEmpty().withMessage('类型不能为空'),
+      check('host').not().isEmpty().withMessage('主机不能为空'),
+      check('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
+      check('username').not().isEmpty().withMessage('用户名不能为空'),
+      check('password').not().isEmpty().withMessage('密码不能为空'),
+      check('database').not().isEmpty().withMessage('数据库名不能为空'),
     ];
   }
 
@@ -172,8 +172,8 @@ export class DataSourceController {
    */
   validateUpdateDataSource() {
     return [
-      param('id').notEmpty().withMessage('ID不能为空'),
-      body('port').optional().isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
+      check('id').not().isEmpty().withMessage('ID不能为空'),
+      check('port').optional().isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
     ];
   }
 
@@ -182,12 +182,12 @@ export class DataSourceController {
    */
   validateTestConnection() {
     return [
-      body('type').notEmpty().withMessage('类型不能为空'),
-      body('host').notEmpty().withMessage('主机不能为空'),
-      body('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
-      body('username').notEmpty().withMessage('用户名不能为空'),
-      body('password').notEmpty().withMessage('密码不能为空'),
-      body('database').notEmpty().withMessage('数据库名不能为空'),
+      check('type').not().isEmpty().withMessage('类型不能为空'),
+      check('host').not().isEmpty().withMessage('主机不能为空'),
+      check('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
+      check('username').not().isEmpty().withMessage('用户名不能为空'),
+      check('password').not().isEmpty().withMessage('密码不能为空'),
+      check('database').not().isEmpty().withMessage('数据库名不能为空'),
     ];
   }
 }

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { check, validationResult } from 'express-validator';
 import queryService from '../../services/query.service';
 import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';
@@ -281,8 +281,8 @@ export class QueryController {
    */
   validateExecuteQuery() {
     return [
-      body('dataSourceId')
-        .notEmpty().withMessage('数据源ID不能为空')
+      check('dataSourceId')
+        .not().isEmpty().withMessage('数据源ID不能为空')
         .isString().withMessage('数据源ID必须是字符串')
         .custom(async (dataSourceId) => {
           try {
@@ -296,8 +296,8 @@ export class QueryController {
             throw new Error('无效的数据源ID');
           }
         }),
-      body('sql')
-        .notEmpty().withMessage('SQL查询不能为空')
+      check('sql')
+        .not().isEmpty().withMessage('SQL查询不能为空')
         .isString().withMessage('SQL查询必须是字符串')
     ];
   }
@@ -307,9 +307,9 @@ export class QueryController {
    */
   validateSaveQuery() {
     return [
-      body('dataSourceId').notEmpty().withMessage('数据源ID不能为空'),
-      body('name').notEmpty().withMessage('名称不能为空'),
-      body('sql').notEmpty().withMessage('SQL查询语句不能为空'),
+      check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
+      check('name').not().isEmpty().withMessage('名称不能为空'),
+      check('sql').not().isEmpty().withMessage('SQL查询语句不能为空'),
     ];
   }
 
@@ -318,7 +318,7 @@ export class QueryController {
    */
   validateUpdateQuery() {
     return [
-      param('id').notEmpty().withMessage('查询ID不能为空'),
+      check('id').not().isEmpty().withMessage('查询ID不能为空'),
     ];
   }
 }

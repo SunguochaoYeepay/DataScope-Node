@@ -260,7 +260,7 @@ describe('QueryPlanController', () => {
       // 执行测试
       await queryPlanController.getQueryPlan(mockReq, mockRes, mockNext);
       
-      // 验证结果应该是500错误，因为在控制器中catch住了异常
+      // 验证结果应该是400错误，因为在控制器中捕获了异常
       expect(mockRes.status).toHaveBeenCalledWith(500);
     });
     

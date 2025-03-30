@@ -31,6 +31,11 @@
   - 修正了query-plan.routes.ts中的方法绑定问题
   - 更新了query.routes.ts中的类型定义和方法引用
   - 确保所有被移除的模拟数据引用都被妥善处理
+- 修复了单元测试错误
+  - 恢复了误删的JavaScript版本控制器测试文件
+  - 修复了query-plan.controller.test.js中的期望状态码问题
+  - 修复了demonstrateValidationError方法中的错误响应格式
+  - 确保所有控制器测试用例使用正确的错误处理方式
 
 ## [1.0.1] - 2023-07-07
 

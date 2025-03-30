@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { param, body, validationResult } from 'express-validator';
+import { check, validationResult } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
 import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';

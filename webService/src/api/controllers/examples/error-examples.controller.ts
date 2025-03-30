@@ -6,6 +6,8 @@ import { Request, Response } from 'express';
 import { ApiError } from '../../../utils/errors/types/api-error';
 import { DatabaseError } from '../../../utils/errors/types/database-error';
 import { AppError } from '../../../utils/errors/app-error';
+import { ValidationError } from '../../../utils/errors/types/validation-error';
+import { ERROR_CODES } from '../../../utils/errors/error-codes';
 import logger from '../../../utils/logger';
 
 /**
@@ -14,13 +16,18 @@ import logger from '../../../utils/logger';
  * @param res 响应对象
  */
 export const demonstrateValidationError = (req: Request, res: Response): void => {
-  // 模拟验证错误
-  const error = ApiError.badRequest(
+  // 模拟验证错误 - 创建符合测试要求的数组格式
+  const details = [
+    { field: 'username', message: '用户名不能为空' },
+    { field: 'password', message: '密码长度必须至少为8个字符' },
+    { field: 'email', message: '邮箱格式不正确' }
+  ];
+  
+  // 创建验证错误
+  const error = new ValidationError(
     '请求参数验证失败',
-    {
-      field: 'username',
-      message: '用户名不能为空'
-    }
+    ERROR_CODES.VALIDATION_FAILED,
+    details
   );
   
   // 抛出错误，将由错误处理中间件捕获

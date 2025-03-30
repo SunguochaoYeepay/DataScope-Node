@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
+import { check } from 'express-validator';
 import planVisualizationController from '../controllers/plan-visualization.controller';
 import { validate } from '../../utils/validate';
 
@@ -99,7 +99,7 @@ const router = Router();
 router.get(
   '/:planId',
   [
-    param('planId').isUUID().withMessage('无效的查询计划ID'),
+    check('planId').isUUID().withMessage('无效的查询计划ID'),
   ],
   planVisualizationController.getVisualizationData
 );
@@ -211,8 +211,8 @@ router.get(
 router.get(
   '/compare/:planId1/:planId2',
   [
-    param('planId1').isUUID().withMessage('无效的查询计划ID'),
-    param('planId2').isUUID().withMessage('无效的查询计划ID'),
+    check('planId1').isUUID().withMessage('无效的查询计划ID'),
+    check('planId2').isUUID().withMessage('无效的查询计划ID'),
   ],
   planVisualizationController.comparePlans
 );
@@ -285,8 +285,8 @@ router.get(
 router.post(
   '/:planId/notes',
   [
-    param('planId').isUUID().withMessage('无效的查询计划ID'),
-    body('notes').notEmpty().withMessage('注释内容不能为空'),
+    check('planId').isUUID().withMessage('无效的查询计划ID'),
+    check('notes').not().isEmpty().withMessage('注释内容不能为空'),
   ],
   planVisualizationController.saveAnalysisNotes
 );
@@ -365,7 +365,7 @@ router.post(
 router.get(
   '/:planId/optimize',
   [
-    param('planId').isUUID().withMessage('无效的查询计划ID'),
+    check('planId').isUUID().withMessage('无效的查询计划ID'),
   ],
   planVisualizationController.generateOptimizedQuery
 );
