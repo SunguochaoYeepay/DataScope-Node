@@ -44,14 +44,14 @@ const adaptDataSource = (source: any): DataSource => {
     id: source.id,
     name: source.name,
     description: source.description || '',
-    type: source.type?.toUpperCase() as DataSourceType, // 后端可能返回小写的类型
+    type: (source.type?.toUpperCase() || 'MYSQL') as DataSourceType, // 后端返回小写的类型
     host: source.host,
     port: source.port,
     databaseName: source.databaseName,
     username: source.username,
     // 密码通常不会返回
-    status: source.status as DataSourceStatus,
-    syncFrequency: source.syncFrequency as SyncFrequency || 'MANUAL',
+    status: (source.status || 'ACTIVE') as DataSourceStatus,
+    syncFrequency: (source.syncFrequency || 'MANUAL') as SyncFrequency,
     lastSyncTime: source.lastSyncTime,
     createdAt: source.createdAt,
     updatedAt: source.updatedAt,
@@ -75,7 +75,7 @@ export const dataSourceService = {
       // 构建查询参数
       const queryParams = new URLSearchParams()
       if (params.name) queryParams.append('name', params.name)
-      if (params.type) queryParams.append('type', params.type)
+      if (params.type) queryParams.append('type', params.type.toLowerCase()) // 发送小写类型
       if (params.status) queryParams.append('status', params.status)
       if (params.page !== undefined) queryParams.append('page', params.page.toString())
       if (params.size) queryParams.append('size', params.size.toString())
@@ -86,18 +86,21 @@ export const dataSourceService = {
         throw new Error(`获取数据源列表失败: ${response.statusText}`)
       }
       
-      // 处理响应数据
+      // 处理响应数据 - 文档中明确返回的是数组而非分页对象
       const rawData = await handleResponse<any[]>(response)
       
       // 将后端数据适配为前端需要的格式
-      const adaptedData: DataSource[] = rawData.map(adaptDataSource)
+      const adaptedData: DataSource[] = Array.isArray(rawData) 
+        ? rawData.map(adaptDataSource) 
+        : [];
       
+      // 手动构造分页对象
       return {
         items: adaptedData,
         total: adaptedData.length,
         page: params.page || 1,
         size: params.size || adaptedData.length,
-        totalPages: Math.ceil(adaptedData.length / (params.size || 10))
+        totalPages: Math.ceil(adaptedData.length / (params.size || adaptedData.length || 10))
       }
     } catch (error) {
       console.error('获取数据源列表错误:', error)
@@ -134,10 +137,17 @@ export const dataSourceService = {
     try {
       // 转换参数格式以匹配后端期望
       const requestBody = {
-        ...params,
-        // 转换特定字段
-        type: params.type.toLowerCase(), // 后端可能期望小写的类型
-        connectionParams: params.connectionOptions // 字段名不同
+        name: params.name,
+        description: params.description,
+        type: params.type.toLowerCase(), // 后端期望小写的类型
+        host: params.host,
+        port: params.port,
+        databaseName: params.databaseName,
+        username: params.username,
+        password: params.password,
+        syncFrequency: params.syncFrequency,
+        // 转换字段名称不同的属性
+        connectionParams: params.connectionOptions || {} // 后端使用connectionParams
       }
       
       const response = await fetch(API_BASE_URL, {
@@ -167,13 +177,20 @@ export const dataSourceService = {
     }
 
     try {
-      // 转换参数格式以匹配后端期望
-      const requestBody: any = { ...params }
-      
-      // 字段名不同
-      if (params.connectionOptions) {
-        requestBody.connectionParams = params.connectionOptions
-        delete requestBody.connectionOptions
+      // 构建符合后端期望的请求体
+      const requestBody: any = {
+        id: params.id,
+        name: params.name,
+        description: params.description,
+        host: params.host,
+        port: params.port,
+        databaseName: params.databaseName,
+        username: params.username,
+        // 只有在明确提供时才发送密码
+        ...(params.password && { password: params.password }),
+        syncFrequency: params.syncFrequency,
+        // 转换字段名称不同的属性
+        connectionParams: params.connectionOptions || {} // 后端使用connectionParams
       }
       
       const response = await fetch(`${API_BASE_URL}/${params.id}`, {
@@ -226,19 +243,42 @@ export const dataSourceService = {
     }
 
     try {
+      // 转换参数格式以匹配后端期望
+      const requestBody = {
+        type: params.type.toLowerCase(), // 转小写
+        host: params.host,
+        port: params.port,
+        databaseName: params.databaseName,
+        username: params.username,
+        password: params.password,
+        // 转换字段名不同的属性
+        connectionParams: params.connectionOptions || {} // 后端使用connectionParams
+      }
+      
       const response = await fetch(`${API_BASE_URL}/test-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(params)
+        body: JSON.stringify(requestBody)
       })
       
       if (!response.ok) {
         throw new Error(`测试连接失败: ${response.statusText}`)
       }
       
-      return handleResponse<ConnectionTestResult>(response)
+      const result = await handleResponse<any>(response)
+      // 适配后端返回的测试结果格式为前端需要的格式
+      return {
+        success: result.success || false,
+        message: result.message || '',
+        connectionInfo: result.connectionInfo || {
+          databaseType: '',
+          databaseVersion: '',
+          driverVersion: '',
+          pingTime: 0
+        }
+      }
     } catch (error) {
       console.error('测试连接错误:', error)
       throw error
@@ -252,20 +292,39 @@ export const dataSourceService = {
     }
 
     try {
-      // 使用新的元数据API路径
+      // 构建符合后端预期的请求体
+      const requestBody = {
+        filters: {
+          includeSchemas: params.filters?.includeSchemas || [],
+          excludeSchemas: params.filters?.excludeSchemas || [],
+          includeTables: params.filters?.includeTables || [],
+          excludeTables: params.filters?.excludeTables || []
+        }
+      }
+      
+      // 使用正确的元数据API路径
       const response = await fetch(`${METADATA_API_BASE_URL}/${params.id}/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(params.filters || {})
+        body: JSON.stringify(requestBody)
       })
       
       if (!response.ok) {
         throw new Error(`同步元数据失败: ${response.statusText}`)
       }
       
-      return handleResponse<MetadataSyncResult>(response)
+      const result = await handleResponse<any>(response)
+      // 适配后端返回的同步结果格式为前端需要的格式
+      return {
+        success: result.success || false,
+        message: result.message || '',
+        tablesCount: result.tablesCount || 0,
+        viewsCount: result.viewsCount || 0,
+        syncDuration: result.syncDuration || 0,
+        lastSyncTime: result.lastSyncTime || new Date().toISOString()
+      }
     } catch (error) {
       console.error(`同步数据源${params.id}元数据错误:`, error)
       throw error
@@ -387,18 +446,23 @@ export const dataSourceService = {
         throw new Error(`获取数据源统计信息失败: ${response.statusText}`)
       }
       
-      // 转换后端返回的格式为前端需要的格式
+      // 获取后端原始数据
       const data = await handleResponse<any>(response)
-      return {
+      
+      // 构造前端需要的格式
+      // 确保按照DataSourceStats接口定义进行转换
+      const stats: DataSourceStats = {
         dataSourceId: dataSourceId,
         totalTables: data.tablesCount || 0,
         totalViews: data.viewsCount || 0,
         totalQueries: data.queriesCount || 0,
         avgQueryTime: data.avgQueryTime ? parseFloat(data.avgQueryTime) : 0,
         lastAccessTime: data.lastUpdate || new Date().toISOString(),
-        storageUsed: data.totalSize ? parseFloat(data.totalSize) : undefined,
-        popularity: data.popularity || 0
-      } as DataSourceStats
+        storageUsed: data.totalSize ? parseFloat(data.totalSize) : 0,
+        popularity: data.activeConnections || 0
+      };
+      
+      return stats;
     } catch (error) {
       console.error(`获取数据源${dataSourceId}统计信息错误:`, error)
       throw error
