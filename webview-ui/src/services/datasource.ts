@@ -19,11 +19,11 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
 
 // API 基础路径
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
-  `${import.meta.env.VITE_API_BASE_URL}/datasources` : '/datasources'
+  `${import.meta.env.VITE_API_BASE_URL}/api/datasources` : '/api/datasources'
 
 // 元数据API基础路径
 const METADATA_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
-  `${import.meta.env.VITE_API_BASE_URL}/metadata/datasources` : '/metadata/datasources'
+  `${import.meta.env.VITE_API_BASE_URL}/api/metadata/datasources` : '/api/metadata/datasources'
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
