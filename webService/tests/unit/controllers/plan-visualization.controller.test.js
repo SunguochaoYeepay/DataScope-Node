@@ -1,8 +1,9 @@
 // 将测试文件使用JavaScript编写，避免类型问题
 const { PlanVisualizationController } = require('../../../src/api/controllers/plan-visualization.controller');
 const queryService = require('../../../src/services/query.service').default;
-const { ApiError } = require('../../../src/utils/error');
+const { ApiError } = require('../../../src/utils/errors/types/api-error');
 const { validationResult } = require('express-validator');
+const { ERROR_CODES } = require('../../../src/utils/errors/error-codes');
 
 // 模拟query服务
 jest.mock('../../../src/services/query.service', () => {
@@ -28,6 +29,24 @@ jest.mock('express-validator', () => {
     withMessage: jest.fn().mockReturnThis(),
     optional: jest.fn().mockReturnThis(),
     isIn: jest.fn().mockReturnThis()
+  };
+});
+
+// 模拟ApiError 
+const mockApiError = jest.fn().mockImplementation((message, errorCode, statusCode, errorType, details) => {
+  return {
+    message,
+    errorCode,
+    statusCode,
+    errorType,
+    details
+  };
+});
+
+// 在测试前修改控制器导入的ApiError路径
+jest.mock('../../../src/utils/error', () => {
+  return { 
+    ApiError: mockApiError
   };
 });
 

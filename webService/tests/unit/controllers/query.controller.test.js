@@ -1,6 +1,25 @@
 // 将测试文件从TypeScript转换为JavaScript，以避免类型问题
 const { QueryController } = require('../../../src/api/controllers/query.controller');
 const { ApiError } = require('../../../src/utils/errors/types/api-error');
+const { ERROR_CODES } = require('../../../src/utils/errors/error-codes');
+
+// 模拟ApiError 
+const mockApiError = jest.fn().mockImplementation((message, errorCode, statusCode, errorType, details) => {
+  return {
+    message,
+    errorCode,
+    statusCode,
+    errorType,
+    details
+  };
+});
+
+// 在测试前修改控制器导入的ApiError路径
+jest.mock('../../../src/utils/error', () => {
+  return { 
+    ApiError: mockApiError
+  };
+});
 
 // 模拟dependencies
 const mockConnector = {
