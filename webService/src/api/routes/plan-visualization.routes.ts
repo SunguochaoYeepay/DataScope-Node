@@ -99,7 +99,7 @@ const router = Router();
 router.get(
   '/:planId',
   [
-    check('planId').isUUID().withMessage('无效的查询计划ID'),
+    check('planId').isString().not().isEmpty().withMessage('无效的查询计划ID'),
   ],
   planVisualizationController.getVisualizationData
 );
@@ -211,8 +211,8 @@ router.get(
 router.get(
   '/compare/:planId1/:planId2',
   [
-    check('planId1').isUUID().withMessage('无效的查询计划ID'),
-    check('planId2').isUUID().withMessage('无效的查询计划ID'),
+    check('planId1').isString().not().isEmpty().withMessage('无效的查询计划ID'),
+    check('planId2').isString().not().isEmpty().withMessage('无效的查询计划ID'),
   ],
   planVisualizationController.comparePlans
 );

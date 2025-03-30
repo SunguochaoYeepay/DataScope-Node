@@ -53,7 +53,7 @@ export const validateCreateDataSource = [
 export const validateUpdateDataSource = [
   check('id')
     .not().isEmpty().withMessage('数据源ID不能为空')
-    .isUUID().withMessage('数据源ID必须是有效的UUID'),
+    .isString().withMessage('数据源ID必须是字符串'),
   
   check('name')
     .optional()
@@ -149,21 +149,21 @@ export const validateGetDataSources = [
 export const validateGetDataSource = [
   check('id')
     .not().isEmpty().withMessage('数据源ID不能为空')
-    .isUUID().withMessage('数据源ID必须是有效的UUID')
+    .isString().withMessage('数据源ID必须是字符串')
 ];
 
 // 删除数据源验证
 export const validateDeleteDataSource = [
   check('id')
     .not().isEmpty().withMessage('数据源ID不能为空')
-    .isUUID().withMessage('数据源ID必须是有效的UUID')
+    .isString().withMessage('数据源ID必须是字符串')
 ];
 
 // 同步元数据验证
 export const validateSyncMetadata = [
   check('id')
     .not().isEmpty().withMessage('数据源ID不能为空')
-    .isUUID().withMessage('数据源ID必须是有效的UUID'),
+    .isString().withMessage('数据源ID必须是字符串'),
   
   check('filters')
     .optional()

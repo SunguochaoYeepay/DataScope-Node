@@ -139,20 +139,38 @@ export class MySQLConnector implements DatabaseConnector {
    * @returns 解析后的主机名
    */
   private resolveHostAlias(host: string): string {
-    // 如果配置了直接使用容器名称作为主机名
-    if (host === 'datascope-mysql') {
-      // 如果不在容器内，则将datascope-mysql映射为localhost
+    // 空值检查
+    if (!host) {
+      logger.warn('主机名为空，使用默认值127.0.0.1');
+      return '127.0.0.1';
+    }
+
+    // 容器名称检测和映射
+    const containerNames = ['datascope-mysql', 'mysql', 'mariadb', 'database', 'db'];
+    if (containerNames.includes(host.toLowerCase())) {
+      // 当在非容器环境中使用容器名称时，将其映射为localhost
       if (!IS_INSIDE_CONTAINER) {
-        logger.info(`将容器名 ${host} 映射为 localhost`);
+        logger.info(`将容器名 ${host} 映射为 127.0.0.1`);
         return '127.0.0.1';
       }
-      return host;
     }
     
     // 检查是否有主机名映射
     if (HOST_ALIASES[host] && IS_INSIDE_CONTAINER) {
       logger.info(`将主机名 ${host} 映射为 ${HOST_ALIASES[host]}`);
       return HOST_ALIASES[host];
+    }
+    
+    // 为localhost添加特殊处理
+    if (host.toLowerCase() === 'localhost') {
+      return '127.0.0.1';
+    }
+
+    // 尝试解析IP格式
+    const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+    if (ipRegex.test(host)) {
+      // 已经是IP格式，直接返回
+      return host;
     }
     
     // 默认情况保持原样
@@ -165,30 +183,68 @@ export class MySQLConnector implements DatabaseConnector {
   }
   
   /**
-   * 测试数据库连接
+   * 测试数据库连接，支持重试
+   * @param retryCount 重试次数，默认3次
+   * @param retryDelay 重试间隔（毫秒），默认500ms
+   * @returns 是否连接成功
    */
-  async testConnection(): Promise<boolean> {
+  async testConnection(retryCount: number = 3, retryDelay: number = 500): Promise<boolean> {
+    let lastError: any = null;
     let connection;
-    try {
-      // 尝试获取连接
-      connection = await this.pool.getConnection();
-      // 执行简单查询
-      await connection.query('SELECT 1');
-      return true;
-    } catch (error: any) {
-      logger.error('测试MySQL连接失败', { 
-        error: error?.message || '未知错误', 
-        dataSourceId: this._dataSourceId 
-      });
-      throw new DataSourceConnectionError(
-        `测试MySQL连接失败: ${error?.message || '未知错误'}`, 
-        this._dataSourceId
-      );
-    } finally {
-      if (connection) {
-        connection.release();
+
+    for (let attempt = 0; attempt <= retryCount; attempt++) {
+      try {
+        // 如果不是第一次尝试，等待一段时间
+        if (attempt > 0) {
+          logger.info(`测试连接第${attempt}次重试，等待${retryDelay}ms`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+
+        // 尝试获取连接
+        connection = await this.pool.getConnection();
+        
+        // 执行简单查询
+        await connection.query('SELECT 1');
+        
+        // 成功连接，返回true
+        logger.info('数据库连接成功', { 
+          host: this.config.host, 
+          port: this.config.port, 
+          database: this.config.database,
+          dataSourceId: this._dataSourceId
+        });
+        
+        return true;
+      } catch (error: any) {
+        lastError = error;
+        logger.warn(`测试MySQL连接失败 (尝试 ${attempt+1}/${retryCount+1})`, { 
+          error: error?.message || '未知错误', 
+          host: this.config.host,
+          port: this.config.port,
+          database: this.config.database,
+          dataSourceId: this._dataSourceId 
+        });
+      } finally {
+        if (connection) {
+          connection.release();
+          connection = undefined;
+        }
       }
     }
+    
+    // 如果所有重试都失败，抛出异常
+    const errorMessage = lastError?.message || '未知错误';
+    const detailedError = `测试MySQL连接失败: ${errorMessage} (尝试了${retryCount+1}次)`;
+    
+    logger.error('所有测试连接尝试均失败', { 
+      error: detailedError, 
+      host: this.config.host,
+      port: this.config.port,
+      database: this.config.database,
+      dataSourceId: this._dataSourceId 
+    });
+    
+    throw new DataSourceConnectionError(detailedError, this._dataSourceId);
   }
 
   /**
