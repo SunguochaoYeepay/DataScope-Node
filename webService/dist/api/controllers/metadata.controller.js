@@ -17,9 +17,9 @@ class MetadataController {
          * 获取表数据预览
          */
         this.previewTableData = [
-            (0, express_validator_1.param)('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
-            (0, express_validator_1.param)('schemaName').isString().withMessage('模式名称不能为空'),
-            (0, express_validator_1.param)('tableName').isString().withMessage('表名不能为空'),
+            (0, express_validator_1.check)('dataSourceId').isString().not().isEmpty().withMessage('数据源ID不能为空'),
+            (0, express_validator_1.check)('schemaName').isString().withMessage('模式名称不能为空'),
+            (0, express_validator_1.check)('tableName').isString().withMessage('表名不能为空'),
             async (req, res, next) => {
                 try {
                     // 验证输入
@@ -107,10 +107,10 @@ class MetadataController {
      */
     validateSyncMetadata() {
         return [
-            (0, express_validator_1.param)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-            (0, express_validator_1.body)('syncType').optional().isIn(['FULL', 'INCREMENTAL']).withMessage('同步类型必须是 FULL 或 INCREMENTAL'),
-            (0, express_validator_1.body)('schemaPattern').optional().isString().withMessage('架构模式必须是字符串'),
-            (0, express_validator_1.body)('tablePattern').optional().isString().withMessage('表模式必须是字符串'),
+            (0, express_validator_1.check)('dataSourceId').isString().not().isEmpty().withMessage('无效的数据源ID'),
+            (0, express_validator_1.check)('syncType').optional().isIn(['FULL', 'INCREMENTAL']).withMessage('同步类型必须是 FULL 或 INCREMENTAL'),
+            (0, express_validator_1.check)('schemaPattern').optional().isString().withMessage('架构模式必须是字符串'),
+            (0, express_validator_1.check)('tablePattern').optional().isString().withMessage('表模式必须是字符串'),
         ];
     }
     /**
@@ -118,10 +118,10 @@ class MetadataController {
      */
     validatePreviewTableData() {
         return [
-            (0, express_validator_1.param)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-            (0, express_validator_1.query)('schema').isString().withMessage('架构名称必须是字符串'),
-            (0, express_validator_1.query)('table').isString().withMessage('表名称必须是字符串'),
-            (0, express_validator_1.query)('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit必须是1-1000之间的整数'),
+            (0, express_validator_1.check)('dataSourceId').isString().not().isEmpty().withMessage('无效的数据源ID'),
+            (0, express_validator_1.check)('schema').isString().withMessage('架构名称必须是字符串'),
+            (0, express_validator_1.check)('table').isString().withMessage('表名称必须是字符串'),
+            (0, express_validator_1.check)('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit必须是1-1000之间的整数'),
         ];
     }
     /**
@@ -153,10 +153,10 @@ class MetadataController {
      */
     validateColumnAnalysis() {
         return [
-            (0, express_validator_1.param)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-            (0, express_validator_1.query)('schema').isString().withMessage('架构名称必须是字符串'),
-            (0, express_validator_1.query)('table').isString().withMessage('表名称必须是字符串'),
-            (0, express_validator_1.query)('column').isString().withMessage('列名称必须是字符串'),
+            (0, express_validator_1.check)('dataSourceId').isString().not().isEmpty().withMessage('无效的数据源ID'),
+            (0, express_validator_1.check)('schema').isString().withMessage('架构名称必须是字符串'),
+            (0, express_validator_1.check)('table').isString().withMessage('表名称必须是字符串'),
+            (0, express_validator_1.check)('column').isString().withMessage('列名称必须是字符串'),
         ];
     }
     /**

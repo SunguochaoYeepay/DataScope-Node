@@ -87,8 +87,8 @@ const queryPlanController = new query_plan_controller_1.QueryPlanController();
  *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
  */
 router.post('/analyze', auth_1.authenticate, [
-    (0, express_validator_1.body)('dataSourceId').isString().notEmpty().withMessage('数据源ID不能为空'),
-    (0, express_validator_1.body)('sql').isString().notEmpty().withMessage('SQL查询语句不能为空')
+    (0, express_validator_1.check)('dataSourceId').isString().not().isEmpty().withMessage('数据源ID不能为空'),
+    (0, express_validator_1.check)('sql').isString().not().isEmpty().withMessage('SQL查询语句不能为空')
 ], queryPlanController.getQueryPlan.bind(queryPlanController));
 /**
  * @swagger
@@ -136,7 +136,7 @@ router.post('/analyze', auth_1.authenticate, [
  *                 optimizedSql: "SELECT * FROM users FORCE INDEX(idx_users_status) JOIN orders ON users.id = orders.user_id WHERE users.status = 'active'"
  */
 router.get('/:planId/optimize', auth_1.authenticate, [
-    (0, express_validator_1.param)('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
+    (0, express_validator_1.check)('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
 ], queryPlanController.getOptimizationTips.bind(queryPlanController));
 /**
  * @swagger
@@ -194,8 +194,8 @@ router.get('/:planId/optimize', auth_1.authenticate, [
  *                     description: "优化后估算成本降低了 40%"
  */
 router.post('/compare', auth_1.authenticate, [
-    (0, express_validator_1.body)('planAId').isString().notEmpty().withMessage('原始执行计划ID不能为空'),
-    (0, express_validator_1.body)('planBId').isString().notEmpty().withMessage('对比执行计划ID不能为空')
+    (0, express_validator_1.check)('planAId').isString().not().isEmpty().withMessage('原始执行计划ID不能为空'),
+    (0, express_validator_1.check)('planBId').isString().not().isEmpty().withMessage('对比执行计划ID不能为空')
 ], queryPlanController.comparePlans.bind(queryPlanController));
 /**
  * @swagger
@@ -311,7 +311,7 @@ router.get('/history', auth_1.authenticate, queryPlanController.getQueryPlanHist
  *                       key: "idx_status"
  */
 router.get('/:planId', auth_1.authenticate, [
-    (0, express_validator_1.param)('planId').isString().notEmpty().withMessage('查询计划ID不能为空')
+    (0, express_validator_1.check)('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
 ], queryPlanController.getQueryPlanById.bind(queryPlanController));
 exports.default = router;
 //# sourceMappingURL=query-plan.routes.js.map

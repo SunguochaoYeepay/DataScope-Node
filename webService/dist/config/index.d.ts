@@ -32,8 +32,6 @@ declare const config: {
         };
         timeout: number;
     };
-    development: {
-        mockDataPath: string;
-    };
+    development: {};
 };
 export default config;

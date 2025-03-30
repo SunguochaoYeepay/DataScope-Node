@@ -26,13 +26,13 @@ const router = (0, express_1.Router)();
  *         description: 请求参数错误
  */
 router.post('/', [
-    (0, express_validator_1.body)('name').notEmpty().withMessage('数据源名称不能为空'),
-    (0, express_validator_1.body)('type').notEmpty().withMessage('数据源类型不能为空'),
-    (0, express_validator_1.body)('host').notEmpty().withMessage('主机地址不能为空'),
-    (0, express_validator_1.body)('port').isNumeric().withMessage('端口必须为数字'),
-    (0, express_validator_1.body)('username').notEmpty().withMessage('用户名不能为空'),
-    (0, express_validator_1.body)('password').notEmpty().withMessage('密码不能为空'),
-    (0, express_validator_1.body)('database').notEmpty().withMessage('数据库名不能为空'),
+    (0, express_validator_1.check)('name').not().isEmpty().withMessage('数据源名称不能为空'),
+    (0, express_validator_1.check)('type').not().isEmpty().withMessage('数据源类型不能为空'),
+    (0, express_validator_1.check)('host').not().isEmpty().withMessage('主机地址不能为空'),
+    (0, express_validator_1.check)('port').isNumeric().withMessage('端口必须为数字'),
+    (0, express_validator_1.check)('username').not().isEmpty().withMessage('用户名不能为空'),
+    (0, express_validator_1.check)('password').not().isEmpty().withMessage('密码不能为空'),
+    (0, express_validator_1.check)('database').not().isEmpty().withMessage('数据库名不能为空'),
 ], datasource_controller_1.default.createDataSource);
 /**
  * @swagger
@@ -164,7 +164,7 @@ router.get('/:id', datasource_controller_1.default.getDataSourceById);
  *         description: 数据源不存在
  */
 router.put('/:id', [
-    (0, express_validator_1.param)('id').isUUID().withMessage('无效的数据源ID'),
+    (0, express_validator_1.check)('id').isUUID().withMessage('无效的数据源ID'),
 ], datasource_controller_1.default.updateDataSource);
 /**
  * @swagger
@@ -185,7 +185,7 @@ router.put('/:id', [
  *         description: 数据源不存在
  */
 router.delete('/:id', [
-    (0, express_validator_1.param)('id').isUUID().withMessage('无效的数据源ID'),
+    (0, express_validator_1.check)('id').isUUID().withMessage('无效的数据源ID'),
 ], datasource_controller_1.default.deleteDataSource);
 /**
  * @swagger
@@ -252,12 +252,12 @@ router.delete('/:id', [
  *                       port: 3306
  */
 router.post('/test-connection', [
-    (0, express_validator_1.body)('type').notEmpty().withMessage('数据源类型不能为空'),
-    (0, express_validator_1.body)('host').notEmpty().withMessage('主机地址不能为空'),
-    (0, express_validator_1.body)('port').isNumeric().withMessage('端口必须为数字'),
-    (0, express_validator_1.body)('username').notEmpty().withMessage('用户名不能为空'),
-    (0, express_validator_1.body)('password').notEmpty().withMessage('密码不能为空'),
-    (0, express_validator_1.body)('database').notEmpty().withMessage('数据库名不能为空'),
+    (0, express_validator_1.check)('type').not().isEmpty().withMessage('数据源类型不能为空'),
+    (0, express_validator_1.check)('host').not().isEmpty().withMessage('主机地址不能为空'),
+    (0, express_validator_1.check)('port').isNumeric().withMessage('端口必须为数字'),
+    (0, express_validator_1.check)('username').not().isEmpty().withMessage('用户名不能为空'),
+    (0, express_validator_1.check)('password').not().isEmpty().withMessage('密码不能为空'),
+    (0, express_validator_1.check)('database').not().isEmpty().withMessage('数据库名不能为空'),
 ], datasource_controller_1.default.testConnection);
 exports.default = router;
 //# sourceMappingURL=datasource.routes.js.map

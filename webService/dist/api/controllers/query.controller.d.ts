@@ -21,6 +21,10 @@ export declare class QueryController {
      */
     executeQuery(req: Request, res: Response, next: NextFunction): Promise<void>;
     /**
+     * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+     */
+    private isSpecialCommand;
+    /**
      * 保存查询
      */
     saveQuery(req: Request, res: Response, next: NextFunction): Promise<void>;

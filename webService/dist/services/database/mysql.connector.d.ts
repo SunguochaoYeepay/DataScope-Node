@@ -22,15 +22,20 @@ export declare class MySQLConnector implements DatabaseConnector {
         password: string;
         database: string;
     });
+    /**
+     * 解析主机名别名
+     * @param host 原始主机名
+     * @returns 解析后的主机名
+     */
+    private resolveHostAlias;
     get dataSourceId(): string;
     /**
-     * 测试数据库连接
+     * 测试数据库连接，支持重试
+     * @param retryCount 重试次数，默认3次
+     * @param retryDelay 重试间隔（毫秒），默认500ms
+     * @returns 是否连接成功
      */
-    testConnection(): Promise<boolean>;
-    /**
-     * 执行SQL查询
-     */
-    executeQuery(sql: string, params?: any[], queryId?: string, options?: QueryOptions): Promise<QueryResult>;
+    testConnection(retryCount?: number, retryDelay?: number): Promise<boolean>;
     /**
      * 获取查询计划（直接返回结构化数据）
      * @param sql 查询语句
@@ -50,6 +55,10 @@ export declare class MySQLConnector implements DatabaseConnector {
      */
     private isSelectQuery;
     /**
+     * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+     */
+    private isSpecialCommand;
+    /**
      * 取消正在执行的查询
      * @param queryId 查询ID
      * @returns 是否成功取消
@@ -66,6 +75,10 @@ export declare class MySQLConnector implements DatabaseConnector {
      * @returns 表信息数组
      */
     getTables(schema?: string): Promise<TableInfo[]>;
+    /**
+     * 执行SQL查询
+     */
+    executeQuery(sql: string, params?: any[], queryId?: string, options?: QueryOptions): Promise<QueryResult>;
     /**
      * 获取列信息
      */

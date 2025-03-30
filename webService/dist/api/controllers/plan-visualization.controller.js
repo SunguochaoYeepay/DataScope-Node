@@ -6,7 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PlanVisualizationController = void 0;
 const express_validator_1 = require("express-validator");
 const query_service_1 = __importDefault(require("../../services/query.service"));
-const error_1 = require("../../utils/error");
+const api_error_1 = require("../../utils/errors/types/api-error");
+const error_codes_1 = require("../../utils/errors/error-codes");
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
 /**
@@ -24,13 +25,13 @@ class PlanVisualizationController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { planId } = req.params;
             // 获取查询计划
             const planHistory = await query_service_1.default.getQueryPlanById(planId);
             if (!planHistory) {
-                throw new error_1.ApiError('查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('查询计划不存在');
             }
             // 解析计划数据
             const planData = JSON.parse(planHistory.planData);
@@ -55,7 +56,7 @@ class PlanVisualizationController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { planId1, planId2 } = req.params;
             // 获取两个查询计划
@@ -64,7 +65,7 @@ class PlanVisualizationController {
                 query_service_1.default.getQueryPlanById(planId2)
             ]);
             if (!plan1 || !plan2) {
-                throw new error_1.ApiError('一个或多个查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('一个或多个查询计划不存在');
             }
             // 解析计划数据
             const planData1 = JSON.parse(plan1.planData);
@@ -90,14 +91,14 @@ class PlanVisualizationController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { planId } = req.params;
             const { notes } = req.body;
             // 验证查询计划是否存在
             const planHistory = await query_service_1.default.getQueryPlanById(planId);
             if (!planHistory) {
-                throw new error_1.ApiError('查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('查询计划不存在');
             }
             // 保存注释
             // 注意：这里需要实现保存注释的功能，可能需要扩展数据模型
@@ -137,13 +138,13 @@ class PlanVisualizationController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { planId } = req.params;
             // 获取查询计划
             const planHistory = await query_service_1.default.getQueryPlanById(planId);
             if (!planHistory) {
-                throw new error_1.ApiError('查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('查询计划不存在');
             }
             // 解析计划数据
             const planData = JSON.parse(planHistory.planData);

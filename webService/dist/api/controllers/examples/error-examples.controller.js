@@ -10,6 +10,8 @@ exports.errorExamplesIndex = exports.demonstrateSuccess = exports.demonstrateApp
 const api_error_1 = require("../../../utils/errors/types/api-error");
 const database_error_1 = require("../../../utils/errors/types/database-error");
 const app_error_1 = require("../../../utils/errors/app-error");
+const validation_error_1 = require("../../../utils/errors/types/validation-error");
+const error_codes_1 = require("../../../utils/errors/error-codes");
 const logger_1 = __importDefault(require("../../../utils/logger"));
 /**
  * 演示验证错误
@@ -17,11 +19,14 @@ const logger_1 = __importDefault(require("../../../utils/logger"));
  * @param res 响应对象
  */
 const demonstrateValidationError = (req, res) => {
-    // 模拟验证错误
-    const error = api_error_1.ApiError.badRequest('请求参数验证失败', {
-        field: 'username',
-        message: '用户名不能为空'
-    });
+    // 模拟验证错误 - 创建符合测试要求的数组格式
+    const details = [
+        { field: 'username', message: '用户名不能为空' },
+        { field: 'password', message: '密码长度必须至少为8个字符' },
+        { field: 'email', message: '邮箱格式不正确' }
+    ];
+    // 创建验证错误
+    const error = new validation_error_1.ValidationError('请求参数验证失败', error_codes_1.ERROR_CODES.VALIDATION_FAILED, details);
     // 抛出错误，将由错误处理中间件捕获
     throw error;
 };

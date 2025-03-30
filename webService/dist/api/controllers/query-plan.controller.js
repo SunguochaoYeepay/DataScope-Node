@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QueryPlanController = void 0;
 const client_1 = require("@prisma/client");
-const error_1 = require("../../utils/error");
+const api_error_1 = require("../../utils/errors/types/api-error");
 const datasource_service_1 = require("../../services/datasource.service");
 const query_service_1 = require("../../services/query.service");
 const logger_1 = __importDefault(require("../../utils/logger"));
@@ -29,12 +29,12 @@ class QueryPlanController {
         try {
             const { dataSourceId, sql } = req.body;
             if (!dataSourceId || !sql) {
-                throw new error_1.ApiError('缺少必要参数', 400);
+                throw api_error_1.ApiError.badRequest('缺少必要参数');
             }
             // 获取数据源
             const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
             if (!dataSource) {
-                throw new error_1.ApiError('数据源不存在', 404);
+                throw api_error_1.ApiError.notFound('数据源不存在');
             }
             // 实际执行逻辑
             // 获取数据库连接
@@ -50,7 +50,7 @@ class QueryPlanController {
                 planResult = await connector.explainQuery(sql);
             }
             else {
-                throw new error_1.ApiError('数据库连接器不支持查询计划功能', 400);
+                throw api_error_1.ApiError.badRequest('数据库连接器不支持查询计划功能');
             }
             // 获取转换器并转换为统一格式
             const converter = (0, database_core_1.getQueryPlanConverter)(dataSource.type);
@@ -82,7 +82,7 @@ class QueryPlanController {
         }
         catch (error) {
             logger_1.default.error('获取查询计划失败', { error });
-            if (error instanceof error_1.ApiError) {
+            if (error instanceof api_error_1.ApiError) {
                 res.status(error.statusCode).json({
                     success: false,
                     message: error.message
@@ -114,7 +114,7 @@ class QueryPlanController {
         try {
             const { planId } = req.params;
             if (!planId) {
-                throw new error_1.ApiError('缺少查询计划ID', 400);
+                throw api_error_1.ApiError.badRequest('缺少查询计划ID');
             }
             // 从数据库获取计划
             const queryPlan = await prisma.queryPlan.findUnique({
@@ -124,7 +124,7 @@ class QueryPlanController {
                 }
             });
             if (!queryPlan) {
-                throw new error_1.ApiError('查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('查询计划不存在');
             }
             // 获取相关的数据源
             const dataSource = await dataSourceService.getDataSourceById(queryPlan.dataSourceId);
@@ -154,7 +154,7 @@ class QueryPlanController {
         }
         catch (error) {
             logger_1.default.error('获取优化建议失败', { error });
-            if (error instanceof error_1.ApiError) {
+            if (error instanceof api_error_1.ApiError) {
                 res.status(error.statusCode).json({
                     success: false,
                     message: error.message
@@ -204,7 +204,7 @@ class QueryPlanController {
         try {
             const { planAId, planBId } = req.body;
             if (!planAId || !planBId) {
-                throw new error_1.ApiError('缺少必要参数', 400);
+                throw api_error_1.ApiError.badRequest('缺少必要参数');
             }
             // 获取两个计划的数据
             const [planA, planB] = await Promise.all([
@@ -216,7 +216,7 @@ class QueryPlanController {
                 })
             ]);
             if (!planA || !planB) {
-                throw new error_1.ApiError('一个或多个查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('一个或多个查询计划不存在');
             }
             // 解析计划数据
             const planAData = JSON.parse(planA.planData);
@@ -224,7 +224,7 @@ class QueryPlanController {
             // 获取数据源类型
             const dataSource = await dataSourceService.getDataSourceById(planA.dataSourceId);
             if (!dataSource) {
-                throw new error_1.ApiError('数据源不存在', 404);
+                throw api_error_1.ApiError.notFound('数据源不存在');
             }
             // 计算性能改进
             const costA = planAData.estimatedCost || planAData.estimatedRows || 0;
@@ -247,7 +247,7 @@ class QueryPlanController {
         }
         catch (error) {
             logger_1.default.error('比较查询计划失败', { error });
-            if (error instanceof error_1.ApiError) {
+            if (error instanceof api_error_1.ApiError) {
                 res.status(error.statusCode).json({
                     success: false,
                     message: error.message
@@ -282,7 +282,7 @@ class QueryPlanController {
         }
         catch (error) {
             logger_1.default.error('获取查询计划历史记录失败', { error });
-            if (error instanceof error_1.ApiError) {
+            if (error instanceof api_error_1.ApiError) {
                 res.status(error.statusCode).json({
                     success: false,
                     message: error.message
@@ -306,12 +306,12 @@ class QueryPlanController {
         try {
             const { planId } = req.params;
             if (!planId) {
-                throw new error_1.ApiError('缺少查询计划ID', 400);
+                throw api_error_1.ApiError.badRequest('缺少查询计划ID');
             }
             // 获取查询计划
             const queryPlan = await queryService.getQueryPlanById(planId);
             if (!queryPlan) {
-                throw new error_1.ApiError('查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('查询计划不存在');
             }
             // 解析计划数据
             const planData = JSON.parse(queryPlan.planData);
@@ -329,7 +329,7 @@ class QueryPlanController {
         }
         catch (error) {
             logger_1.default.error('获取查询计划失败', { error });
-            if (error instanceof error_1.ApiError) {
+            if (error instanceof api_error_1.ApiError) {
                 res.status(error.statusCode).json({
                     success: false,
                     message: error.message

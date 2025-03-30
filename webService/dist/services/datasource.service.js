@@ -41,8 +41,8 @@ class DataSourceService {
     async createDataSource(data) {
         try {
             const { name, description, type, host, port, username, password, database, connectionParams } = data;
-            // 密码加密
-            const { hash, salt } = (0, crypto_1.encryptPassword)(password);
+            // 使用可逆加密而非哈希
+            const { encrypted, salt } = (0, crypto_1.encrypt)(password);
             return await prisma.dataSource.create({
                 data: {
                     name,
@@ -52,7 +52,7 @@ class DataSourceService {
                     port,
                     databaseName: database,
                     username,
-                    passwordEncrypted: hash,
+                    passwordEncrypted: encrypted,
                     passwordSalt: salt,
                     connectionParams,
                     status: 'ACTIVE',
@@ -122,10 +122,10 @@ class DataSourceService {
                 throw new error_1.ApiError('数据源不存在', 404);
             }
             const updateData = { ...data };
-            // 如果提供了新密码，重新加密
+            // 如果提供了新密码，使用可逆加密而非哈希
             if (data.password) {
-                const salt = (0, crypto_1.generateSalt)();
-                updateData.passwordEncrypted = (0, crypto_1.encryptPassword)(data.password, salt);
+                const { encrypted, salt } = (0, crypto_1.encrypt)(data.password);
+                updateData.passwordEncrypted = encrypted;
                 updateData.passwordSalt = salt;
                 delete updateData.password;
             }

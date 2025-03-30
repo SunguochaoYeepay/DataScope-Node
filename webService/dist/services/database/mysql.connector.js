@@ -8,6 +8,13 @@ const promise_1 = __importDefault(require("mysql2/promise"));
 const error_1 = require("../../utils/error");
 const logger_1 = __importDefault(require("../../utils/logger"));
 const mysql_plan_converter_1 = require("../../database-core/query-plan/mysql-plan-converter");
+// 主机名映射，解决localhost/127.0.0.1转换问题
+const HOST_ALIASES = {
+    'localhost': 'host.docker.internal',
+    '127.0.0.1': 'host.docker.internal'
+};
+// 是否在容器内运行，影响主机名解析策略
+const IS_INSIDE_CONTAINER = process.env.INSIDE_CONTAINER === 'true';
 /**
  * MySQL连接器
  * 实现DatabaseConnector接口，提供MySQL数据库的连接和查询功能
@@ -32,28 +39,48 @@ class MySQLConnector {
             if (!port || !username || !password || !database) {
                 throw new Error('使用单独参数模式时，所有参数都必须提供');
             }
+            // 处理主机名映射
+            const host = this.resolveHostAlias(hostOrConfig);
             this.config = {
-                host: hostOrConfig,
+                host: host,
                 port: port,
                 user: username,
                 password: password,
                 database: database,
                 waitForConnections: true,
                 connectionLimit: 10,
-                queueLimit: 0
+                queueLimit: 0,
+                // 增加连接池健康检查配置
+                enableKeepAlive: true,
+                keepAliveInitialDelay: 10000, // 10秒
+                dateStrings: true, // 日期以字符串形式返回，而不是JS Date对象
+                // 默认忽略SSL连接要求, 简化本地开发
+                ssl: {
+                    rejectUnauthorized: false
+                }
             };
         }
         else {
             // 使用配置对象模式
+            // 处理主机名映射
+            const host = this.resolveHostAlias(hostOrConfig.host);
             this.config = {
-                host: hostOrConfig.host,
+                host: host,
                 port: hostOrConfig.port,
                 user: hostOrConfig.user,
                 password: hostOrConfig.password,
                 database: hostOrConfig.database,
                 waitForConnections: true,
                 connectionLimit: 10,
-                queueLimit: 0
+                queueLimit: 0,
+                // 增加连接池健康检查配置
+                enableKeepAlive: true,
+                keepAliveInitialDelay: 10000, // 10秒
+                dateStrings: true, // 日期以字符串形式返回，而不是JS Date对象
+                // 默认忽略SSL连接要求, 简化本地开发
+                ssl: {
+                    rejectUnauthorized: false
+                }
             };
         }
         // 创建连接池
@@ -65,141 +92,105 @@ class MySQLConnector {
             database: this.config.database
         });
     }
+    /**
+     * 解析主机名别名
+     * @param host 原始主机名
+     * @returns 解析后的主机名
+     */
+    resolveHostAlias(host) {
+        // 空值检查
+        if (!host) {
+            logger_1.default.warn('主机名为空，使用默认值127.0.0.1');
+            return '127.0.0.1';
+        }
+        // 容器名称检测和映射
+        const containerNames = ['datascope-mysql', 'mysql', 'mariadb', 'database', 'db'];
+        if (containerNames.includes(host.toLowerCase())) {
+            // 当在非容器环境中使用容器名称时，将其映射为localhost
+            if (!IS_INSIDE_CONTAINER) {
+                logger_1.default.info(`将容器名 ${host} 映射为 127.0.0.1`);
+                return '127.0.0.1';
+            }
+        }
+        // 检查是否有主机名映射
+        if (HOST_ALIASES[host] && IS_INSIDE_CONTAINER) {
+            logger_1.default.info(`将主机名 ${host} 映射为 ${HOST_ALIASES[host]}`);
+            return HOST_ALIASES[host];
+        }
+        // 为localhost添加特殊处理
+        if (host.toLowerCase() === 'localhost') {
+            return '127.0.0.1';
+        }
+        // 尝试解析IP格式
+        const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+        if (ipRegex.test(host)) {
+            // 已经是IP格式，直接返回
+            return host;
+        }
+        // 默认情况保持原样
+        return host;
+    }
     // 公开getter以便访问dataSourceId
     get dataSourceId() {
         return this._dataSourceId;
     }
     /**
-     * 测试数据库连接
+     * 测试数据库连接，支持重试
+     * @param retryCount 重试次数，默认3次
+     * @param retryDelay 重试间隔（毫秒），默认500ms
+     * @returns 是否连接成功
      */
-    async testConnection() {
+    async testConnection(retryCount = 3, retryDelay = 500) {
+        let lastError = null;
         let connection;
-        try {
-            // 尝试获取连接
-            connection = await this.pool.getConnection();
-            // 执行简单查询
-            await connection.query('SELECT 1');
-            return true;
-        }
-        catch (error) {
-            logger_1.default.error('测试MySQL连接失败', {
-                error: error?.message || '未知错误',
-                dataSourceId: this._dataSourceId
-            });
-            throw new error_1.DataSourceConnectionError(`测试MySQL连接失败: ${error?.message || '未知错误'}`, this._dataSourceId);
-        }
-        finally {
-            if (connection) {
-                connection.release();
-            }
-        }
-    }
-    /**
-     * 执行SQL查询
-     */
-    async executeQuery(sql, params = [], queryId, options) {
-        let connection;
-        try {
-            connection = await this.pool.getConnection();
-            // 如果提供了queryId，则记录连接ID用于查询取消
-            if (queryId) {
-                const [threadIdResult] = await connection.query('SELECT CONNECTION_ID() as connectionId');
-                const connectionId = threadIdResult[0].connectionId;
-                this.activeQueries.set(queryId, connectionId);
-                logger_1.default.info('记录活动查询', { queryId, connectionId, dataSourceId: this._dataSourceId });
-            }
-            const startTime = Date.now();
-            // 处理分页查询
-            let originalSql = sql;
-            let modifiedSql = sql;
-            let totalCount;
-            if (options && (options.page !== undefined || options.offset !== undefined)) {
-                // 计算分页参数
-                const page = options.page || 1;
-                const pageSize = options.pageSize || options.limit || 50;
-                const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
-                const limit = options.limit || options.pageSize || 50;
-                // 添加排序
-                if (options.sort) {
-                    const sortOrder = options.order === 'desc' ? 'DESC' : 'ASC';
-                    // 使用子查询包装原始SQL，避免排序冲突
-                    modifiedSql = `SELECT * FROM (${originalSql}) AS subquery ORDER BY ${options.sort} ${sortOrder}`;
+        for (let attempt = 0; attempt <= retryCount; attempt++) {
+            try {
+                // 如果不是第一次尝试，等待一段时间
+                if (attempt > 0) {
+                    logger_1.default.info(`测试连接第${attempt}次重试，等待${retryDelay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
                 }
-                // 添加分页限制
-                modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
-                // 计算总记录数
-                try {
-                    const countSql = `SELECT COUNT(*) AS total FROM (${originalSql}) AS count_query`;
-                    const [countResult] = await connection.query(countSql, params);
-                    totalCount = countResult[0].total;
-                }
-                catch (countError) {
-                    logger_1.default.warn('计算总记录数失败', {
-                        error: countError?.message || '未知错误',
-                        sql: originalSql,
-                        dataSourceId: this._dataSourceId
-                    });
-                    // 给予宽容，如果计算总记录数失败，继续执行查询
+                // 尝试获取连接
+                connection = await this.pool.getConnection();
+                // 执行简单查询
+                await connection.query('SELECT 1');
+                // 成功连接，返回true
+                logger_1.default.info('数据库连接成功', {
+                    host: this.config.host,
+                    port: this.config.port,
+                    database: this.config.database,
+                    dataSourceId: this._dataSourceId
+                });
+                return true;
+            }
+            catch (error) {
+                lastError = error;
+                logger_1.default.warn(`测试MySQL连接失败 (尝试 ${attempt + 1}/${retryCount + 1})`, {
+                    error: error?.message || '未知错误',
+                    host: this.config.host,
+                    port: this.config.port,
+                    database: this.config.database,
+                    dataSourceId: this._dataSourceId
+                });
+            }
+            finally {
+                if (connection) {
+                    connection.release();
+                    connection = undefined;
                 }
             }
-            // 执行查询(可能已修改为分页查询)
-            const [rows, fields] = await connection.query(modifiedSql, params);
-            const endTime = Date.now();
-            logger_1.default.info('MySQL查询执行成功', {
-                dataSourceId: this._dataSourceId,
-                executionTime: endTime - startTime,
-                rowCount: Array.isArray(rows) ? rows.length : 0
-            });
-            // 处理不同类型的查询结果
-            if (Array.isArray(rows)) {
-                // SELECT 查询
-                const queryResult = {
-                    fields: fields,
-                    rows: rows,
-                    rowCount: rows.length
-                };
-                // 添加分页信息（如果有的话）
-                if (options && (options.page !== undefined || options.offset !== undefined)) {
-                    const page = options.page || 1;
-                    const pageSize = options.pageSize || options.limit || 50;
-                    queryResult.page = page;
-                    queryResult.pageSize = pageSize;
-                    if (totalCount !== undefined) {
-                        queryResult.totalCount = totalCount;
-                        queryResult.totalPages = Math.ceil(totalCount / pageSize);
-                    }
-                }
-                return queryResult;
-            }
-            else {
-                // INSERT, UPDATE, DELETE 等
-                const result = rows;
-                return {
-                    fields: [],
-                    rows: [],
-                    rowCount: 0,
-                    affectedRows: result.affectedRows,
-                    lastInsertId: result.insertId
-                };
-            }
         }
-        catch (error) {
-            logger_1.default.error('执行MySQL查询失败', {
-                error: error?.message || '未知错误',
-                dataSourceId: this._dataSourceId,
-                sql
-            });
-            throw new error_1.QueryExecutionError(`执行MySQL查询失败: ${error?.message || '未知错误'}`, this._dataSourceId, sql);
-        }
-        finally {
-            // 如果提供了queryId，清理活动查询记录
-            if (queryId) {
-                this.activeQueries.delete(queryId);
-            }
-            if (connection) {
-                connection.release();
-            }
-        }
+        // 如果所有重试都失败，抛出异常
+        const errorMessage = lastError?.message || '未知错误';
+        const detailedError = `测试MySQL连接失败: ${errorMessage} (尝试了${retryCount + 1}次)`;
+        logger_1.default.error('所有测试连接尝试均失败', {
+            error: detailedError,
+            host: this.config.host,
+            port: this.config.port,
+            database: this.config.database,
+            dataSourceId: this._dataSourceId
+        });
+        throw new error_1.DataSourceConnectionError(detailedError, this._dataSourceId);
     }
     /**
      * 获取查询计划（直接返回结构化数据）
@@ -268,6 +259,31 @@ class MySQLConnector {
     isSelectQuery(sql) {
         const trimmedSql = sql.trim().toLowerCase();
         return trimmedSql.startsWith('select');
+    }
+    /**
+     * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+     */
+    isSpecialCommand(sql) {
+        const trimmedSql = sql.trim().toLowerCase();
+        return (trimmedSql.startsWith('show ') ||
+            trimmedSql.startsWith('describe ') ||
+            trimmedSql.startsWith('desc ') ||
+            trimmedSql === 'show databases;' ||
+            trimmedSql === 'show tables;' ||
+            trimmedSql === 'show databases' ||
+            trimmedSql === 'show tables' ||
+            trimmedSql.startsWith('show columns ') ||
+            trimmedSql.startsWith('show index ') ||
+            trimmedSql.startsWith('show create ') ||
+            trimmedSql.startsWith('show grants ') ||
+            trimmedSql.startsWith('show triggers ') ||
+            trimmedSql.startsWith('show procedure ') ||
+            trimmedSql.startsWith('show function ') ||
+            trimmedSql.startsWith('show variables ') ||
+            trimmedSql.startsWith('show status ') ||
+            trimmedSql.startsWith('show engine ') ||
+            trimmedSql.startsWith('set ') ||
+            trimmedSql.startsWith('use '));
     }
     /**
      * 取消正在执行的查询
@@ -381,6 +397,147 @@ class MySQLConnector {
         finally {
             if (connection) {
                 connection.release();
+            }
+        }
+    }
+    /**
+     * 执行SQL查询
+     */
+    async executeQuery(sql, params = [], queryId, options) {
+        let connection;
+        try {
+            logger_1.default.info('MySQL连接器开始执行查询', {
+                dataSourceId: this._dataSourceId,
+                sql,
+                hasParams: params && params.length > 0,
+                queryId: queryId || 'none'
+            });
+            logger_1.default.debug('准备创建数据库连接', {
+                host: this.config.host,
+                port: this.config.port,
+                database: this.config.database
+            });
+            connection = await this.pool.getConnection();
+            logger_1.default.debug('数据库连接创建成功');
+            // 如果提供了queryId，则记录连接ID用于查询取消
+            if (queryId) {
+                const [threadIdResult] = await connection.query('SELECT CONNECTION_ID() as connectionId');
+                const connectionId = threadIdResult[0].connectionId;
+                this.activeQueries.set(queryId, connectionId);
+                logger_1.default.info('记录活动查询', { queryId, connectionId, dataSourceId: this._dataSourceId });
+            }
+            const startTime = Date.now();
+            // 处理分页查询
+            let originalSql = sql;
+            let modifiedSql = sql;
+            let totalCount;
+            // 检查是否为特殊命令，如SHOW DATABASES等，这些不支持分页
+            const isSpecial = this.isSpecialCommand(sql);
+            logger_1.default.debug('SQL类型检查', { isSpecialCommand: isSpecial, sql });
+            if (!isSpecial && options && (options.page !== undefined || options.offset !== undefined)) {
+                // 计算分页参数
+                const page = options.page || 1;
+                const pageSize = options.pageSize || options.limit || 50;
+                const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
+                const limit = options.limit || options.pageSize || 50;
+                // 添加排序
+                if (options.sort) {
+                    const sortOrder = options.order === 'desc' ? 'DESC' : 'ASC';
+                    // 使用子查询包装原始SQL，避免排序冲突
+                    modifiedSql = `SELECT * FROM (${originalSql}) AS subquery ORDER BY ${options.sort} ${sortOrder}`;
+                }
+                // 添加分页限制
+                modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+                // 计算总记录数
+                try {
+                    const countSql = `SELECT COUNT(*) AS total FROM (${originalSql}) AS count_query`;
+                    const [countResult] = await connection.query(countSql, params);
+                    totalCount = countResult[0].total;
+                }
+                catch (countError) {
+                    logger_1.default.warn('计算总记录数失败', {
+                        error: countError?.message || '未知错误',
+                        sql: originalSql,
+                        dataSourceId: this._dataSourceId
+                    });
+                    // 给予宽容，如果计算总记录数失败，继续执行查询
+                }
+            }
+            // 执行查询(可能已修改为分页查询)
+            logger_1.default.debug('即将执行SQL', { sql: modifiedSql });
+            const [rows, fields] = await connection.query(modifiedSql, params);
+            const endTime = Date.now();
+            logger_1.default.info('MySQL查询执行成功', {
+                dataSourceId: this._dataSourceId,
+                executionTime: endTime - startTime,
+                rowCount: Array.isArray(rows) ? rows.length : 0
+            });
+            // 处理不同类型的查询结果
+            if (Array.isArray(rows)) {
+                // SELECT 查询
+                const queryResult = {
+                    fields: fields,
+                    rows: rows,
+                    rowCount: rows.length
+                };
+                // 添加分页信息（如果有的话，且不是特殊命令）
+                if (!isSpecial && options && (options.page !== undefined || options.offset !== undefined)) {
+                    const page = options.page || 1;
+                    const pageSize = options.pageSize || options.limit || 50;
+                    queryResult.page = page;
+                    queryResult.pageSize = pageSize;
+                    if (totalCount !== undefined) {
+                        queryResult.totalCount = totalCount;
+                        queryResult.totalPages = Math.ceil(totalCount / pageSize);
+                    }
+                }
+                return queryResult;
+            }
+            else {
+                // INSERT, UPDATE, DELETE 等
+                const result = rows;
+                return {
+                    fields: [],
+                    rows: [],
+                    rowCount: 0,
+                    affectedRows: result.affectedRows,
+                    lastInsertId: result.insertId
+                };
+            }
+        }
+        catch (error) {
+            logger_1.default.error('执行MySQL查询失败', {
+                error: error?.message || '未知错误',
+                stack: error?.stack,
+                dataSourceId: this._dataSourceId,
+                sql,
+                host: this.config.host,
+                port: this.config.port,
+                database: this.config.database,
+                user: this.config.user
+            });
+            throw new error_1.QueryExecutionError(`执行MySQL查询失败: ${error?.message || '未知错误'}`, this._dataSourceId, sql);
+        }
+        finally {
+            // 如果提供了queryId，清理活动查询记录
+            if (queryId) {
+                this.activeQueries.delete(queryId);
+                logger_1.default.debug('删除活动查询记录', {
+                    queryId,
+                    dataSourceId: this._dataSourceId
+                });
+            }
+            if (connection) {
+                try {
+                    connection.release();
+                    logger_1.default.debug('数据库连接已释放');
+                }
+                catch (releaseError) {
+                    logger_1.default.warn('释放数据库连接时发生错误', {
+                        error: releaseError,
+                        dataSourceId: this._dataSourceId
+                    });
+                }
             }
         }
     }

@@ -189,8 +189,8 @@ router.get('/history', query_controller_1.default.getQueryHistory);
  *               }
  */
 router.post('/execute', [
-    (0, express_validator_1.body)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-    (0, express_validator_1.body)('sql').notEmpty().withMessage('SQL语句不能为空'),
+    (0, express_validator_1.check)('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
+    (0, express_validator_1.check)('sql').not().isEmpty().withMessage('SQL语句不能为空'),
 ], query_controller_1.default.executeQuery);
 /**
  * @swagger
@@ -211,9 +211,9 @@ router.post('/execute', [
  *         description: 请求参数错误
  */
 router.post('/', [
-    (0, express_validator_1.body)('name').notEmpty().withMessage('查询名称不能为空'),
-    (0, express_validator_1.body)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-    (0, express_validator_1.body)('sql').notEmpty().withMessage('SQL语句不能为空'),
+    (0, express_validator_1.check)('name').not().isEmpty().withMessage('查询名称不能为空'),
+    (0, express_validator_1.check)('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
+    (0, express_validator_1.check)('sql').not().isEmpty().withMessage('SQL语句不能为空'),
 ], query_controller_1.default.saveQuery);
 /**
  * @swagger
@@ -300,9 +300,9 @@ router.get('/:id', query_controller_1.default.getQueryById);
  *         description: 服务器错误
  */
 router.post('/explain', [
-    (0, express_validator_1.body)('dataSourceId').isUUID().withMessage('无效的数据源ID'),
-    (0, express_validator_1.body)('sql').notEmpty().withMessage('SQL语句不能为空'),
-    (0, express_validator_1.body)('includeAnalysis').optional().isBoolean().withMessage('必须是布尔值'),
+    (0, express_validator_1.check)('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
+    (0, express_validator_1.check)('sql').not().isEmpty().withMessage('SQL语句不能为空'),
+    (0, express_validator_1.check)('includeAnalysis').optional().isBoolean().withMessage('必须是布尔值'),
 ], query_controller_1.default.explainQuery);
 /**
  * @swagger
@@ -323,7 +323,7 @@ router.post('/explain', [
  *         description: 查询计划不存在
  */
 router.get('/plans/:id/tips', [
-    (0, express_validator_1.param)('id').isUUID().withMessage('无效的查询计划ID'),
+    (0, express_validator_1.check)('id').isUUID().withMessage('无效的查询计划ID'),
 ], query_controller_1.default.getQueryOptimizationTips);
 /**
  * @swagger
@@ -351,9 +351,9 @@ router.get('/plans/:id/tips', [
  *         description: 查询计划历史记录列表
  */
 router.get('/plans', [
-    (0, express_validator_1.query)('dataSourceId').optional().isUUID().withMessage('无效的数据源ID'),
-    (0, express_validator_1.query)('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
-    (0, express_validator_1.query)('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
+    (0, express_validator_1.check)('dataSourceId').optional(),
+    (0, express_validator_1.check)('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
+    (0, express_validator_1.check)('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
 ], query_controller_1.default.getQueryPlanHistory);
 /**
  * @swagger
@@ -374,7 +374,7 @@ router.get('/plans', [
  *         description: 查询不存在
  */
 router.post('/:id/cancel', [
-    (0, express_validator_1.param)('id').isUUID().withMessage('无效的查询ID'),
+    (0, express_validator_1.check)('id').isUUID().withMessage('无效的查询ID'),
 ], query_controller_1.default.cancelQuery);
 /**
  * @swagger
@@ -401,7 +401,7 @@ router.post('/:id/cancel', [
  *         description: 查询不存在
  */
 router.put('/:id', [
-    (0, express_validator_1.param)('id').isUUID().withMessage('无效的查询ID'),
+    (0, express_validator_1.check)('id').isUUID().withMessage('无效的查询ID'),
 ], query_controller_1.default.updateQuery);
 /**
  * @swagger
@@ -422,7 +422,7 @@ router.put('/:id', [
  *         description: 查询不存在
  */
 router.delete('/:id', [
-    (0, express_validator_1.param)('id').isUUID().withMessage('无效的查询ID'),
+    (0, express_validator_1.check)('id').isUUID().withMessage('无效的查询ID'),
 ], query_controller_1.default.deleteQuery);
 /**
  * @swagger
@@ -445,7 +445,7 @@ router.delete('/:id', [
  *         description: 查询不存在
  */
 router.get('/:queryId/execution-plan', [
-    (0, express_validator_1.param)('queryId').isUUID().withMessage('无效的查询ID'),
+    (0, express_validator_1.check)('queryId').isUUID().withMessage('无效的查询ID'),
 ], async (req, res, next) => {
     try {
         // 转发到查询计划控制器
@@ -477,7 +477,7 @@ router.get('/:queryId/execution-plan', [
  *         description: 查询不存在
  */
 router.get('/:queryId/visualization', [
-    (0, express_validator_1.param)('queryId').isUUID().withMessage('无效的查询ID'),
+    (0, express_validator_1.check)('queryId').isUUID().withMessage('无效的查询ID'),
 ], async (req, res, next) => {
     try {
         // 复制参数，以适配目标控制器

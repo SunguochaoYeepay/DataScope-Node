@@ -6,7 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.QueryController = void 0;
 const express_validator_1 = require("express-validator");
 const query_service_1 = __importDefault(require("../../services/query.service"));
-const error_1 = require("../../utils/error");
+const api_error_1 = require("../../utils/errors/types/api-error");
+const error_codes_1 = require("../../utils/errors/error-codes");
+const datasource_service_1 = __importDefault(require("../../services/datasource.service"));
 class QueryController {
     /**
      * 获取查询执行计划
@@ -15,7 +17,7 @@ class QueryController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { dataSourceId, sql, params, includeAnalysis = true } = req.body;
             const plan = await query_service_1.default.explainQuery(dataSourceId, sql, params);
@@ -43,7 +45,7 @@ class QueryController {
             // 从历史记录中获取查询计划
             const planHistory = await query_service_1.default.getQueryPlanById(id);
             if (!planHistory) {
-                throw new error_1.ApiError('查询计划不存在', 404);
+                throw api_error_1.ApiError.notFound('查询计划不存在');
             }
             // 获取优化建议
             const plan = JSON.parse(planHistory.planData);
@@ -107,12 +109,16 @@ class QueryController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
-            const result = await query_service_1.default.executeQuery(dataSourceId, sql, params, {
+            // 检查是否为特殊命令
+            const isSpecialCommand = this.isSpecialCommand(sql);
+            // 对于特殊命令，不传递分页参数
+            let queryOptions = isSpecialCommand ? {} : {
                 page, pageSize, offset, limit, sort, order
-            });
+            };
+            const result = await query_service_1.default.executeQuery(dataSourceId, sql, params, queryOptions);
             res.status(200).json({
                 success: true,
                 data: result
@@ -123,13 +129,40 @@ class QueryController {
         }
     }
     /**
+     * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+     */
+    isSpecialCommand(sql) {
+        if (!sql)
+            return false;
+        const trimmedSql = sql.trim().toLowerCase();
+        return (trimmedSql.startsWith('show ') ||
+            trimmedSql.startsWith('describe ') ||
+            trimmedSql.startsWith('desc ') ||
+            trimmedSql === 'show databases;' ||
+            trimmedSql === 'show tables;' ||
+            trimmedSql === 'show databases' ||
+            trimmedSql === 'show tables' ||
+            trimmedSql.startsWith('show columns ') ||
+            trimmedSql.startsWith('show index ') ||
+            trimmedSql.startsWith('show create ') ||
+            trimmedSql.startsWith('show grants ') ||
+            trimmedSql.startsWith('show triggers ') ||
+            trimmedSql.startsWith('show procedure ') ||
+            trimmedSql.startsWith('show function ') ||
+            trimmedSql.startsWith('show variables ') ||
+            trimmedSql.startsWith('show status ') ||
+            trimmedSql.startsWith('show engine ') ||
+            trimmedSql.startsWith('set ') ||
+            trimmedSql.startsWith('use '));
+    }
+    /**
      * 保存查询
      */
     async saveQuery(req, res, next) {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { dataSourceId, name, description, sql, tags, isPublic } = req.body;
             const savedQuery = await query_service_1.default.saveQuery({
@@ -193,7 +226,7 @@ class QueryController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { id } = req.params;
             const updateData = req.body;
@@ -244,8 +277,25 @@ class QueryController {
      */
     validateExecuteQuery() {
         return [
-            (0, express_validator_1.body)('dataSourceId').notEmpty().withMessage('数据源ID不能为空'),
-            (0, express_validator_1.body)('sql').notEmpty().withMessage('SQL查询语句不能为空'),
+            (0, express_validator_1.check)('dataSourceId')
+                .not().isEmpty().withMessage('数据源ID不能为空')
+                .isString().withMessage('数据源ID必须是字符串')
+                .custom(async (dataSourceId) => {
+                try {
+                    // 检查数据源是否存在
+                    const dataSource = await datasource_service_1.default.getDataSourceById(dataSourceId);
+                    if (!dataSource) {
+                        throw new Error('数据源不存在');
+                    }
+                    return true;
+                }
+                catch (error) {
+                    throw new Error('无效的数据源ID');
+                }
+            }),
+            (0, express_validator_1.check)('sql')
+                .not().isEmpty().withMessage('SQL查询不能为空')
+                .isString().withMessage('SQL查询必须是字符串')
         ];
     }
     /**
@@ -253,9 +303,9 @@ class QueryController {
      */
     validateSaveQuery() {
         return [
-            (0, express_validator_1.body)('dataSourceId').notEmpty().withMessage('数据源ID不能为空'),
-            (0, express_validator_1.body)('name').notEmpty().withMessage('名称不能为空'),
-            (0, express_validator_1.body)('sql').notEmpty().withMessage('SQL查询语句不能为空'),
+            (0, express_validator_1.check)('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
+            (0, express_validator_1.check)('name').not().isEmpty().withMessage('名称不能为空'),
+            (0, express_validator_1.check)('sql').not().isEmpty().withMessage('SQL查询语句不能为空'),
         ];
     }
     /**
@@ -263,7 +313,7 @@ class QueryController {
      */
     validateUpdateQuery() {
         return [
-            (0, express_validator_1.param)('id').notEmpty().withMessage('查询ID不能为空'),
+            (0, express_validator_1.check)('id').not().isEmpty().withMessage('查询ID不能为空'),
         ];
     }
 }

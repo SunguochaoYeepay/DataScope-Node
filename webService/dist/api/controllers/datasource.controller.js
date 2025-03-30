@@ -6,7 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DataSourceController = void 0;
 const express_validator_1 = require("express-validator");
 const datasource_service_1 = __importDefault(require("../../services/datasource.service"));
-const error_1 = require("../../utils/error");
+const api_error_1 = require("../../utils/errors/types/api-error");
+const error_codes_1 = require("../../utils/errors/error-codes");
 class DataSourceController {
     /**
      * 获取所有数据源
@@ -46,7 +47,7 @@ class DataSourceController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const dataSourceData = {
                 name: req.body.name,
@@ -77,7 +78,7 @@ class DataSourceController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const { id } = req.params;
             const updateData = {};
@@ -132,7 +133,7 @@ class DataSourceController {
         try {
             const errors = (0, express_validator_1.validationResult)(req);
             if (!errors.isEmpty()) {
-                throw new error_1.ApiError('验证错误', 400, { errors: errors.array() });
+                throw new api_error_1.ApiError('验证错误', error_codes_1.ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
             }
             const connectionData = {
                 type: req.body.type,
@@ -157,13 +158,13 @@ class DataSourceController {
      */
     validateCreateDataSource() {
         return [
-            (0, express_validator_1.body)('name').notEmpty().withMessage('名称不能为空'),
-            (0, express_validator_1.body)('type').notEmpty().withMessage('类型不能为空'),
-            (0, express_validator_1.body)('host').notEmpty().withMessage('主机不能为空'),
-            (0, express_validator_1.body)('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
-            (0, express_validator_1.body)('username').notEmpty().withMessage('用户名不能为空'),
-            (0, express_validator_1.body)('password').notEmpty().withMessage('密码不能为空'),
-            (0, express_validator_1.body)('database').notEmpty().withMessage('数据库名不能为空'),
+            (0, express_validator_1.check)('name').not().isEmpty().withMessage('名称不能为空'),
+            (0, express_validator_1.check)('type').not().isEmpty().withMessage('类型不能为空'),
+            (0, express_validator_1.check)('host').not().isEmpty().withMessage('主机不能为空'),
+            (0, express_validator_1.check)('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
+            (0, express_validator_1.check)('username').not().isEmpty().withMessage('用户名不能为空'),
+            (0, express_validator_1.check)('password').not().isEmpty().withMessage('密码不能为空'),
+            (0, express_validator_1.check)('database').not().isEmpty().withMessage('数据库名不能为空'),
         ];
     }
     /**
@@ -171,8 +172,8 @@ class DataSourceController {
      */
     validateUpdateDataSource() {
         return [
-            (0, express_validator_1.param)('id').notEmpty().withMessage('ID不能为空'),
-            (0, express_validator_1.body)('port').optional().isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
+            (0, express_validator_1.check)('id').not().isEmpty().withMessage('ID不能为空'),
+            (0, express_validator_1.check)('port').optional().isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
         ];
     }
     /**
@@ -180,12 +181,12 @@ class DataSourceController {
      */
     validateTestConnection() {
         return [
-            (0, express_validator_1.body)('type').notEmpty().withMessage('类型不能为空'),
-            (0, express_validator_1.body)('host').notEmpty().withMessage('主机不能为空'),
-            (0, express_validator_1.body)('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
-            (0, express_validator_1.body)('username').notEmpty().withMessage('用户名不能为空'),
-            (0, express_validator_1.body)('password').notEmpty().withMessage('密码不能为空'),
-            (0, express_validator_1.body)('database').notEmpty().withMessage('数据库名不能为空'),
+            (0, express_validator_1.check)('type').not().isEmpty().withMessage('类型不能为空'),
+            (0, express_validator_1.check)('host').not().isEmpty().withMessage('主机不能为空'),
+            (0, express_validator_1.check)('port').isInt({ min: 1, max: 65535 }).withMessage('端口号必须是1-65535之间的整数'),
+            (0, express_validator_1.check)('username').not().isEmpty().withMessage('用户名不能为空'),
+            (0, express_validator_1.check)('password').not().isEmpty().withMessage('密码不能为空'),
+            (0, express_validator_1.check)('database').not().isEmpty().withMessage('数据库名不能为空'),
         ];
     }
 }
