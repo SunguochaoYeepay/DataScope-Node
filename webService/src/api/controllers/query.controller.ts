@@ -123,9 +123,16 @@ export class QueryController {
       }
 
       const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
-      const result = await queryService.executeQuery(dataSourceId, sql, params, {
+      
+      // 检查是否为特殊命令
+      const isSpecialCommand = this.isSpecialCommand(sql);
+      
+      // 对于特殊命令，不传递分页参数
+      let queryOptions = isSpecialCommand ? {} : {
         page, pageSize, offset, limit, sort, order
-      });
+      };
+      
+      const result = await queryService.executeQuery(dataSourceId, sql, params, queryOptions);
       
       res.status(200).json({
         success: true,
@@ -134,6 +141,35 @@ export class QueryController {
     } catch (error: any) {
       next(error);
     }
+  }
+  
+  /**
+   * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+   */
+  private isSpecialCommand(sql: string): boolean {
+    if (!sql) return false;
+    const trimmedSql = sql.trim().toLowerCase();
+    return (
+      trimmedSql.startsWith('show ') || 
+      trimmedSql.startsWith('describe ') || 
+      trimmedSql.startsWith('desc ') ||
+      trimmedSql === 'show databases;' ||
+      trimmedSql === 'show tables;' ||
+      trimmedSql === 'show databases' ||
+      trimmedSql === 'show tables' ||
+      trimmedSql.startsWith('show columns ') ||
+      trimmedSql.startsWith('show index ') ||
+      trimmedSql.startsWith('show create ') ||
+      trimmedSql.startsWith('show grants ') ||
+      trimmedSql.startsWith('show triggers ') ||
+      trimmedSql.startsWith('show procedure ') ||
+      trimmedSql.startsWith('show function ') ||
+      trimmedSql.startsWith('show variables ') ||
+      trimmedSql.startsWith('show status ') ||
+      trimmedSql.startsWith('show engine ') ||
+      trimmedSql.startsWith('set ') ||
+      trimmedSql.startsWith('use ')
+    );
   }
 
   /**

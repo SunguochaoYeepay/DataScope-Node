@@ -133,6 +133,17 @@ npx prisma migrate dev
 
 API文档使用Swagger生成，访问 `/api-docs` 路径可查看完整API文档。
 
+## 特殊命令支持
+
+系统支持执行多种特殊的SQL命令，这些命令在处理时不会追加LIMIT子句：
+
+- `SHOW` 类命令（如 `SHOW DATABASES`、`SHOW TABLES`、`SHOW COLUMNS` 等）
+- `DESCRIBE`/`DESC` 命令
+- `SET` 类命令
+- `USE` 命令
+
+这些特殊命令可以带或不带分号结尾，系统均可正确识别并处理。
+
 ## 错误处理
 
 系统采用统一的错误处理机制：

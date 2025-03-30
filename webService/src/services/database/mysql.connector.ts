@@ -283,7 +283,21 @@ export class MySQLConnector implements DatabaseConnector {
       trimmedSql.startsWith('describe ') || 
       trimmedSql.startsWith('desc ') ||
       trimmedSql === 'show databases;' ||
-      trimmedSql === 'show tables;'
+      trimmedSql === 'show tables;' ||
+      trimmedSql === 'show databases' ||
+      trimmedSql === 'show tables' ||
+      trimmedSql.startsWith('show columns ') ||
+      trimmedSql.startsWith('show index ') ||
+      trimmedSql.startsWith('show create ') ||
+      trimmedSql.startsWith('show grants ') ||
+      trimmedSql.startsWith('show triggers ') ||
+      trimmedSql.startsWith('show procedure ') ||
+      trimmedSql.startsWith('show function ') ||
+      trimmedSql.startsWith('show variables ') ||
+      trimmedSql.startsWith('show status ') ||
+      trimmedSql.startsWith('show engine ') ||
+      trimmedSql.startsWith('set ') ||
+      trimmedSql.startsWith('use ')
     );
   }
   

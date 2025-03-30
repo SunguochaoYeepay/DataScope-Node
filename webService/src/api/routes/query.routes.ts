@@ -191,7 +191,7 @@ router.get('/history', queryController.getQueryHistory);
 router.post(
   '/execute',
   [
-    check('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
     check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
   ],
   queryController.executeQuery
@@ -219,7 +219,7 @@ router.post(
   '/',
   [
     check('name').not().isEmpty().withMessage('查询名称不能为空'),
-    check('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
     check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
   ],
   queryController.saveQuery
@@ -314,7 +314,7 @@ router.get('/:id', queryController.getQueryById);
 router.post(
   '/explain',
   [
-    check('dataSourceId').isUUID().withMessage('无效的数据源ID'),
+    check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
     check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
     check('includeAnalysis').optional().isBoolean().withMessage('必须是布尔值'),
   ],
@@ -375,7 +375,7 @@ router.get(
 router.get(
   '/plans',
   [
-    check('dataSourceId').optional().isUUID().withMessage('无效的数据源ID'),
+    check('dataSourceId').optional(),
     check('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
     check('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
   ],
