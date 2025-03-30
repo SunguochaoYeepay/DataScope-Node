@@ -15,10 +15,25 @@ import type { TableMetadata, TableRelationship } from '@/types/metadata'
 import { mockDataSourceApi } from '@/mocks/datasource'
 
 // 使用环境变量判断是否使用模拟API
-const USE_MOCK_API = true
+const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
 
 // API 基础路径
-const API_BASE_URL = '/api/datasources'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
+  `${import.meta.env.VITE_API_BASE_URL}/datasources` : '/datasources'
+
+// 元数据API基础路径
+const METADATA_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
+  `${import.meta.env.VITE_API_BASE_URL}/metadata/datasources` : '/metadata/datasources'
+
+// 处理统一响应格式
+const handleResponse = async <T>(response: Response): Promise<T> => {
+  const data = await response.json()
+  // 处理后端统一响应格式
+  if (data.success === false) {
+    throw new Error(data.error?.message || '请求失败')
+  }
+  return data.success === undefined ? data : data.data
+}
 
 // 数据源服务
 export const dataSourceService = {
@@ -34,18 +49,18 @@ export const dataSourceService = {
       if (params.name) queryParams.append('name', params.name)
       if (params.type) queryParams.append('type', params.type)
       if (params.status) queryParams.append('status', params.status)
-      if (params.page) queryParams.append('page', params.page.toString())
+      if (params.page !== undefined) queryParams.append('page', params.page.toString())
       if (params.size) queryParams.append('size', params.size.toString())
       
       // 发送请求
       const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`)
       if (!response.ok) {
-        throw new Error(`Failed to fetch data sources: ${response.statusText}`)
+        throw new Error(`获取数据源列表失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<PageResponse<DataSource>>(response)
     } catch (error) {
-      console.error('Error fetching data sources:', error)
+      console.error('获取数据源列表错误:', error)
       throw error
     }
   },
@@ -59,12 +74,12 @@ export const dataSourceService = {
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`)
       if (!response.ok) {
-        throw new Error(`Failed to fetch data source: ${response.statusText}`)
+        throw new Error(`获取数据源详情失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<DataSource>(response)
     } catch (error) {
-      console.error(`Error fetching data source ${id}:`, error)
+      console.error(`获取数据源${id}详情错误:`, error)
       throw error
     }
   },
@@ -85,12 +100,12 @@ export const dataSourceService = {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to create data source: ${response.statusText}`)
+        throw new Error(`创建数据源失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<DataSource>(response)
     } catch (error) {
-      console.error('Error creating data source:', error)
+      console.error('创建数据源错误:', error)
       throw error
     }
   },
@@ -111,12 +126,12 @@ export const dataSourceService = {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to update data source: ${response.statusText}`)
+        throw new Error(`更新数据源失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<DataSource>(response)
     } catch (error) {
-      console.error(`Error updating data source ${params.id}:`, error)
+      console.error(`更新数据源${params.id}错误:`, error)
       throw error
     }
   },
@@ -134,10 +149,12 @@ export const dataSourceService = {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to delete data source: ${response.statusText}`)
+        throw new Error(`删除数据源失败: ${response.statusText}`)
       }
+      
+      await handleResponse<void>(response)
     } catch (error) {
-      console.error(`Error deleting data source ${id}:`, error)
+      console.error(`删除数据源${id}错误:`, error)
       throw error
     }
   },
@@ -157,9 +174,13 @@ export const dataSourceService = {
         body: JSON.stringify(params)
       })
       
-      return await response.json()
+      if (!response.ok) {
+        throw new Error(`测试连接失败: ${response.statusText}`)
+      }
+      
+      return handleResponse<ConnectionTestResult>(response)
     } catch (error) {
-      console.error('Error testing connection:', error)
+      console.error('测试连接错误:', error)
       throw error
     }
   },
@@ -171,7 +192,8 @@ export const dataSourceService = {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${params.id}/sync`, {
+      // 使用新的元数据API路径
+      const response = await fetch(`${METADATA_API_BASE_URL}/${params.id}/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -180,55 +202,39 @@ export const dataSourceService = {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to sync metadata: ${response.statusText}`)
+        throw new Error(`同步元数据失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<MetadataSyncResult>(response)
     } catch (error) {
-      console.error(`Error syncing metadata for data source ${params.id}:`, error)
+      console.error(`同步数据源${params.id}元数据错误:`, error)
       throw error
     }
   },
   
-  // 获取数据源的表元数据
-  async getTableMetadata(dataSourceId: string, tableName: string): Promise<TableMetadata> {
+  // 获取数据源的表元数据 - 使用新的API路径
+  async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata | Record<string, TableMetadata>> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableMetadata(dataSourceId, tableName)
+      return mockDataSourceApi.getTableMetadata(dataSourceId, tableName as string)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/tables/${tableName}`)
+      // 构建查询参数
+      const queryParams = new URLSearchParams()
+      if (tableName) queryParams.append('tableName', tableName)
+      
+      // 使用新的元数据结构API
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/structure?${queryParams.toString()}`)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch table metadata: ${response.statusText}`)
+        throw new Error(`获取表元数据失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      const data = await handleResponse<Record<string, TableMetadata>>(response)
+      // 如果指定了表名，返回特定表的元数据；否则返回所有表
+      return tableName && data[tableName] ? data[tableName] : data
     } catch (error) {
-      console.error(`Error fetching table metadata for ${tableName}:`, error)
-      throw error
-    }
-  },
-  
-  // 搜索数据源的表和列
-  async searchMetadata(dataSourceId: string, term: string): Promise<{
-    tables: TableMetadata[],
-    columns: { table: string, column: string }[]
-  }> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.searchMetadata(dataSourceId, term)
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/search?term=${encodeURIComponent(term)}`)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to search metadata: ${response.statusText}`)
-      }
-      
-      return await response.json()
-    } catch (error) {
-      console.error(`Error searching metadata for ${dataSourceId}:`, error)
+      console.error(`获取数据源${dataSourceId}表元数据错误:`, error)
       throw error
     }
   },
@@ -240,61 +246,69 @@ export const dataSourceService = {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/relationships`)
+      // 构建查询参数获取表关系，这可能在structure API中返回或有专门的端点
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/structure?includeRelationships=true`)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch table relationships: ${response.statusText}`)
+        throw new Error(`获取表关系失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      // 从响应中提取关系信息
+      const data = await handleResponse<any>(response)
+      return data.relationships || []
     } catch (error) {
-      console.error(`Error fetching table relationships for ${dataSourceId}:`, error)
+      console.error(`获取数据源${dataSourceId}表关系错误:`, error)
       throw error
     }
   },
   
-  // 创建或更新表关系
-  async saveTableRelationship(dataSourceId: string, relationship: Omit<TableRelationship, 'id'>): Promise<TableRelationship> {
+  // 获取表数据预览
+  async getTablePreview(dataSourceId: string, tableName: string, limit: number = 10): Promise<any[]> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.saveTableRelationship(dataSourceId, relationship)
+      // 使用mock api中类似的功能
+      const result = await mockDataSourceApi.getTableDataPreview(dataSourceId, tableName, { size: limit });
+      return result.data || [];
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/relationships`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(relationship)
-      })
+      const queryParams = new URLSearchParams()
+      queryParams.append('tableName', tableName)
+      queryParams.append('limit', limit.toString())
+      
+      // 使用新的预览API
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/preview?${queryParams.toString()}`)
       
       if (!response.ok) {
-        throw new Error(`Failed to save table relationship: ${response.statusText}`)
+        throw new Error(`获取表预览数据失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<any[]>(response)
     } catch (error) {
-      console.error(`Error saving table relationship for ${dataSourceId}:`, error)
+      console.error(`获取数据源${dataSourceId}表${tableName}预览错误:`, error)
       throw error
     }
   },
   
-  // 删除表关系
-  async deleteTableRelationship(dataSourceId: string, relationshipId: string): Promise<void> {
+  // 搜索数据源元数据
+  async searchMetadata(dataSourceId: string, keyword: string): Promise<any> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.deleteTableRelationship(dataSourceId, relationshipId)
+      return mockDataSourceApi.searchMetadata(dataSourceId, keyword)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/relationships/${relationshipId}`, {
-        method: 'DELETE'
-      })
+      const queryParams = new URLSearchParams()
+      queryParams.append('keyword', keyword)
+      
+      // 这个接口在文档中不确定是否存在，可能需要调整
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/search?${queryParams.toString()}`)
       
       if (!response.ok) {
-        throw new Error(`Failed to delete table relationship: ${response.statusText}`)
+        throw new Error(`搜索元数据失败: ${response.statusText}`)
       }
+      
+      return handleResponse<any>(response)
     } catch (error) {
-      console.error(`Error deleting table relationship ${relationshipId}:`, error)
+      console.error(`搜索数据源${dataSourceId}元数据错误:`, error)
       throw error
     }
   },
@@ -306,167 +320,76 @@ export const dataSourceService = {
     }
 
     try {
+      // 这个接口在文档中不确定是否存在，可能需要调整
       const response = await fetch(`${API_BASE_URL}/${dataSourceId}/stats`)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch data source stats: ${response.statusText}`)
+        throw new Error(`获取数据源统计信息失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      // 转换后端返回的格式为前端需要的格式
+      const data = await handleResponse<any>(response)
+      return {
+        dataSourceId: dataSourceId,
+        totalTables: data.tablesCount || 0,
+        totalViews: data.viewsCount || 0,
+        totalQueries: data.queriesCount || 0,
+        avgQueryTime: data.avgQueryTime ? parseFloat(data.avgQueryTime) : 0,
+        lastAccessTime: data.lastUpdate || new Date().toISOString(),
+        storageUsed: data.totalSize ? parseFloat(data.totalSize) : undefined,
+        popularity: data.popularity || 0
+      } as DataSourceStats
     } catch (error) {
-      console.error(`Error fetching stats for data source ${dataSourceId}:`, error)
+      console.error(`获取数据源${dataSourceId}统计信息错误:`, error)
       throw error
     }
   },
   
-  // 获取数据源权限
-  async getDataSourcePermissions(dataSourceId: string): Promise<DataSourcePermissions[]> {
+  // 新增: 获取同步历史记录
+  async getSyncHistory(dataSourceId: string): Promise<any[]> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSourcePermissions(dataSourceId)
+      // 模拟数据
+      return []
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/permissions`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/sync-history`)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch data source permissions: ${response.statusText}`)
+        throw new Error(`获取同步历史失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<any[]>(response)
     } catch (error) {
-      console.error(`Error fetching permissions for data source ${dataSourceId}:`, error)
+      console.error(`获取数据源${dataSourceId}同步历史错误:`, error)
       throw error
     }
   },
-  
-  // 更新数据源权限
-  async updateDataSourcePermissions(dataSourceId: string, permissions: Omit<DataSourcePermissions, 'id'>[]): Promise<DataSourcePermissions[]> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.updateDataSourcePermissions(dataSourceId, permissions)
-    }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/permissions`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(permissions)
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to update data source permissions: ${response.statusText}`)
-      }
-      
-      return await response.json()
-    } catch (error) {
-      console.error(`Error updating permissions for data source ${dataSourceId}:`, error)
-      throw error
-    }
-  },
-  
-  // 获取表数据预览
-  async getTableDataPreview(
-    dataSourceId: string, 
-    tableName: string, 
-    params: {
-      page?: number, 
-      size?: number, 
-      sort?: string, 
-      order?: 'asc' | 'desc',
-      filters?: Record<string, any>
-    } = {}
-  ): Promise<{
-    data: any[],
-    columns: { name: string, type: string }[],
-    total: number,
-    page: number,
-    size: number,
-    totalPages: number
-  }> {
+  // 新增: 分析表列的详细信息
+  async analyzeColumns(dataSourceId: string, tableName: string, columnNames?: string[]): Promise<any> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableDataPreview(dataSourceId, tableName, params)
+      // 模拟数据
+      return {}
     }
 
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams()
-      if (params.page !== undefined) queryParams.append('page', params.page.toString())
-      if (params.size !== undefined) queryParams.append('size', params.size.toString())
-      if (params.sort) queryParams.append('sort', params.sort)
-      if (params.order) queryParams.append('order', params.order)
-      if (params.filters) {
-        Object.entries(params.filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) {
-            queryParams.append(`filter[${key}]`, value.toString())
-          }
-        })
+      queryParams.append('tableName', tableName)
+      if (columnNames && columnNames.length) {
+        queryParams.append('columns', columnNames.join(','))
       }
       
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/tables/${tableName}/preview?${queryParams.toString()}`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/columns/analyze?${queryParams.toString()}`)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch table data preview: ${response.statusText}`)
+        throw new Error(`分析列详情失败: ${response.statusText}`)
       }
       
-      return await response.json()
+      return handleResponse<any>(response)
     } catch (error) {
-      console.error(`Error fetching preview data for table ${tableName}:`, error)
-      throw error
-    }
-  },
-  
-  // 高级搜索
-  async advancedSearch(
-    params: {
-      keyword: string,
-      dataSourceIds: string[],
-      entityTypes: ('table' | 'column' | 'view')[],
-      caseSensitive?: boolean,
-      page?: number,
-      size?: number
-    }
-  ): Promise<{
-    tables: { 
-      dataSourceId: string, 
-      dataSourceName: string, 
-      tables: { name: string, type: string, schema: string }[] 
-    }[],
-    columns: { 
-      dataSourceId: string, 
-      dataSourceName: string, 
-      columns: { table: string, column: string, type: string }[] 
-    }[],
-    views: {
-      dataSourceId: string,
-      dataSourceName: string,
-      views: { name: string, schema: string }[]
-    }[],
-    total: number
-  }> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.advancedSearch(params)
-    }
-
-    try {
-      // 构建查询参数
-      const queryParams = new URLSearchParams()
-      queryParams.append('keyword', params.keyword)
-      params.dataSourceIds.forEach(id => queryParams.append('dataSourceIds', id))
-      params.entityTypes.forEach(type => queryParams.append('entityTypes', type))
-      if (params.caseSensitive !== undefined) queryParams.append('caseSensitive', String(params.caseSensitive))
-      if (params.page !== undefined) queryParams.append('page', params.page.toString())
-      if (params.size !== undefined) queryParams.append('size', params.size.toString())
-      
-      const response = await fetch(`${API_BASE_URL}/search?${queryParams.toString()}`)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to perform advanced search: ${response.statusText}`)
-      }
-      
-      return await response.json()
-    } catch (error) {
-      console.error('Error performing advanced search:', error)
+      console.error(`分析数据源${dataSourceId}表${tableName}列错误:`, error)
       throw error
     }
   }
