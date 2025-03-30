@@ -225,6 +225,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 确保发送包含正确格式的请求体到后端API
   - 添加响应格式处理兼容层，支持{success: true, data: {...}}格式
   - 完善数据类型转换，确保字符串数值正确解析
+- 数据源API集成
+  - 调整字段名称以匹配后端要求（使用database而非databaseName）
+  - 确保正确的数据类型处理和响应格式兼容
+  - 增强错误处理和默认值逻辑
+  
+- 查询管理模块API集成
+  - 从环境变量读取API基础URL和模拟API开关
+  - 添加查询计划分析API和相应方法
+  - 调整API路径以匹配后端实际路径
+  - 适配不同的响应数据格式（支持data属性或直接返回）
+  - 增强错误处理并统一使用中文错误信息
+  - 完善查询结果和查询历史的数据处理逻辑
+  - 添加searchTerm查询参数支持和hasMore分页标识
+  - 补充接口缺失字段的默认值处理
 
 ## 2023年7月15日
 
