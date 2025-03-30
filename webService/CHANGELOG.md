@@ -74,6 +74,14 @@
 - 优化了同步性能和错误处理
 - 改进了元数据存储结构
 
+## [1.0.2] - 2024-03-30
+
+### 修复
+- 修复了datasource控制器测试，重写了测试代码以正确模拟模块和依赖关系
+- 修复了测试中的服务层模拟问题，确保控制器能够正确调用和处理服务层方法
+- 优化了测试覆盖率，所有测试现在都可以正常通过
+- 修复了query控制器测试，使用JavaScript编写并正确模拟了所有依赖项
+
 ## [Unreleased]
 
 ### Fixed
@@ -81,6 +89,11 @@
 - 修复了ApiError构造函数参数顺序问题
 - 更新了所有控制器测试文件中的ApiError导入和使用方式
 - 修改了plan-visualization.controller.test.js测试文件，使测试方法与实际控制器方法匹配
+- 恢复和修复了3个关键测试文件，并将它们转换为JavaScript格式避免类型冲突：
+  - 修复并恢复了`tests/unit/controllers/query.controller.test.js`
+  - 修复并恢复了`tests/unit/controllers/query-plan.controller.test.js`
+  - 确保了这些测试文件中所有的mock正确模拟了服务层依赖
+- 修复了测试文件中的模拟单例模式实现，使控制器测试能够正确初始化服务实例
 
 ### 修复 (Fixes)
 
