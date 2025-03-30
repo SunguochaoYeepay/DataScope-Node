@@ -97,6 +97,7 @@ export interface QueryHistoryParams {
   status?: QueryStatus
   page?: number
   size?: number
+  searchTerm?: string
 }
 
 // 查询展示配置
@@ -128,7 +129,8 @@ export interface PageResponse<T> {
   total: number
   page: number
   size: number
-  totalPages: number
+  totalPages?: number
+  hasMore?: boolean
 }
 
 // SQL执行计划
