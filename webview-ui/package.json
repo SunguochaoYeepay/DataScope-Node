@@ -4,12 +4,11 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/check-port.js && ./scripts/verify-datasource-service.sh || (echo '尝试自动修复数据源服务文件...' && ./scripts/restore-datasource-service.sh)",
-    "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/app.ts",
+    "dev": "vite",
     "dev:network": "vite --host 0.0.0.0",
-    "build": "tsc",
-    "start": "node dist/app.js",
-    "test": "jest",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "migrate-passwords": "ts-node src/scripts/migrate-passwords.ts",
@@ -20,10 +19,7 @@
     "test:integration": "jest --testPathPattern=tests/integration",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "test:query-plan": "node test/query-plan.test.js",
-    "verify:datasource": "./scripts/verify-datasource-service.sh",
-    "fix:datasource": "./scripts/restore-datasource-service.sh",
-    "preview": "vite preview"
+    "test:query-plan": "node test/query-plan.test.js"
   },
   "dependencies": {
     "@vueuse/core": "^10.9.0",
