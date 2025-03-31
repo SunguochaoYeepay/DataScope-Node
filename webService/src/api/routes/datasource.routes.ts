@@ -359,4 +359,22 @@ router.post(
  */
 router.get('/:id/stats', metadataController.getStats);
 
+/**
+ * @swagger
+ * /datasources/{id}/test:
+ *   post:
+ *     summary: 测试特定数据源的连接
+ *     tags: [DataSources]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 连接测试结果
+ */
+router.post('/:id/test', dataSourceController.testExistingConnection);
+
 export default router;

@@ -1,5 +1,7 @@
 import express from 'express';
 import metadataRoutes from './metadata.routes';
+import datasourceRoutes from '../api/routes/datasource.routes';
+import queryRoutes from '../api/routes/query.routes';
 
 const router = express.Router();
 
@@ -14,5 +16,11 @@ router.get('/health', (req, res) => {
 
 // 元数据路由
 router.use('/metadata', metadataRoutes);
+
+// 数据源路由
+router.use('/datasources', datasourceRoutes);
+
+// 查询路由
+router.use('/queries', queryRoutes);
 
 export default router; 

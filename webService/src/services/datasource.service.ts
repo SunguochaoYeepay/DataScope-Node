@@ -387,6 +387,47 @@ export class DataSourceService {
       }
     ) as DatabaseConnector;
   }
+  
+  /**
+   * 测试已存在的数据源连接
+   * @param dataSourceId 数据源ID
+   * @returns 连接是否成功
+   */
+  async testExistingConnection(dataSourceId: string): Promise<boolean> {
+    try {
+      // 获取数据源信息（带密码）
+      const dataSource = await this.getDataSourceByIdWithPassword(dataSourceId);
+      
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', 404);
+      }
+      
+      // 解密密码
+      const password = this.decryptPassword(dataSource.passwordEncrypted, dataSource.passwordSalt);
+      
+      // 调用测试连接方法
+      const connectionData: TestConnectionDto = {
+        type: dataSource.type,
+        host: dataSource.host,
+        port: dataSource.port,
+        username: dataSource.username,
+        password,
+        database: dataSource.databaseName
+      };
+      
+      logger.info(`测试现有数据源连接: [${dataSource.name}] ${dataSource.username}@${dataSource.host}:${dataSource.port}/${dataSource.databaseName}`);
+      
+      return await this.testConnection(connectionData);
+    } catch (error: any) {
+      logger.error(`测试数据源连接失败 ID: ${dataSourceId}`, { error });
+      
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      throw new ApiError(`测试数据源连接失败: ${error.message}`, 500);
+    }
+  }
 }
 
 export default new DataSourceService();

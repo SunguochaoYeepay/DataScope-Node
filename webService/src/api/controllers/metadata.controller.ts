@@ -7,6 +7,7 @@ import logger from '../../utils/logger';
 import { DataSourceService } from '../../services/datasource.service';
 import config from '../../config';
 import { PrismaClient } from '@prisma/client';
+import { StatusCodes } from 'http-status-codes';
 
 const dataSourceService = new DataSourceService();
 const prisma = new PrismaClient();
@@ -472,31 +473,21 @@ class MetadataController {
    */
   async getStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const dataSourceId = req.params.id || req.params.dataSourceId;
+      const { dataSourceId } = req.params;
       
-      logger.info(`获取数据源 ${dataSourceId} 的统计信息`);
-      
-      // 验证数据源是否存在
-      const dataSource = await prisma.dataSource.findUnique({
-        where: { id: dataSourceId }
-      });
-      
-      if (!dataSource) {
-        return next(new ApiError(`数据源 ${dataSourceId} 不存在`, 404));
+      if (!dataSourceId) {
+        throw new ApiError('数据源ID不能为空', StatusCodes.BAD_REQUEST);
       }
       
-      // 获取数据源的统计信息
+      logger.debug(`获取数据源统计信息: ${dataSourceId}`);
       const stats = await metadataService.getStats(dataSourceId);
       
-      logger.info(`成功获取数据源 ${dataSourceId} 的统计信息`);
-      
-      return res.status(200).json({
+      res.json({
         success: true,
         data: stats
       });
     } catch (error) {
-      logger.error('获取统计信息失败', { error });
-      return next(error);
+      next(error);
     }
   }
 }

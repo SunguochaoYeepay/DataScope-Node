@@ -55,6 +55,7 @@ interface DatabaseConnector {
   getTables(): Promise<string[]>;
   getColumns(tableName: string): Promise<any[]>;
   executeQuery(query: string): Promise<any>;
+  getDatabaseSize?(): Promise<string>;
 }
 
 /**
@@ -169,6 +170,43 @@ class MySQLConnector implements DatabaseConnector {
     } catch (error: any) {
       logger.error('执行MySQL查询失败', { error, query });
       throw new ApiError(`执行查询失败: ${error.message}`, 500);
+    }
+  }
+  
+  /**
+   * 获取MySQL数据库大小
+   * @returns 数据库大小（格式化为人类可读的字符串）
+   */
+  async getDatabaseSize(): Promise<string> {
+    try {
+      if (!this.connection) {
+        await this.connect();
+      }
+      
+      const query = `
+        SELECT 
+          SUM(data_length + index_length) / 1024 / 1024 as size_mb,
+          ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as formatted_size
+        FROM information_schema.TABLES 
+        WHERE table_schema = ?
+      `;
+      
+      const [results]: any[] = await this.connection!.execute(query, [this.config.database]);
+      
+      if (results && Array.isArray(results) && results.length > 0) {
+        const sizeMB = parseFloat(results[0].size_mb);
+        if (sizeMB < 1024) {
+          return `${results[0].formatted_size} MB`;
+        } else {
+          const sizeGB = (sizeMB / 1024).toFixed(2);
+          return `${sizeGB} GB`;
+        }
+      }
+      
+      return '未知';
+    } catch (error) {
+      logger.error('获取MySQL数据库大小失败', { error });
+      return '未知';
     }
   }
 }
@@ -309,6 +347,34 @@ class PostgresConnector implements DatabaseConnector {
     } catch (error: any) {
       logger.error('执行PostgreSQL查询失败', { error, query });
       throw new ApiError(`执行查询失败: ${error.message}`, 500);
+    }
+  }
+  
+  /**
+   * 获取PostgreSQL数据库大小
+   * @returns 数据库大小（格式化为人类可读的字符串）
+   */
+  async getDatabaseSize(): Promise<string> {
+    try {
+      if (!this.client) {
+        await this.connect();
+      }
+      
+      const query = `
+        SELECT 
+          pg_size_pretty(pg_database_size($1)) as size
+      `;
+      
+      const result = await this.client!.query(query, [this.config.database]);
+      
+      if (result && result.rows && result.rows.length > 0) {
+        return result.rows[0].size;
+      }
+      
+      return '未知';
+    } catch (error) {
+      logger.error('获取PostgreSQL数据库大小失败', { error });
+      return '未知';
     }
   }
 }

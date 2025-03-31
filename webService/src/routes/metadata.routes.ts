@@ -54,6 +54,13 @@ const router = express.Router();
  *         description: 服务器错误
  */
 router.get(
+  '/:dataSourceId/tables',
+  authMiddleware.authenticate,
+  validateDataSourceId,
+  metadataController.getTables
+);
+
+router.get(
   '/datasources/:dataSourceId/tables',
   authMiddleware.authenticate,
   validateDataSourceId,
@@ -120,6 +127,13 @@ router.get(
  *       500:
  *         description: 服务器错误
  */
+router.get(
+  '/:dataSourceId/tables/:tableName/columns',
+  authMiddleware.authenticate,
+  validateDataSourceId,
+  metadataController.getColumns
+);
+
 router.get(
   '/datasources/:dataSourceId/tables/:tableName/columns',
   authMiddleware.authenticate,
@@ -306,6 +320,13 @@ router.post(
  *       500:
  *         description: 服务器错误
  */
+router.get(
+  '/:dataSourceId/stats',
+  authMiddleware.authenticate,
+  validateDataSourceId,
+  metadataController.getStats
+);
+
 router.get(
   '/datasources/:dataSourceId/stats',
   authMiddleware.authenticate,

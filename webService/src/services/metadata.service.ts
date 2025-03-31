@@ -451,103 +451,81 @@ class MetadataService {
   /**
    * 获取数据源的统计信息
    * @param dataSourceId 数据源ID
-   * @returns 统计信息
+   * @returns 数据源统计信息
    */
-  async getStats(dataSourceId: string): Promise<any> {
+  async getStats(dataSourceId: string): Promise<{
+    tableCount: number;
+    viewCount: number;
+    totalSize?: string;
+    lastSyncAt?: Date;
+  }> {
     try {
       logger.info(`获取数据源 ${dataSourceId} 的统计信息`);
       
-      // 获取数据源信息
-      const dataSource = await prisma.dataSource.findUnique({
-        where: { id: dataSourceId }
-      });
-      
+      // 检查数据源是否存在
+      const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
       if (!dataSource) {
         throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
       }
       
-      // 创建连接器
-      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
-      
-      // 获取表列表
-      const tables = await connector.getTables();
-      
-      // 获取每个表的行数（最多查询前10张表）
-      const tablesWithStats = await Promise.all(
-        tables.slice(0, 10).map(async (tableName: string) => {
-          try {
-            // 查询表行数
-            const countResult = await connector.executeQuery(`SELECT COUNT(*) as count FROM "${tableName}"`);
-            const rowCount = countResult.rows[0]?.count || 0;
-            
-            // 获取表的列数
-            const columns = await connector.getColumns(tableName);
-            
-            return {
-              name: tableName,
-              rowCount: Number(rowCount),
-              columnCount: columns.length
-            };
-          } catch (error) {
-            logger.warn(`无法获取表 ${tableName} 的统计信息`, { error });
-            return {
-              name: tableName,
-              rowCount: null,
-              columnCount: null,
-              error: '无法获取统计信息'
-            };
-          }
-        })
-      );
-      
-      // 获取数据库大小（仅PostgreSQL支持）
-      let databaseSize = null;
-      if (dataSource.type === 'postgres') {
-        try {
-          const sizeResult = await connector.executeQuery(`
-            SELECT pg_size_pretty(pg_database_size('${dataSource.databaseName}')) as size,
-                  pg_database_size('${dataSource.databaseName}') as size_bytes
-          `);
-          databaseSize = {
-            pretty: sizeResult.rows[0]?.size,
-            bytes: Number(sizeResult.rows[0]?.size_bytes)
-          };
-        } catch (error) {
-          logger.warn(`无法获取数据库 ${dataSource.databaseName} 的大小信息`, { error });
+      // 获取最后同步时间
+      const lastSync = await prisma.metadataSyncHistory.findFirst({
+        where: { 
+          dataSourceId,
+          status: 'COMPLETED'
+        },
+        orderBy: {
+          endTime: 'desc'
         }
+      });
+      
+      let tableCount = 0;
+      let viewCount = 0;
+      let totalSize: string | undefined = undefined;
+      
+      // 直接从数据库获取表计数
+      try {
+        const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+        const tables = await connector.getTables();
+        
+        if (Array.isArray(tables)) {
+          // 计算表和视图数量，确保tables是数组并且每个表项都有type属性
+          tableCount = tables.filter((table: any) => 
+            table.type === 'TABLE' || !table.type
+          ).length;
+          
+          viewCount = tables.filter((table: any) => 
+            table.type === 'VIEW'
+          ).length;
+        }
+        
+        // 尝试获取数据库大小 - 需要确保connector有此方法
+        if (typeof (connector as any).getDatabaseSize === 'function') {
+          totalSize = await (connector as any).getDatabaseSize();
+        }
+        
+        await connector.close();
+      } catch (error: any) {
+        logger.error(`从数据库获取表计数失败: ${error.message}`);
+        // 失败时不抛出错误，返回0计数
       }
       
-      // 关闭连接
-      await connector.close();
-      
-      // 获取上次更新时间
-      const metadataResults = await prisma.$queryRaw<any[]>`
-        SELECT "updatedAt" FROM "Metadata" 
-        WHERE "dataSourceId" = ${dataSourceId}
-        ORDER BY "updatedAt" DESC
-        LIMIT 1
-      `;
-      
-      const lastUpdated = metadataResults && metadataResults.length > 0 
-        ? metadataResults[0].updatedAt 
-        : null;
-      
-      logger.info(`获取到数据源 ${dataSourceId} 的统计信息`);
-      
       return {
-        tableCount: tables.length,
-        tables: tablesWithStats,
-        databaseSize,
-        lastUpdated
+        tableCount,
+        viewCount,
+        totalSize,
+        lastSyncAt: lastSync?.endTime || undefined
       };
     } catch (error: any) {
       logger.error(`获取数据源 ${dataSourceId} 的统计信息失败`, { error });
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError(`获取统计信息失败: ${error.message}`, 500);
+      throw new ApiError(`获取数据源统计信息失败: ${error.message}`, 500);
     }
   }
 }
 
-export default new MetadataService();
+// 创建实例导出，使其可以在其他文件中使用
+const metadataService = new MetadataService();
+export default metadataService;

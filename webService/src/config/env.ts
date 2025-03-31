@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // 加载环境变量
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 /**
  * 获取配置项，如果不存在则返回默认值
@@ -31,21 +31,15 @@ const getConfig = <T>(key: string, defaultValue: T): T => {
 
 const config = {
   // 服务配置
-  service: {
-    name: getConfig('SERVICE_NAME', 'datascope'),
-    env: getConfig('NODE_ENV', 'development'),
-    port: getConfig('PORT', 3000),
-    host: getConfig('HOST', 'localhost'),
-    apiPrefix: getConfig('API_PREFIX', '/api'),
-    version: '1.0.0',
-    isProd: getConfig<string>('NODE_ENV', 'development') === 'production',
-    isDev: getConfig<string>('NODE_ENV', 'development') === 'development',
-    isTest: getConfig<string>('NODE_ENV', 'development') === 'test',
+  server: {
+    nodeEnv: process.env.NODE_ENV || 'development',
+    port: parseInt(process.env.PORT || '5000', 10),
+    host: process.env.HOST || 'localhost',
   },
   
   // 数据库配置
   database: {
-    url: getConfig('DATABASE_URL', ''),
+    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/datascope',
     type: getConfig('DATABASE_TYPE', 'mysql'),
     logging: getConfig<string>('DATABASE_LOGGING', 'true') === 'true',
   },
@@ -64,7 +58,8 @@ const config = {
   
   // 日志配置
   logging: {
-    level: getConfig('LOG_LEVEL', 'info'),
+    level: process.env.LOG_LEVEL || 'info',
+    filename: process.env.LOG_FILENAME || 'datascope.log',
     dir: getConfig('LOG_DIR', path.resolve(process.cwd(), 'logs')),
     maxSize: getConfig('LOG_MAX_SIZE', '20m'),
     maxFiles: getConfig('LOG_MAX_FILES', 7),
@@ -88,6 +83,11 @@ const config = {
     port: getConfig('REDIS_PORT', 6379),
     password: getConfig('REDIS_PASSWORD', ''),
     db: getConfig('REDIS_DB', 0),
+  },
+  
+  // 新增配置
+  crypto: {
+    secret: process.env.CRYPTO_SECRET || 'datascope-secret-key',
   },
 };
 

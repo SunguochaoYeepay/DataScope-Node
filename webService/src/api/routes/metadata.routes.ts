@@ -740,4 +740,68 @@ router.get('/datasources/:dataSourceId/tables', metadataController.getTables);
  */
 router.get('/datasources/:dataSourceId/tables/:tableName', metadataController.getTableStructure);
 
+/**
+ * @swagger
+ * /metadata/datasources/{dataSourceId}/stats:
+ *   get:
+ *     summary: 获取数据源的统计信息
+ *     tags: [Metadata]
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 数据源统计信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *             example:
+ *               success: true
+ *               data: {
+ *                 tableCount: 15,
+ *                 viewCount: 3,
+ *                 totalSize: "1.2 GB",
+ *                 lastSyncAt: "2023-06-15T08:31:05.432Z"
+ *               }
+ *       404:
+ *         description: 数据源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: object
+ *             example:
+ *               success: false
+ *               error: {
+ *                 statusCode: 404,
+ *                 error: "NOT_FOUND",
+ *                 message: "数据源不存在",
+ *                 code: 40401,
+ *                 details: "未找到ID为123e4567-e89b-12d3-a456-426614174000的数据源"
+ *               }
+ */
+router.get(
+  '/datasources/:dataSourceId/stats',
+  metadataController.getStats
+);
+
+// 支持另一种API路径格式 - 为前端兼容性
+router.get(
+  '/:dataSourceId/stats',
+  metadataController.getStats
+);
+
 export default router;

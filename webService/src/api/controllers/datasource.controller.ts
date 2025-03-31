@@ -153,6 +153,56 @@ export class DataSourceController {
   }
 
   /**
+   * 测试现有数据源连接
+   */
+  async testExistingConnection(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      
+      if (!id) {
+        throw new ApiError('数据源ID不能为空', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST');
+      }
+      
+      // 获取数据源信息
+      const dataSource = await dataSourceService.getDataSourceById(id);
+      
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', ERROR_CODES.NOT_FOUND, 404, 'NOT_FOUND');
+      }
+      
+      // 测试连接
+      const connectionData = {
+        type: dataSource.type,
+        host: dataSource.host,
+        port: dataSource.port,
+        username: dataSource.username,
+        // 对于已存在的数据源，服务层会解密密码
+        database: dataSource.databaseName,
+        id: dataSource.id // 传递ID，让服务层可以提取加密密码
+      };
+      
+      logger.info(`测试数据源[${id}]连接`, { host: connectionData.host, database: connectionData.database });
+      
+      const result = await dataSourceService.testExistingConnection(id);
+      
+      res.status(200).json({
+        success: result,
+        message: result ? '连接成功' : '连接失败',
+        data: {
+          dataSourceId: id,
+          name: dataSource.name,
+          host: dataSource.host,
+          database: dataSource.databaseName,
+          type: dataSource.type
+        }
+      });
+    } catch (error: any) {
+      logger.error(`测试数据源连接失败: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
+  /**
    * 验证数据源创建请求
    */
   validateCreateDataSource() {

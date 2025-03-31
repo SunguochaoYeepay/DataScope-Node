@@ -69,6 +69,19 @@
 ### Added
 - 添加查询计划控制器(QueryPlanController)的单元测试
 - 添加查询控制器(QueryController)的单元测试
+- 新增数据源统计信息API接口 `/api/metadata/datasources/{dataSourceId}/stats` 和 `/api/metadata/{dataSourceId}/stats`，提供表数量、视图数量、数据库大小和最后同步时间等统计数据
+- 为数据库连接器添加 `getDatabaseSize()` 方法，支持MySQL和PostgreSQL数据库大小的获取
+
+### Fixed
+- 修复API文档无法访问的问题，集成Swagger UI到Express应用中，现在可以通过 `/api-docs` 访问API文档
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Security
 
 ## [1.0.3] - 2025-03-30
 

@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+import { StatusCodes } from 'http-status-codes';
 import logger from '../utils/logger';
 import ApiError from '../utils/apiError';
+
+/**
+ * 验证中间件，用于验证请求参数
+ */
 
 /**
  * 验证数据源ID
@@ -12,32 +17,47 @@ export const validateDataSourceId = (req: Request, res: Response, next: NextFunc
   try {
     const { dataSourceId } = req.params;
     
-    if (!dataSourceId) {
-      throw new ApiError('数据源ID不能为空', 400);
+    if (!dataSourceId || dataSourceId.trim() === '') {
+      throw new ApiError('数据源ID不能为空', StatusCodes.BAD_REQUEST);
     }
     
-    // UUID格式验证
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    
-    if (!uuidRegex.test(dataSourceId)) {
-      logger.warn(`无效的数据源ID格式: ${dataSourceId}`);
-      // 临时放宽验证，允许任何非空ID
-      // throw new ApiError('无效的数据源ID格式', 400);
+    // 简单字符串检查，不做UUID格式验证
+    if (typeof dataSourceId !== 'string') {
+      throw new ApiError('数据源ID格式不正确', StatusCodes.BAD_REQUEST);
     }
     
     next();
   } catch (error) {
     logger.error('数据源ID验证失败', { error });
     if (error instanceof ApiError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message
-      });
+      next(error);
     } else {
-      res.status(400).json({
-        success: false,
-        message: '请求参数验证失败'
-      });
+      next(new ApiError('验证数据源ID失败', StatusCodes.BAD_REQUEST));
+    }
+  }
+};
+
+/**
+ * 验证表名
+ * @param req 请求对象
+ * @param res 响应对象
+ * @param next 下一个中间件
+ */
+export const validateTableName = (req: Request, res: Response, next: NextFunction): void => {
+  try {
+    const { tableName } = req.params;
+    
+    if (!tableName || tableName.trim() === '') {
+      throw new ApiError('表名不能为空', StatusCodes.BAD_REQUEST);
+    }
+    
+    next();
+  } catch (error) {
+    logger.error('表名验证失败', { error });
+    if (error instanceof ApiError) {
+      next(error);
+    } else {
+      next(new ApiError('验证表名失败', StatusCodes.BAD_REQUEST));
     }
   }
 }; 
