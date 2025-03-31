@@ -212,6 +212,31 @@ POST /api/datasources/test-connection
 }
 ```
 
+##### 检查数据源状态
+
+```
+POST /api/datasources/:id/check-status
+```
+
+检查指定数据源的连接状态并更新状态字段。
+
+**请求参数:**
+- `id`: 数据源ID (路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "数据源状态检查完成",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "测试数据源",
+    "status": "ACTIVE",
+    "lastChecked": "2023-04-01T15:30:00.000Z"
+  }
+}
+```
+
 ## 功能特点
 
 - **数据源管理**：创建、编辑和管理多种类型的数据库连接
@@ -222,6 +247,7 @@ POST /api/datasources/test-connection
 - **数据可视化**：将查询结果转换为直观的图表（待实现）
 - **查询执行计划**：分析和可视化SQL查询执行计划，提供性能优化建议
 - **错误处理**：统一的错误处理机制，提供友好的错误信息
+- **数据源监控**：定期自动检查数据源连接状态，确保状态显示的准确性
 
 ## 查询执行计划功能
 
@@ -444,6 +470,9 @@ DataScope-Node 采用模块化的架构设计，主要包括以下几个核心�
 - 支持添加、修改、删除数据源
 - 支持连接测试功能
 - 一期支持MySQL数据库，系统架构已预留PostgreSQL、Oracle等数据库扩展能力
+- 支持手动和自动检查数据源连接状态，确保数据源状态显示准确
+- 支持明文密码存储（仅用于开发环境），简化开发测试流程
+- 自动记录数据源同步时间，便于监控同步状态
 
 ### 查询执行
 - 支持SQL查询语句执行
@@ -461,3 +490,103 @@ DataScope-Node 采用模块化的架构设计，主要包括以下几个核心�
 - 自动同步数据库表结构
 - 支持浏览表、列、索引等信息
 - 显示表关系和依赖关系
+
+## 示例数据
+
+### 数据源示例
+
+系统内置了四个MySQL示例数据源，用于测试和开发：
+
+1. **本地MySQL开发数据库** (ID: ds001)
+   - 用途：本地开发环境使用的数据库连接
+   - 连接信息：localhost:3306/datascope
+
+2. **测试环境MySQL数据库** (ID: ds002)
+   - 用途：用于功能测试的数据库连接
+   - 连接信息：localhost:3306/datascope
+
+3. **生产MySQL数据库（只读）** (ID: ds004)
+   - 用途：模拟生产环境的只读数据库连接
+   - 连接信息：localhost:3306/datascope
+
+4. **员工信息查询系统**
+   - 用途：用于人力资源部门查询员工信息的专用数据库连接
+   - 连接信息：localhost:3306/datascope
+
+这些数据源都已配置为使用本地MySQL数据库，确保开发环境可直接使用。所有数据源状态为ACTIVE，且已同步元数据。
+
+### 使用示例数据
+
+通过以下API可以与样例数据源交互：
+
+- 获取数据源列表：`GET /api/datasources`
+- 获取特定数据源信息：`GET /api/datasources/{id}`
+- 检查数据源状态：`POST /api/datasources/{id}/check-status`
+- 同步数据源元数据：`POST /api/metadata/{id}/sync`
+- 获取表数据预览：`GET /api/metadata/{id}/tables/{tableName}/data`
+
+## API路由规范
+
+后端服务提供以下主要API路由组：
+
+### 数据源管理 API
+
+- `GET /api/datasources`: 获取所有数据源列表
+- `GET /api/datasources/:id`: 获取单个数据源详情
+- `POST /api/datasources`: 创建新数据源
+- `PUT /api/datasources/:id`: 更新数据源
+- `DELETE /api/datasources/:id`: 删除数据源
+- `POST /api/datasources/:id/test`: 测试数据源连接
+- `POST /api/datasources/:id/check-status`: 检查数据源状态
+
+### 元数据 API
+
+- `POST /api/metadata/:dataSourceId/sync`: 同步数据源元数据
+- `GET /api/metadata/:dataSourceId/structure`: 获取数据源结构
+- `GET /api/metadata/:dataSourceId/tables`: 获取表列表
+- `GET /api/metadata/:dataSourceId/tables/:tableName`: 获取表结构
+- `GET /api/metadata/:dataSourceId/tables/:tableName/data`: 获取表数据预览（支持分页、排序和筛选）
+- `GET /api/metadata/:dataSourceId/stats`: 获取数据源统计信息
+
+### 查询 API
+
+- `GET /api/queries`: 获取保存的查询列表
+- `GET /api/queries/:id`: 获取单个查询详情
+- `POST /api/queries`: 创建新查询
+- `PUT /api/queries/:id`: 更新查询
+- `DELETE /api/queries/:id`: 删除查询
+- `POST /api/queries/execute`: 执行临时查询
+- `POST /api/queries/:id/execute`: 执行已保存的查询
+
+## 前端API访问说明
+
+前端应用通过以下方式访问API：
+
+1. **开发模式**：前端可以通过环境变量`VITE_USE_MOCK_API=true`使用模拟API数据
+2. **生产模式**：前端直接访问后端API
+
+## 表数据预览API说明
+
+表数据预览API支持以下参数：
+
+- `page`: 页码，从1开始
+- `size`: 每页记录数
+- `sort`: 排序字段名
+- `order`: 排序方向，可选值为`asc`或`desc`
+- `filter[columnName]`: 按列筛选，如`filter[id]=1`
+
+示例请求：
+```
+GET /api/metadata/5da82d17-7b65-4a1f-a009-6e14a751bfc6/tables/tbl_saved_query/data?page=1&size=10&sort=id&order=desc
+```
+
+## 数据库配置
+
+应用程序使用MySQL数据库存储配置和元数据信息。系统支持以下密码存储模式：
+
+1. **加密模式**：生产环境中密码使用AES加密存储（默认）
+2. **明文模式**：开发环境中支持明文存储密码，通过配置`passwordEncrypted`和`passwordSalt`字段为相同值启用
+
+## 许可证
+
+[MIT](LICENSE)

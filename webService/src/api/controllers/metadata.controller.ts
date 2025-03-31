@@ -8,6 +8,7 @@ import { DataSourceService } from '../../services/datasource.service';
 import config from '../../config';
 import { PrismaClient } from '@prisma/client';
 import { StatusCodes } from 'http-status-codes';
+import mysql from 'mysql2/promise';
 
 const dataSourceService = new DataSourceService();
 const prisma = new PrismaClient();
@@ -539,6 +540,140 @@ class MetadataController {
     });
     } catch (error) {
       next(error);
+    }
+  }
+
+  /**
+   * 获取表数据预览（带分页、排序和筛选）
+   * @param req 请求
+   * @param res 响应
+   */
+  async getTableData(req: Request, res: Response) {
+    try {
+      // 从params获取id和tableName
+      const id = req.params.id || req.params.dataSourceId;
+      const { tableName } = req.params;
+      
+      // 获取分页、排序和筛选参数
+      const page = parseInt(req.query.page as string) || 1;
+      const size = parseInt(req.query.size as string) || 10;
+      const sort = req.query.sort as string;
+      const order = req.query.order as string || 'asc';
+      
+      // 记录请求参数
+      logger.info(`获取表数据预览: ${id}/${tableName}`, { 
+        page, size, sort, order, 
+        filters: req.query 
+      });
+      
+      // 获取数据源信息
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id }
+      });
+      
+      if (!dataSource) {
+        return res.status(404).json({
+          success: false,
+          message: `数据源 ${id} 不存在`
+        });
+      }
+      
+      // 解密密码
+      let password;
+      if (dataSource.passwordEncrypted === dataSource.passwordSalt) {
+        // 明文存储 
+        password = dataSource.passwordEncrypted;
+      } else {
+        const crypto = await import('../../utils/crypto');
+        password = crypto.decrypt(dataSource.passwordEncrypted, dataSource.passwordSalt);
+      }
+      
+      // 创建MySQL连接
+      const connection = await mysql.createConnection({
+        host: dataSource.host,
+        port: dataSource.port,
+        user: dataSource.username,
+        password: password,
+        database: dataSource.databaseName
+      });
+      
+      try {
+        // 计算offset
+        const offset = (page - 1) * size;
+        
+        // 获取总记录数
+        const [countResult] = await connection.query(`SELECT COUNT(*) as total FROM ${tableName}`);
+        const totalRecords = (countResult as any)[0].total;
+        const totalPages = Math.ceil(totalRecords / size);
+        
+        // 构建查询
+        let query = `SELECT * FROM ${tableName}`;
+        const params: any[] = [];
+        
+        // 添加WHERE条件（过滤）
+        const whereConditions = [];
+        for (const [key, value] of Object.entries(req.query)) {
+          if (key.startsWith('filter[') && key.endsWith(']')) {
+            const column = key.substring(7, key.length - 1);
+            whereConditions.push(`${column} = ?`);
+            params.push(value);
+          }
+        }
+        
+        if (whereConditions.length > 0) {
+          query += ` WHERE ${whereConditions.join(' AND ')}`;
+        }
+        
+        // 添加排序
+        if (sort) {
+          const direction = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+          query += ` ORDER BY ${sort} ${direction}`;
+        }
+        
+        // 添加分页
+        query += ` LIMIT ?, ?`;
+        params.push(offset, size);
+        
+        // 执行查询
+        const [rows] = await connection.query(query, params);
+        
+        // 获取列信息
+        const [columns] = await connection.query(`SHOW COLUMNS FROM ${tableName}`);
+        
+        res.json({
+          success: true,
+          data: {
+            rows,
+            columns,
+            pagination: {
+              page,
+              size,
+              total: totalRecords,
+              totalPages,
+              hasMore: page < totalPages
+            },
+            tableInfo: {
+              tableName,
+              totalRows: totalRecords
+            }
+          }
+        });
+      } finally {
+        // 确保连接关闭
+        await connection.end();
+      }
+    } catch (error: any) {
+      logger.error('获取表数据预览失败', { 
+        error: error.message,
+        stack: error.stack 
+      });
+      
+      // 返回友好的错误信息
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message || '获取表数据失败',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 }

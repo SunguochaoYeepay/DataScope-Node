@@ -11,6 +11,13 @@ import swaggerUi from 'swagger-ui-express';
 import config from './config';
 import logger from './utils/logger';
 import apiRoutes from './api/routes';
+import { DataSourceService } from './services/datasource.service';
+import { DataSourceMonitorService } from './services/datasource-monitor.service';
+import metadataController from './api/controllers/metadata.controller';
+
+// 初始化服务
+const dataSourceService = new DataSourceService();
+const dataSourceMonitorService = new DataSourceMonitorService(dataSourceService);
 
 // Swagger配置选项
 const swaggerOptions = {
@@ -107,8 +114,15 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// 专门处理前端表数据预览请求的路由
+app.get('/api/metadata/:dataSourceId/tables/:tableName/data', (req: Request, res: Response) => {
+  console.log('app.ts - 匹配到前端请求路径，转发到正确的处理器');
+  return metadataController.getTableData(req, res);
+});
+
 // 使用API路由
 app.use('/api', apiRoutes);
+console.log('主应用：API路由已加载：/api');
 
 // 错误处理中间件
 app.use(errorHandler);
@@ -126,4 +140,8 @@ const PORT = 5000;
 app.listen(PORT, () => {
   logger.info(`服务器已启动，监听端口: ${PORT}`);
   logger.info(`API文档地址: http://localhost:${PORT}/api-docs`);
+  
+  // 启动数据源监控服务
+  dataSourceMonitorService.start();
+  logger.info('数据源监控服务已启动');
 });

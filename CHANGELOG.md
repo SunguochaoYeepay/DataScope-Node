@@ -52,25 +52,23 @@
 
 ## [Unreleased]
 
-### 修复
-- 添加错误演示API入口点，修复测试用例失败的问题
-- 实现`/api/examples/errors`路由，修复之前404的问题
-- 完善error-examples.controller.ts中的错误类型示例
-- 修复了metadata.controller.ts中的重复方法定义
-- 修复了query-plan.routes.ts中queryPlanController方法未正确绑定的问题
-- 添加了metadata.service的单元测试用例
-
-### 更改
-
-- 修复了前端集成组件中残留的模拟数据引用
-- 删除了所有与 `USE_MOCK_DATA` 环境变量相关的代码
-- 移除了模拟数据层和 `mocks` 目录
+### Fixes
+- 修复数据源状态显示不正确的问题，增加了手动触发检查数据源状态的API接口（`POST /api/datasource/:id/check-status`）
+- 修复数据源同步时间显示"never synced"的问题，确保同步后正确更新lastSyncTime
+- 改进数据源密码解密逻辑，增加对明文密码存储的支持（开发环境），解决连接解密失败问题
+- 修复数据源连接测试API (`POST /api/datasources/:id/test`) 解密失败的问题
+- 修复表数据预览API路由缺失问题，增加了表数据预览功能
 
 ### Added
 - 添加查询计划控制器(QueryPlanController)的单元测试
 - 添加查询控制器(QueryController)的单元测试
 - 新增数据源统计信息API接口 `/api/metadata/datasources/{dataSourceId}/stats` 和 `/api/metadata/{dataSourceId}/stats`，提供表数量、视图数量、数据库大小和最后同步时间等统计数据
 - 为数据库连接器添加 `getDatabaseSize()` 方法，支持MySQL和PostgreSQL数据库大小的获取
+- 添加DataSourceMonitorService服务，用于定期检查所有数据源的连接状态
+- 添加手动触发数据源状态检查的API接口 `/api/datasources/{id}/check-status`
+- 改进元数据同步服务，确保同步后正确更新lastSyncTime字段
+- 添加四个MySQL示例数据源（本地开发、测试环境、生产环境和业务系统），支持开发和测试场景
+- 为所有示例数据源配置了正确的连接信息和同步状态
 
 ### Fixed
 - 修复API文档无法访问的问题，集成Swagger UI到Express应用中，现在可以通过 `/api-docs` 访问API文档
@@ -141,3 +139,30 @@
 #### 优化
 - 统一了API参数命名和规范
 - 改进了错误处理和日志记录
+
+### 新增功能 
+- 添加数据源在线状态监控功能
+- 增加表数据预览功能
+- 添加新的API端点用于数据源状态检查
+
+### 改进
+- 优化密码解密逻辑，支持明文存储方式
+- 改进了数据源连接测试功能
+- 前端显示数据源状态信息
+
+### 修复
+- 修复了密码解密问题，支持明文存储密码
+- 修复数据源状态显示不正确的问题
+- 修复MySQL连接权限问题，添加了对远程连接的支持
+- 修复前端无法获取数据源列表的问题
+- 修复API路由匹配问题，支持前端表数据查询请求格式
+
+### 安全性
+- 改进了密码存储方式，支持明文模式（仅用于开发环境）
+
+## [1.0.0] - 2023-06-01
+
+### 新增功能
+- 实现基础数据源管理功能
+- 添加元数据浏览功能
+- 支持MySQL和PostgreSQL连接
