@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # MySQL数据库服务
+  db:
+    image: mysql:8.0
+    container_name: datascope-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: datascope
+      MYSQL_DATABASE: datascope
+      MYSQL_USER: datascope
+      MYSQL_PASSWORD: datascope
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - datascope-network
+
+  # Web服务
+  web:
+    build:
+      context: ./webService
+      dockerfile: Dockerfile
+    container_name: datascope-web
+    restart: always
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: mysql://root:datascope@datascope-mysql:3306/datascope
+      PORT: 5000
+      CONTAINER_ENV: 'true'
+      LOG_LEVEL: debug
+      LOG_DIR: /app/logs
+      AUTH_ENABLED: 'false'
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./webService:/app
+      - ./logs:/app/logs
+    depends_on:
+      - db
+    networks:
+      - datascope-network
+
+  # 前端UI服务
+  webview:
+    build:
+      context: ./webview-ui
+      dockerfile: Dockerfile
+    container_name: datascope-webview
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./webview-ui:/app
+    depends_on:
+      - web
+    networks:
+      - datascope-network
+
+networks:
+  datascope-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
