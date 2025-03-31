@@ -30,9 +30,16 @@ export class QueryService {
       
       // 检查是否为特殊命令
       const isSpecialCommand = this.isSpecialCommand(sql);
+      logger.debug(`SQL命令类型: "${sql}" -> ${isSpecialCommand ? '特殊命令' : '普通查询'}`);
       
-      // 如果是特殊命令，不应用分页和排序
-      const queryOptionsToUse = isSpecialCommand ? {} : options;
+      // 特殊命令处理：不应用分页和排序
+      let queryOptionsToUse = options;
+      if (isSpecialCommand) {
+        logger.debug('特殊命令不使用分页和排序选项');
+        queryOptionsToUse = {}; // 特殊命令不应用任何选项
+      } else {
+        logger.debug('普通查询使用原始查询选项', options);
+      }
       
       // 记录查询开始
       const startTime = new Date();
@@ -53,7 +60,13 @@ export class QueryService {
         logger.debug('查询历史记录已创建', { queryHistoryId });
         
         // 执行查询 - 传递queryHistoryId作为queryId以支持取消功能
-        logger.debug('开始执行数据库查询');
+        logger.debug('开始执行数据库查询', { 
+          sql, 
+          params, 
+          queryId: queryHistoryId, 
+          options: queryOptionsToUse 
+        });
+        
         const result = await connector.executeQuery(sql, params, queryHistoryId, queryOptionsToUse);
         logger.debug('数据库查询执行成功', { rowCount: result.rows.length });
         

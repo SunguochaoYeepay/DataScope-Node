@@ -82,10 +82,25 @@ export class QueryExecutionError extends AppError {
   dataSourceId: string;
   sql: string;
   
-  constructor(message: string, dataSourceId: string, sql: string) {
+  constructor(message: string, sqlOrId: string, dataSourceIdOrSql?: string) {
     super(message, 400, ErrorCodes.QUERY_EXECUTION_ERROR);
-    this.dataSourceId = dataSourceId;
-    this.sql = sql;
+    
+    // 参数顺序兼容性处理：判断第二个参数是否像SQL语句
+    if (sqlOrId.toLowerCase().includes('select') || 
+        sqlOrId.toLowerCase().includes('show') || 
+        sqlOrId.toLowerCase().includes('insert') || 
+        sqlOrId.toLowerCase().includes('update') || 
+        sqlOrId.toLowerCase().includes('delete') || 
+        sqlOrId.toLowerCase().includes('create') || 
+        sqlOrId.toLowerCase().includes('alter')) {
+      // 第二个参数是SQL，第三个参数是dataSourceId
+      this.sql = sqlOrId;
+      this.dataSourceId = dataSourceIdOrSql || 'unknown';
+    } else {
+      // 第二个参数是dataSourceId，第三个参数是SQL
+      this.dataSourceId = sqlOrId;
+      this.sql = dataSourceIdOrSql || 'unknown';
+    }
   }
 }
 

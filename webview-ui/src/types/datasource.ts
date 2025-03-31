@@ -21,6 +21,7 @@ export interface DataSource {
   host: string
   port: number
   databaseName: string
+  database?: string
   username: string
   password?: string
   status: DataSourceStatus
@@ -45,6 +46,7 @@ export interface CreateDataSourceParams {
   host: string
   port: number
   databaseName: string
+  database?: string
   username: string
   password: string
   syncFrequency: SyncFrequency
@@ -61,6 +63,7 @@ export interface UpdateDataSourceParams {
   host?: string
   port?: number
   databaseName?: string
+  database?: string
   username?: string
   password?: string
   syncFrequency?: SyncFrequency
@@ -75,6 +78,7 @@ export interface TestConnectionParams {
   host: string
   port: number
   databaseName: string
+  database?: string
   username: string
   password?: string
   connectionParams?: Record<string, string>

@@ -709,6 +709,7 @@ export const mockDataSourceApi = {
     
     // 生成模拟统计数据
     return {
+      dataSourceId: dataSourceId,
       tablesCount: dataSource.metadata?.tables?.length || 0,
       viewsCount: Math.floor(Math.random() * 5),
       totalRows: Math.floor(Math.random() * 1000000),
@@ -717,7 +718,13 @@ export const mockDataSourceApi = {
       queriesCount: Math.floor(Math.random() * 500),
       connectionPoolSize: Math.floor(Math.random() * 20) + 5,
       activeConnections: Math.floor(Math.random() * 10),
-      avgQueryTime: Math.floor(Math.random() * 1000) + 'ms'
+      avgQueryTime: Math.floor(Math.random() * 1000) + 'ms',
+      // 添加缺失的字段
+      totalTables: dataSource.metadata?.tables?.length || 0, 
+      totalViews: Math.floor(Math.random() * 5),
+      totalQueries: Math.floor(Math.random() * 500),
+      avgResponseTime: Math.floor(Math.random() * 100),
+      peakConnections: Math.floor(Math.random() * 20) + 5
     }
   },
   

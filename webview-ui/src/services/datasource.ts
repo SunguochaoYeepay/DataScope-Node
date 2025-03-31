@@ -52,7 +52,8 @@ const adaptDataSource = (source: any): DataSource => {
     type: (source.type?.toUpperCase() || 'MYSQL') as DataSourceType, // 后端返回小写的类型
     host: source.host,
     port: source.port,
-    databaseName: source.databaseName || source.database, // 兼容后端可能使用database字段
+    databaseName: source.databaseName || source.database || '', // 优先使用databaseName，其次使用database
+    database: source.databaseName || source.database || '', // 同时记录database字段确保两边兼容
     username: source.username,
     // 密码通常不会返回
     status: (source.status || 'ACTIVE') as DataSourceStatus,
@@ -147,7 +148,7 @@ export const dataSourceService = {
         type: params.type.toLowerCase(), // 后端期望小写的类型
         host: params.host,
         port: params.port,
-        database: params.databaseName, // 注意：后端期望 database 而不是 databaseName
+        database: params.database || params.databaseName, // 优先使用database，其次使用databaseName
         username: params.username,
         password: params.password,
         syncFrequency: params.syncFrequency,
@@ -192,7 +193,7 @@ export const dataSourceService = {
         description: params.description,
         host: params.host,
         port: params.port,
-        database: params.databaseName, // 后端期望 database 而不是 databaseName
+        database: params.database || params.databaseName, // 优先使用database，其次使用databaseName
         username: params.username,
         // 只有在明确提供时才发送密码
         ...(params.password && { password: params.password }),
@@ -254,12 +255,12 @@ export const dataSourceService = {
     }
 
     try {
-      // 构建符合后端预期的请求体 - 使用database而非databaseName
+      // 构建符合后端预期的请求体
       const requestBody = {
         type: params.type.toLowerCase(),
         host: params.host,
         port: params.port,
-        database: params.databaseName, // 使用database字段
+        database: params.database || params.databaseName, // 优先使用database，其次使用databaseName
         username: params.username,
         password: params.password,
         connectionParams: params.connectionParams || {}

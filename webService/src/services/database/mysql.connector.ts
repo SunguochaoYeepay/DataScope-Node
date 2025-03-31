@@ -333,8 +333,11 @@ export class MySQLConnector implements DatabaseConnector {
    * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
    */
   private isSpecialCommand(sql: string): boolean {
+    if (!sql) return false;
     const trimmedSql = sql.trim().toLowerCase();
-    return (
+    
+    // 更严格的特殊命令识别
+    const isSpecial = (
       trimmedSql.startsWith('show ') || 
       trimmedSql.startsWith('describe ') || 
       trimmedSql.startsWith('desc ') ||
@@ -355,6 +358,11 @@ export class MySQLConnector implements DatabaseConnector {
       trimmedSql.startsWith('set ') ||
       trimmedSql.startsWith('use ')
     );
+    
+    // 添加详细调试日志
+    logger.debug(`SQL命令类型检测: "${trimmedSql}" -> ${isSpecial ? '特殊命令' : '普通查询'}`);
+    
+    return isSpecial;
   }
   
   /**
@@ -495,12 +503,12 @@ export class MySQLConnector implements DatabaseConnector {
         hasParams: params && params.length > 0,
         queryId: queryId || 'none'
       });
+
+      // 检查是否为特殊命令，如SHOW DATABASES等，这些不支持分页和一些高级选项
+      const isSpecial = this.isSpecialCommand(sql);
+      logger.debug('SQL命令类型检查', { isSpecialCommand: isSpecial, sql });
       
-      logger.debug('准备创建数据库连接', { 
-        host: this.config.host, 
-        port: this.config.port, 
-        database: this.config.database 
-      });
+      // 创建数据库连接
       connection = await this.pool.getConnection();
       logger.debug('数据库连接创建成功');
       
@@ -509,38 +517,37 @@ export class MySQLConnector implements DatabaseConnector {
         const [threadIdResult] = await connection.query('SELECT CONNECTION_ID() as connectionId') as any[];
         const connectionId = threadIdResult[0].connectionId;
         this.activeQueries.set(queryId, connectionId);
-        
-        logger.info('记录活动查询', { queryId, connectionId, dataSourceId: this._dataSourceId });
+        logger.debug('记录活动查询', { queryId, connectionId });
       }
       
       const startTime = Date.now();
-      
-      // 处理分页查询
-      let originalSql = sql;
       let modifiedSql = sql;
       let totalCount: number | undefined;
       
-      // 检查是否为特殊命令，如SHOW DATABASES等，这些不支持分页
-      const isSpecial = this.isSpecialCommand(sql);
-      logger.debug('SQL类型检查', { isSpecialCommand: isSpecial, sql });
-      
-      // 只有非特殊命令才应用分页和排序
-      if (!isSpecial && options) {
-        // 添加排序
+      // 特殊命令处理：直接执行，不添加任何额外选项
+      if (isSpecial) {
+        logger.debug('检测到特殊命令，直接执行', { sql });
+        // 直接使用原始SQL，不添加任何修饰
+      } 
+      // 普通SQL查询处理：应用分页和排序
+      else if (options) {
+        logger.debug('处理普通查询', { sql, options });
+        
+        // 添加排序（如果需要）
         if (options.sort) {
           const sortDirection = options.order || 'asc';
           const sortOrder = sortDirection.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
           
-          // 检查SQL中是否已经有ORDER BY子句
           if (!modifiedSql.toLowerCase().includes('order by')) {
             modifiedSql = `${modifiedSql} ORDER BY ${options.sort} ${sortOrder}`;
+            logger.debug('添加排序子句', { sort: options.sort, order: sortOrder });
           }
-          
-          logger.debug('添加排序条件', { sort: options.sort, order: sortOrder });
         }
         
-        // 添加分页
-        if (options.page !== undefined || options.pageSize !== undefined || options.limit !== undefined || options.offset !== undefined) {
+        // 添加分页（如果需要）
+        if (options.page !== undefined || options.pageSize !== undefined || 
+            options.limit !== undefined || options.offset !== undefined) {
+          
           const page = options.page || 1;
           const pageSize = options.pageSize || options.limit || 50;
           const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
@@ -549,44 +556,34 @@ export class MySQLConnector implements DatabaseConnector {
           modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
           logger.debug('添加分页限制', { offset, limit });
           
-          // 计算总记录数
+          // 计算总记录数（可选）
           try {
-            const countSql = `SELECT COUNT(*) AS total FROM (${originalSql}) AS count_query`;
-            logger.debug('执行计数查询', { countSql });
-            
+            const countSql = `SELECT COUNT(*) AS total FROM (${sql}) AS count_query`;
             const [countResult] = await connection.query(countSql, params) as any[];
             totalCount = countResult[0].total;
-            
-            logger.debug('计数查询结果', { totalCount });
+            logger.debug('计算总记录数成功', { totalCount });
           } catch (countError) {
             logger.warn('计算总记录数失败', { error: countError });
-            // 计算总记录数失败，继续执行原始查询
+            // 继续执行，不抛出异常
           }
         }
       }
       
-      // 执行查询
-      logger.debug('执行SQL查询', { 
-        sql: modifiedSql, 
-        originalSql: modifiedSql !== originalSql ? originalSql : undefined,
-        paramsCount: params.length
-      });
-      
+      // 执行最终的SQL
+      logger.debug('执行SQL', { originalSql: sql, modifiedSql, isSpecial });
       const [rows, fields] = await connection.query(modifiedSql, params) as [any[], mysql.FieldPacket[]];
       
       const endTime = Date.now();
       const executionTime = endTime - startTime;
       
-      logger.info('MySQL查询执行完成', { 
-        rowCount: rows.length, 
-        executionTime,
-        dataSourceId: this._dataSourceId
+      logger.info('MySQL查询执行成功', { 
+        executionTime, 
+        rowCount: rows.length
       });
       
       // 如果有queryId，从活动查询中移除
       if (queryId) {
         this.activeQueries.delete(queryId);
-        logger.debug('从活动查询移除', { queryId });
       }
       
       // 准备返回结果
@@ -601,8 +598,8 @@ export class MySQLConnector implements DatabaseConnector {
         rowCount: rows.length,
       };
       
-      // 添加分页信息（如果适用）
-      if (options && (options.page !== undefined || options.pageSize !== undefined)) {
+      // 添加分页信息（如果适用且不是特殊命令）
+      if (!isSpecial && options && (options.page !== undefined || options.pageSize !== undefined)) {
         const page = options.page || 1;
         const pageSize = options.pageSize || options.limit || 50;
         
@@ -623,7 +620,6 @@ export class MySQLConnector implements DatabaseConnector {
         dataSourceId: this._dataSourceId
       });
       
-      // 如果有queryId，从活动查询中移除
       if (queryId) {
         this.activeQueries.delete(queryId);
       }
