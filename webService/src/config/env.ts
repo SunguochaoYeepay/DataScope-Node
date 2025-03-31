@@ -48,12 +48,12 @@ const config = {
   security: {
     jwtSecret: getConfig('JWT_SECRET', 'datascope-secret'),
     jwtExpiresIn: getConfig('JWT_EXPIRES_IN', '24h'),
-    encryptionKey: getConfig('ENCRYPTION_KEY', 'datascope-default-encryption-key'),
+    encryptionKey: getConfig('ENCRYPTION_KEY', 'datascope-default-encryption-key-12345'),
   },
   
   // 密码加密配置（数据源密码用）
   encryption: {
-    key: getConfig('ENCRYPTION_KEY', 'datascope-encryption-key'),
+    key: getConfig('ENCRYPTION_KEY', 'datascope-default-encryption-key-12345'),
   },
   
   // 日志配置
