@@ -215,6 +215,46 @@ export class DataSourceService {
   }
   
   /**
+   * 更新数据源状态
+   */
+  async updateDataSourceStatus(id: string, status: string, message?: string): Promise<DataSource> {
+    try {
+      // 检查数据源是否存在
+      const dataSource = await prisma.dataSource.findUnique({
+        where: { id }
+      });
+      
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', 404);
+      }
+      
+      // 如果提供了消息，记录到日志
+      if (message) {
+        logger.info(`数据源状态更新: ${id}, ${status}, 消息: ${message}`);
+      }
+      
+      // 更新数据源状态
+      return await prisma.dataSource.update({
+        where: { id },
+        data: {
+          status,
+          nonce: { increment: 1 }, // 增加nonce值表示状态更新
+          updatedAt: new Date(),
+          updatedBy: 'system'
+        }
+      });
+    } catch (error: any) {
+      logger.error(`更新数据源状态失败 ID: ${id}, 状态: ${status}`, { error });
+      
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      throw new ApiError('更新数据源状态失败', 500, error.message);
+    }
+  }
+  
+  /**
    * 根据ID获取数据源（包含密码）
    */
   async getDataSourceByIdWithPassword(id: string): Promise<DataSource> {
