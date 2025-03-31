@@ -71,29 +71,35 @@ class MetadataService {
       const structure = await this.getStructure(dataSourceId);
       
       // 保存元数据结构到数据库
-      // 检查是否已存在元数据记录
-      const existingMetadata = await prisma.$queryRaw<PrismaMetadata[]>`
-        SELECT id FROM "Metadata" WHERE "dataSourceId" = ${dataSourceId} LIMIT 1
-      `;
+      // 使用Prisma查询代替原始SQL查询
+      const existingMetadata = await prisma.metadata.findFirst({
+        where: { dataSourceId }
+      });
       
       const structureJson = JSON.stringify(structure);
-      const now = new Date();
       
-      if (existingMetadata && existingMetadata.length > 0) {
+      if (existingMetadata) {
         // 更新现有记录
-        await prisma.$executeRaw`
-          UPDATE "Metadata"
-          SET structure = ${structureJson}, "updatedAt" = ${now}
-          WHERE id = ${existingMetadata[0].id}
-        `;
-        logger.debug(`更新元数据记录 ID: ${existingMetadata[0].id}`);
+        await prisma.metadata.update({
+          where: { id: existingMetadata.id },
+          data: {
+            structure: structureJson,
+            updatedAt: new Date()
+          }
+        });
+        logger.debug(`更新元数据记录 ID: ${existingMetadata.id}`);
       } else {
         // 创建新记录
         const metadataId = uuidv4();
-        await prisma.$executeRaw`
-          INSERT INTO "Metadata" (id, "dataSourceId", structure, "createdAt", "updatedAt")
-          VALUES (${metadataId}, ${dataSourceId}, ${structureJson}, ${now}, ${now})
-        `;
+        await prisma.metadata.create({
+          data: {
+            id: metadataId,
+            dataSourceId,
+            structure: structureJson,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        });
         logger.debug(`创建新元数据记录 ID: ${metadataId}`);
       }
       
@@ -418,29 +424,32 @@ class MetadataService {
   }
 
   /**
-   * 获取元数据结构
+   * 从保存的元数据记录中获取结构
    * @param dataSourceId 数据源ID
    * @returns 元数据结构
    */
   async getMetadataStructure(dataSourceId: string): Promise<any> {
     try {
-      // 从数据库中获取保存的元数据结构
-      const metadata = await prisma.$queryRaw<PrismaMetadata[]>`
-        SELECT structure FROM "Metadata" 
-        WHERE "dataSourceId" = ${dataSourceId}
-        ORDER BY "updatedAt" DESC
-        LIMIT 1
-      `;
+      // 使用Prisma查询代替原始SQL查询
+      const metadata = await prisma.metadata.findFirst({
+        where: { dataSourceId },
+        orderBy: { updatedAt: 'desc' }
+      });
       
-      if (metadata && metadata.length > 0 && metadata[0].structure) {
-        // 解析存储的结构
-        return JSON.parse(metadata[0].structure);
+      if (!metadata) {
+        logger.info(`数据源 ${dataSourceId} 无元数据记录，尝试实时获取`);
+        return await this.getStructure(dataSourceId);
       }
       
-      // 如果没有找到存储的元数据，则实时获取
-      return await this.getStructure(dataSourceId);
+      try {
+        return JSON.parse(metadata.structure);
+      } catch (parseError) {
+        logger.error(`解析元数据结构失败`, { dataSourceId, parseError });
+        throw new ApiError('元数据结构格式无效', 500);
+      }
     } catch (error: any) {
-      logger.error(`获取数据源 ${dataSourceId} 的元数据结构失败`, { error });
+      logger.error(`获取元数据结构失败`, { dataSourceId, error });
+      
       if (error instanceof ApiError) {
         throw error;
       }

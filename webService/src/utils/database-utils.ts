@@ -399,14 +399,40 @@ export class DatabaseConnectorFactory {
         throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
       }
       
+      // 导入解密工具
+      const cryptoUtils = await import('./crypto');
+      
+      // 解密密码
+      const password = cryptoUtils.decrypt(
+        dataSource.passwordEncrypted,
+        dataSource.passwordSalt
+      );
+      
+      // 预处理主机名 - 处理容器名称
+      let resolvedHost = dataSource.host;
+      
+      // 检查是否为常见的容器名称，在非容器环境中自动转换为localhost
+      const containerNames = ['datascope-mysql', 'mysql', 'mariadb', 'database', 'db', 'datascope-postgres', 'postgres'];
+      if (containerNames.includes(resolvedHost)) {
+        // 判断是否在容器环境中运行
+        const isInContainer = process.env.CONTAINER_ENV === 'true';
+        if (!isInContainer) {
+          // 非容器环境，将容器名称转换为localhost
+          logger.info(`将容器名称 ${dataSource.host} 解析为 localhost`);
+          resolvedHost = 'localhost';
+        }
+      }
+      
       // 根据数据源类型创建连接器
       const config = {
-        host: dataSource.host,
+        host: resolvedHost,
         port: dataSource.port,
         user: dataSource.username,
-        password: dataSource.passwordEncrypted, // 假设这里应该是解密后的密码
+        password: password, // 使用解密后的密码
         database: dataSource.databaseName,
       };
+      
+      logger.debug(`创建数据库连接 [${dataSource.type}] ${config.user}@${config.host}:${config.port}/${config.database}`);
       
       if (dataSource.type === 'mysql') {
         const mysqlConfig = {

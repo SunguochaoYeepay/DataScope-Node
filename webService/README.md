@@ -201,3 +201,21 @@ npx prisma migrate dev
 ## 许可证
 
 MIT
+
+## 容器环境配置
+
+项目支持在容器环境和本地环境中运行，通过环境变量 `CONTAINER_ENV` 来区分:
+
+- `CONTAINER_ENV=true`: 表示服务运行在容器环境中，使用容器名称（如 `datascope-mysql`）连接数据库
+- `CONTAINER_ENV=false`: 表示服务运行在本地环境中，会自动将容器名称解析为 `localhost`
+
+示例启动命令:
+```bash
+# 本地环境启动
+export CONTAINER_ENV=false && node dist/app.js
+
+# 容器环境启动
+export CONTAINER_ENV=true && node dist/app.js
+```
+
+## 环境要求

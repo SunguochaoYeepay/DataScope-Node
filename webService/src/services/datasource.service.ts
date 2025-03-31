@@ -246,7 +246,7 @@ export class DataSourceService {
   async testConnection(connectionData: TestConnectionDto): Promise<boolean> {
     const { type, host, port, username, password, database } = connectionData;
     
-    // 预处理主机名
+    // 解析主机名
     let resolvedHost = host;
     
     // 检查是否为空主机名
@@ -260,21 +260,25 @@ export class DataSourceService {
     if (containerNames.includes(resolvedHost)) {
       // 判断是否在容器环境中运行
       const isInContainer = process.env.CONTAINER_ENV === 'true';
+      logger.info(`容器环境检查: ${isInContainer ? '运行在容器内' : '运行在容器外'}`);
+      
       if (!isInContainer) {
         // 非容器环境，将容器名称转换为localhost
-        resolvedHost = 'localhost';
         logger.info(`将容器名称 ${host} 解析为 localhost`);
+        resolvedHost = 'localhost';
       }
     }
     
     // 确保端口是数字
     const portNumber = port ? Number(port) : (type === 'mysql' ? 3306 : 5432);
     
-    logger.info(`测试数据库连接 [${type}] ${username}@${resolvedHost}:${portNumber}/${database}`);
+    logger.info(`测试数据库连接 [${type}] ${username}@${resolvedHost}:${portNumber}/${database} (环境变量: CONTAINER_ENV=${process.env.CONTAINER_ENV})`);
     
     try {
       // 创建临时连接器工厂
       const tempId = `temp-${Date.now()}`;
+      logger.debug(`创建临时连接器: ${tempId} 类型: ${type} 主机: ${resolvedHost} 用户: ${username} 数据库: ${database}`);
+      
       const connector = DatabaseConnectorFactory.createConnector(
         tempId,
         type as DatabaseType,
@@ -291,6 +295,7 @@ export class DataSourceService {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           // 尝试测试连接
+          logger.debug(`开始尝试连接 (尝试 ${attempt}/3)`);
           const result = await connector.testConnection();
           logger.info(`数据库连接测试成功，尝试次数: ${attempt}`);
           return result;
