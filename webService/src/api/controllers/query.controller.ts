@@ -5,6 +5,36 @@ import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 import dataSourceService from '../../services/datasource.service';
+import { StatusCodes } from 'http-status-codes';
+
+/**
+ * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+ */
+function isSpecialCommand(sql: string): boolean {
+  if (!sql) return false;
+  const trimmedSql = sql.trim().toLowerCase();
+  return (
+    trimmedSql.startsWith('show ') || 
+    trimmedSql.startsWith('describe ') || 
+    trimmedSql.startsWith('desc ') ||
+    trimmedSql === 'show databases;' ||
+    trimmedSql === 'show tables;' ||
+    trimmedSql === 'show databases' ||
+    trimmedSql === 'show tables' ||
+    trimmedSql.startsWith('show columns ') ||
+    trimmedSql.startsWith('show index ') ||
+    trimmedSql.startsWith('show create ') ||
+    trimmedSql.startsWith('show grants ') ||
+    trimmedSql.startsWith('show triggers ') ||
+    trimmedSql.startsWith('show procedure ') ||
+    trimmedSql.startsWith('show function ') ||
+    trimmedSql.startsWith('show variables ') ||
+    trimmedSql.startsWith('show status ') ||
+    trimmedSql.startsWith('show engine ') ||
+    trimmedSql.startsWith('set ') ||
+    trimmedSql.startsWith('use ')
+  );
+}
 
 export class QueryController {
   /**
@@ -124,51 +154,50 @@ export class QueryController {
 
       const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
       
-      // 直接传递分页参数，让查询服务决定是否应用
-      const queryOptions = {
-        page, pageSize, offset, limit, sort, order
-      };
-      
-      const result = await queryService.executeQuery(dataSourceId, sql, params, queryOptions);
-      
-      res.status(200).json({
-        success: true,
-        data: result
-      });
+      // 检查是否为特殊命令，使用外部函数
+      if (isSpecialCommand(sql)) {
+        logger.debug('检测到特殊命令，直接使用连接器执行', { dataSourceId, sql });
+        
+        try {
+          // 获取数据源连接器
+          const connector = await dataSourceService.getConnector(dataSourceId);
+          
+          // 直接执行特殊命令，不通过查询服务
+          const result = await connector.executeQuery(sql, params || []);
+          
+          return res.status(200).json({
+            success: true,
+            data: result
+          });
+        } catch (error: any) {
+          logger.error('直接执行特殊命令失败', { 
+            error: error?.message || '未知错误', 
+            dataSourceId, 
+            sql 
+          });
+          throw error;
+        }
+      } else {
+        // 普通查询通过查询服务执行
+        logger.debug('执行普通查询', { dataSourceId, sql });
+        
+        // 直接传递分页参数，让查询服务决定是否应用
+        const queryOptions = {
+          page, pageSize, offset, limit, sort, order
+        };
+        
+        const result = await queryService.executeQuery(dataSourceId, sql, params, queryOptions);
+        
+        return res.status(200).json({
+          success: true,
+          data: result
+        });
+      }
     } catch (error: any) {
       next(error);
     }
   }
   
-  /**
-   * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
-   */
-  private isSpecialCommand(sql: string): boolean {
-    if (!sql) return false;
-    const trimmedSql = sql.trim().toLowerCase();
-    return (
-      trimmedSql.startsWith('show ') || 
-      trimmedSql.startsWith('describe ') || 
-      trimmedSql.startsWith('desc ') ||
-      trimmedSql === 'show databases;' ||
-      trimmedSql === 'show tables;' ||
-      trimmedSql === 'show databases' ||
-      trimmedSql === 'show tables' ||
-      trimmedSql.startsWith('show columns ') ||
-      trimmedSql.startsWith('show index ') ||
-      trimmedSql.startsWith('show create ') ||
-      trimmedSql.startsWith('show grants ') ||
-      trimmedSql.startsWith('show triggers ') ||
-      trimmedSql.startsWith('show procedure ') ||
-      trimmedSql.startsWith('show function ') ||
-      trimmedSql.startsWith('show variables ') ||
-      trimmedSql.startsWith('show status ') ||
-      trimmedSql.startsWith('show engine ') ||
-      trimmedSql.startsWith('set ') ||
-      trimmedSql.startsWith('use ')
-    );
-  }
-
   /**
    * 保存查询
    */

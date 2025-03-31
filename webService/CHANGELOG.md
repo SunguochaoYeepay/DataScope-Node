@@ -225,7 +225,8 @@
 - **数据库连接问题**: 修复了数据库连接器在容器环境和本地环境中的主机名解析问题，现在系统会根据环境变量 `CONTAINER_ENV` 自动将容器名称解析为 localhost 或实际容器名
 - **元数据同步问题**: 修复了元数据同步接口中使用原始 SQL 查询导致的语法错误问题，改用 Prisma ORM API
 - **元数据表丢失问题**: 使用 `prisma db push` 同步了数据库架构，确保元数据表 `tbl_metadata` 存在
-- **特殊SQL命令处理问题**: 修复了MySQL连接器中对特殊命令（如SHOW TABLES）的处理，确保不对特殊命令添加LIMIT子句
+- **特殊SQL命令处理问题**: 优化了特殊命令(如SHOW TABLES)的执行方式，将isSpecialCommand从类方法改为全局函数，避免this绑定问题，现在控制器可以直接使用连接器执行特殊命令
+- **错误处理兼容性问题**: 增强了QueryExecutionError错误类的参数处理，提供更好的参数顺序兼容性，防止dataSourceId和sql参数传递错误
 
 ### 提升服务稳定性
 
@@ -233,6 +234,7 @@
 - 在多个数据库连接点统一使用主机名解析逻辑
 - 修复 `createConnectorFromDataSourceId` 和 `createConnector` 方法中的容器名称处理逻辑
 - 改进了MySQL连接器中对SQL查询的处理，包括更精确的排序和分页应用条件
+- 简化了MySQL连接器的executeQuery方法，优化特殊命令执行逻辑
 
 ## 更新日志 (之前)
 
