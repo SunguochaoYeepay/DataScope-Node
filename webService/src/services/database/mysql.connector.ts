@@ -524,120 +524,119 @@ export class MySQLConnector implements DatabaseConnector {
       const isSpecial = this.isSpecialCommand(sql);
       logger.debug('SQL类型检查', { isSpecialCommand: isSpecial, sql });
       
-      if (!isSpecial && options && (options.page !== undefined || options.offset !== undefined)) {
-        // 计算分页参数
-        const page = options.page || 1;
-        const pageSize = options.pageSize || options.limit || 50;
-        const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
-        const limit = options.limit || options.pageSize || 50;
-        
+      // 只有非特殊命令才应用分页和排序
+      if (!isSpecial && options) {
         // 添加排序
         if (options.sort) {
-          const sortOrder = options.order === 'desc' ? 'DESC' : 'ASC';
-          // 使用子查询包装原始SQL，避免排序冲突
-          modifiedSql = `SELECT * FROM (${originalSql}) AS subquery ORDER BY ${options.sort} ${sortOrder}`;
+          const sortDirection = options.order || 'asc';
+          const sortOrder = sortDirection.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+          
+          // 检查SQL中是否已经有ORDER BY子句
+          if (!modifiedSql.toLowerCase().includes('order by')) {
+            modifiedSql = `${modifiedSql} ORDER BY ${options.sort} ${sortOrder}`;
+          }
+          
+          logger.debug('添加排序条件', { sort: options.sort, order: sortOrder });
         }
         
-        // 添加分页限制
-        modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
-        
-        // 计算总记录数
-        try {
-          const countSql = `SELECT COUNT(*) AS total FROM (${originalSql}) AS count_query`;
-          const [countResult] = await connection.query(countSql, params) as any[];
-          totalCount = countResult[0].total;
-        } catch (countError: any) {
-          logger.warn('计算总记录数失败', {
-            error: countError?.message || '未知错误',
-            sql: originalSql,
-            dataSourceId: this._dataSourceId
-          });
-          // 给予宽容，如果计算总记录数失败，继续执行查询
-        }
-      }
-      
-      // 执行查询(可能已修改为分页查询)
-      logger.debug('即将执行SQL', { sql: modifiedSql });
-      const [rows, fields] = await connection.query(modifiedSql, params) as [any[], mysql.FieldPacket[]];
-      const endTime = Date.now();
-      
-      logger.info('MySQL查询执行成功', {
-        dataSourceId: this._dataSourceId,
-        executionTime: endTime - startTime,
-        rowCount: Array.isArray(rows) ? rows.length : 0
-      });
-      
-      // 处理不同类型的查询结果
-      if (Array.isArray(rows)) {
-        // SELECT 查询
-        const queryResult: QueryResult = {
-          fields: fields as any[],
-          rows: rows as any[],
-          rowCount: rows.length
-        };
-        
-        // 添加分页信息（如果有的话，且不是特殊命令）
-        if (!isSpecial && options && (options.page !== undefined || options.offset !== undefined)) {
+        // 添加分页
+        if (options.page !== undefined || options.pageSize !== undefined || options.limit !== undefined || options.offset !== undefined) {
           const page = options.page || 1;
           const pageSize = options.pageSize || options.limit || 50;
+          const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
+          const limit = pageSize;
           
-          queryResult.page = page;
-          queryResult.pageSize = pageSize;
+          modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+          logger.debug('添加分页限制', { offset, limit });
           
-          if (totalCount !== undefined) {
-            queryResult.totalCount = totalCount;
-            queryResult.totalPages = Math.ceil(totalCount / pageSize);
+          // 计算总记录数
+          try {
+            const countSql = `SELECT COUNT(*) AS total FROM (${originalSql}) AS count_query`;
+            logger.debug('执行计数查询', { countSql });
+            
+            const [countResult] = await connection.query(countSql, params) as any[];
+            totalCount = countResult[0].total;
+            
+            logger.debug('计数查询结果', { totalCount });
+          } catch (countError) {
+            logger.warn('计算总记录数失败', { error: countError });
+            // 计算总记录数失败，继续执行原始查询
           }
         }
-        
-        return queryResult;
-      } else {
-        // INSERT, UPDATE, DELETE 等
-        const result = rows as mysql.ResultSetHeader;
-        return {
-          fields: [],
-          rows: [],
-          rowCount: 0,
-          affectedRows: result.affectedRows,
-          lastInsertId: result.insertId
-        };
-      }
-    } catch (error: any) {
-      logger.error('执行MySQL查询失败', {
-        error: error?.message || '未知错误',
-        stack: error?.stack,
-        dataSourceId: this._dataSourceId,
-        sql,
-        host: this.config.host,
-        port: this.config.port,
-        database: this.config.database,
-        user: this.config.user
-      });
-      throw new QueryExecutionError(
-        `执行MySQL查询失败: ${error?.message || '未知错误'}`,
-        this._dataSourceId,
-        sql
-      );
-    } finally {
-      // 如果提供了queryId，清理活动查询记录
-      if (queryId) {
-        this.activeQueries.delete(queryId);
-        logger.debug('删除活动查询记录', { 
-          queryId,
-          dataSourceId: this._dataSourceId
-        });
       }
       
-      if (connection) {
-        try {
-          connection.release();
-          logger.debug('数据库连接已释放');
-        } catch (releaseError) {
-          logger.warn('释放数据库连接时发生错误', { 
-            error: releaseError,
-            dataSourceId: this._dataSourceId
-          });
+      // 执行查询
+      logger.debug('执行SQL查询', { 
+        sql: modifiedSql, 
+        originalSql: modifiedSql !== originalSql ? originalSql : undefined,
+        paramsCount: params.length
+      });
+      
+      const [rows, fields] = await connection.query(modifiedSql, params) as [any[], mysql.FieldPacket[]];
+      
+      const endTime = Date.now();
+      const executionTime = endTime - startTime;
+      
+      logger.info('MySQL查询执行完成', { 
+        rowCount: rows.length, 
+        executionTime,
+        dataSourceId: this._dataSourceId
+      });
+      
+      // 如果有queryId，从活动查询中移除
+      if (queryId) {
+        this.activeQueries.delete(queryId);
+        logger.debug('从活动查询移除', { queryId });
+      }
+      
+      // 准备返回结果
+      const result: QueryResult = {
+        fields: fields.map(field => ({
+          name: field.name,
+          type: field.type?.toString() || String(field.type),
+          table: field.table,
+          schema: field.db
+        })),
+        rows: rows,
+        rowCount: rows.length,
+      };
+      
+      // 添加分页信息（如果适用）
+      if (options && (options.page !== undefined || options.pageSize !== undefined)) {
+        const page = options.page || 1;
+        const pageSize = options.pageSize || options.limit || 50;
+        
+        result.page = page;
+        result.pageSize = pageSize;
+        
+        if (totalCount !== undefined) {
+          result.totalCount = totalCount;
+          result.totalPages = Math.ceil(totalCount / pageSize);
         }
+      }
+      
+      return result;
+    } catch (error: any) {
+      logger.error('MySQL查询执行失败', { 
+        error: error?.message || '未知错误',
+        sql,
+        dataSourceId: this._dataSourceId
+      });
+      
+      // 如果有queryId，从活动查询中移除
+      if (queryId) {
+        this.activeQueries.delete(queryId);
+      }
+      
+      throw new QueryExecutionError(
+        `执行MySQL查询失败: ${error?.message || '未知错误'}`,
+        sql,
+        this._dataSourceId
+      );
+    } finally {
+      if (connection) {
+        connection.release();
+        logger.debug('数据库连接已释放');
       }
     }
   }

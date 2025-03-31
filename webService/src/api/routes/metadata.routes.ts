@@ -804,4 +804,16 @@ router.get(
   metadataController.getStats
 );
 
+// 添加简化版API路径格式
+router.get(
+  '/:dataSourceId/tables',
+  metadataController.getTables
+);
+
+// 添加简化版表结构API路径格式
+router.get(
+  '/:dataSourceId/tables/:tableName',
+  metadataController.getTableStructure
+);
+
 export default router;

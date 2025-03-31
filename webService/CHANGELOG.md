@@ -216,21 +216,23 @@
 
 ## 更新日志 (2025-03-31)
 
+### 新增功能
+
+- 添加简化版元数据API路径: `/api/metadata/{dataSourceId}/tables` 和 `/api/metadata/{dataSourceId}/tables/{tableName}`，支持前端兼容性
+
 ### 修复问题
 
 - **数据库连接问题**: 修复了数据库连接器在容器环境和本地环境中的主机名解析问题，现在系统会根据环境变量 `CONTAINER_ENV` 自动将容器名称解析为 localhost 或实际容器名
 - **元数据同步问题**: 修复了元数据同步接口中使用原始 SQL 查询导致的语法错误问题，改用 Prisma ORM API
 - **元数据表丢失问题**: 使用 `prisma db push` 同步了数据库架构，确保元数据表 `tbl_metadata` 存在
+- **特殊SQL命令处理问题**: 修复了MySQL连接器中对特殊命令（如SHOW TABLES）的处理，确保不对特殊命令添加LIMIT子句
 
 ### 提升服务稳定性
 
 - 增强了数据库连接器的日志输出，方便故障排查
 - 在多个数据库连接点统一使用主机名解析逻辑
 - 修复 `createConnectorFromDataSourceId` 和 `createConnector` 方法中的容器名称处理逻辑
-
-### 新功能
-
-- 无
+- 改进了MySQL连接器中对SQL查询的处理，包括更精确的排序和分页应用条件
 
 ## 更新日志 (之前)
 
