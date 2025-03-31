@@ -337,13 +337,14 @@ export const dataSourceService = {
     }
   },
   
-  // 获取数据源的表元数据 - 使用新的API路径
+  // 获取表元数据
   async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata | Record<string, TableMetadata>> {
     if (USE_MOCK_API) {
       return mockDataSourceApi.getTableMetadata(dataSourceId, tableName as string)
     }
 
     try {
+      console.log('获取表元数据，API路径:', `${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
       // 构建查询参数
       const queryParams = new URLSearchParams()
       if (tableName) queryParams.append('tableName', tableName)
@@ -351,16 +352,49 @@ export const dataSourceService = {
       // 使用新的元数据API路径格式
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
       
-      if (!response.ok) {
-        throw new Error(`获取表元数据失败: ${response.statusText}`)
+      // 即使响应不是200也尝试获取内容
+      const responseText = await response.text();
+      console.log('原始API响应:', responseText);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('解析后的API响应:', responseData);
+      } catch (e) {
+        console.error('解析JSON失败:', e);
+        return tableName ? {} as TableMetadata : {};
       }
       
-      const data = await handleResponse<Record<string, TableMetadata>>(response)
+      // 如果请求失败，返回空对象而不是抛出异常
+      if (!responseData || (responseData.success === false)) {
+        console.error(`获取表元数据失败: ${responseData?.message || '未知错误'}`)
+        return tableName ? {} as TableMetadata : {}
+      }
+      
+      // 处理不同的返回格式
+      let tables;
+      if (responseData.success && responseData.data) {
+        // 新格式: { success: true, data: {...} }
+        tables = responseData.data;
+      } else if (Array.isArray(responseData)) {
+        // 数组格式: [{table1}, {table2}]
+        tables = responseData.reduce((acc, table) => {
+          acc[table.name] = table;
+          return acc;
+        }, {});
+      } else {
+        // 假设是直接返回的对象: {table1: {...}, table2: {...}}
+        tables = responseData;
+      }
+      
+      console.log('处理后的表数据:', tables);
+      
       // 如果指定了表名，返回特定表的元数据；否则返回所有表
-      return tableName && data[tableName] ? data[tableName] : data
+      return tableName ? tables[tableName] || {} as TableMetadata : tables
     } catch (error) {
       console.error(`获取数据源${dataSourceId}表元数据错误:`, error)
-      throw error
+      // 返回空对象而不是抛出异常
+      return tableName ? {} as TableMetadata : {}
     }
   },
   

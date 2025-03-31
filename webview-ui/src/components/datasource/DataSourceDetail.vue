@@ -53,12 +53,45 @@ const loadMetadata = async () => {
   isMetadataLoading.value = true
   
   try {
-    const metadata = await dataSourceStore.getDataSourceMetadata(dataSource.value.id)
-    if (metadata && Array.isArray(metadata.tables)) {
-      tables.value = metadata.tables
-    } else {
-      tables.value = []
-      console.warn('No tables found in metadata')
+    console.log('开始加载数据源元数据，dataSourceId:', dataSource.value.id)
+    
+    // 直接从API获取表列表
+    try {
+      const response = await fetch(`http://localhost:5000/api/metadata/${dataSource.value.id}/tables`)
+      const data = await response.json()
+      console.log('从API获取到的元数据:', data)
+      
+      if (data.success && Array.isArray(data.data)) {
+        tables.value = data.data
+        console.log('设置表格数据:', tables.value.length, '张表')
+      } else if (data.success && data.data && data.data.tablesCount) {
+        // 如果只返回了表计数，显示空表列表
+        console.log('后端只返回了表计数:', data.data.tablesCount)
+        tables.value = []
+      } else {
+        // 尝试从store获取
+        const metadata = await dataSourceStore.getDataSourceMetadata(dataSource.value.id)
+        if (metadata && Array.isArray(metadata.tables)) {
+          tables.value = metadata.tables
+        } else {
+          tables.value = []
+        }
+      }
+    } catch (error) {
+      console.error('直接从API获取表列表失败:', error)
+      
+      // 回退到使用store
+      try {
+        const metadata = await dataSourceStore.getDataSourceMetadata(dataSource.value.id)
+        if (metadata && Array.isArray(metadata.tables)) {
+          tables.value = metadata.tables
+        } else {
+          tables.value = []
+        }
+      } catch (storeError) {
+        console.error('从store获取元数据失败:', storeError)
+        tables.value = []
+      }
     }
   } catch (err) {
     console.error('加载元数据失败:', err)
@@ -76,8 +109,28 @@ const syncMetadata = async () => {
   isSyncingMetadata.value = true
   
   try {
-    await dataSourceStore.syncDataSourceMetadata(dataSource.value.id)
-    message.success('元数据同步成功')
+    // 直接调用同步API
+    try {
+      const response = await fetch(`http://localhost:5000/api/metadata/${dataSource.value.id}/sync`, {
+        method: 'POST'
+      })
+      const data = await response.json()
+      console.log('同步元数据响应:', data)
+      
+      if (data.success) {
+        message.success('元数据同步成功')
+      } else {
+        message.warning('元数据同步可能未完成')
+      }
+    } catch (error) {
+      console.error('直接调用同步API失败:', error)
+      
+      // 回退到使用store
+      await dataSourceStore.syncDataSourceMetadata(dataSource.value.id)
+      message.success('元数据同步成功')
+    }
+    
+    // 无论哪种方式，都重新加载元数据
     await loadMetadata()
   } catch (err) {
     console.error('同步元数据失败:', err)

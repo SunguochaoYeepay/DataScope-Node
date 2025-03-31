@@ -103,17 +103,49 @@ const handleViewSearchResultTable = (dataSourceId: string, tableName: string) =>
   }
 }
 
+// 同步元数据
+const syncDataSourceMetadata = async (dataSource: DataSource) => {
+  try {
+    await dataSourceStore.syncDataSourceMetadata(dataSource.id)
+  } catch (error) {
+    console.error('同步元数据失败:', error)
+  }
+}
+
 // 测试数据源连接
-const testDataSourceConnection = async (params: any, callback: (result: ConnectionTestResult) => void) => {
+const testDataSourceConnection = async (params: any, callback?: (result: ConnectionTestResult) => void) => {
   try {
     const result = await dataSourceStore.testDataSourceConnection(params)
-    callback(result)
+    
+    // 如果传入了回调函数，调用回调
+    if (callback) {
+      callback(result)
+    } else {
+      // 没有回调函数时，直接显示结果消息
+      if (result.success) {
+        message.success('连接成功')
+      } else {
+        message.error(`连接失败: ${result.message}`)
+      }
+    }
+    
+    return result
   } catch (error) {
     console.error('测试连接出错:', error)
-    callback({
+    
+    const errorResult = {
       success: false,
       message: error instanceof Error ? error.message : '连接测试失败',
-    })
+    }
+    
+    // 如果传入了回调函数，调用回调
+    if (callback) {
+      callback(errorResult)
+    } else {
+      message.error(`连接失败: ${errorResult.message}`)
+    }
+    
+    return errorResult
   }
 }
 
@@ -181,7 +213,10 @@ onMounted(async () => {
   isLoading.value = true
   
   try {
+    console.log('开始获取数据源列表...')
     await dataSourceStore.fetchDataSources()
+    console.log('获取数据源列表完成, 数据源数量:', dataSourceStore.dataSources.length)
+    console.log('数据源数据:', dataSourceStore.dataSources)
   } catch (error) {
     console.error('加载数据源列表失败:', error)
     message.error('加载数据源列表失败')
@@ -206,8 +241,8 @@ onMounted(async () => {
       </div>
       <div class="mt-4 flex md:mt-0 md:ml-4">
         <template v-if="currentView === 'list'">
-          <button
-            type="button"
+          <button 
+            type="button" 
             class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-2"
             @click="showAdvancedSearch"
           >
@@ -217,8 +252,8 @@ onMounted(async () => {
             高级搜索
           </button>
           
-          <button
-            type="button"
+          <button 
+            type="button" 
             class="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             @click="showAddForm"
           >
@@ -230,8 +265,8 @@ onMounted(async () => {
         </template>
         
         <template v-else>
-          <button
-            type="button"
+          <button 
+            type="button" 
             class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             @click="showListView"
           >
@@ -248,7 +283,7 @@ onMounted(async () => {
     <div>
       <!-- 列表视图 -->
       <div v-if="currentView === 'list'">
-        <DataSourceList
+        <DataSourceList 
           :data-sources="dataSourceStore.dataSources"
           :loading="isLoading"
           :show-actions="true"
@@ -262,11 +297,13 @@ onMounted(async () => {
       
       <!-- 详情视图 -->
       <div v-else-if="currentView === 'detail' && selectedDataSource">
-        <DataSourceDetail
+        <DataSourceDetail 
           :data-source-id="selectedDataSource.id"
           @edit="showEditForm"
           @delete="deleteDataSource"
           @refresh="refreshDataSources"
+          @test-connection="testDataSourceConnection"
+          @sync-metadata="syncDataSourceMetadata"
         />
       </div>
       
