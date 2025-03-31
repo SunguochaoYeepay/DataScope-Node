@@ -32,7 +32,7 @@ class MetadataController {
         throw new ApiError('验证错误', 400);
       }
 
-      const { dataSourceId } = req.params;
+    const { dataSourceId } = req.params;
       const { syncType, schemaPattern, tablePattern } = req.body;
 
       const result = await metadataService.syncMetadata(dataSourceId, {
@@ -42,7 +42,7 @@ class MetadataController {
       });
       
       res.status(200).json({
-        success: true,
+      success: true,
         data: result
       });
     } catch (error: any) {
@@ -59,7 +59,7 @@ class MetadataController {
       const result = await metadataService.getMetadataStructure(dataSourceId);
       
       res.status(200).json({
-        success: true,
+      success: true,
         data: result
       });
     } catch (error: any) {
@@ -76,20 +76,20 @@ class MetadataController {
       const { limit, offset } = req.query;
       
       const result = await metadataService.getSyncHistory(
-        dataSourceId,
+      dataSourceId,
         Number(limit) || 10,
         Number(offset) || 0
-      );
-      
+    );
+    
       res.status(200).json({
-        success: true,
+      success: true,
         data: result
-      });
+    });
     } catch (error: any) {
       next(error);
     }
   }
-
+  
   /**
    * 获取表数据预览
    */
@@ -166,7 +166,7 @@ class MetadataController {
       }
       
       const result = await columnAnalyzer.analyzeColumn(
-        dataSourceId,
+      dataSourceId,
         schema as string,
         table as string,
         column as string
@@ -427,7 +427,7 @@ class MetadataController {
       logger.info(`成功获取数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
       
       return res.status(200).json({
-        success: true,
+      success: true,
         data: tables
       });
     } catch (error) {
@@ -481,11 +481,11 @@ class MetadataController {
       
       logger.debug(`获取数据源统计信息: ${dataSourceId}`);
       const stats = await metadataService.getStats(dataSourceId);
-      
-      res.json({
-        success: true,
+    
+    res.json({
+      success: true,
         data: stats
-      });
+    });
     } catch (error) {
       next(error);
     }
