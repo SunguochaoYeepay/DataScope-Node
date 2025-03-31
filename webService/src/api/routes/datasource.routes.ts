@@ -281,6 +281,36 @@ router.post(
 
 /**
  * @swagger
+ * /datasources/test:
+ *   post:
+ *     summary: 测试数据源连接（别名）
+ *     tags: [DataSources]
+ *     description: 与 /test-connection 接口功能相同，提供别名以支持旧客户端
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/DataSourceConnection'
+ *     responses:
+ *       200:
+ *         description: 测试结果
+ */
+router.post(
+  '/test',
+  [
+    check('type').not().isEmpty().withMessage('数据源类型不能为空'),
+    check('host').not().isEmpty().withMessage('主机地址不能为空'),
+    check('port').isNumeric().withMessage('端口必须为数字'),
+    check('username').not().isEmpty().withMessage('用户名不能为空'),
+    check('password').not().isEmpty().withMessage('密码不能为空'),
+    check('database').not().isEmpty().withMessage('数据库名不能为空'),
+  ],
+  dataSourceController.testConnection
+);
+
+/**
+ * @swagger
  * /datasources/{id}/stats:
  *   get:
  *     summary: 获取数据源的统计信息

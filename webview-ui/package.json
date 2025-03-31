@@ -6,8 +6,20 @@
   "scripts": {
     "dev": "vite",
     "dev:network": "vite --host 0.0.0.0",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "migrate-passwords": "ts-node src/scripts/migrate-passwords.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "init:db": "ts-node scripts/init-db.ts",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:query-plan": "node test/query-plan.test.js"
   },
   "dependencies": {
     "@vueuse/core": "^10.9.0",

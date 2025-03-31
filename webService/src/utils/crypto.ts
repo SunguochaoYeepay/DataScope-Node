@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import config from '../config/env';
 
 // 从环境变量获取加密密钥，如果没有则使用默认密钥
-const ENCRYPTION_KEY = config.security.encryptionKey || 'datascope-default-encryption-key-12345';
+const ENCRYPTION_KEY = config.security.encryptionKey;
 
 /**
  * 生成随机盐值
@@ -54,6 +54,18 @@ export function encrypt(text: string, salt?: string): { encrypted: string; salt:
  */
 export function decrypt(encryptedText: string, salt: string): string {
   try {
+    if (!encryptedText) {
+      throw new Error('加密文本为空');
+    }
+    
+    if (!salt) {
+      throw new Error('盐值为空');
+    }
+    
+    if (encryptedText.length < 32) {
+      throw new Error(`加密文本长度不足，无法提取IV: 长度=${encryptedText.length}`);
+    }
+    
     // 使用盐值来派生出与加密时相同的密钥
     const key = crypto.scryptSync(ENCRYPTION_KEY, salt, 32);
     
@@ -73,7 +85,15 @@ export function decrypt(encryptedText: string, salt: string): string {
     return decrypted;
   } catch (err) {
     console.error('解密失败:', err);
-    throw new Error('解密失败');
+    
+    // 增加更详细的错误信息
+    const errorMessage = err instanceof Error ? err.message : '未知错误';
+    const errorStack = err instanceof Error ? err.stack : '';
+    console.error(`解密详细错误: ${errorMessage}`);
+    console.error(`加密文本长度: ${encryptedText ? encryptedText.length : 0}`);
+    console.error(`盐值长度: ${salt ? salt.length : 0}`);
+    
+    throw new Error(`解密失败: ${errorMessage}`);
   }
 }
 
