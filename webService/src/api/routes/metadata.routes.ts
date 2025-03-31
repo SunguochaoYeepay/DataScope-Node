@@ -816,4 +816,18 @@ router.get(
   metadataController.getTableStructure
 );
 
+// 添加的兼容路由 - 支持前端版本的同步格式
+router.post(
+  '/sync/:dataSourceId',
+  metadataController.validateSyncMetadata(),
+  metadataController.syncMetadata
+);
+
+// 添加的兼容路由 - 简化的URL格式
+router.post(
+  '/:dataSourceId/sync',
+  metadataController.validateSyncMetadata(),
+  metadataController.syncMetadata
+);
+
 export default router;

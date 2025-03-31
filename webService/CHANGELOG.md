@@ -219,6 +219,7 @@
 ### 新增功能
 
 - 添加简化版元数据API路径: `/api/metadata/{dataSourceId}/tables` 和 `/api/metadata/{dataSourceId}/tables/{tableName}`，支持前端兼容性
+- 添加元数据同步兼容路径: `/api/metadata/sync/{dataSourceId}` 和 `/api/metadata/{dataSourceId}/sync`，完善与前端的集成
 
 ### 修复问题
 
@@ -227,6 +228,7 @@
 - **元数据表丢失问题**: 使用 `prisma db push` 同步了数据库架构，确保元数据表 `tbl_metadata` 存在
 - **特殊SQL命令处理问题**: 优化了特殊命令(如SHOW TABLES)的执行方式，将isSpecialCommand从类方法改为全局函数，避免this绑定问题，现在控制器可以直接使用连接器执行特殊命令
 - **错误处理兼容性问题**: 增强了QueryExecutionError错误类的参数处理，提供更好的参数顺序兼容性，防止dataSourceId和sql参数传递错误
+- **元数据同步请求兼容性**: 增强了元数据同步接口，支持前端发送的filters格式请求体，实现与前端应用的无缝集成
 
 ### 提升服务稳定性
 

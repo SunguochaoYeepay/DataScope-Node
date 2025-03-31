@@ -32,20 +32,48 @@ class MetadataController {
         throw new ApiError('验证错误', 400);
       }
 
-    const { dataSourceId } = req.params;
-      const { syncType, schemaPattern, tablePattern } = req.body;
+      const { dataSourceId } = req.params;
+      
+      // 支持两种请求格式：
+      // 1. 直接包含syncType, schemaPattern, tablePattern
+      // 2. 包含filters对象(前端格式)
+      const { syncType, schemaPattern, tablePattern, filters } = req.body;
+      
+      // 如果请求中包含filters对象，则从中提取相关参数
+      let syncOptions = {
+        syncType: syncType || 'FULL',
+        schemaPattern: schemaPattern,
+        tablePattern: tablePattern
+      };
+      
+      if (filters) {
+        logger.debug('收到filters格式的元数据同步请求', { filters });
+        // 从filters中提取相关参数
+        const includeSchemas = filters.includeSchemas || [];
+        const includeTables = filters.includeTables || [];
+        
+        // 构建模式和表名匹配模式
+        if (includeSchemas.length > 0) {
+          syncOptions.schemaPattern = includeSchemas.join('|');
+        }
+        
+        if (includeTables.length > 0) {
+          syncOptions.tablePattern = includeTables.join('|');
+        }
+      }
 
-      const result = await metadataService.syncMetadata(dataSourceId, {
-        syncType,
-        schemaPattern,
-        tablePattern
-      });
+      logger.info(`开始同步数据源 ${dataSourceId} 的元数据`, syncOptions);
+      const result = await metadataService.syncMetadata(dataSourceId, syncOptions);
       
       res.status(200).json({
-      success: true,
+        success: true,
         data: result
       });
     } catch (error: any) {
+      logger.error(`同步数据源元数据失败`, {
+        error: error.message,
+        dataSourceId: req.params.dataSourceId
+      });
       next(error);
     }
   }
@@ -129,10 +157,33 @@ class MetadataController {
    */
   validateSyncMetadata() {
     return [
+      // 数据源ID验证
       check('dataSourceId').isString().not().isEmpty().withMessage('无效的数据源ID'),
+      
+      // 传统格式参数验证
       check('syncType').optional().isIn(['FULL', 'INCREMENTAL']).withMessage('同步类型必须是 FULL 或 INCREMENTAL'),
       check('schemaPattern').optional().isString().withMessage('架构模式必须是字符串'),
       check('tablePattern').optional().isString().withMessage('表模式必须是字符串'),
+      
+      // 前端格式参数验证（filters对象）
+      check('filters').optional().isObject().withMessage('filters必须是一个对象'),
+      check('filters.includeSchemas').optional().isArray().withMessage('includeSchemas必须是一个数组'),
+      check('filters.excludeSchemas').optional().isArray().withMessage('excludeSchemas必须是一个数组'),
+      check('filters.includeTables').optional().isArray().withMessage('includeTables必须是一个数组'),
+      check('filters.excludeTables').optional().isArray().withMessage('excludeTables必须是一个数组'),
+      
+      // 验证通过的处理
+      (req: Request, res: Response, next: NextFunction) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ 
+            success: false, 
+            message: '验证错误', 
+            errors: errors.array() 
+          });
+        }
+        next();
+      }
     ];
   }
 
