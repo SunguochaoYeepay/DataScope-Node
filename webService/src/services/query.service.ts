@@ -1,9 +1,10 @@
-import { PrismaClient, Query, QueryHistory, QueryPlanHistory } from '@prisma/client';
+import { PrismaClient, Query, QueryHistory, QueryPlanHistory, Prisma } from '@prisma/client';
 import { ApiError } from '../utils/error';
 import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
 import { QueryPlanService } from '../database-core/query-plan/query-plan-service';
 import config from '../config';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -27,6 +28,12 @@ export class QueryService {
       const connector = await dataSourceService.getConnector(dataSourceId);
       logger.debug('成功获取数据源连接器', { dataSourceId, connectorType: connector.constructor.name });
       
+      // 检查是否为特殊命令
+      const isSpecialCommand = this.isSpecialCommand(sql);
+      
+      // 如果是特殊命令，不应用分页和排序
+      const queryOptionsToUse = isSpecialCommand ? {} : options;
+      
       // 记录查询开始
       const startTime = new Date();
       let queryHistoryId: string | null = null;
@@ -47,7 +54,7 @@ export class QueryService {
         
         // 执行查询 - 传递queryHistoryId作为queryId以支持取消功能
         logger.debug('开始执行数据库查询');
-        const result = await connector.executeQuery(sql, params, queryHistoryId, options);
+        const result = await connector.executeQuery(sql, params, queryHistoryId, queryOptionsToUse);
         logger.debug('数据库查询执行成功', { rowCount: result.rows.length });
         
         // 更新查询历史为成功
@@ -113,6 +120,35 @@ export class QueryService {
       }
       throw new ApiError('执行查询失败', 500, error?.message || '未知错误');
     }
+  }
+
+  /**
+   * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+   */
+  private isSpecialCommand(sql: string): boolean {
+    if (!sql) return false;
+    const trimmedSql = sql.trim().toLowerCase();
+    return (
+      trimmedSql.startsWith('show ') || 
+      trimmedSql.startsWith('describe ') || 
+      trimmedSql.startsWith('desc ') ||
+      trimmedSql === 'show databases;' ||
+      trimmedSql === 'show tables;' ||
+      trimmedSql === 'show databases' ||
+      trimmedSql === 'show tables' ||
+      trimmedSql.startsWith('show columns ') ||
+      trimmedSql.startsWith('show index ') ||
+      trimmedSql.startsWith('show create ') ||
+      trimmedSql.startsWith('show grants ') ||
+      trimmedSql.startsWith('show triggers ') ||
+      trimmedSql.startsWith('show procedure ') ||
+      trimmedSql.startsWith('show function ') ||
+      trimmedSql.startsWith('show variables ') ||
+      trimmedSql.startsWith('show status ') ||
+      trimmedSql.startsWith('show engine ') ||
+      trimmedSql.startsWith('set ') ||
+      trimmedSql.startsWith('use ')
+    );
   }
 
   /**
@@ -510,6 +546,147 @@ export class QueryService {
     } catch (error) {
       logger.error('获取查询历史记录列表失败', { error, dataSourceId });
       throw new ApiError('获取查询历史记录列表失败', 500);
+    }
+  }
+
+  /**
+   * 获取收藏的查询列表
+   * @param userId 用户ID
+   * @returns 收藏的查询列表
+   */
+  async getFavorites(userId: string = 'anonymous'): Promise<any[]> {
+    try {
+      logger.info(`获取用户收藏的查询, userId: ${userId}`);
+      
+      // 查询用户收藏
+      interface QueryFavorite {
+        id: string;
+        queryId: string;
+        userId: string;
+        createdAt: Date;
+      }
+      
+      // 直接使用原始查询
+      const favorites = await prisma.$queryRaw<QueryFavorite[]>`
+        SELECT id, query_id as queryId, user_id as userId, created_at as createdAt
+        FROM tbl_query_favorite
+        WHERE user_id = ${userId}
+      `;
+      
+      // 如果没有收藏，返回空数组
+      if (!favorites || favorites.length === 0) {
+        return [];
+      }
+      
+      // 收集所有收藏的查询ID
+      const queryIds = favorites.map(fav => fav.queryId);
+      
+      // 批量获取查询信息
+      const queries = await prisma.query.findMany({
+        where: {
+          id: {
+            in: queryIds
+          }
+        }
+      });
+      
+      // 将查询信息与收藏信息合并
+      return favorites.map(favorite => {
+        const query = queries.find(q => q.id === favorite.queryId);
+        return {
+          id: favorite.id,
+          queryId: favorite.queryId,
+          userId: favorite.userId,
+          createdAt: favorite.createdAt,
+          query: query || null // 查询可能已被删除
+        };
+      });
+    } catch (error: any) {
+      logger.error(`获取收藏查询失败, userId: ${userId}`, { error });
+      throw new ApiError('获取收藏查询失败', 500, error.message);
+    }
+  }
+  
+  /**
+   * 添加查询到收藏夹
+   * @param queryId 查询ID
+   * @param userId 用户ID
+   * @returns 收藏信息
+   */
+  async favoriteQuery(queryId: string, userId: string = 'anonymous'): Promise<any> {
+    try {
+      logger.info(`添加收藏查询, queryId: ${queryId}, userId: ${userId}`);
+      
+      // 查询是否存在且可用(为了静默处理不存在的查询，这一步是可选的)
+      try {
+        const query = await prisma.query.findUnique({
+          where: { id: queryId }
+        });
+        
+        if (!query) {
+          logger.warn(`要收藏的查询不存在: ${queryId}`);
+          // 但不抛出错误，仍然创建收藏记录
+        }
+      } catch (err: any) {
+        logger.warn(`检查查询时出错，但将继续添加收藏: ${err.message}`);
+      }
+      
+      // 检查是否已经收藏
+      const existingFavorite = await prisma.$queryRaw<any[]>`
+        SELECT id FROM tbl_query_favorite 
+        WHERE query_id = ${queryId} AND user_id = ${userId}
+      `;
+      
+      if (existingFavorite && existingFavorite.length > 0) {
+        // 已经收藏过，直接返回
+        return existingFavorite[0];
+      }
+      
+      // 创建收藏记录
+      const id = uuidv4();
+      await prisma.$executeRaw`
+        INSERT INTO tbl_query_favorite (id, query_id, user_id, created_at)
+        VALUES (${id}, ${queryId}, ${userId}, NOW())
+      `;
+      
+      return { id, queryId, userId, createdAt: new Date() };
+    } catch (error: any) {
+      logger.error(`添加收藏查询失败, queryId: ${queryId}, userId: ${userId}`, { error });
+      throw new ApiError('添加收藏查询失败', 500, error.message);
+    }
+  }
+  
+  /**
+   * 从收藏夹中移除查询
+   * @param queryId 查询ID
+   * @param userId 用户ID
+   * @returns 是否成功
+   */
+  async unfavoriteQuery(queryId: string, userId: string = 'anonymous'): Promise<boolean> {
+    try {
+      logger.info(`取消收藏查询, queryId: ${queryId}, userId: ${userId}`);
+      
+      // 查找收藏记录
+      const favorites = await prisma.$queryRaw<any[]>`
+        SELECT id FROM tbl_query_favorite 
+        WHERE query_id = ${queryId} AND user_id = ${userId}
+      `;
+      
+      if (!favorites || favorites.length === 0) {
+        // 未找到收藏记录，视为成功
+        return true;
+      }
+      
+      // 删除收藏记录
+      await prisma.$executeRaw`
+        DELETE FROM tbl_query_favorite
+        WHERE id = ${favorites[0].id}
+      `;
+      
+      return true;
+    } catch (error: any) {
+      logger.error(`取消收藏查询失败, queryId: ${queryId}, userId: ${userId}`, { error });
+      throw new ApiError('取消收藏查询失败', 500, error.message);
     }
   }
 }

@@ -124,11 +124,8 @@ export class QueryController {
 
       const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
       
-      // 检查是否为特殊命令
-      const isSpecialCommand = this.isSpecialCommand(sql);
-      
-      // 对于特殊命令，不传递分页参数
-      let queryOptions = isSpecialCommand ? {} : {
+      // 直接传递分页参数，让查询服务决定是否应用
+      const queryOptions = {
         page, pageSize, offset, limit, sort, order
       };
       
@@ -297,15 +294,72 @@ export class QueryController {
     try {
       const { dataSourceId, limit, offset } = req.query;
       
-      const history = await queryService.getQueryHistory(
+      const result = await queryService.getQueryHistory(
         dataSourceId as string,
-        limit ? Number(limit) : 50,
+        limit ? Number(limit) : 20,
         offset ? Number(offset) : 0
       );
       
       res.status(200).json({
         success: true,
-        data: history
+        data: result
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  /**
+   * 获取收藏的查询列表
+   */
+  async getFavorites(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req as any).user?.id || 'anonymous'; // 如果有认证系统，获取用户ID
+      
+      const favorites = await queryService.getFavorites(userId);
+      
+      res.status(200).json({
+        success: true,
+        data: favorites
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  /**
+   * 添加查询到收藏夹
+   */
+  async favoriteQuery(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const userId = (req as any).user?.id || 'anonymous'; // 如果有认证系统，获取用户ID
+      
+      const favorite = await queryService.favoriteQuery(id, userId);
+      
+      res.status(200).json({
+        success: true,
+        data: favorite,
+        message: '查询已添加到收藏夹'
+      });
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  /**
+   * 从收藏夹中移除查询
+   */
+  async unfavoriteQuery(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const userId = (req as any).user?.id || 'anonymous'; // 如果有认证系统，获取用户ID
+      
+      const success = await queryService.unfavoriteQuery(id, userId);
+      
+      res.status(200).json({
+        success: true,
+        message: '查询已从收藏夹中移除'
       });
     } catch (error: any) {
       next(error);
@@ -317,24 +371,8 @@ export class QueryController {
    */
   validateExecuteQuery() {
     return [
-      check('dataSourceId')
-        .not().isEmpty().withMessage('数据源ID不能为空')
-        .isString().withMessage('数据源ID必须是字符串')
-        .custom(async (dataSourceId) => {
-          try {
-            // 检查数据源是否存在
-            const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
-            if (!dataSource) {
-              throw new Error('数据源不存在');
-            }
-            return true;
-          } catch (error) {
-            throw new Error('无效的数据源ID');
-          }
-        }),
-      check('sql')
-        .not().isEmpty().withMessage('SQL查询不能为空')
-        .isString().withMessage('SQL查询必须是字符串')
+      check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
+      check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
     ];
   }
 

@@ -76,10 +76,8 @@ export interface TestConnectionParams {
   port: number
   databaseName: string
   username: string
-  password: string
-  connectionOptions?: Record<string, string>
-  encryptionType?: EncryptionType
-  encryptionOptions?: Record<string, string>
+  password?: string
+  connectionParams?: Record<string, string>
 }
 
 // 同步元数据参数
@@ -114,13 +112,8 @@ export interface PageResponse<T> {
 // 连接测试结果
 export interface ConnectionTestResult {
   success: boolean
-  message?: string
-  connectionInfo?: {
-    databaseType: string
-    databaseVersion: string
-    driverVersion: string
-    pingTime: number
-  }
+  message: string
+  details?: any
 }
 
 // 元数据同步结果
@@ -136,13 +129,20 @@ export interface MetadataSyncResult {
 // 数据源统计信息
 export interface DataSourceStats {
   dataSourceId: string
+  tablesCount: number
+  viewsCount: number
+  totalRows: number
+  totalSize: string
+  lastUpdate: string
+  queriesCount: number
+  connectionPoolSize: number
+  activeConnections: number
+  avgQueryTime: string
   totalTables: number
   totalViews: number
   totalQueries: number
-  avgQueryTime: number
-  lastAccessTime: string
-  storageUsed?: number
-  popularity: number
+  avgResponseTime: number
+  peakConnections: number
 }
 
 // 数据源权限配置

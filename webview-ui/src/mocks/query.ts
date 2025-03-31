@@ -936,6 +936,83 @@ const queryApiImpl = {
     return plan
   },
   
+  // 模拟分析查询计划的方法
+  async analyzeQueryPlan(dataSourceId: string, queryText: string): Promise<{
+    plan: QueryExecutionPlan,
+    suggestions: QuerySuggestion[]
+  }> {
+    console.log('模拟分析查询计划:', { dataSourceId, queryText })
+    
+    // 模拟执行计划
+    const planNodes: QueryNode[] = [
+      {
+        id: 'node-1',
+        type: 'TableScan',
+        details: {
+          table: 'users',
+          rows: 10000,
+          cost: 1000
+        },
+        children: []
+      },
+      {
+        id: 'node-2',
+        type: 'Filter',
+        details: {
+          condition: 'age > 30',
+          rows: 5000,
+          cost: 500
+        },
+        children: ['node-1']
+      },
+      {
+        id: 'node-3',
+        type: 'Sort',
+        details: {
+          sortKey: 'last_name',
+          sortOrder: 'ASC',
+          rows: 5000,
+          cost: 2500
+        },
+        children: ['node-2']
+      }
+    ]
+    
+    // 生成模拟的查询计划
+    const plan: QueryExecutionPlan = {
+      id: generateId(),
+      queryId: generateId(),
+      nodes: planNodes,
+      totalCost: 4000,
+      estimatedRows: 5000
+    }
+    
+    // 生成模拟的查询建议
+    const suggestions: QuerySuggestion[] = [
+      {
+        id: generateId(),
+        queryId: plan.queryId,
+        type: 'INDEX',
+        description: '在users表的age列上添加索引可以提高查询性能',
+        impact: 'HIGH',
+        sqlSuggestion: 'CREATE INDEX idx_users_age ON users(age)'
+      },
+      {
+        id: generateId(),
+        queryId: plan.queryId,
+        type: 'QUERY',
+        description: '考虑使用LIMIT子句限制返回的数据量',
+        impact: 'MEDIUM',
+        sqlSuggestion: queryText + ' LIMIT 100'
+      }
+    ]
+    
+    return {
+      plan,
+      suggestions
+    }
+  },
+  
   // 获取查询优化建议
   async getQuerySuggestions(queryId: string): Promise<QuerySuggestion[]> {
     // 检查是否已存在建议

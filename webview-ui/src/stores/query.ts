@@ -15,7 +15,7 @@ import type {
   QueryVisualization,
   ChartConfig
 } from '@/types/query'
-import { queryService } from '@/services/query'
+import { queryService, isUsingMockApi } from '@/services/query'
 import { message } from '@/services/message'
 import { loading } from '@/services/loading'
 
@@ -575,15 +575,15 @@ export const useQueryStore = defineStore('query', () => {
   // 获取查询执行历史
   async function getQueryExecutionHistory(queryId: string): Promise<QueryExecution[]> {
     try {
-      if (USE_MOCK_API) {
+      if (isUsingMockApi()) {
         // 生成模拟数据
         return mockQueryExecutionHistory(queryId)
       }
       
-      const response = await queryApi.getQueryExecutionHistory(queryId)
-      return response
+      // 这里应该通过queryService调用，但后端API尚未提供此功能
+      console.error('后端API尚未提供查询执行历史功能')
+      return []
     } catch (error) {
-      error.value = getErrorMessage(error)
       console.error('Failed to get query execution history:', error)
       return []
     }
@@ -592,18 +592,15 @@ export const useQueryStore = defineStore('query', () => {
   // 获取特定执行记录的结果
   async function getExecutionResults(executionId: string): Promise<QueryResult | null> {
     try {
-      if (USE_MOCK_API) {
+      if (isUsingMockApi()) {
         // 使用当前结果作为模拟数据
         return currentQueryResult.value
       }
       
-      const response = await queryApi.getExecutionResults(executionId)
-      if (response) {
-        currentQueryResult.value = response
-      }
-      return response
+      // 这里应该通过queryService调用，但后端API尚未提供此功能
+      console.error('后端API尚未提供查询执行结果获取功能')
+      return null
     } catch (error) {
-      error.value = getErrorMessage(error)
       console.error('Failed to get execution results:', error)
       return null
     }
@@ -612,7 +609,7 @@ export const useQueryStore = defineStore('query', () => {
   // 获取执行错误信息
   async function getExecutionError(executionId: string): Promise<QueryExecutionError | null> {
     try {
-      if (USE_MOCK_API) {
+      if (isUsingMockApi()) {
         // 生成模拟错误数据
         return {
           executionId,
@@ -623,10 +620,10 @@ export const useQueryStore = defineStore('query', () => {
         }
       }
       
-      const response = await queryApi.getExecutionError(executionId)
-      return response
+      // 这里应该通过queryService调用，但后端API尚未提供此功能
+      console.error('后端API尚未提供查询执行错误获取功能')
+      return null
     } catch (error) {
-      error.value = getErrorMessage(error)
       console.error('Failed to get execution error:', error)
       return null
     }

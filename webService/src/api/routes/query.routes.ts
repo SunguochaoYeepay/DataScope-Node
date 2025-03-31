@@ -564,4 +564,69 @@ router.get('/history/:queryId/plans', authenticate, async (req: Request, res: Re
   }
 });
 
+/**
+ * @swagger
+ * /queries/favorites:
+ *   get:
+ *     summary: 获取收藏的查询列表
+ *     tags: [Queries]
+ *     responses:
+ *       200:
+ *         description: 查询收藏列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/QueryFavorite'
+ */
+router.get('/favorites', queryController.getFavorites);
+
+/**
+ * @swagger
+ * /queries/{id}/favorite:
+ *   post:
+ *     summary: 添加查询到收藏夹
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 查询ID
+ *     responses:
+ *       200:
+ *         description: 收藏成功
+ *       404:
+ *         description: 查询不存在
+ */
+router.post('/:id/favorite', queryController.favoriteQuery);
+
+/**
+ * @swagger
+ * /queries/{id}/favorite:
+ *   delete:
+ *     summary: 从收藏夹中移除查询
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 查询ID
+ *     responses:
+ *       200:
+ *         description: 取消收藏成功
+ *       404:
+ *         description: 查询不存在
+ */
+router.delete('/:id/favorite', queryController.unfavoriteQuery);
+
 export default router;

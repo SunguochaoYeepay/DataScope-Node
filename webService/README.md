@@ -131,7 +131,32 @@ npx prisma migrate dev
 
 ## API文档
 
-API文档使用Swagger生成，访问 `/api-docs` 路径可查看完整API文档。
+### 数据源管理
+
+- `GET /api/datasources`: 获取数据源列表
+- `GET /api/datasources/:id`: 获取单个数据源信息
+- `POST /api/datasources`: 创建新数据源
+- `PUT /api/datasources/:id`: 更新数据源
+- `DELETE /api/datasources/:id`: 删除数据源
+- `POST /api/datasources/test-connection`: 测试数据源连接
+- `GET /api/datasources/:id/stats`: 获取数据源统计信息（表数量、行数等）
+
+### 元数据管理
+
+- `GET /api/metadata/datasources/:dataSourceId/tables`: 获取数据源的表列表
+- `GET /api/metadata/datasources/:dataSourceId/tables/:tableName/columns`: 获取表的列信息
+- `GET /api/metadata/datasources/:dataSourceId/structure`: 获取数据源的元数据结构
+- `POST /api/metadata/datasources/:dataSourceId/sync`: 同步数据源的元数据
+
+### 查询管理
+
+- `POST /api/queries/execute`: 执行SQL查询
+- `GET /api/queries/history`: 获取查询历史
+- `GET /api/queries/saved`: 获取已保存的查询
+- `POST /api/queries/save`: 保存查询
+- `GET /api/queries/favorites`: 获取收藏的查询
+- `POST /api/queries/:id/favorite`: 收藏查询
+- `DELETE /api/queries/:id/favorite`: 取消收藏查询
 
 ## 特殊命令支持
 

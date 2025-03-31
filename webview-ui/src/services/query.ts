@@ -15,18 +15,25 @@ import type {
 } from '@/types/query'
 import { mockQueryApi } from '@/mocks/query'
 
-// 使用环境变量判断是否使用模拟API
-const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
+// 使用环境变量判断是否使用模拟API - 可导出用于测试
+export const isUsingMockApi = () => {
+  return import.meta.env.VITE_USE_MOCK_API === 'true'
+}
 
 // API 基础路径
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api/queries`
-const QUERY_PLANS_API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/query-plans`
+export const getApiBaseUrl = () => {
+  return `${import.meta.env.VITE_API_BASE_URL}/api/queries`
+}
+
+export const getQueryPlansApiUrl = () => {
+  return `${import.meta.env.VITE_API_BASE_URL}/api/query-plans`
+}
 
 // 查询服务
 export const queryService = {
   // 执行SQL查询
   async executeQuery(params: ExecuteQueryParams): Promise<QueryResult> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.executeQuery(params)
     }
 
@@ -40,7 +47,7 @@ export const queryService = {
         parameters: params.parameters
       }
 
-      const response = await fetch(`${API_BASE_URL}/execute`, {
+      const response = await fetch(`${getApiBaseUrl()}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -80,12 +87,12 @@ export const queryService = {
     query: Query;
     result: QueryResult;
   }> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.executeNaturalLanguageQuery(params)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/natural-language`, {
+      const response = await fetch(`${getApiBaseUrl()}/natural-language`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -106,12 +113,12 @@ export const queryService = {
   
   // 取消查询
   async cancelQuery(id: string): Promise<boolean> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.cancelQuery(id)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${id}/cancel`, {
+      const response = await fetch(`${getApiBaseUrl()}/${id}/cancel`, {
         method: 'POST'
       })
       
@@ -131,12 +138,12 @@ export const queryService = {
     status: 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
     result?: QueryResult;
   }> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQueryStatus(id)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${id}/status`)
+      const response = await fetch(`${getApiBaseUrl()}/${id}/status`)
       
       if (!response.ok) {
         throw new Error(`Failed to get query status: ${response.statusText}`)
@@ -151,7 +158,7 @@ export const queryService = {
   
   // 获取查询历史记录
   async getQueryHistory(params: QueryHistoryParams): Promise<PageResponse<Query>> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQueryHistory(params)
     }
 
@@ -184,7 +191,7 @@ export const queryService = {
         queryParams.append('searchTerm', searchTerm)
       }
 
-      const response = await fetch(`${API_BASE_URL}/history?${queryParams.toString()}`, {
+      const response = await fetch(`${getApiBaseUrl()}/history?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -229,12 +236,12 @@ export const queryService = {
   
   // 获取单个查询信息
   async getQuery(id: string): Promise<Query | null> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQuery(id)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/${id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -275,7 +282,7 @@ export const queryService = {
   
   // 保存查询
   async saveQuery(params: SaveQueryParams): Promise<Query> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.saveQuery(params)
     }
 
@@ -292,7 +299,7 @@ export const queryService = {
       }
 
       const method = params.id ? 'PUT' : 'POST'
-      const url = params.id ? `${API_BASE_URL}/${params.id}` : API_BASE_URL
+      const url = params.id ? `${getApiBaseUrl()}/${params.id}` : getApiBaseUrl()
 
       const response = await fetch(url, {
         method,
@@ -331,12 +338,12 @@ export const queryService = {
   
   // 删除查询
   async deleteQuery(id: string): Promise<boolean> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.deleteQuery(id)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -356,12 +363,13 @@ export const queryService = {
   
   // 收藏查询
   async favoriteQuery(queryId: string): Promise<QueryFavorite> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.favoriteQuery(queryId)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/favorite`, {
+      // 使用标准API路径访问收藏功能
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/favorite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -375,6 +383,7 @@ export const queryService = {
       const responseData = await response.json()
       const result = responseData.data || responseData
 
+      // 适配不同格式的响应
       return {
         id: result.id,
         queryId: result.queryId || queryId,
@@ -391,12 +400,13 @@ export const queryService = {
   
   // 取消收藏查询
   async unfavoriteQuery(queryId: string): Promise<boolean> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.unfavoriteQuery(queryId)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/favorite`, {
+      // 使用标准API路径取消收藏
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/favorite`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -416,12 +426,13 @@ export const queryService = {
   
   // 获取收藏的查询列表
   async getFavorites(): Promise<QueryFavorite[]> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getFavorites()
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/favorites`, {
+      // 使用标准API路径获取收藏列表
+      const response = await fetch(`${getApiBaseUrl()}/favorites`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -452,12 +463,12 @@ export const queryService = {
   
   // 保存展示配置
   async saveDisplayConfig(queryId: string, config: Partial<QueryDisplayConfig>): Promise<QueryDisplayConfig> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.saveDisplayConfig(queryId, config)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/display-config`, {
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/display-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -478,12 +489,12 @@ export const queryService = {
   
   // 获取展示配置
   async getDisplayConfig(queryId: string): Promise<QueryDisplayConfig | null> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getDisplayConfig(queryId)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/display-config`)
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/display-config`)
       
       if (response.status === 404) {
         return null
@@ -502,13 +513,13 @@ export const queryService = {
   
   // 获取查询执行计划
   async getQueryExecutionPlan(queryId: string): Promise<QueryExecutionPlan> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQueryExecutionPlan(queryId)
     }
 
     try {
       // 使用查询计划API地址
-      const response = await fetch(`${QUERY_PLANS_API_URL}/${queryId}`)
+      const response = await fetch(`${getQueryPlansApiUrl()}/${queryId}`)
       
       if (!response.ok) {
         throw new Error(`获取查询执行计划失败: ${response.statusText}`)
@@ -527,12 +538,12 @@ export const queryService = {
   
   // 获取查询优化建议
   async getQuerySuggestions(queryId: string): Promise<QuerySuggestion[]> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQuerySuggestions(queryId)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/suggestions`)
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/suggestions`)
       
       if (!response.ok) {
         throw new Error(`Failed to fetch query suggestions: ${response.statusText}`)
@@ -547,12 +558,12 @@ export const queryService = {
   
   // 获取查询可视化
   async getQueryVisualization(queryId: string): Promise<QueryVisualization | null> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQueryVisualization(queryId)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/visualization`)
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/visualization`)
       
       if (response.status === 404) {
         return null // 没有找到可视化配置
@@ -571,12 +582,12 @@ export const queryService = {
   
   // 保存查询可视化
   async saveQueryVisualization(queryId: string, config: ChartConfig): Promise<QueryVisualization> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.saveQueryVisualization(queryId, config)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/visualization`, {
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/visualization`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -597,12 +608,12 @@ export const queryService = {
   
   // 导出查询结果
   async exportQueryResults(queryId: string, format: 'csv' | 'excel' | 'json'): Promise<void> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.exportQueryResults(queryId, format)
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/${queryId}/export?format=${format}`)
+      const response = await fetch(`${getApiBaseUrl()}/${queryId}/export?format=${format}`)
       
       if (!response.ok) {
         throw new Error(`Failed to export query results: ${response.statusText}`)
@@ -627,7 +638,7 @@ export const queryService = {
   
   // 获取查询列表
   async getQueries(params?: { queryType?: string }): Promise<Query[]> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       return mockQueryApi.getQueries(params);
     }
 
@@ -637,7 +648,7 @@ export const queryService = {
       if (params?.queryType) queryParams.append('queryType', params.queryType);
       
       // 发送请求
-      const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`);
+      const response = await fetch(`${getApiBaseUrl()}?${queryParams.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch queries: ${response.statusText}`);
@@ -652,7 +663,7 @@ export const queryService = {
   
   // 分析查询计划
   async analyzeQueryPlan(dataSourceId: string, queryText: string): Promise<any> {
-    if (USE_MOCK_API) {
+    if (isUsingMockApi()) {
       // 判断是否需要添加此方法到mockQueryApi
       if (typeof mockQueryApi.analyzeQueryPlan === 'function') {
         return mockQueryApi.analyzeQueryPlan(dataSourceId, queryText)
@@ -670,7 +681,7 @@ export const queryService = {
       }
 
       // 使用查询计划分析API
-      const response = await fetch(`${QUERY_PLANS_API_URL}/analyze`, {
+      const response = await fetch(`${getQueryPlansApiUrl()}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

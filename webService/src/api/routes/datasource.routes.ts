@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { check, param } from 'express-validator';
 import dataSourceController from '../controllers/datasource.controller';
+import metadataController from '../controllers/metadata.controller';
 
 const router = Router();
 
@@ -277,5 +278,85 @@ router.post(
   ],
   dataSourceController.testConnection
 );
+
+/**
+ * @swagger
+ * /datasources/{id}/stats:
+ *   get:
+ *     summary: 获取数据源的统计信息
+ *     tags: [DataSource]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 数据源的统计信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tableCount:
+ *                       type: integer
+ *                     tables:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     databaseSize:
+ *                       type: object
+ *                     lastUpdated:
+ *                       type: string
+ *             example:
+ *               success: true
+ *               data: {
+ *                 tableCount: 15,
+ *                 tables: [
+ *                   {
+ *                     name: "users",
+ *                     rowCount: 1250,
+ *                     columnCount: 5
+ *                   },
+ *                   {
+ *                     name: "orders",
+ *                     rowCount: 5432,
+ *                     columnCount: 8
+ *                   }
+ *                 ],
+ *                 databaseSize: {
+ *                   pretty: "56 MB",
+ *                   bytes: 58720256
+ *                 },
+ *                 lastUpdated: "2023-06-15T08:31:05.432Z"
+ *               }
+ *       404:
+ *         description: 数据源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: object
+ *             example:
+ *               success: false
+ *               error: {
+ *                 statusCode: 404,
+ *                 error: "NOT_FOUND",
+ *                 message: "数据源不存在",
+ *                 code: 40401,
+ *                 details: "未找到ID为123e4567-e89b-12d3-a456-426614174000的数据源"
+ *               }
+ */
+router.get('/:id/stats', metadataController.getStats);
 
 export default router;

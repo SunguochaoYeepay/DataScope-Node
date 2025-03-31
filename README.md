@@ -1,6 +1,216 @@
 # DataScope-Node
 
-数据库连接和查询可视化工具，支持多种数据库的连接、查询和元数据管理。
+数据分析与可视化平台后端服务
+
+### API文档
+
+#### 元数据管理
+
+元数据API用于获取和管理数据源的元数据信息，包括表结构、统计信息等。
+
+##### 获取数据源的表列表
+
+```
+GET /api/metadata/datasources/:dataSourceId/tables
+```
+
+返回指定数据源的所有表列表，每个表包含名称、类型和所属的schema信息。
+
+**请求参数:**
+- `dataSourceId`: 数据源ID (路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "users",
+      "type": "TABLE",
+      "schema": "public"
+    },
+    {
+      "name": "orders",
+      "type": "TABLE",
+      "schema": "public"
+    }
+  ]
+}
+```
+
+##### 获取表的列信息
+
+```
+GET /api/metadata/datasources/:dataSourceId/tables/:tableName/columns
+```
+
+获取指定数据源中某个表的所有列信息。
+
+**请求参数:**
+- `dataSourceId`: 数据源ID (路径参数)
+- `tableName`: 表名 (路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "defaultValue": null,
+      "isPrimaryKey": true
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR",
+      "nullable": false,
+      "defaultValue": null,
+      "isPrimaryKey": false
+    }
+  ]
+}
+```
+
+##### 获取数据源结构
+
+```
+GET /api/metadata/datasources/:dataSourceId/structure
+```
+
+获取数据源的完整结构信息，包括所有表和列。
+
+**请求参数:**
+- `dataSourceId`: 数据源ID (路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "databaseName": "example_db",
+    "tables": [
+      {
+        "name": "users",
+        "columns": [
+          {
+            "name": "id",
+            "type": "INTEGER",
+            "nullable": false,
+            "defaultValue": null,
+            "isPrimaryKey": true
+          },
+          {
+            "name": "name",
+            "type": "VARCHAR",
+            "nullable": false,
+            "defaultValue": null,
+            "isPrimaryKey": false
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+##### 同步数据源元数据
+
+```
+POST /api/metadata/datasources/:dataSourceId/sync
+```
+
+同步并更新数据源的元数据信息。
+
+**请求参数:**
+- `dataSourceId`: 数据源ID (路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "dataSourceId": "550e8400-e29b-41d4-a716-446655440000",
+    "tablesCount": 25,
+    "updatedAt": "2023-03-31T14:30:00.000Z"
+  }
+}
+```
+
+##### 获取数据源统计信息
+
+```
+GET /api/metadata/datasources/:dataSourceId/stats
+```
+
+获取数据源的统计信息，包括表数量、行数等。
+
+**请求参数:**
+- `dataSourceId`: 数据源ID (路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "tableCount": 25,
+    "tables": [
+      {
+        "name": "users",
+        "rowCount": 1500,
+        "columnCount": 8
+      },
+      {
+        "name": "orders",
+        "rowCount": 5280,
+        "columnCount": 10
+      }
+    ],
+    "databaseSize": {
+      "pretty": "25 MB",
+      "bytes": 26214400
+    },
+    "lastUpdated": "2023-03-31T12:30:00.000Z"
+  }
+}
+```
+
+#### 数据源管理
+
+数据源API用于创建、更新、删除和查询数据源配置。
+
+##### 测试数据库连接
+
+```
+POST /api/datasources/test-connection
+```
+
+测试数据库连接是否成功。
+
+**请求体示例:**
+```json
+{
+  "type": "mysql",
+  "host": "localhost",
+  "port": 3306,
+  "username": "user",
+  "password": "password",
+  "databaseName": "testdb"
+}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "连接成功",
+  "data": {
+    "tablesCount": 15,
+    "tables": ["users", "orders", "products", "categories", "customers"]
+  }
+}
+```
 
 ## 功能特点
 

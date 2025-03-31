@@ -315,3 +315,23 @@ model QueryFolder {
 
   @@map("tbl_query_folder")
 }
+
+// 查询收藏
+model QueryFavorite {
+  id           String   @id @default(uuid())
+  queryId      String
+  userId       String   @default("anonymous")
+  createdAt    DateTime @default(now())
+
+  @@map("tbl_query_favorite")
+}
+
+model Metadata {
+  id              String   @id @default(uuid())
+  dataSourceId    String
+  structure       String   @db.LongText
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("tbl_metadata")
+}

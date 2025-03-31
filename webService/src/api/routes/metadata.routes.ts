@@ -651,4 +651,93 @@ router.get(
   metadataController.analyzeColumn
 );
 
+/**
+ * @swagger
+ * /metadata/datasources/{dataSourceId}/tables:
+ *   get:
+ *     summary: 获取数据源的表列表
+ *     tags: [Metadata]
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 表列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                       schema:
+ *                         type: string
+ *             example:
+ *               success: true
+ *               data: [
+ *                 {
+ *                   name: "users",
+ *                   type: "TABLE",
+ *                   schema: "public"
+ *                 },
+ *                 {
+ *                   name: "orders",
+ *                   type: "TABLE",
+ *                   schema: "public"
+ *                 }
+ *               ]
+ */
+router.get('/datasources/:dataSourceId/tables', metadataController.getTables);
+
+/**
+ * @swagger
+ * /metadata/datasources/{dataSourceId}/tables/{tableName}:
+ *   get:
+ *     summary: 获取表结构
+ *     tags: [Metadata]
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: tableName
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 表结构
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     columns:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ */
+router.get('/datasources/:dataSourceId/tables/:tableName', metadataController.getTableStructure);
+
 export default router;

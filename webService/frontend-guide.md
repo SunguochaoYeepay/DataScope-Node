@@ -288,6 +288,312 @@ const analyzeQueryPlan = async (dataSourceId, sqlQuery) => {
    - 对于连接超时等临时性错误，可实现前端重试逻辑
    - 建议使用指数退避策略，避免频繁请求
 
+## 查询模块API详解
+
+查询模块提供完整的SQL查询管理、执行和历史记录功能。
+
+### 1. 查询对象结构
+
+```json
+{
+  "id": "query-123",              // 查询ID，创建时可选
+  "name": "用户增长分析",         // 查询名称
+  "description": "按月统计注册用户", // 查询描述，可选
+  "dataSourceId": "mysql-1",      // 关联的数据源ID
+  "sql": "SELECT COUNT(*) AS user_count, DATE_FORMAT(created_at, '%Y-%m') AS month FROM users GROUP BY month", // SQL语句
+  "createdAt": "2024-05-01T12:00:00Z", // 创建时间，自动生成
+  "updatedAt": "2024-05-01T12:00:00Z", // 更新时间，自动生成
+  "tags": ["用户分析", "月度报表"]    // 标签，可选
+}
+```
+
+### 2. 创建和保存查询
+
+**请求**:
+```
+POST /api/queries
+```
+
+**请求体**:
+```json
+{
+  "name": "产品销量统计",
+  "description": "按类别统计产品销量",
+  "dataSourceId": "mysql-1",
+  "sql": "SELECT c.name AS category, SUM(oi.quantity) AS total_sold FROM products p JOIN categories c ON p.category_id = c.id JOIN order_items oi ON oi.product_id = p.id GROUP BY c.name ORDER BY total_sold DESC",
+  "tags": ["销售分析", "产品"]
+}
+```
+
+**响应** (成功 - 200):
+```json
+{
+  "id": "query-456",
+  "name": "产品销量统计",
+  "description": "按类别统计产品销量",
+  "dataSourceId": "mysql-1",
+  "sql": "SELECT c.name AS category, SUM(oi.quantity) AS total_sold FROM products p JOIN categories c ON p.category_id = c.id JOIN order_items oi ON oi.product_id = p.id GROUP BY c.name ORDER BY total_sold DESC",
+  "createdAt": "2024-05-01T14:30:00Z",
+  "updatedAt": "2024-05-01T14:30:00Z",
+  "tags": ["销售分析", "产品"]
+}
+```
+
+**JavaScript 示例**:
+```javascript
+const saveQuery = async (query) => {
+  const response = await fetch('http://localhost:5000/api/queries', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(query)
+  });
+  
+  const data = await response.json();
+  
+  if (response.ok) {
+    console.log('查询已保存:', data);
+    return data;
+  } else {
+    console.error(`保存失败: ${data.message}`);
+    return null;
+  }
+};
+```
+
+### 3. 执行查询
+
+有两种执行查询的方式:
+
+#### 3.1 直接执行SQL (无需保存)
+
+**请求**:
+```
+POST /api/queries/execute
+```
+
+**请求体**:
+```json
+{
+  "dataSourceId": "mysql-1",
+  "sql": "SELECT * FROM users WHERE created_at > '2024-01-01' LIMIT 100"
+}
+```
+
+**响应** (成功 - 200):
+```json
+{
+  "results": [
+    // 查询结果数组，每个对象代表一行数据
+    { "id": 1, "username": "user1", "email": "user1@example.com", "created_at": "2024-01-15" },
+    { "id": 2, "username": "user2", "email": "user2@example.com", "created_at": "2024-02-20" }
+    // ...更多行
+  ],
+  "fields": [
+    { "name": "id", "type": "int" },
+    { "name": "username", "type": "varchar" },
+    { "name": "email", "type": "varchar" },
+    { "name": "created_at", "type": "date" }
+  ],
+  "rowCount": 2,
+  "executionTime": 25, // 毫秒
+  "executedAt": "2024-05-01T15:45:30Z"
+}
+```
+
+#### 3.2 执行已保存的查询
+
+**请求**:
+```
+POST /api/queries/{queryId}/execute
+```
+
+**响应格式与直接执行相同**
+
+**JavaScript 示例**:
+```javascript
+// 方式1: 直接执行SQL
+const executeDirectSQL = async (dataSourceId, sql) => {
+  const response = await fetch('http://localhost:5000/api/queries/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataSourceId, sql })
+  });
+  
+  const data = await response.json();
+  return handleQueryResponse(response, data);
+};
+
+// 方式2: 执行已保存查询
+const executeSavedQuery = async (queryId) => {
+  const response = await fetch(`http://localhost:5000/api/queries/${queryId}/execute`, {
+    method: 'POST'
+  });
+  
+  const data = await response.json();
+  return handleQueryResponse(response, data);
+};
+
+// 处理查询响应
+const handleQueryResponse = (response, data) => {
+  if (response.ok) {
+    console.log('查询结果行数:', data.rowCount);
+    console.log('执行时间:', data.executionTime, 'ms');
+    console.log('字段:', data.fields);
+    
+    // 处理结果数据
+    if (data.results.length > 0) {
+      console.log('第一行数据:', data.results[0]);
+    }
+    
+    return data;
+  } else {
+    console.error(`查询执行失败: ${data.message}`);
+    if (data.details) {
+      console.error('错误详情:', data.details);
+    }
+    return null;
+  }
+};
+```
+
+### 4. 获取查询历史
+
+**请求**:
+```
+GET /api/queries/history?limit=10&offset=0&dataSourceId=mysql-1
+```
+
+**查询参数**:
+- `limit`: 每页记录数 (可选，默认10)
+- `offset`: 偏移量 (可选，默认0)
+- `dataSourceId`: 按数据源筛选 (可选)
+- `startDate`: 开始日期 (可选，格式: YYYY-MM-DD)
+- `endDate`: 结束日期 (可选，格式: YYYY-MM-DD)
+
+**响应** (成功 - 200):
+```json
+{
+  "history": [
+    {
+      "id": "history-123",
+      "queryId": "query-456",      // 关联的查询ID，可能为null（对于未保存的查询）
+      "queryName": "产品销量统计", // 查询名称，未保存的查询为null
+      "dataSourceId": "mysql-1",
+      "dataSourceName": "开发MySQL",
+      "sql": "SELECT c.name AS category, SUM(oi.quantity) AS total_sold FROM products p JOIN categories c ON p.category_id = c.id JOIN order_items oi ON oi.product_id = p.id GROUP BY c.name ORDER BY total_sold DESC",
+      "executionTime": 45,         // 毫秒
+      "rowCount": 10,
+      "status": "success",         // success, error
+      "errorMessage": null,        // 失败时的错误信息
+      "executedAt": "2024-05-01T16:20:00Z",
+      "executedBy": "user@example.com" // 可选，如果有用户系统
+    },
+    // ...更多历史记录
+  ],
+  "total": 42,  // 总记录数
+  "limit": 10,
+  "offset": 0
+}
+```
+
+**JavaScript 示例**:
+```javascript
+const getQueryHistory = async (params = {}) => {
+  // 构建查询参数
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.append('limit', params.limit);
+  if (params.offset) queryParams.append('offset', params.offset);
+  if (params.dataSourceId) queryParams.append('dataSourceId', params.dataSourceId);
+  if (params.startDate) queryParams.append('startDate', params.startDate);
+  if (params.endDate) queryParams.append('endDate', params.endDate);
+  
+  const url = `http://localhost:5000/api/queries/history?${queryParams.toString()}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  if (response.ok) {
+    console.log('查询历史:', data.history);
+    console.log('总记录数:', data.total);
+    return data;
+  } else {
+    console.error(`获取历史失败: ${data.message}`);
+    return null;
+  }
+};
+
+// 使用示例
+getQueryHistory({ 
+  limit: 5, 
+  dataSourceId: 'mysql-1',
+  startDate: '2024-04-01',
+  endDate: '2024-05-01'
+});
+```
+
+### 5. 获取所有已保存查询
+
+**请求**:
+```
+GET /api/queries?limit=10&offset=0&dataSourceId=mysql-1
+```
+
+**查询参数**:
+- `limit`: 每页记录数 (可选，默认10)
+- `offset`: 偏移量 (可选，默认0)
+- `dataSourceId`: 按数据源筛选 (可选)
+- `tag`: 按标签筛选 (可选)
+- `search`: 搜索关键词 (可选，搜索名称和描述)
+
+**响应** (成功 - 200):
+```json
+{
+  "queries": [
+    {
+      "id": "query-456",
+      "name": "产品销量统计",
+      "description": "按类别统计产品销量",
+      "dataSourceId": "mysql-1",
+      "dataSourceName": "开发MySQL",
+      "sql": "SELECT c.name AS category...",
+      "createdAt": "2024-05-01T14:30:00Z",
+      "updatedAt": "2024-05-01T14:30:00Z",
+      "lastExecutedAt": "2024-05-01T16:20:00Z", // 最后执行时间，可能为null
+      "tags": ["销售分析", "产品"]
+    },
+    // ...更多查询
+  ],
+  "total": 15,  // 总记录数
+  "limit": 10,
+  "offset": 0
+}
+```
+
+**JavaScript 示例**:
+```javascript
+const getSavedQueries = async (params = {}) => {
+  // 构建查询参数
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.append('limit', params.limit);
+  if (params.offset) queryParams.append('offset', params.offset);
+  if (params.dataSourceId) queryParams.append('dataSourceId', params.dataSourceId);
+  if (params.tag) queryParams.append('tag', params.tag);
+  if (params.search) queryParams.append('search', params.search);
+  
+  const url = `http://localhost:5000/api/queries?${queryParams.toString()}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  if (response.ok) {
+    console.log('已保存查询:', data.queries);
+    console.log('总记录数:', data.total);
+    return data;
+  } else {
+    console.error(`获取查询失败: ${data.message}`);
+    return null;
+  }
+};
+```
+
 ## 已创建的测试数据
 
 ### 数据源

@@ -85,4 +85,46 @@
 
 ## [1.0.2] - 2025-03-28
 
-// ... existing code ...
+## 更新日志
+
+### 1.0.8 (2023-03-31)
+
+#### 新增特性
+- **元数据API**: 实现元数据管理API，统一了数据源元数据获取接口
+  - 新增 `/api/metadata/datasources/:dataSourceId/tables` 接口获取数据源表列表
+  - 新增 `/api/metadata/datasources/:dataSourceId/tables/:tableName/columns` 接口获取表列信息
+  - 新增 `/api/metadata/datasources/:dataSourceId/structure` 接口获取数据源结构
+  - 新增 `/api/metadata/datasources/:dataSourceId/sync` 接口同步元数据
+  - 新增 `/api/metadata/datasources/:dataSourceId/stats` 接口获取数据源统计信息
+- **数据库连接**: 优化数据库连接器，支持MySQL和PostgreSQL连接测试
+  - 修复了数据库连接测试API中连接参数不一致的问题
+  - 实现了更健壮的数据库连接和错误处理机制
+
+#### 优化
+- 统一了API路径前缀，遵循 `/api/metadata` 格式
+- 改进了返回的错误信息格式和内容
+- 优化了数据库连接的性能和资源利用
+
+#### 修复
+- 修复了数据库连接测试时主机名映射问题
+
+### 1.0.7 (2023-03-30)
+
+#### 新增特性
+- **查询收藏**: 实现查询收藏功能，包括查看、添加和删除收藏
+  - 新增 `/api/queries/favorites` 接口获取用户收藏查询
+  - 新增 `/api/queries/:queryId/favorite` 接口添加查询到收藏
+  - 新增 `/api/queries/:queryId/unfavorite` 接口从收藏中移除查询
+
+#### 优化
+- 增加了前端集成文档和API使用示例
+
+### 1.0.5 (2023-03-27)
+
+#### 新增特性
+- **连接测试**: 修复并优化数据源连接测试功能
+- **元数据API**: 初步实现元数据管理API
+
+#### 优化
+- 统一了API参数命名和规范
+- 改进了错误处理和日志记录

@@ -24,9 +24,9 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
   `${import.meta.env.VITE_API_BASE_URL}/api/datasources` : '/api/datasources'
 
-// 元数据API基础路径
+// 元数据API基础路径 - 已更新为标准API路径
 const METADATA_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
-  `${import.meta.env.VITE_API_BASE_URL}/api/metadata/datasources` : '/api/metadata/datasources'
+  `${import.meta.env.VITE_API_BASE_URL}/api/metadata` : '/api/metadata'
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -254,16 +254,15 @@ export const dataSourceService = {
     }
 
     try {
-      // 转换参数格式以匹配后端期望
+      // 构建符合后端预期的请求体 - 使用database而非databaseName
       const requestBody = {
-        type: params.type.toLowerCase(), // 转小写
+        type: params.type.toLowerCase(),
         host: params.host,
         port: params.port,
-        database: params.databaseName, // 后端期望 database 而不是 databaseName
+        database: params.databaseName, // 使用database字段
         username: params.username,
         password: params.password,
-        // 转换字段名不同的属性
-        connectionParams: params.connectionOptions || {} // 后端使用connectionParams
+        connectionParams: params.connectionParams || {}
       }
       
       const response = await fetch(`${API_BASE_URL}/test-connection`, {
@@ -278,20 +277,12 @@ export const dataSourceService = {
         throw new Error(`测试连接失败: ${response.statusText}`)
       }
       
-      // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
-      const responseData = await response.json()
-      const result = responseData.data || responseData  // 兼容不同的响应格式
+      const result = await handleResponse<any>(response)
       
-      // 适配后端返回的测试结果格式为前端需要的格式
       return {
-        success: result.success || false,
+        success: result.success,
         message: result.message || '',
-        connectionInfo: result.connectionInfo || {
-          databaseType: '',
-          databaseVersion: '',
-          driverVersion: '',
-          pingTime: 0
-        }
+        details: result.details || null
       }
     } catch (error) {
       console.error('测试连接错误:', error)
@@ -317,7 +308,7 @@ export const dataSourceService = {
       }
       
       // 使用正确的元数据API路径
-      const response = await fetch(`${METADATA_API_BASE_URL}/${params.id}/sync`, {
+      const response = await fetch(`${METADATA_API_BASE_URL}/sync/${params.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -356,8 +347,8 @@ export const dataSourceService = {
       const queryParams = new URLSearchParams()
       if (tableName) queryParams.append('tableName', tableName)
       
-      // 使用新的元数据结构API
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/structure?${queryParams.toString()}`)
+      // 使用新的元数据API路径格式
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
       
       if (!response.ok) {
         throw new Error(`获取表元数据失败: ${response.statusText}`)
@@ -379,8 +370,8 @@ export const dataSourceService = {
     }
 
     try {
-      // 构建查询参数获取表关系，这可能在structure API中返回或有专门的端点
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/structure?includeRelationships=true`)
+      // 构建查询参数获取表关系，根据新API格式
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/relationships`)
       
       if (!response.ok) {
         throw new Error(`获取表关系失败: ${response.statusText}`)
@@ -405,11 +396,10 @@ export const dataSourceService = {
 
     try {
       const queryParams = new URLSearchParams()
-      queryParams.append('tableName', tableName)
       queryParams.append('limit', limit.toString())
       
-      // 使用新的预览API
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/preview?${queryParams.toString()}`)
+      // 使用新的预览API路径
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/preview?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`获取表预览数据失败: ${response.statusText}`)
@@ -432,7 +422,7 @@ export const dataSourceService = {
       const queryParams = new URLSearchParams()
       queryParams.append('keyword', keyword)
       
-      // 这个接口在文档中不确定是否存在，可能需要调整
+      // 使用新的搜索API路径
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/search?${queryParams.toString()}`)
       
       if (!response.ok) {
@@ -447,41 +437,40 @@ export const dataSourceService = {
   },
   
   // 获取数据源统计信息
-  async getDataSourceStats(dataSourceId: string): Promise<DataSourceStats> {
+  async getDataSourceStats(id: string): Promise<DataSourceStats> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSourceStats(dataSourceId)
+      return mockDataSourceApi.getDataSourceStats(id)
     }
 
     try {
-      // 这个接口在文档中不确定是否存在，可能需要调整
-      const response = await fetch(`${API_BASE_URL}/${dataSourceId}/stats`)
+      const response = await fetch(`${API_BASE_URL}/${id}/stats`)
       
       if (!response.ok) {
         throw new Error(`获取数据源统计信息失败: ${response.statusText}`)
       }
       
-      // 获取后端原始数据
-      const responseData = await response.json()
-      const data = responseData.data || responseData
+      const result = await handleResponse<any>(response)
       
-      // 构造前端需要的格式
-      // 确保按照DataSourceStats接口定义进行转换
-      const stats: DataSourceStats = {
-        dataSourceId: dataSourceId,
-        totalTables: data.tablesCount || 0,
-        totalViews: data.viewsCount || 0,
-        totalQueries: data.queriesCount || 0,
-        avgQueryTime: typeof data.avgQueryTime === 'string' 
-          ? parseFloat(data.avgQueryTime) : data.avgQueryTime || 0,
-        lastAccessTime: data.lastUpdate || new Date().toISOString(),
-        storageUsed: typeof data.totalSize === 'string' 
-          ? parseFloat(data.totalSize) : data.totalSize || 0,
-        popularity: data.activeConnections || 0
-      };
-      
-      return stats;
+      // 转换为前端所需的格式
+      return {
+        dataSourceId: id,
+        tablesCount: result.tablesCount || 0,
+        viewsCount: result.viewsCount || 0,
+        totalRows: result.totalRows || 0,
+        totalSize: result.totalSize || '0 MB',
+        lastUpdate: result.lastUpdate || new Date().toISOString(),
+        queriesCount: result.queriesCount || 0,
+        connectionPoolSize: result.connectionPoolSize || 0,
+        activeConnections: result.activeConnections || 0,
+        avgQueryTime: result.avgQueryTime || '0ms',
+        totalTables: result.totalTables || result.tablesCount || 0,
+        totalViews: result.totalViews || result.viewsCount || 0, 
+        totalQueries: result.totalQueries || result.queriesCount || 0,
+        avgResponseTime: result.avgResponseTime || 0,
+        peakConnections: result.peakConnections || 0
+      }
     } catch (error) {
-      console.error(`获取数据源${dataSourceId}统计信息错误:`, error)
+      console.error(`获取数据源${id}统计信息错误:`, error)
       throw error
     }
   },

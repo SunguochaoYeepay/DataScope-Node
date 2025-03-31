@@ -246,20 +246,108 @@ export class DataSourceService {
   async testConnection(connectionData: TestConnectionDto): Promise<boolean> {
     const { type, host, port, username, password, database } = connectionData;
     
-    // 创建临时连接器
-    const connector = DatabaseConnectorFactory.createConnector(
-      'temp',
-      type.toLowerCase() as DatabaseType,
-      {
-        host,
-        port,
-        user: username,
-        password,
-        database,
+    // 预处理主机名
+    let resolvedHost = host;
+    
+    // 检查是否为空主机名
+    if (!host || host.trim() === '') {
+      logger.warn('主机名为空，使用默认值 localhost');
+      resolvedHost = 'localhost';
+    }
+    
+    // 检查是否为常见的容器名称，在非容器环境中自动转换为localhost
+    const containerNames = ['datascope-mysql', 'mysql', 'mariadb', 'database', 'db', 'datascope-postgres', 'postgres'];
+    if (containerNames.includes(resolvedHost)) {
+      // 判断是否在容器环境中运行
+      const isInContainer = process.env.CONTAINER_ENV === 'true';
+      if (!isInContainer) {
+        // 非容器环境，将容器名称转换为localhost
+        resolvedHost = 'localhost';
+        logger.info(`将容器名称 ${host} 解析为 localhost`);
       }
-    );
-
-    return connector.testConnection();
+    }
+    
+    // 确保端口是数字
+    const portNumber = port ? Number(port) : (type === 'mysql' ? 3306 : 5432);
+    
+    logger.info(`测试数据库连接 [${type}] ${username}@${resolvedHost}:${portNumber}/${database}`);
+    
+    try {
+      // 创建临时连接器工厂
+      const tempId = `temp-${Date.now()}`;
+      const connector = DatabaseConnectorFactory.createConnector(
+        tempId,
+        type as DatabaseType,
+        {
+          host: resolvedHost,
+          port: portNumber,
+          user: username,
+          password,
+          database
+        }
+      );
+      
+      // 测试连接，最多重试3次
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          // 尝试测试连接
+          const result = await connector.testConnection();
+          logger.info(`数据库连接测试成功，尝试次数: ${attempt}`);
+          return result;
+        } catch (error: any) {
+          // 检查是否为访问权限错误
+          if (error.message && error.message.includes('Access denied')) {
+            logger.error('数据库连接测试失败: 访问权限被拒绝', { 
+              error, 
+              attempt, 
+              host: resolvedHost, 
+              user: username 
+            });
+            // 对于访问权限错误，直接抛出不再重试
+            throw new ApiError(`测试连接失败: 用户名或密码错误 - ${error.message}`, 401);
+          }
+          
+          // 如果是最后一次尝试还失败，则抛出错误
+          if (attempt === 3) {
+            throw error;
+          }
+          
+          // 否则等待后重试
+          const delay = 500 * Math.pow(2, attempt - 1);
+          logger.info(`连接尝试 ${attempt}/3 失败，等待 ${delay}ms 后重试...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      
+      // 如果走到这里说明所有重试都失败了
+      throw new Error('所有连接尝试均失败');
+    } catch (error: any) {
+      logger.error('测试数据库连接失败', { 
+        error, 
+        host: resolvedHost,
+        connectionData: { ...connectionData, password: '***' } 
+      });
+      
+      // 返回友好的错误信息
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      // 针对常见错误类型返回友好信息
+      if (error.message) {
+        if (error.message.includes('ECONNREFUSED')) {
+          throw new ApiError(`连接被拒绝: 无法连接到 ${resolvedHost}:${portNumber}，请检查主机名和端口是否正确`, 400);
+        }
+        if (error.message.includes('ER_BAD_DB_ERROR')) {
+          throw new ApiError(`数据库不存在: ${database}`, 400);
+        }
+        if (error.message.includes('ER_ACCESS_DENIED_ERROR')) {
+          throw new ApiError(`访问被拒绝: 用户名或密码错误`, 401);
+        }
+      }
+      
+      throw new ApiError(`测试${type === 'mysql' ? 'MySQL' : type}连接失败: ${error.message}`, 400);
+    }
   }
   
   /**
