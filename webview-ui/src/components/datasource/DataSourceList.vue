@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import type { DataSource, DataSourceType, DataSourceStatus } from '@/types/datasource'
+import type { DataSource, DataSourceType, DataSourceStatus, TestConnectionParams } from '@/types/datasource'
 import { confirmModal } from '@/services/modal'
 import { useDataSourceStore } from '@/stores/datasource'
 
@@ -20,7 +20,7 @@ const emit = defineEmits<{
   (e: 'view', dataSource: DataSource): void
   (e: 'select', dataSource: DataSource): void
   (e: 'add'): void
-  (e: 'test-connection', dataSource: DataSource): void
+  (e: 'test-connection', params: TestConnectionParams, callback: (success: boolean) => void): void
   (e: 'sync-metadata', dataSource: DataSource): void
 }>()
 
@@ -165,7 +165,25 @@ const handleView = (dataSource: DataSource) => {
 
 // 处理测试连接
 const handleTestConnection = (dataSource: DataSource) => {
-  emit('test-connection', dataSource)
+  const params: TestConnectionParams = {
+    id: dataSource.id,
+    type: dataSource.type,
+    host: dataSource.host,
+    port: dataSource.port,
+    database: dataSource.databaseName,
+    username: dataSource.username,
+    connectionParams: dataSource.connectionOptions || {}
+  }
+  
+  emit('test-connection', params, (success) => {
+    if (success) {
+      // 处理连接成功的逻辑
+      console.log('连接测试成功')
+    } else {
+      // 处理连接失败或取消的逻辑
+      console.log('连接测试失败')
+    }
+  })
 }
 
 // 处理同步元数据
@@ -529,19 +547,6 @@ onMounted(() => {
           </button>
         </nav>
       </div>
-    </div>
-    
-    <!-- 添加按钮 (数据源存在时) -->
-    <div v-if="filteredDataSources.length > 0 && showActions" class="px-6 py-4 flex justify-center border-t">
-      <button
-        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        @click="emit('add')"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-        添加数据源
-      </button>
     </div>
   </div>
 </template>

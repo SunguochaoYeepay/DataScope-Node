@@ -22,6 +22,12 @@ type PrismaMetadata = {
 // 创建Prisma客户端实例
 const prisma = new PrismaClient();
 
+// 定义表结构类型
+interface TableStructure {
+  name: string;
+  columns: any[];
+}
+
 /**
  * 元数据服务类，处理数据源的元数据管理
  */
@@ -43,6 +49,7 @@ class MetadataService {
     tablesCount: number;
     viewsCount: number;
     syncHistoryId: string;
+    lastSyncTime: string;
   }> {
     const syncType = options.syncType || 'FULL';
     let syncHistoryId: string | null = null;
@@ -104,7 +111,7 @@ class MetadataService {
       }
       
       // 关闭连接
-      await connector.close();
+      await connector.disconnect();
       
       // 更新同步历史记录
       const endTime = new Date();
@@ -123,12 +130,20 @@ class MetadataService {
         }
       });
       
-      logger.info(`同步数据源 ${dataSourceId} 的元数据成功, 共同步了 ${tablesCount} 张表`);
+      // 更新数据源的最后同步时间和状态
+      const dataSourceService = (await import('./datasource.service')).default;
+      await dataSourceService.updateDataSource(dataSourceId, {
+        lastSyncTime: endTime,
+        status: 'ACTIVE'
+      });
+      
+      logger.info(`同步数据源 ${dataSourceId} 的元数据成功, 共同步了 ${tablesCount} 张表，最后同步时间已更新为 ${endTime.toISOString()}`);
       
       return {
         tablesCount,
         viewsCount,
-        syncHistoryId
+        syncHistoryId,
+        lastSyncTime: endTime.toISOString()
       };
     } catch (error: any) {
       logger.error(`同步数据源 ${dataSourceId} 的元数据失败`, { error });
@@ -230,7 +245,7 @@ class MetadataService {
       const result = await connector.executeQuery(query);
       
       // 关闭连接
-      await connector.close();
+      await connector.disconnect();
       
       return result;
     } catch (error: any) {
@@ -320,7 +335,7 @@ class MetadataService {
       const tables = await connector.getTables();
       
       // 关闭连接
-      await connector.close();
+      await connector.disconnect();
       
       logger.info(`获取到数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
       
@@ -343,30 +358,29 @@ class MetadataService {
    * 获取表的列信息
    * @param dataSourceId 数据源ID
    * @param tableName 表名
-   * @returns 列信息列表
+   * @returns 列定义数组
    */
   async getColumns(dataSourceId: string, tableName: string): Promise<any[]> {
     try {
-      logger.info(`获取数据源 ${dataSourceId} 表 ${tableName} 的列信息`);
-      
       // 创建连接器
       const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
       
-      // 获取列信息
-      const columns = await connector.getColumns(tableName);
+      // 使用getTableStructure方法替代直接调用getColumns
+      const tableStructure = await connector.getTableStructure(tableName);
+      const columns = tableStructure.columns || [];
       
       // 关闭连接
-      await connector.close();
+      await connector.disconnect();
       
       logger.info(`获取到数据源 ${dataSourceId} 表 ${tableName} 的列信息，共 ${columns.length} 列`);
       
       return columns;
     } catch (error: any) {
-      logger.error(`获取数据源 ${dataSourceId} 表 ${tableName} 的列信息失败`, { error });
+      logger.error(`获取表 ${tableName} 的列定义失败`, { error });
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError(`获取列信息失败: ${error.message}`, 500);
+      throw new ApiError(`获取表列定义失败: ${error.message}`, 500);
     }
   }
 
@@ -375,7 +389,10 @@ class MetadataService {
    * @param dataSourceId 数据源ID
    * @returns 元数据结构
    */
-  async getStructure(dataSourceId: string): Promise<any> {
+  async getStructure(dataSourceId: string): Promise<{
+    databaseName: string;
+    tables: TableStructure[];
+  }> {
     try {
       logger.info(`获取数据源 ${dataSourceId} 的元数据结构`);
       
@@ -395,25 +412,36 @@ class MetadataService {
       const tables = await connector.getTables();
       
       // 获取每个表的列信息
-      const tablesWithColumns = await Promise.all(
-        tables.map(async (tableName: string) => {
-          const columns = await connector.getColumns(tableName);
-          return {
-            name: tableName,
+      const result: {
+        databaseName: string;
+        tables: TableStructure[];
+      } = {
+        databaseName: dataSource.databaseName,
+        tables: []
+      };
+      
+      for (const table of tables) {
+        try {
+          // 使用getTableStructure方法替代直接调用getColumns
+          const tableStructure = await connector.getTableStructure(table.name);
+          const columns = tableStructure.columns || [];
+          
+          // 添加到表中
+          result.tables.push({
+            name: table.name,
             columns: columns
-          };
-        })
-      );
+          });
+        } catch (tableError) {
+          logger.warn(`获取表 ${table.name} 的结构失败`, { tableError });
+        }
+      }
       
       // 关闭连接
-      await connector.close();
+      await connector.disconnect();
       
       logger.info(`获取到数据源 ${dataSourceId} 的元数据结构，共 ${tables.length} 张表`);
       
-      return {
-        databaseName: dataSource.databaseName,
-        tables: tablesWithColumns
-      };
+      return result;
     } catch (error: any) {
       logger.error(`获取数据源 ${dataSourceId} 的元数据结构失败`, { error });
       if (error instanceof ApiError) {
@@ -513,7 +541,7 @@ class MetadataService {
           totalSize = await (connector as any).getDatabaseSize();
         }
         
-        await connector.close();
+        await connector.disconnect();
       } catch (error: any) {
         logger.error(`从数据库获取表计数失败: ${error.message}`);
         // 失败时不抛出错误，返回0计数

@@ -39,6 +39,16 @@ const currentStats = ref<{
 const loadTableData = async () => {
   if (!props.dataSourceId || !props.tableName) return
   
+  console.log('开始加载表数据预览', {
+    dataSourceId: props.dataSourceId,
+    tableName: props.tableName,
+    page: pagination.value.page,
+    size: pagination.value.size,
+    sort: sortConfig.value?.field,
+    order: sortConfig.value?.order,
+    filters: filters.value
+  });
+  
   isLoading.value = true
   
   try {
@@ -54,18 +64,49 @@ const loadTableData = async () => {
       }
     )
     
-    tableData.value = result.data
-    columns.value = result.columns
-    pagination.value = {
-      page: result.page,
-      size: result.size,
-      total: result.total,
-      totalPages: result.totalPages
+    console.log('表数据预览结果:', result);
+    
+    // 处理返回的数据
+    if (result) {
+      tableData.value = Array.isArray(result.data) ? result.data : [];
+      
+      // 处理列信息
+      if (Array.isArray(result.columns)) {
+        columns.value = result.columns.map(col => {
+          // 确保每一列都有正确的name和type属性
+          const colAny = col as any; // 将列转为any类型以处理任意属性
+          return {
+            name: colAny.name || colAny.Field || 'unknown',
+            type: colAny.type || colAny.Type || 'VARCHAR'
+          };
+        });
+      } else {
+        columns.value = [];
+      }
+      
+      // 更新分页信息
+      pagination.value = {
+        page: result.page || pagination.value.page,
+        size: result.size || pagination.value.size,
+        total: result.total || 0,
+        totalPages: result.totalPages || 0
+      }
+    } else {
+      // 如果结果为null或undefined
+      tableData.value = [];
+      columns.value = [];
     }
+    
+    console.log('表数据已加载', {
+      rows: tableData.value.length,
+      columns: columns.value.length,
+      pagination: pagination.value
+    });
   } catch (error) {
-    console.error('Failed to load table data preview:', error)
+    console.error('加载表数据预览失败:', error)
     message.error('加载表数据预览失败: ' + (error instanceof Error ? error.message : String(error)))
     tableData.value = []
+    columns.value = []
   } finally {
     isLoading.value = false
   }
@@ -237,6 +278,10 @@ watch(
 
 // 组件挂载
 onMounted(() => {
+  console.log('TableDataPreview组件已挂载，准备加载数据', {
+    dataSourceId: props.dataSourceId,
+    tableName: props.tableName
+  });
   loadTableData()
 })
 
@@ -260,23 +305,20 @@ const formatValue = (value: any): string => {
   return String(value)
 }
 
-// 获取列的简单类型
-const getSimpleType = (type: string): string => {
-  const lowerType = type.toLowerCase()
+// 处理列类型，返回简化的类型
+const getSimpleType = (columnType: string): string => {
+  columnType = columnType.toLowerCase()
   
-  if (lowerType.includes('int') || lowerType.includes('decimal') || lowerType.includes('float') || lowerType.includes('double') || lowerType.includes('number')) {
+  if (columnType.includes('int') || columnType.includes('float') || columnType.includes('double') || 
+      columnType.includes('decimal') || columnType.includes('numeric')) {
     return 'number'
-  }
-  
-  if (lowerType.includes('date') || lowerType.includes('time')) {
+  } else if (columnType.includes('date') || columnType.includes('time')) {
     return 'datetime'
-  }
-  
-  if (lowerType.includes('bool')) {
+  } else if (columnType.includes('boolean') || columnType.includes('bool')) {
     return 'boolean'
+  } else {
+    return 'string'
   }
-  
-  return 'text'
 }
 
 // 获取排序图标类

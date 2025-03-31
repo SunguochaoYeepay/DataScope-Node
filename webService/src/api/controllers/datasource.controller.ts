@@ -203,6 +203,51 @@ export class DataSourceController {
   }
 
   /**
+   * 检查数据源状态
+   * 触发数据源连接测试，并更新状态
+   */
+  async checkDataSourceStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      
+      if (!id) {
+        throw new ApiError('数据源ID不能为空', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST');
+      }
+      
+      // 获取数据源信息
+      const dataSource = await dataSourceService.getDataSourceById(id);
+      
+      if (!dataSource) {
+        throw new ApiError('数据源不存在', ERROR_CODES.NOT_FOUND, 404, 'NOT_FOUND');
+      }
+      
+      // 导入数据源监控服务
+      const { DataSourceMonitorService } = await import('../../services/datasource-monitor.service');
+      const monitorService = new DataSourceMonitorService(dataSourceService);
+      
+      // 检查数据源状态
+      await monitorService.checkDataSourceStatus(id);
+      
+      // 获取更新后的数据源信息
+      const updatedDataSource = await dataSourceService.getDataSourceById(id);
+      
+      res.status(200).json({
+        success: true,
+        message: '数据源状态检查完成',
+        data: {
+          id: updatedDataSource.id,
+          name: updatedDataSource.name,
+          status: updatedDataSource.status,
+          lastChecked: new Date().toISOString()
+        }
+      });
+    } catch (error: any) {
+      logger.error(`检查数据源状态失败: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
+  /**
    * 验证数据源创建请求
    */
   validateCreateDataSource() {

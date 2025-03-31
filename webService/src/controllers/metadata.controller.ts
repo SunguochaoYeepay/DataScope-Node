@@ -198,6 +198,122 @@ class MetadataController {
       }
     }
   }
+
+  /**
+   * 获取表的数据预览
+   * @param req 请求对象，包含数据源ID、表名、分页与排序参数
+   * @param res 响应对象
+   */
+  async getTableData(req: Request, res: Response): Promise<void> {
+    try {
+      const { dataSourceId, tableName } = req.params;
+      
+      // 获取查询参数
+      const page = parseInt(req.query.page as string) || 1;
+      const size = parseInt(req.query.size as string) || 10;
+      const sort = req.query.sort as string;
+      const order = (req.query.order as string || 'asc').toLowerCase();
+      
+      // 计算偏移量
+      const offset = (page - 1) * size;
+      
+      logger.info(`获取数据源 ${dataSourceId} 表 ${tableName} 的数据预览，页码=${page}, 每页记录数=${size}`);
+
+      // 验证数据源是否存在
+      const dataSource = await datasourceService.getDataSourceById(dataSourceId);
+      if (!dataSource) {
+        throw new ApiError(`数据源 ${dataSourceId} 不存在`, StatusCodes.NOT_FOUND);
+      }
+
+      // 获取数据源连接器
+      const connector = await datasourceService.getConnector(dataSourceId);
+      
+      // 构建过滤条件
+      const filters: Record<string, string> = {};
+      for (const key in req.query) {
+        if (key.startsWith('filter[') && key.endsWith(']')) {
+          const columnName = key.slice(7, -1); // 提取列名
+          filters[columnName] = req.query[key] as string;
+        }
+      }
+      
+      // 构建查询语句
+      let sql = `SELECT * FROM \`${tableName}\``;
+      const params: any[] = [];
+      
+      // 添加过滤条件
+      if (Object.keys(filters).length > 0) {
+        const whereConditions = [];
+        
+        for (const [column, value] of Object.entries(filters)) {
+          // 使用参数化查询防止SQL注入
+          whereConditions.push(`\`${column}\` = ?`);
+          params.push(value);
+        }
+        
+        if (whereConditions.length > 0) {
+          sql += ` WHERE ${whereConditions.join(' AND ')}`;
+        }
+      }
+      
+      // 添加排序
+      if (sort) {
+        const sortDirection = order === 'desc' ? 'DESC' : 'ASC';
+        sql += ` ORDER BY \`${sort}\` ${sortDirection}`;
+      }
+      
+      // 添加分页
+      sql += ` LIMIT ${offset}, ${size}`;
+      
+      // 执行查询
+      const result = await connector.executeQuery(sql, params);
+      
+      // 获取总记录数
+      const countSql = `SELECT COUNT(*) as total FROM \`${tableName}\``;
+      const countResult = await connector.executeQuery(countSql);
+      const total = parseInt(countResult.rows[0].total, 10);
+      
+      const totalPages = Math.ceil(total / size);
+
+      // 构造响应数据
+      const responseData = {
+        rows: result.rows,
+        columns: result.fields ? result.fields.map((field: any) => ({
+          name: field.name,
+          type: field.type
+        })) : [],
+        pagination: {
+          page,
+          size,
+          total,
+          totalPages,
+          hasMore: page < totalPages
+        },
+        tableInfo: {
+          tableName,
+          totalRows: total
+        }
+      };
+      
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: responseData
+      });
+    } catch (error: any) {
+      logger.error('获取表数据预览失败', { error });
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
+      } else {
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: error.message || '获取表数据预览时发生内部错误'
+        });
+      }
+    }
+  }
 }
 
 export default new MetadataController(); 

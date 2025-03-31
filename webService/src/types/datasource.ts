@@ -243,6 +243,7 @@ export interface UpdateDataSourceDto {
   connectionParams?: Record<string, any>;
   status?: string;
   syncFrequency?: string;
+  lastSyncTime?: Date;
 }
 
 /**

@@ -377,4 +377,44 @@ router.get('/:id/stats', metadataController.getStats);
  */
 router.post('/:id/test', dataSourceController.testExistingConnection);
 
+/**
+ * @swagger
+ * /datasources/{id}/check-status:
+ *   post:
+ *     summary: 检查数据源连接状态
+ *     description: 触发检查指定数据源的连接状态，并更新状态信息
+ *     tags: [DataSource]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 数据源ID
+ *     responses:
+ *       200:
+ *         description: 成功检查数据源状态
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     active:
+ *                       type: boolean
+ *       404:
+ *         description: 数据源不存在
+ */
+router.post('/:id/check-status', dataSourceController.checkDataSourceStatus);
+
 export default router;

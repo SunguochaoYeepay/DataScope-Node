@@ -1,7 +1,7 @@
 import express from 'express';
 import metadataController from '../controllers/metadata.controller';
 import authMiddleware from '../middlewares/auth.middleware';
-import { validateDataSourceId } from '../middlewares/validationMiddleware';
+import { validateDataSourceId, validateTableName } from '../middlewares/validationMiddleware';
 
 const router = express.Router();
 
@@ -332,6 +332,232 @@ router.get(
   authMiddleware.authenticate,
   validateDataSourceId,
   metadataController.getStats
+);
+
+/**
+ * @swagger
+ * /api/metadata/{dataSourceId}/tables/{tableName}/data:
+ *   get:
+ *     summary: 获取表数据预览
+ *     description: 返回指定数据源中特定表的数据，支持分页、排序和过滤
+ *     tags: [Metadata]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 数据源ID
+ *       - in: path
+ *         name: tableName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 表名
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码，从1开始
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每页记录数
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *         description: 排序字段
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *         description: 排序方向，asc升序，desc降序
+ *       - in: query
+ *         name: filter[columnName]
+ *         schema:
+ *           type: string
+ *         description: 按列名过滤，例如filter[id]=1将筛选id=1的记录
+ *     responses:
+ *       200:
+ *         description: 成功获取表数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     rows:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     columns:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           name:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         size:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                     tableInfo:
+ *                       type: object
+ *                       properties:
+ *                         tableName:
+ *                           type: string
+ *                         totalRows:
+ *                           type: integer
+ *       401:
+ *         description: 未授权
+ *       404:
+ *         description: 数据源或表不存在
+ *       500:
+ *         description: 服务器错误
+ */
+router.get(
+  '/:dataSourceId/tables/:tableName/data',
+  authMiddleware.authenticate,
+  validateDataSourceId,
+  validateTableName,
+  metadataController.getTableData
+);
+
+/**
+ * @swagger
+ * /api/metadata/datasources/{dataSourceId}/tables/{tableName}/data:
+ *   get:
+ *     summary: 获取表数据预览
+ *     description: 返回指定数据源中特定表的数据，支持分页、排序和过滤
+ *     tags: [Metadata]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 数据源ID
+ *       - in: path
+ *         name: tableName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 表名
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码，从1开始
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每页记录数
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *         description: 排序字段
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *         description: 排序方向，asc升序，desc降序
+ *       - in: query
+ *         name: filter[columnName]
+ *         schema:
+ *           type: string
+ *         description: 按列名过滤，例如filter[id]=1将筛选id=1的记录
+ *     responses:
+ *       200:
+ *         description: 成功获取表数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     rows:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     columns:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           name:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         size:
+ *                           type: integer
+ *                         total:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         hasMore:
+ *                           type: boolean
+ *                     tableInfo:
+ *                       type: object
+ *                       properties:
+ *                         tableName:
+ *                           type: string
+ *                         totalRows:
+ *                           type: integer
+ *       401:
+ *         description: 未授权
+ *       404:
+ *         description: 数据源或表不存在
+ *       500:
+ *         description: 服务器错误
+ */
+router.get(
+  '/datasources/:dataSourceId/tables/:tableName/data',
+  authMiddleware.authenticate,
+  validateDataSourceId,
+  validateTableName,
+  metadataController.getTableData
 );
 
 export default router; 

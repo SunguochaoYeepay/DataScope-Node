@@ -1,84 +1,207 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, computed, reactive } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import DataSourceList from '@/components/datasource/DataSourceList.vue'
 import DataSourceForm from '@/components/datasource/DataSourceForm.vue'
 import DataSourceDetail from '@/components/datasource/DataSourceDetail.vue'
 import AdvancedSearch from '@/components/datasource/AdvancedSearch.vue'
 import SearchResultsView from '@/components/datasource/SearchResultsView.vue'
-import type { DataSource, CreateDataSourceParams, ConnectionTestResult } from '@/types/datasource'
+import type { DataSource, CreateDataSourceParams, ConnectionTestResult, DataSourceQueryParams, TestConnectionParams } from '@/types/datasource'
 import { useDataSourceStore } from '@/stores/datasource'
 import { message } from '@/services/message'
 
+// 路由相关
+const route = useRoute()
+const router = useRouter()
+
+// 视图状态管理
+interface ViewState {
+  isLoading: boolean
+  isSearchOpen: boolean
+  searchKeyword: string
+  searchResults: {
+    tables: Array<{
+      dataSourceId: string
+      dataSourceName: string
+      tables: Array<{
+        name: string
+        type: string
+        schema: string
+      }>
+    }>
+    columns: Array<{
+      dataSourceId: string
+      dataSourceName: string
+      columns: Array<{
+        table: string
+        column: string
+        type: string
+      }>
+    }>
+    views: Array<{
+      dataSourceId: string
+      dataSourceName: string
+      views: Array<{
+        name: string
+        type: string
+        schema: string
+      }>
+    }>
+    total: number
+  } | null
+  searchParams: {
+    keyword: string
+    dataSourceIds: string[]
+    entityTypes: Array<'table' | 'column' | 'view'>
+    useRegex?: boolean
+    caseSensitive?: boolean
+  }
+  selectedDataSource: DataSource | null
+}
+
+const viewState = reactive<ViewState>({
+  isLoading: false,
+  isSearchOpen: false,
+  searchKeyword: '',
+  searchResults: null,
+  searchParams: {
+    keyword: '',
+    dataSourceIds: [],
+    entityTypes: ['table', 'column', 'view']
+  },
+  selectedDataSource: null
+})
+
 // 视图状态
 const currentView = ref<'list' | 'detail' | 'form' | 'search' | 'searchResults'>('list')
-const isLoading = ref(false)
-const selectedDataSource = ref<DataSource | null>(null)
-const isEditMode = ref(false)
-const searchKeyword = ref('')
-const isSearchOpen = ref(false)
-const searchResults = ref<any>(null)
-const searchParams = ref<any>(null)
+
+// 监听路由和搜索状态变化
+watch([() => route.name, () => viewState.isSearchOpen, () => viewState.searchResults], () => {
+  if (viewState.isSearchOpen) {
+    currentView.value = viewState.searchResults ? 'searchResults' : 'search'
+    return
+  }
+  
+  switch (route.name) {
+    case 'datasource-create':
+    case 'datasource-edit':
+      currentView.value = 'form'
+      break
+    case 'datasource-detail':
+      currentView.value = 'detail'
+      break
+    default:
+      currentView.value = 'list'
+  }
+}, { immediate: true })
+
+// 计算编辑模式
+const isEditMode = computed(() => route.name === 'datasource-edit')
 
 // 数据源状态管理
 const dataSourceStore = useDataSourceStore()
 
-// 切换到列表视图
-const showListView = () => {
-  currentView.value = 'list'
-  selectedDataSource.value = null
+// 导航方法
+const showListView = () => router.push({ name: 'datasource-list' })
+const showDetailView = (dataSource: DataSource) => router.push({ name: 'datasource-detail', params: { id: dataSource.id } })
+const showAddForm = () => router.push({ name: 'datasource-create' })
+const showEditForm = (dataSource: DataSource) => router.push({ name: 'datasource-edit', params: { id: dataSource.id } })
+
+// 根据路由参数初始化视图
+const initializeView = async () => {
+  const { name, params } = route
+
+  switch (name) {
+    case 'datasource-create':
+      showAddForm()
+      break
+    case 'datasource-edit':
+      if (params.id) {
+        const dataSource = await dataSourceStore.getDataSourceById(params.id as string)
+        if (dataSource) {
+          showEditForm(dataSource)
+        } else {
+          message.error('未找到数据源')
+          router.push({ name: 'datasource-list' })
+        }
+      }
+      break
+    case 'datasource-detail':
+      if (params.id) {
+        const dataSource = await dataSourceStore.getDataSourceById(params.id as string)
+        if (dataSource) {
+          showDetailView(dataSource)
+        } else {
+          message.error('未找到数据源')
+          router.push({ name: 'datasource-list' })
+        }
+      }
+      break
+    default:
+      showListView()
+  }
 }
 
-// 切换到详情视图
-const showDetailView = (dataSource: DataSource) => {
-  selectedDataSource.value = dataSource
-  currentView.value = 'detail'
+// 监听路由变化
+watch(() => route.name, initializeView, { immediate: true })
+
+// 根据路由获取当前数据源
+const getCurrentDataSource = async () => {
+  const id = route.params.id as string
+  if (id) {
+    return await dataSourceStore.getDataSourceById(id)
+  }
+  return null
 }
 
-// 切换到表单视图（新增）
-const showAddForm = () => {
-  selectedDataSource.value = null
-  isEditMode.value = false
-  currentView.value = 'form'
-}
-
-// 切换到表单视图（编辑）
-const showEditForm = (dataSource: DataSource) => {
-  selectedDataSource.value = dataSource
-  isEditMode.value = true
-  currentView.value = 'form'
-}
+// 更新选中的数据源
+watch(() => route.params.id, async () => {
+  viewState.selectedDataSource = await getCurrentDataSource()
+}, { immediate: true })
 
 // 显示高级搜索面板
 const showAdvancedSearch = () => {
-  isSearchOpen.value = true
-  currentView.value = 'search'
+  viewState.isSearchOpen = true
+  router.push({ name: 'datasource-search', query: { search: 'advanced' } })
 }
 
 // 关闭高级搜索面板
 const closeAdvancedSearch = () => {
-  isSearchOpen.value = false
-  currentView.value = 'list'
+  viewState.isSearchOpen = false
+  router.push({ name: 'datasource-list' })
 }
 
 // 执行高级搜索
-const performAdvancedSearch = async (params: any) => {
-  isLoading.value = true
-  searchParams.value = params
+const performAdvancedSearch = async (params: {
+  keyword: string
+  dataSourceIds: string[]
+  entityTypes: Array<'table' | 'column' | 'view'>
+  useRegex?: boolean
+  caseSensitive?: boolean
+}) => {
+  viewState.isLoading = true
   
   try {
-    searchResults.value = await dataSourceStore.advancedSearch({
+    const results = await dataSourceStore.advancedSearch(params)
+    viewState.searchResults = results
+    viewState.searchParams = {
       keyword: params.keyword,
       dataSourceIds: params.dataSourceIds,
       entityTypes: params.entityTypes,
+      useRegex: params.useRegex,
       caseSensitive: params.caseSensitive
-    })
-    
-    currentView.value = 'searchResults'
+    }
   } catch (error) {
     console.error('搜索失败:', error)
     message.error('搜索失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    viewState.searchResults = null
+    viewState.searchParams = {
+      keyword: '',
+      dataSourceIds: [],
+      entityTypes: ['table', 'column', 'view']
+    }
   } finally {
-    isLoading.value = false
+    viewState.isLoading = false
   }
 }
 
@@ -88,7 +211,7 @@ const handleViewSearchResultTable = (dataSourceId: string, tableName: string) =>
   const dataSource = dataSourceStore.dataSources.find(ds => ds.id === dataSourceId)
   
   if (dataSource) {
-    selectedDataSource.value = dataSource
+    viewState.selectedDataSource = dataSource
     currentView.value = 'detail'
     
     // 这里可以添加逻辑，让详情页面直接定位到指定表并展开
@@ -113,58 +236,46 @@ const syncDataSourceMetadata = async (dataSource: DataSource) => {
 }
 
 // 测试数据源连接
-const testDataSourceConnection = async (params: any, callback?: (result: ConnectionTestResult) => void) => {
+const testDataSourceConnection = async (params: TestConnectionParams, callback: (success: boolean) => void): Promise<void> => {
   try {
-    const result = await dataSourceStore.testDataSourceConnection(params)
-    
-    // 如果传入了回调函数，调用回调
-    if (callback) {
-      callback(result)
-    } else {
-      // 没有回调函数时，直接显示结果消息
-      if (result.success) {
-        message.success('连接成功')
-      } else {
-        message.error(`连接失败: ${result.message}`)
-      }
+    // 构造符合 TestConnectionParams 的参数
+    const testParams: TestConnectionParams = {
+      id: params.id, // 确保保留id参数
+      type: params.type,
+      host: params.host,
+      port: params.port,
+      database: params.database || params.databaseName, // 兼容两种参数名
+      username: params.username,
+      password: params.password || '',
+      connectionParams: params.connectionParams || {}
     }
+
+    const result = await dataSourceStore.testDataSourceConnection(testParams)
+    console.log('测试连接响应:', result)
     
-    return result
+    // 调用回调函数
+    callback(result.success)
   } catch (error) {
     console.error('测试连接出错:', error)
-    
-    const errorResult = {
-      success: false,
-      message: error instanceof Error ? error.message : '连接测试失败',
-    }
-    
-    // 如果传入了回调函数，调用回调
-    if (callback) {
-      callback(errorResult)
-    } else {
-      message.error(`连接失败: ${errorResult.message}`)
-    }
-    
-    return errorResult
+    // 发生错误时也要调用回调函数
+    callback(false)
   }
 }
 
 // 保存数据源
 const saveDataSource = async (dataSource: CreateDataSourceParams) => {
-  isLoading.value = true
+  viewState.isLoading = true
   
   try {
-    if (isEditMode.value && selectedDataSource.value) {
+    if (isEditMode.value && viewState.selectedDataSource) {
       // 编辑现有数据源
       await dataSourceStore.updateDataSource({
         ...dataSource,
-        id: selectedDataSource.value.id
+        id: viewState.selectedDataSource.id
       })
-      message.success('数据源更新成功')
     } else {
       // 创建新数据源
       await dataSourceStore.createDataSource(dataSource)
-      message.success('数据源创建成功')
     }
     
     // 返回到列表视图
@@ -177,13 +288,13 @@ const saveDataSource = async (dataSource: CreateDataSourceParams) => {
     console.error('保存数据源失败:', error)
     message.error('保存数据源失败: ' + (error instanceof Error ? error.message : '未知错误'))
   } finally {
-    isLoading.value = false
+    viewState.isLoading = false
   }
 }
 
 // 删除数据源
 const deleteDataSource = async (dataSource: DataSource) => {
-  isLoading.value = true
+  viewState.isLoading = true
   
   try {
     await dataSourceStore.deleteDataSource(dataSource.id)
@@ -199,7 +310,7 @@ const deleteDataSource = async (dataSource: DataSource) => {
     console.error('删除数据源失败:', error)
     message.error('删除数据源失败: ' + (error instanceof Error ? error.message : '未知错误'))
   } finally {
-    isLoading.value = false
+    viewState.isLoading = false
   }
 }
 
@@ -210,18 +321,15 @@ const refreshDataSources = async () => {
 
 // 组件挂载
 onMounted(async () => {
-  isLoading.value = true
-  
+  viewState.isLoading = true
   try {
-    console.log('开始获取数据源列表...')
     await dataSourceStore.fetchDataSources()
-    console.log('获取数据源列表完成, 数据源数量:', dataSourceStore.dataSources.length)
-    console.log('数据源数据:', dataSourceStore.dataSources)
+    await initializeView()
   } catch (error) {
     console.error('加载数据源列表失败:', error)
     message.error('加载数据源列表失败')
   } finally {
-    isLoading.value = false
+    viewState.isLoading = false
   }
 })
 </script>
@@ -233,7 +341,7 @@ onMounted(async () => {
       <div class="flex-1 min-w-0">
         <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
           <template v-if="currentView === 'list'">数据源管理</template>
-          <template v-else-if="currentView === 'detail' && selectedDataSource">{{ selectedDataSource.name }} - 详情</template>
+          <template v-else-if="currentView === 'detail' && viewState.selectedDataSource">{{ viewState.selectedDataSource.name }} - 详情</template>
           <template v-else-if="currentView === 'form'">{{ isEditMode ? '编辑数据源' : '添加数据源' }}</template>
           <template v-else-if="currentView === 'search'">高级搜索</template>
           <template v-else-if="currentView === 'searchResults'">搜索结果</template>
@@ -243,18 +351,7 @@ onMounted(async () => {
         <template v-if="currentView === 'list'">
           <button 
             type="button" 
-            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-2"
-            @click="showAdvancedSearch"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            高级搜索
-          </button>
-          
-          <button 
-            type="button" 
-            class="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             @click="showAddForm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -280,25 +377,28 @@ onMounted(async () => {
     </div>
     
     <!-- 主要内容区域 -->
-    <div>
+    <div class="bg-white shadow rounded-lg">
       <!-- 列表视图 -->
-      <div v-if="currentView === 'list'">
-        <DataSourceList 
-          :data-sources="dataSourceStore.dataSources"
-          :loading="isLoading"
-          :show-actions="true"
-          @select="showDetailView"
+      <template v-if="currentView === 'list'">
+        <DataSourceList
+          :dataSources="dataSourceStore.dataSources"
+          :loading="viewState.isLoading"
+          :showActions="true"
+          @refresh="refreshDataSources"
           @edit="showEditForm"
           @delete="deleteDataSource"
+          @view="showDetailView"
+          @select="showDetailView"
           @add="showAddForm"
-          @refresh="refreshDataSources"
+          @test-connection="testDataSourceConnection"
+          @sync-metadata="syncDataSourceMetadata"
         />
-      </div>
+      </template>
       
       <!-- 详情视图 -->
-      <div v-else-if="currentView === 'detail' && selectedDataSource">
+      <div v-else-if="currentView === 'detail' && viewState.selectedDataSource">
         <DataSourceDetail 
-          :data-source-id="selectedDataSource.id"
+          :data-source-id="viewState.selectedDataSource.id"
           @edit="showEditForm"
           @delete="deleteDataSource"
           @refresh="refreshDataSources"
@@ -310,7 +410,7 @@ onMounted(async () => {
       <!-- 表单视图 -->
       <div v-else-if="currentView === 'form'">
         <DataSourceForm
-          :data-source="selectedDataSource"
+          :data-source="viewState.selectedDataSource"
           :is-edit="isEditMode"
           @save="saveDataSource"
           @cancel="showListView"
@@ -321,28 +421,28 @@ onMounted(async () => {
       <!-- 高级搜索视图 -->
       <div v-else-if="currentView === 'search'">
         <AdvancedSearch
-          :initial-keyword="searchKeyword"
-          :selected-data-source-id="selectedDataSource?.id"
+          :initial-keyword="viewState.searchKeyword"
+          :selected-data-source-id="viewState.selectedDataSource?.id"
           @search="performAdvancedSearch"
           @close="closeAdvancedSearch"
         />
       </div>
       
       <!-- 搜索结果视图 -->
-      <div v-else-if="currentView === 'searchResults' && searchResults">
+      <div v-else-if="currentView === 'searchResults' && viewState.searchResults">
         <SearchResultsView
-          :results="searchResults"
-          :search-params="searchParams"
-          @view-table="handleViewSearchResultTable"
-          @view-column="handleViewSearchResultTable"
-          @new-search="showAdvancedSearch"
+          :results="viewState.searchResults"
+          :search-params="viewState.searchParams"
+          :is-loading="viewState.isLoading"
+          @back="closeAdvancedSearch"
+          @retry="performAdvancedSearch(viewState.searchParams)"
         />
       </div>
     </div>
     
     <!-- 加载指示器 -->
     <div
-      v-if="isLoading"
+      v-if="viewState.isLoading"
       class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
     >
       <div class="bg-white p-6 rounded-lg shadow-xl flex items-center">

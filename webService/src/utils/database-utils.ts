@@ -1,181 +1,220 @@
-import { PrismaClient } from '@prisma/client';
-import mysql from 'mysql2/promise';
-import { Pool, PoolClient } from 'pg';
+import { ApiError } from './errors/types/api-error';
 import logger from './logger';
-import ApiError from './apiError';
+import mysql, { Pool, FieldPacket, QueryResult } from 'mysql2/promise';
+import {  Client } from 'pg';
+import { ERROR_CODES } from './errors/error-codes';
 
-// Prisma客户端实例
-const prisma = new PrismaClient();
-
-/**
- * 数据库类型枚举
- */
+// 数据库类型枚举
 export enum DatabaseType {
   MYSQL = 'mysql',
-  POSTGRES = 'postgres'
-}
-
-/**
- * 数据库连接信息
- */
-export interface DatabaseConnectionInfo {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database: string;
-}
-
-/**
- * 列信息类型
- */
-export interface ColumnInfo {
-  name: string;
-  type: string;
-  nullable: boolean;
-  primaryKey: boolean;
-  defaultValue: string | null;
-  comment: string | null;
-}
-
-/**
- * 查询结果接口
- */
-export interface QueryResult {
-  rows: any[];
-  fields?: any[];
+  POSTGRESQL = 'postgresql',
+  ORACLE = 'oracle',
+  SQLITE = 'sqlite',
+  MONGODB = 'mongodb',
+  REDSHIFT = 'redshift',
+  SNOWFLAKE = 'snowflake',
+  BIGQUERY = 'bigquery',
+  SQL_SERVER = 'sqlserver'
 }
 
 /**
  * 数据库连接器接口
  */
-interface DatabaseConnector {
-  connect(): Promise<void>;
-  close(): Promise<void>;
-  getTables(): Promise<string[]>;
-  getColumns(tableName: string): Promise<any[]>;
+export interface DatabaseConnector {
+  connect(): Promise<any>;
+  disconnect(): Promise<void>;
+  close?(): Promise<void>;
+  testConnection(): Promise<boolean>;
+  getTables(): Promise<any[]>;
+  getTableStructure(tableName: string): Promise<any>;
+  getColumns?(tableName: string): Promise<any[]>;
   executeQuery(query: string): Promise<any>;
   getDatabaseSize?(): Promise<string>;
 }
 
 /**
- * MySQL数据库连接器实现
+ * MySQL数据库连接器
  */
-class MySQLConnector implements DatabaseConnector {
-  private config: mysql.ConnectionOptions;
-  private connection: mysql.Connection | null = null;
+export class MySQLConnector implements DatabaseConnector {
+  private connection: Pool | null = null;
   
-  constructor(config: mysql.ConnectionOptions) {
-    this.config = config;
-  }
+  constructor(
+    private host: string,
+    private port: number,
+    private user: string,
+    private password: string,
+    private database: string,
+    private options: any = {}
+  ) {}
   
   /**
-   * 连接到MySQL数据库
+   * 连接MySQL数据库
    */
-  async connect(): Promise<void> {
+  async connect(): Promise<Pool> {
     try {
-      logger.debug('正在连接MySQL数据库...', { host: this.config.host, database: this.config.database });
-      this.connection = await mysql.createConnection(this.config);
+      logger.debug('创建数据库连接', {
+        host: this.host,
+        port: this.port,
+        user: this.user,
+        database: this.database
+      });
+      
+      this.connection = await mysql.createPool({
+        host: this.host,
+        port: this.port,
+        user: this.user,
+        password: this.password,
+        database: this.database,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        ...this.options
+      });
+      
+      // 测试连接
+      await this.testConnection();
+      
       logger.debug('已成功连接到MySQL数据库');
+      return this.connection;
     } catch (error: any) {
       logger.error('MySQL数据库连接失败', { error });
-      throw new ApiError(`MySQL数据库连接失败: ${error.message}`, 500);
+      throw new Error(`MySQL数据库连接失败: ${error.message}`);
     }
   }
   
   /**
-   * 关闭MySQL数据库连接
+   * 断开MySQL数据库连接
    */
-  async close(): Promise<void> {
+  async disconnect(): Promise<void> {
     if (this.connection) {
-      try {
-        await this.connection.end();
-        this.connection = null;
-        logger.debug('已关闭MySQL数据库连接');
-      } catch (error: any) {
-        logger.error('关闭MySQL数据库连接失败', { error });
+      await this.connection.end();
+      this.connection = null;
+      logger.debug('已关闭MySQL数据库连接');
+    }
+  }
+  
+  /**
+   * 测试MySQL数据库连接
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      if (!this.connection) {
+        await this.connect();
       }
+      
+      if (this.connection) {
+        const [result] = await this.connection.query('SELECT 1');
+        return Array.isArray(result) && result.length > 0;
+      }
+      
+      return false;
+    } catch (error: any) {
+      logger.error('MySQL数据库连接测试失败', { error });
+      throw new Error(`MySQL数据库连接测试失败: ${error.message}`);
     }
   }
   
   /**
-   * 获取MySQL数据库的表列表
-   * @returns 表名数组
+   * 获取MySQL数据库表列表
    */
-  async getTables(): Promise<string[]> {
-    if (!this.connection) {
-      await this.connect();
-    }
-    
+  async getTables(): Promise<any[]> {
     try {
-      const [rows] = await this.connection!.query<any[]>(
-        'SELECT table_name FROM information_schema.tables WHERE table_schema = ?',
-        [this.config.database]
+      if (!this.connection) {
+        await this.connect();
+      }
+      
+      if (!this.connection) {
+        throw new Error('数据库连接失败');
+      }
+      
+      const [rows] = await this.connection.query(
+        'SELECT TABLE_NAME as name, TABLE_TYPE as type, TABLE_COMMENT as comment FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?',
+        [this.database]
       );
       
-      return rows.map((row: any) => row.table_name || row.TABLE_NAME);
+      return Array.isArray(rows) ? rows : [];
     } catch (error: any) {
-      logger.error('获取MySQL表列表失败', { error });
-      throw new ApiError(`获取表列表失败: ${error.message}`, 500);
+      logger.error('获取MySQL数据库表列表失败', { error });
+      throw new Error(`获取MySQL数据库表列表失败: ${error.message}`);
     }
   }
   
   /**
-   * 获取MySQL表的列信息
+   * 获取MySQL数据库表结构
    * @param tableName 表名
-   * @returns 列信息数组
    */
-  async getColumns(tableName: string): Promise<any[]> {
-    if (!this.connection) {
-      await this.connect();
-    }
-    
+  async getTableStructure(tableName: string): Promise<any> {
     try {
-      const [rows] = await this.connection!.query<any[]>(
-        'SELECT column_name as name, data_type as type, ' +
-        'is_nullable as nullable, column_default as defaultValue, ' +
-        'column_key as columnKey, extra ' +
-        'FROM information_schema.columns ' +
-        'WHERE table_schema = ? AND table_name = ?',
-        [this.config.database, tableName]
+      if (!this.connection) {
+        await this.connect();
+      }
+      
+      if (!this.connection) {
+        throw new Error('数据库连接失败');
+      }
+      
+      // 获取列信息
+      const [columns] = await this.connection.query(
+        'SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_KEY as keyType, COLUMN_DEFAULT as defaultValue, EXTRA as extra, COLUMN_COMMENT as comment FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION',
+        [this.database, tableName]
       );
       
-      return rows.map((row: any) => ({
-        name: row.name || row.NAME,
-        type: row.type || row.TYPE,
-        nullable: (row.nullable || row.NULLABLE) === 'YES',
-        defaultValue: row.defaultValue || row.DEFAULTVALUE,
-        isPrimaryKey: (row.columnKey || row.COLUMNKEY) === 'PRI',
-        isAutoIncrement: (row.extra || row.EXTRA)?.includes('auto_increment')
-      }));
+      // 获取索引信息
+      const [indexes] = await this.connection.query(
+        'SELECT INDEX_NAME as name, COLUMN_NAME as column_name, NON_UNIQUE as non_unique FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY INDEX_NAME, SEQ_IN_INDEX',
+        [this.database, tableName]
+      );
+      
+      // 处理索引信息
+      const indexMap = new Map();
+      if (Array.isArray(indexes)) {
+        for (const index of indexes as any[]) {
+          if (!indexMap.has(index.name)) {
+            indexMap.set(index.name, {
+              name: index.name,
+              columns: [],
+              unique: index.non_unique === 0
+            });
+          }
+          indexMap.get(index.name).columns.push(index.column_name);
+        }
+      }
+      
+      return {
+        tableName,
+        columns: Array.isArray(columns) ? columns : [],
+        indexes: Array.from(indexMap.values())
+      };
     } catch (error: any) {
-      logger.error(`获取MySQL表 ${tableName} 的列信息失败`, { error });
-      throw new ApiError(`获取表 ${tableName} 的列信息失败: ${error.message}`, 500);
+      logger.error(`获取MySQL数据库表结构失败: ${tableName}`, { error });
+      throw new Error(`获取MySQL数据库表结构失败: ${error.message}`);
     }
   }
   
   /**
    * 执行MySQL查询
-   * @param query SQL查询语句
-   * @returns 查询结果
+   * @param query 查询语句
    */
   async executeQuery(query: string): Promise<any> {
-    if (!this.connection) {
-      await this.connect();
-    }
-    
     try {
-      const [rows] = await this.connection!.query(query);
-      return { rows };
+      if (!this.connection) {
+        await this.connect();
+      }
+      
+      if (!this.connection) {
+        throw new Error('数据库连接失败');
+      }
+      
+      const [rows, fields] = await this.connection.query(query);
+      return { rows, fields };
     } catch (error: any) {
-      logger.error('执行MySQL查询失败', { error, query });
-      throw new ApiError(`执行查询失败: ${error.message}`, 500);
+      logger.error(`执行MySQL查询失败: ${query}`, { error });
+      throw new Error(`执行MySQL查询失败: ${error.message}`);
     }
   }
   
   /**
    * 获取MySQL数据库大小
-   * @returns 数据库大小（格式化为人类可读的字符串）
    */
   async getDatabaseSize(): Promise<string> {
     try {
@@ -183,176 +222,292 @@ class MySQLConnector implements DatabaseConnector {
         await this.connect();
       }
       
-      const query = `
-        SELECT 
-          SUM(data_length + index_length) / 1024 / 1024 as size_mb,
-          ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as formatted_size
-        FROM information_schema.TABLES 
-        WHERE table_schema = ?
-      `;
+      if (!this.connection) {
+        throw new Error('数据库连接失败');
+      }
       
-      const [results]: any[] = await this.connection!.execute(query, [this.config.database]);
+      const [result] = await this.connection.query(
+        `SELECT 
+          ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'size_in_mb'
+        FROM information_schema.TABLES
+        WHERE table_schema = ?`,
+        [this.database]
+      );
       
-      if (results && Array.isArray(results) && results.length > 0) {
-        const sizeMB = parseFloat(results[0].size_mb);
-        if (sizeMB < 1024) {
-          return `${results[0].formatted_size} MB`;
+      if (Array.isArray(result) && result.length > 0) {
+        const resultRow = result[0] as any;
+        const size = resultRow.size_in_mb;
+        if (size >= 1024) {
+          return `${(size / 1024).toFixed(2)} GB`;
         } else {
-          const sizeGB = (sizeMB / 1024).toFixed(2);
-          return `${sizeGB} GB`;
+          return `${size} MB`;
         }
       }
       
-      return '未知';
-    } catch (error) {
+      return '0 MB';
+    } catch (error: any) {
       logger.error('获取MySQL数据库大小失败', { error });
-      return '未知';
+      throw new Error(`获取MySQL数据库大小失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 关闭连接 - 别名方法，调用disconnect
+   */
+  async close(): Promise<void> {
+    return this.disconnect();
+  }
+  
+  /**
+   * 获取表字段信息
+   * @param tableName 表名
+   */
+  async getColumns(tableName: string): Promise<any[]> {
+    try {
+      if (!this.connection) {
+        await this.connect();
+      }
+      
+      if (!this.connection) {
+        throw new Error('数据库连接失败');
+      }
+      
+      const [columns] = await this.connection.query(
+        'SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE as nullable, COLUMN_KEY as keyType, COLUMN_DEFAULT as defaultValue, EXTRA as extra, COLUMN_COMMENT as comment FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION',
+        [this.database, tableName]
+      );
+      
+      return Array.isArray(columns) ? columns : [];
+    } catch (error: any) {
+      logger.error(`获取表 ${tableName} 的列定义失败`, { error });
+      throw new Error(`获取表列定义失败: ${error.message}`);
     }
   }
 }
 
 /**
- * PostgreSQL数据库连接器实现
+ * PostgreSQL数据库连接器
  */
-class PostgresConnector implements DatabaseConnector {
-  private config: any;
-  private pool: Pool | null = null;
-  private client: PoolClient | null = null;
+export class PostgresConnector implements DatabaseConnector {
+  private client: Client | null = null;
   
-  constructor(config: any) {
-    this.config = {
-      host: config.host,
-      port: config.port || 5432,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      ssl: config.ssl === true ? { rejectUnauthorized: false } : false
-    };
-  }
+  constructor(
+    private host: string,
+    private port: number,
+    private user: string,
+    private password: string,
+    private database: string,
+    private options: any = {}
+  ) {}
   
   /**
-   * 连接到PostgreSQL数据库
+   * 连接PostgreSQL数据库
    */
-  async connect(): Promise<void> {
+  async connect(): Promise<Client> {
     try {
-      logger.debug('正在连接PostgreSQL数据库...', { host: this.config.host, database: this.config.database });
-      this.pool = new Pool(this.config);
-      this.client = await this.pool.connect();
+      logger.debug('创建PostgreSQL数据库连接', {
+        host: this.host,
+        port: this.port,
+        user: this.user,
+        database: this.database
+      });
+      
+      this.client = new Client({
+        host: this.host,
+        port: this.port,
+        user: this.user,
+        password: this.password,
+        database: this.database,
+        ...this.options
+      });
+      
+      await this.client.connect();
       logger.debug('已成功连接到PostgreSQL数据库');
+      return this.client;
     } catch (error: any) {
       logger.error('PostgreSQL数据库连接失败', { error });
-      throw new ApiError(`PostgreSQL数据库连接失败: ${error.message}`, 500);
+      throw new Error(`PostgreSQL数据库连接失败: ${error.message}`);
     }
   }
   
   /**
-   * 关闭PostgreSQL数据库连接
+   * 断开PostgreSQL数据库连接
    */
-  async close(): Promise<void> {
+  async disconnect(): Promise<void> {
     if (this.client) {
-      try {
-        this.client.release();
-        this.client = null;
-      } catch (error: any) {
-        logger.error('释放PostgreSQL客户端失败', { error });
-      }
-    }
-    
-    if (this.pool) {
-      try {
-        await this.pool.end();
-        this.pool = null;
-        logger.debug('已关闭PostgreSQL数据库连接');
-      } catch (error: any) {
-        logger.error('关闭PostgreSQL连接池失败', { error });
-      }
+      await this.client.end();
+      this.client = null;
+      logger.debug('已关闭PostgreSQL数据库连接');
     }
   }
   
   /**
-   * 获取PostgreSQL数据库的表列表
-   * @returns 表名数组
+   * 测试PostgreSQL数据库连接
    */
-  async getTables(): Promise<string[]> {
-    if (!this.client) {
-      await this.connect();
-    }
-    
+  async testConnection(): Promise<boolean> {
     try {
-      const result = await this.client!.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-      );
+      if (!this.client) {
+        await this.connect();
+      }
       
-      return result.rows.map((row: any) => row.table_name);
+      if (this.client) {
+        const result = await this.client.query('SELECT 1');
+        return result.rowCount !== null && result.rowCount > 0;
+      }
+      
+      return false;
     } catch (error: any) {
-      logger.error('获取PostgreSQL表列表失败', { error });
-      throw new ApiError(`获取表列表失败: ${error.message}`, 500);
+      logger.error('PostgreSQL数据库连接测试失败', { error });
+      throw new Error(`PostgreSQL数据库连接测试失败: ${error.message}`);
     }
   }
   
   /**
-   * 获取PostgreSQL表的列信息
+   * 获取PostgreSQL数据库表列表
+   */
+  async getTables(): Promise<any[]> {
+    try {
+      if (!this.client) {
+        await this.connect();
+      }
+      
+      if (!this.client) {
+        throw new Error('数据库连接失败');
+      }
+      
+      const result = await this.client.query(`
+        SELECT 
+          table_name as name,
+          CASE 
+            WHEN table_type = 'BASE TABLE' THEN 'TABLE'
+            ELSE table_type
+          END as type,
+          obj_description(c.oid) as comment
+        FROM 
+          information_schema.tables t
+        JOIN 
+          pg_class c ON c.relname = t.table_name
+        JOIN 
+          pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+        WHERE 
+          table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY 
+          table_name
+      `);
+      
+      return result.rows;
+    } catch (error: any) {
+      logger.error('获取PostgreSQL数据库表列表失败', { error });
+      throw new Error(`获取PostgreSQL数据库表列表失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 获取PostgreSQL数据库表结构
    * @param tableName 表名
-   * @returns 列信息数组
    */
-  async getColumns(tableName: string): Promise<any[]> {
-    if (!this.client) {
-      await this.connect();
-    }
-    
+  async getTableStructure(tableName: string): Promise<any> {
     try {
-      const result = await this.client!.query(
-        `SELECT 
-          column_name as name, 
-          data_type as type,
-          is_nullable as nullable,
-          column_default as defaultvalue,
-          (SELECT true FROM information_schema.table_constraints tc
-           JOIN information_schema.constraint_column_usage ccu 
-           ON tc.constraint_name = ccu.constraint_name
-           WHERE tc.constraint_type = 'PRIMARY KEY' 
-           AND tc.table_name = $1
-           AND ccu.column_name = columns.column_name) as isprimarykey
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = $1`,
-        [tableName]
-      );
+      if (!this.client) {
+        await this.connect();
+      }
       
-      return result.rows.map((row: any) => ({
-        name: row.name,
-        type: row.type,
-        nullable: row.nullable === 'YES',
-        defaultValue: row.defaultvalue,
-        isPrimaryKey: !!row.isprimarykey
-      }));
+      if (!this.client) {
+        throw new Error('数据库连接失败');
+      }
+      
+      // 获取列信息
+      const columnsResult = await this.client.query(`
+        SELECT 
+          column_name as name,
+          data_type as type,
+          CASE WHEN is_nullable = 'YES' THEN true ELSE false END as nullable,
+          column_default as defaultValue,
+          CASE WHEN is_identity = 'YES' THEN 'IDENTITY' ELSE '' END as extra,
+          col_description(c.oid, a.attnum) as comment
+        FROM 
+          information_schema.columns ic
+        JOIN 
+          pg_class c ON c.relname = ic.table_name
+        JOIN 
+          pg_attribute a ON a.attrelid = c.oid AND a.attname = ic.column_name
+        WHERE 
+          ic.table_name = $1
+          AND table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY 
+          ordinal_position
+      `, [tableName]);
+      
+      // 获取索引信息
+      const indexesResult = await this.client.query(`
+        SELECT
+          i.relname as name,
+          a.attname as column_name,
+          ix.indisunique as is_unique
+        FROM
+          pg_class t,
+          pg_class i,
+          pg_index ix,
+          pg_attribute a
+        WHERE
+          t.oid = ix.indrelid
+          AND i.oid = ix.indexrelid
+          AND a.attrelid = t.oid
+          AND a.attnum = ANY(ix.indkey)
+          AND t.relkind = 'r'
+          AND t.relname = $1
+        ORDER BY
+          i.relname, a.attnum
+      `, [tableName]);
+      
+      // 处理索引信息
+      const indexMap = new Map();
+      for (const index of indexesResult.rows) {
+        if (!indexMap.has(index.name)) {
+          indexMap.set(index.name, {
+            name: index.name,
+            columns: [],
+            unique: index.is_unique
+          });
+        }
+        indexMap.get(index.name).columns.push(index.column_name);
+      }
+      
+      return {
+        tableName,
+        columns: columnsResult.rows,
+        indexes: Array.from(indexMap.values())
+      };
     } catch (error: any) {
-      logger.error(`获取PostgreSQL表 ${tableName} 的列信息失败`, { error });
-      throw new ApiError(`获取表 ${tableName} 的列信息失败: ${error.message}`, 500);
+      logger.error(`获取PostgreSQL数据库表结构失败: ${tableName}`, { error });
+      throw new Error(`获取PostgreSQL数据库表结构失败: ${error.message}`);
     }
   }
   
   /**
    * 执行PostgreSQL查询
-   * @param query SQL查询语句
-   * @returns 查询结果
+   * @param query 查询语句
    */
   async executeQuery(query: string): Promise<any> {
-    if (!this.client) {
-      await this.connect();
-    }
-    
     try {
-      const result = await this.client!.query(query);
-      return { rows: result.rows };
+      if (!this.client) {
+        await this.connect();
+      }
+      
+      if (!this.client) {
+        throw new Error('数据库连接失败');
+      }
+      
+      const result = await this.client.query(query);
+      return { rows: result.rows, fields: result.fields };
     } catch (error: any) {
-      logger.error('执行PostgreSQL查询失败', { error, query });
-      throw new ApiError(`执行查询失败: ${error.message}`, 500);
+      logger.error(`执行PostgreSQL查询失败: ${query}`, { error });
+      throw new Error(`执行PostgreSQL查询失败: ${error.message}`);
     }
   }
   
   /**
    * 获取PostgreSQL数据库大小
-   * @returns 数据库大小（格式化为人类可读的字符串）
    */
   async getDatabaseSize(): Promise<string> {
     try {
@@ -360,21 +515,71 @@ class PostgresConnector implements DatabaseConnector {
         await this.connect();
       }
       
-      const query = `
-        SELECT 
-          pg_size_pretty(pg_database_size($1)) as size
-      `;
+      if (!this.client) {
+        throw new Error('数据库连接失败');
+      }
       
-      const result = await this.client!.query(query, [this.config.database]);
+      const result = await this.client.query(`
+        SELECT pg_size_pretty(pg_database_size($1)) as size
+      `, [this.database]);
       
-      if (result && result.rows && result.rows.length > 0) {
+      if (result.rows.length > 0) {
         return result.rows[0].size;
       }
       
-      return '未知';
-    } catch (error) {
+      return '0 MB';
+    } catch (error: any) {
       logger.error('获取PostgreSQL数据库大小失败', { error });
-      return '未知';
+      throw new Error(`获取PostgreSQL数据库大小失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 关闭连接 - 别名方法，调用disconnect
+   */
+  async close(): Promise<void> {
+    return this.disconnect();
+  }
+  
+  /**
+   * 获取表字段信息
+   * @param tableName 表名
+   */
+  async getColumns(tableName: string): Promise<any[]> {
+    try {
+      if (!this.client) {
+        await this.connect();
+      }
+      
+      if (!this.client) {
+        throw new Error('数据库连接失败');
+      }
+      
+      const result = await this.client.query(`
+        SELECT 
+          column_name as name,
+          data_type as type,
+          CASE WHEN is_nullable = 'YES' THEN true ELSE false END as nullable,
+          column_default as defaultValue,
+          CASE WHEN is_identity = 'YES' THEN 'IDENTITY' ELSE '' END as extra,
+          col_description(c.oid, a.attnum) as comment
+        FROM 
+          information_schema.columns ic
+        JOIN 
+          pg_class c ON c.relname = ic.table_name
+        JOIN 
+          pg_attribute a ON a.attrelid = c.oid AND a.attname = ic.column_name
+        WHERE 
+          ic.table_name = $1
+          AND table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY 
+          ordinal_position
+      `, [tableName]);
+      
+      return result.rows;
+    } catch (error: any) {
+      logger.error(`获取表 ${tableName} 的列定义失败`, { error });
+      throw new Error(`获取表列定义失败: ${error.message}`);
     }
   }
 }
@@ -384,9 +589,38 @@ class PostgresConnector implements DatabaseConnector {
  */
 export class DatabaseConnectorFactory {
   /**
+   * 创建数据库连接器
+   * @param type 数据库类型
+   * @param config 数据库配置
+   */
+  static createConnector(type: string, config: any): DatabaseConnector {
+    switch (type.toLowerCase()) {
+      case DatabaseType.MYSQL:
+        return new MySQLConnector(
+          config.host,
+          config.port,
+          config.user || config.username,
+          config.password,
+          config.database || config.databaseName,
+          config.options
+        );
+      case DatabaseType.POSTGRESQL:
+        return new PostgresConnector(
+          config.host,
+          config.port,
+          config.user || config.username,
+          config.password,
+          config.database || config.databaseName,
+          config.options
+        );
+      default:
+        throw new ApiError(`不支持的数据库类型: ${type}`, ERROR_CODES.INVALID_REQUEST);
+    }
+  }
+  
+  /**
    * 从数据源ID创建连接器
    * @param dataSourceId 数据源ID
-   * @returns 数据库连接器实例
    */
   static async createConnectorFromDataSourceId(dataSourceId: string): Promise<DatabaseConnector> {
     try {
@@ -399,111 +633,59 @@ export class DatabaseConnectorFactory {
         throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
       }
       
-      // 导入解密工具
-      const cryptoUtils = await import('./crypto');
-      
       // 解密密码
-      const password = cryptoUtils.decrypt(
-        dataSource.passwordEncrypted,
-        dataSource.passwordSalt
-      );
+      let password;
+      
+      // 特殊情况处理：如果密码和盐值相同，直接使用密码（兼容开发环境的简化设置）
+      if (dataSource.passwordEncrypted === dataSource.passwordSalt) {
+        logger.debug('使用明文存储的密码');
+        password = dataSource.passwordEncrypted;
+      } else {
+        // 正常的解密流程
+        try {
+          // 导入解密工具
+          const cryptoUtils = await import('./crypto');
+          
+          // 解密密码
+          password = cryptoUtils.decrypt(
+            dataSource.passwordEncrypted,
+            dataSource.passwordSalt
+          );
+        } catch (err) {
+          logger.error('密码解密失败', err);
+          throw new Error('解密失败');
+        }
+      }
       
       // 预处理主机名 - 处理容器名称
-      let resolvedHost = dataSource.host;
+      let host = dataSource.host;
+      let options = {};
       
-      // 检查是否为常见的容器名称，在非容器环境中自动转换为localhost
-      const containerNames = ['datascope-mysql', 'mysql', 'mariadb', 'database', 'db', 'datascope-postgres', 'postgres'];
-      if (containerNames.includes(resolvedHost)) {
-        // 判断是否在容器环境中运行
-        const isInContainer = process.env.CONTAINER_ENV === 'true';
-        if (!isInContainer) {
-          // 非容器环境，将容器名称转换为localhost
-          logger.info(`将容器名称 ${dataSource.host} 解析为 localhost`);
-          resolvedHost = 'localhost';
+      // 如果是Docker环境，替换主机名
+      if (process.env.DOCKER_ENV === 'true' && host.endsWith('.docker.local')) {
+        host = host.replace('.docker.local', '');
+        logger.debug(`Docker环境替换主机名: ${dataSource.host} -> ${host}`);
+      }
+      
+      // 创建连接器
+      return DatabaseConnectorFactory.createConnector(
+        dataSource.type,
+        {
+          host,
+          port: dataSource.port,
+          username: dataSource.username,
+          password,
+          databaseName: dataSource.databaseName,
+          options
         }
-      }
-      
-      // 根据数据源类型创建连接器
-      const config = {
-        host: resolvedHost,
-        port: dataSource.port,
-        user: dataSource.username,
-        password: password, // 使用解密后的密码
-        database: dataSource.databaseName,
-      };
-      
-      logger.debug(`创建数据库连接 [${dataSource.type}] ${config.user}@${config.host}:${config.port}/${config.database}`);
-      
-      if (dataSource.type === 'mysql') {
-        const mysqlConfig = {
-          ...config,
-          ssl: undefined // 默认不使用SSL
-        };
-        return new MySQLConnector(mysqlConfig);
-      } else if (dataSource.type === 'postgres') {
-        return new PostgresConnector(config);
-      } else {
-        throw new ApiError(`不支持的数据库类型: ${dataSource.type}`, 400);
-      }
-    } catch (error: any) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      logger.error('创建数据库连接器失败', { error, dataSourceId });
-      throw new ApiError(`创建数据库连接器失败: ${error.message}`, 500);
+      );
+    } catch (error) {
+      logger.error(`创建数据库连接器失败: ${error}`);
+      throw error;
     }
   }
-  
-  /**
-   * 测试数据源连接
-   * @param dataSourceConfig 数据源配置
-   * @returns 连接测试结果
-   */
-  static async testConnection(dataSourceConfig: any): Promise<any> {
-    let connector: DatabaseConnector | null = null;
-    
-    try {
-      const config = {
-        host: dataSourceConfig.host,
-        port: dataSourceConfig.port,
-        user: dataSourceConfig.username,
-        password: dataSourceConfig.password,
-        database: dataSourceConfig.databaseName,
-        ssl: dataSourceConfig.ssl || false
-      };
-      
-      if (dataSourceConfig.type === 'mysql') {
-        connector = new MySQLConnector(config);
-      } else if (dataSourceConfig.type === 'postgres') {
-        connector = new PostgresConnector(config);
-      } else {
-        throw new ApiError(`不支持的数据库类型: ${dataSourceConfig.type}`, 400);
-      }
-      
-      // 测试连接
-      await connector.connect();
-      
-      // 获取基本信息
-      const tables = await connector.getTables();
-      
-      return {
-        success: true,
-        message: '连接成功',
-        data: {
-          tablesCount: tables.length,
-          tables: tables.slice(0, 5) // 只返回前5个表名作为示例
-        }
-      };
-    } catch (error: any) {
-      logger.error('数据库连接测试失败', { error, config: dataSourceConfig });
-      return {
-        success: false,
-        message: `连接失败: ${error.message}`
-      };
-    } finally {
-      if (connector) {
-        await connector.close();
-      }
-    }
-  }
-} 
+}
+
+// 导入Prisma客户端
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient(); 

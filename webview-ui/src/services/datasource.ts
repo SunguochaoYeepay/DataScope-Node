@@ -21,12 +21,10 @@ import { mockDataSourceApi } from '@/mocks/datasource'
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
 
 // API 基础路径
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
-  `${import.meta.env.VITE_API_BASE_URL}/api/datasources` : '/api/datasources'
+const API_BASE_URL = '/api/datasources'
 
 // 元数据API基础路径 - 已更新为标准API路径
-const METADATA_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ? 
-  `${import.meta.env.VITE_API_BASE_URL}/api/metadata` : '/api/metadata'
+const METADATA_API_BASE_URL = '/api/metadata'
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -255,39 +253,58 @@ export const dataSourceService = {
     }
 
     try {
-      // 构建符合后端预期的请求体
+      // 构建请求体
       const requestBody = {
-        type: params.type.toLowerCase(),
+        type: params.type,
         host: params.host,
         port: params.port,
-        database: params.database || params.databaseName, // 优先使用database，其次使用databaseName
+        database: params.databaseName || params.database,
         username: params.username,
-        password: params.password,
+        password: params.password || '',
         connectionParams: params.connectionParams || {}
-      }
+      };
       
-      const response = await fetch(`${API_BASE_URL}/test-connection`, {
+      const response = await fetch(`${API_BASE_URL}/test`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
       })
-      
+
       if (!response.ok) {
-        throw new Error(`测试连接失败: ${response.statusText}`)
+        const errorText = await response.text();
+        console.error(`测试连接API返回错误: ${response.status} ${response.statusText}`, errorText);
+        
+        let errorMessage = '连接测试失败';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          // 如果无法解析JSON，使用原始错误文本
+          errorMessage = errorText || errorMessage;
+        }
+        
+        return {
+          success: false,
+          message: errorMessage,
+          details: { status: response.status, statusText: response.statusText }
+        };
       }
-      
-      const result = await handleResponse<any>(response)
-      
+
+      const data = await response.json();
       return {
-        success: result.success,
-        message: result.message || '',
-        details: result.details || null
+        success: data.success,
+        message: data.message,
+        details: data.details
       }
     } catch (error) {
-      console.error('测试连接错误:', error)
-      throw error
+      console.error('测试连接失败:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '连接测试失败，请检查连接详情后重试',
+        details: error
+      }
     }
   },
   
@@ -308,32 +325,68 @@ export const dataSourceService = {
         }
       }
       
+      console.log(`开始同步元数据，数据源ID: ${params.id}`);
+      console.log('请求体:', JSON.stringify(requestBody, null, 2));
+      
       // 使用正确的元数据API路径
-      const response = await fetch(`${METADATA_API_BASE_URL}/sync/${params.id}`, {
-        method: 'POST',
+      const url = `${METADATA_API_BASE_URL}/sync/${params.id}`;
+      console.log('请求URL:', url);
+      
+      const response = await fetch(url, {
+        method: 'POST', // 明确指定方法为POST
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(requestBody)
       })
       
-      if (!response.ok) {
-        throw new Error(`同步元数据失败: ${response.statusText}`)
+      // 获取原始响应文本以便记录
+      const responseText = await response.text();
+      console.log('原始响应:', responseText);
+      
+      let responseJson;
+      try {
+        responseJson = JSON.parse(responseText);
+        console.log('解析后的响应:', JSON.stringify(responseJson, null, 2));
+      } catch (e) {
+        console.error('解析响应JSON失败:', e);
+        return {
+          success: false,
+          message: `解析响应失败: ${responseText.substring(0, 100)}`
+        };
       }
       
-      const result = await handleResponse<any>(response)
-      // 适配后端返回的同步结果格式为前端需要的格式
-      return {
-        success: result.success || false,
-        message: result.message || '',
-        tablesCount: result.tablesCount || 0,
-        viewsCount: result.viewsCount || 0,
-        syncDuration: result.syncDuration || 0,
-        lastSyncTime: result.lastSyncTime || new Date().toISOString()
+      if (!response.ok) {
+        console.error(`同步元数据API返回错误: ${response.status} ${response.statusText}`);
+        return {
+          success: false,
+          message: responseJson?.message || responseJson?.error || `服务器返回错误: ${response.status} ${response.statusText}`
+        };
       }
+      
+      // 处理可能的嵌套结构
+      const result = {
+        success: responseJson.success === true,
+        message: responseJson.message || '',
+        // 兼容两种响应格式（嵌套和非嵌套）
+        tablesCount: responseJson.data?.tablesCount || responseJson.tablesCount || 0,
+        viewsCount: responseJson.data?.viewsCount || responseJson.viewsCount || 0,
+        syncDuration: responseJson.data?.syncDuration || responseJson.syncDuration || 0,
+        lastSyncTime: responseJson.data?.lastSyncTime || responseJson.lastSyncTime || new Date().toISOString(),
+        syncHistoryId: responseJson.data?.syncHistoryId || responseJson.syncHistoryId || null
+      };
+      
+      console.log('处理后的同步结果:', result);
+      return result;
     } catch (error) {
       console.error(`同步数据源${params.id}元数据错误:`, error)
-      throw error
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+        tablesCount: 0,
+        viewsCount: 0
+      }
     }
   },
   
@@ -476,13 +529,13 @@ export const dataSourceService = {
         }
       }
       
-      // 调用API获取表数据预览
-      const url = `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
+      // 使用新的API路径格式
+      const url = `/api/metadata/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
       console.log('获取表数据预览, URL:', url);
       
       const response = await fetch(url);
       const responseText = await response.text();
-      console.log('表数据预览响应:', responseText);
+      console.log('表数据预览原始响应文本:', responseText.substring(0, 500) + (responseText.length > 500 ? '...(截断)' : ''));
       
       let data;
       try {
@@ -497,14 +550,73 @@ export const dataSourceService = {
         throw new Error(data.message || '获取表数据预览失败');
       }
       
-      // 标准化响应格式
+      // 处理数据格式，兼容不同的API响应结构
+      let rows: any[] = [];
+      let formattedColumns: { name: string, type: string }[] = [];
+      let pagination = {
+        page: params.page || 1,
+        size: params.size || 10,
+        total: 0,
+        totalPages: 0
+      };
+      
+      // 检查不同的响应格式并适配
+      if (data.data.rows !== undefined) {
+        // 标准格式 data.data.rows
+        rows = data.data.rows || [];
+        
+        // 处理columns格式转换，将MySQL格式的列定义转换为组件需要的格式
+        if (data.data.columns && Array.isArray(data.data.columns)) {
+          formattedColumns = data.data.columns.map((col: any) => {
+            // 处理MySQL DESC格式的列
+            if (col.Field) {
+              return {
+                name: col.Field,
+                type: col.Type || 'VARCHAR'
+              };
+            }
+            // 处理标准格式的列
+            return {
+              name: col.name || col.column_name || col.columnName || col.Field || '',
+              type: col.type || col.data_type || col.dataType || col.Type || 'VARCHAR'
+            };
+          });
+        }
+        
+        // 处理分页信息
+        if (data.data.pagination) {
+          pagination = {
+            ...pagination,
+            page: data.data.pagination.page || params.page || 1,
+            size: data.data.pagination.size || params.size || 10,
+            total: data.data.pagination.total || 0,
+            totalPages: data.data.pagination.totalPages || 0
+          };
+        }
+      } else if (Array.isArray(data.data)) {
+        // 如果直接返回了数据数组
+        rows = data.data;
+        // 尝试从第一行数据推断列
+        if (rows.length > 0) {
+          formattedColumns = Object.keys(rows[0]).map(key => ({
+            name: key,
+            type: typeof rows[0][key] === 'number' ? 'NUMBER' : 
+                  typeof rows[0][key] === 'boolean' ? 'BOOLEAN' : 'VARCHAR'
+          }));
+        }
+      } else {
+        // 如果返回了其他结构，给出警告但尝试处理
+        console.warn('未识别的表数据预览响应格式:', data);
+        rows = [];
+      }
+      
       return {
-        data: data.data.rows || [],
-        columns: data.data.columns || [],
-        page: data.data.page || params.page || 1,
-        size: data.data.size || params.size || 10,
-        total: data.data.total || 0,
-        totalPages: data.data.totalPages || 0
+        data: rows,
+        columns: formattedColumns,
+        page: pagination.page,
+        size: pagination.size,
+        total: pagination.total || rows.length,
+        totalPages: pagination.totalPages || Math.ceil((pagination.total || rows.length) / pagination.size)
       };
     } catch (error) {
       console.error(`获取数据源${dataSourceId}表${tableName}预览错误:`, error);
@@ -647,6 +759,134 @@ export const dataSourceService = {
     } catch (error) {
       console.error(`分析数据源${dataSourceId}表${tableName}列错误:`, error)
       throw error
+    }
+  },
+
+  // 测试现有数据源连接
+  async testExistingConnection(id: string): Promise<ConnectionTestResult> {
+    if (USE_MOCK_API) {
+      return {
+        success: true,
+        message: '连接成功',
+        details: null
+      };
+    }
+
+    try {
+      // 使用API文档中的正确路径：/datasources/{id}/test
+      const response = await fetch(`${API_BASE_URL}/${id}/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`测试连接API返回错误: ${response.status} ${response.statusText}`, errorText);
+        
+        let errorMessage = '测试连接失败';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          // 如果无法解析JSON，使用原始错误文本
+          errorMessage = errorText || errorMessage;
+        }
+        
+        return {
+          success: false,
+          message: errorMessage,
+          details: { status: response.status, statusText: response.statusText }
+        };
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        message: data.message,
+        details: data.details
+      };
+    } catch (error) {
+      console.error('测试数据源连接失败:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '测试连接失败',
+        details: error
+      };
+    }
+  },
+
+  // 高级搜索
+  async advancedSearch(params: {
+    keyword: string,
+    dataSourceIds: string[],
+    entityTypes: ('table' | 'column' | 'view')[],
+    caseSensitive?: boolean,
+    page?: number,
+    size?: number
+  }): Promise<any> {
+    if (USE_MOCK_API) {
+      // 模拟数据
+      return {
+        items: [],
+        total: 0,
+        page: params.page || 1,
+        size: params.size || 10,
+        totalPages: 0
+      }
+    }
+
+    try {
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+      queryParams.append('keyword', params.keyword);
+      
+      if (params.dataSourceIds && params.dataSourceIds.length > 0) {
+        params.dataSourceIds.forEach(id => queryParams.append('dataSourceIds', id));
+      }
+      
+      if (params.entityTypes && params.entityTypes.length > 0) {
+        params.entityTypes.forEach(type => queryParams.append('entityTypes', type));
+      }
+      
+      if (params.caseSensitive !== undefined) {
+        queryParams.append('caseSensitive', params.caseSensitive.toString());
+      }
+      
+      if (params.page !== undefined) {
+        queryParams.append('page', params.page.toString());
+      }
+      
+      if (params.size !== undefined) {
+        queryParams.append('size', params.size.toString());
+      }
+      
+      // 发送请求
+      const response = await fetch(`${METADATA_API_BASE_URL}/search?${queryParams.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error(`高级搜索失败: ${response.statusText}`);
+      }
+      
+      // 解析响应
+      const result = await response.json();
+      console.log('高级搜索结果:', result);
+      
+      // 处理嵌套数据结构
+      const data = result.success && result.data ? result.data : result;
+      
+      // 转换为标准分页格式
+      return {
+        items: data.items || [],
+        total: data.total || 0,
+        page: data.page || params.page || 1,
+        size: data.size || params.size || 10,
+        totalPages: data.totalPages || 0
+      };
+    } catch (error) {
+      console.error('高级搜索失败:', error);
+      throw error;
     }
   }
 }

@@ -22,6 +22,7 @@ export interface DataSource {
   port: number
   databaseName: string
   database?: string
+  schema?: string
   username: string
   password?: string
   status: DataSourceStatus
@@ -47,6 +48,7 @@ export interface CreateDataSourceParams {
   port: number
   databaseName: string
   database?: string
+  schema?: string
   username: string
   password: string
   syncFrequency: SyncFrequency
@@ -74,12 +76,13 @@ export interface UpdateDataSourceParams {
 
 // 测试连接参数
 export interface TestConnectionParams {
-  type: DataSourceType
-  host: string
-  port: number
-  databaseName: string
+  id?: string
+  type?: DataSourceType
+  host?: string
+  port?: number
+  databaseName?: string
   database?: string
-  username: string
+  username?: string
   password?: string
   connectionParams?: Record<string, string>
 }
@@ -128,6 +131,7 @@ export interface MetadataSyncResult {
   viewsCount?: number
   syncDuration?: number
   lastSyncTime?: string
+  syncHistoryId?: string | null
 }
 
 // 数据源统计信息

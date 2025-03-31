@@ -182,3 +182,29 @@ npm run format
 - [x] 查询执行计划和优化建议功能完成
 - [ ] 用户权限和团队协作功能开发中
 - [ ] 仪表盘功能开发中.
+
+## 故障排除
+
+### 数据源服务问题
+
+如果遇到与数据源服务相关的问题，如编译错误"Module has no default export"或相关功能无法正常工作，可以：
+
+1. 使用验证脚本检查数据源服务文件：
+   ```
+   cd webService
+   npm run verify:datasource
+   ```
+
+2. 如果验证失败，使用修复脚本恢复：
+   ```
+   cd webService
+   npm run fix:datasource
+   ```
+
+3. 启动服务时会自动验证并尝试修复数据源服务：
+   ```
+   cd webService
+   npm run dev
+   ```
+
+系统已实现自动验证和修复机制，在启动服务前会检查数据源服务文件是否正确，如不正确会自动尝试恢复。

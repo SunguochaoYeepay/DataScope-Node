@@ -1,6 +1,15 @@
 # 更新日志 (CHANGELOG)
 
-所有对项目的显著更改都将记录在此文件中。
+## [Unreleased]
+
+### 新增
+
+- 添加表数据预览API，支持分页、排序和过滤功能
+  - 新增 `GET /api/metadata/:dataSourceId/tables/:tableName/data` 端点
+  - 新增 `GET /api/metadata/datasources/:dataSourceId/tables/:tableName/data` 端点
+  - 支持page和size参数控制分页
+  - 支持sort和order参数控制排序
+  - 支持filter[columnName]参数进行列筛选
 
 ## [1.0.9] - 2024-05-07
 

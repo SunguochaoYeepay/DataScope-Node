@@ -27,6 +27,12 @@ export const useDataSourceStore = defineStore('dataSource', () => {
   const isLoading = ref(false)
   const error = ref<Error | null>(null)
   const isLoadingMetadata = ref(false)
+  const isUpdateLoading = ref(false)
+  const isUpdateError = ref(false)
+  const updateError = ref<string | null>(null)
+  const isCreateLoading = ref(false)
+  const isCreateError = ref(false)
+  const createError = ref<string | null>(null)
   
   // 计算属性
   const activeDataSources = computed(() => {
@@ -97,49 +103,57 @@ export const useDataSourceStore = defineStore('dataSource', () => {
   
   // 创建数据源
   const createDataSource = async (params: CreateDataSourceParams) => {
-    isLoading.value = true
-    error.value = null
-    
+    isCreateLoading.value = true
+    isCreateError.value = false
+    createError.value = null
+
     try {
-      const newDataSource = await dataSourceService.createDataSource(params)
+      const response = await dataSourceService.createDataSource(params)
+      // 添加到数据源列表
+      dataSources.value.push(response)
       message.success('数据源创建成功')
-      fetchDataSources() // 刷新列表
-      return newDataSource
-    } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('创建数据源失败')
-      return null
+      return response
+    } catch (error) {
+      console.error('创建数据源失败:', error)
+      isCreateError.value = true
+      createError.value = error instanceof Error ? error.message : '未知错误'
+      message.error(`创建数据源失败: ${createError.value}`)
+      throw error
     } finally {
-      isLoading.value = false
+      isCreateLoading.value = false
     }
   }
   
   // 更新数据源
   const updateDataSource = async (params: UpdateDataSourceParams) => {
-    isLoading.value = true
-    error.value = null
-    
+    isUpdateLoading.value = true
+    isUpdateError.value = false
+    updateError.value = null
+
     try {
-      const updatedDataSource = await dataSourceService.updateDataSource(params)
+      const response = await dataSourceService.updateDataSource(params)
       
-      // 更新本地状态
+      // 更新当前选中的数据源
       const index = dataSources.value.findIndex(ds => ds.id === params.id)
       if (index !== -1) {
-        dataSources.value[index] = updatedDataSource
+        dataSources.value[index] = response
       }
       
-      if (currentDataSource.value?.id === params.id) {
-        currentDataSource.value = updatedDataSource
+      // 若当前选中的数据源就是更新的数据源，也更新currentDataSource
+      if (currentDataSource.value && currentDataSource.value.id === params.id) {
+        currentDataSource.value = response
       }
-      
+
       message.success('数据源更新成功')
-      return updatedDataSource
-    } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('更新数据源失败')
-      return null
+      return response
+    } catch (error) {
+      console.error('更新数据源失败:', error)
+      isUpdateError.value = true
+      updateError.value = error instanceof Error ? error.message : '未知错误'
+      message.error(`更新数据源失败: ${updateError.value}`)
+      throw error
     } finally {
-      isLoading.value = false
+      isUpdateLoading.value = false
     }
   }
   
@@ -173,7 +187,14 @@ export const useDataSourceStore = defineStore('dataSource', () => {
   const testDataSourceConnection = async (params: any) => {
     try {
       loading.show('测试连接中...')
-      const result = await dataSourceService.testConnection(params)
+      let result;
+      
+      // 如果是已存在的数据源，使用testExistingConnection
+      if (params.id) {
+        result = await dataSourceService.testExistingConnection(params.id)
+      } else {
+        result = await dataSourceService.testConnection(params)
+      }
       
       if (result.success) {
         message.success('连接成功')
@@ -195,6 +216,7 @@ export const useDataSourceStore = defineStore('dataSource', () => {
     try {
       loading.show('同步元数据中...')
       const result = await dataSourceService.syncMetadata({ id })
+      console.log('元数据同步结果:', result)
       
       if (result.success) {
         message.success('元数据同步成功')
@@ -211,13 +233,17 @@ export const useDataSourceStore = defineStore('dataSource', () => {
           dataSources.value[index] = updatedDataSource
         }
       } else {
-        message.error(`元数据同步失败: ${result.message}`)
+        message.error(`元数据同步失败: ${result.message || '未知错误'}`)
       }
       
       return result
     } catch (err) {
-      message.error('同步元数据失败')
-      return { success: false, message: err instanceof Error ? err.message : String(err) }
+      console.error('同步元数据失败:', err)
+      message.error('同步元数据失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      return { 
+        success: false, 
+        message: err instanceof Error ? err.message : String(err) 
+      }
     } finally {
       loading.hide()
     }
@@ -341,6 +367,12 @@ export const useDataSourceStore = defineStore('dataSource', () => {
     isLoading,
     error,
     isLoadingMetadata,
+    isUpdateLoading,
+    isUpdateError,
+    updateError,
+    isCreateLoading,
+    isCreateError,
+    createError,
     
     // 计算属性
     activeDataSources,

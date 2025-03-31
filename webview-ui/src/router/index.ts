@@ -4,13 +4,59 @@ import type { RouteRecordRaw } from 'vue-router'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('../views/HomeView.vue')
+    name: 'home',
+    component: () => import('@/views/HomeView.vue'),
+    meta: {
+      title: 'DataScope - 首页'
+    }
   },
   {
     path: '/datasource',
-    name: 'DataSource',
-    component: () => import('../views/datasource/DataSourceView.vue')
+    name: 'datasource-list',
+    component: () => import('@/views/datasource/DataSourceView.vue'),
+    meta: {
+      title: '数据源管理'
+    }
+  },
+  {
+    path: '/datasource/create',
+    name: 'datasource-create',
+    component: () => import('@/views/datasource/DataSourceView.vue'),
+    meta: {
+      title: '创建数据源'
+    }
+  },
+  {
+    path: '/datasource/:id',
+    name: 'datasource-detail',
+    component: () => import('@/views/datasource/DataSourceView.vue'),
+    meta: {
+      title: '数据源详情'
+    }
+  },
+  {
+    path: '/datasource/edit/:id',
+    name: 'datasource-edit',
+    component: () => import('@/views/datasource/DataSourceView.vue'),
+    meta: {
+      title: '编辑数据源'
+    }
+  },
+  {
+    path: '/datasource/search',
+    name: 'datasource-search',
+    component: () => import('@/views/datasource/DataSourceView.vue'),
+    meta: {
+      title: '高级搜索'
+    }
+  },
+  {
+    path: '/datasource/search/results',
+    name: 'datasource-search-results',
+    component: () => import('@/views/datasource/DataSourceView.vue'),
+    meta: {
+      title: '搜索结果'
+    }
   },
   {
     path: '/query',

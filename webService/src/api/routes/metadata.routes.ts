@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import metadataController from '../controllers/metadata.controller';
 
+// 添加调试日志
+console.log('元数据路由加载中...');
+console.log('元数据控制器方法：', Object.keys(metadataController));
+
 const router = Router();
 
 /**
@@ -816,6 +820,68 @@ router.get(
   metadataController.getTableStructure
 );
 
+/**
+ * @swagger
+ * /metadata/datasources/{dataSourceId}/tables/{tableName}/data:
+ *   get:
+ *     summary: 获取表数据预览
+ *     description: 返回指定数据源中特定表的数据，支持分页、排序和过滤
+ *     tags: [Metadata]
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 数据源ID
+ *       - in: path
+ *         name: tableName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 表名
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码，从1开始
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每页记录数
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *         description: 排序字段
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: 排序方向，asc升序，desc降序
+ *     responses:
+ *       200:
+ *         description: 成功获取表数据
+ *       400:
+ *         description: 参数错误
+ *       404:
+ *         description: 数据源或表不存在
+ */
+router.get(
+  '/datasources/:dataSourceId/tables/:tableName/data',
+  metadataController.getTableData
+);
+
+// 添加简化版表数据预览API路径格式
+router.get(
+  '/:dataSourceId/tables/:tableName/data',
+  metadataController.getTableData
+);
+
 // 添加的兼容路由 - 支持前端版本的同步格式
 router.post(
   '/sync/:dataSourceId',
@@ -828,6 +894,18 @@ router.post(
   '/:dataSourceId/sync',
   metadataController.validateSyncMetadata(),
   metadataController.syncMetadata
+);
+
+// 添加前端直接使用的API路径格式
+router.get(
+  '/:id/tables/:tableName/data',
+  metadataController.getTableData
+);
+
+// 添加完全匹配前端请求的路由格式
+router.get(
+  '/:dataSourceId/tables/:tableName/data',
+  metadataController.getTableData
 );
 
 export default router;
