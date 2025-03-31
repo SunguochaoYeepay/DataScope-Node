@@ -62,8 +62,31 @@ const loadMetadata = async () => {
       console.log('从API获取到的元数据:', data)
       
       if (data.success && Array.isArray(data.data)) {
-        tables.value = data.data
-        console.log('设置表格数据:', tables.value.length, '张表')
+        // 获取到了表列表，现在需要获取每个表的列信息
+        const tablesWithColumns = [];
+        
+        for (const table of data.data) {
+          try {
+            console.log(`获取表 ${table.name} 的列信息`);
+            const tableResponse = await fetch(`http://localhost:5000/api/metadata/${dataSource.value.id}/tables/${table.name}`);
+            const tableData = await tableResponse.json();
+            
+            if (tableData.success && tableData.data) {
+              // 如果成功获取到表的详细信息，添加到表列表
+              tablesWithColumns.push(tableData.data);
+            } else {
+              // 如果未获取到列信息，仍然添加原表信息
+              tablesWithColumns.push(table);
+            }
+          } catch (error) {
+            console.error(`获取表 ${table.name} 的列信息失败:`, error);
+            // 添加原表信息而不包含列
+            tablesWithColumns.push(table);
+          }
+        }
+        
+        tables.value = tablesWithColumns;
+        console.log('设置表格数据:', tables.value.length, '张表，包含列信息');
       } else if (data.success && data.data && data.data.tablesCount) {
         // 如果只返回了表计数，显示空表列表
         console.log('后端只返回了表计数:', data.data.tablesCount)

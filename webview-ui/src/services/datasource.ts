@@ -422,6 +422,97 @@ export const dataSourceService = {
   },
   
   // 获取表数据预览
+  async getTableDataPreview(
+    dataSourceId: string, 
+    tableName: string, 
+    params: {
+      page?: number, 
+      size?: number, 
+      sort?: string, 
+      order?: 'asc' | 'desc',
+      filters?: Record<string, any>
+    } = {}
+  ) {
+    if (USE_MOCK_API) {
+      return {
+        data: Array(params.size || 10).fill(null).map((_, i) => {
+          // 创建一个模拟行，每行包含5列示例数据
+          return {
+            id: i + 1,
+            name: `示例数据 ${i + 1}`,
+            created_at: new Date(Date.now() - i * 86400000).toISOString(),
+            value: Math.round(Math.random() * 1000) / 10,
+            status: ['活跃', '禁用', '待审核'][i % 3]
+          };
+        }),
+        columns: [
+          { name: 'id', type: 'INTEGER' },
+          { name: 'name', type: 'VARCHAR' },
+          { name: 'created_at', type: 'DATETIME' },
+          { name: 'value', type: 'DECIMAL' },
+          { name: 'status', type: 'VARCHAR' }
+        ],
+        page: params.page || 1,
+        size: params.size || 10,
+        total: 100,
+        totalPages: 10
+      };
+    }
+
+    try {
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.size) queryParams.append('size', params.size.toString());
+      if (params.sort) queryParams.append('sort', params.sort);
+      if (params.order) queryParams.append('order', params.order);
+      
+      // 处理过滤条件
+      if (params.filters) {
+        for (const [key, value] of Object.entries(params.filters)) {
+          if (value !== undefined && value !== null) {
+            queryParams.append(`filter[${key}]`, value.toString());
+          }
+        }
+      }
+      
+      // 调用API获取表数据预览
+      const url = `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
+      console.log('获取表数据预览, URL:', url);
+      
+      const response = await fetch(url);
+      const responseText = await response.text();
+      console.log('表数据预览响应:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('解析表数据预览响应失败:', e);
+        throw new Error('解析服务器响应失败');
+      }
+      
+      if (!data.success) {
+        console.error('获取表数据预览失败:', data.message);
+        throw new Error(data.message || '获取表数据预览失败');
+      }
+      
+      // 标准化响应格式
+      return {
+        data: data.data.rows || [],
+        columns: data.data.columns || [],
+        page: data.data.page || params.page || 1,
+        size: data.data.size || params.size || 10,
+        total: data.data.total || 0,
+        totalPages: data.data.totalPages || 0
+      };
+    } catch (error) {
+      console.error(`获取数据源${dataSourceId}表${tableName}预览错误:`, error);
+      throw error;
+    }
+  },
+  
+  // 使用表格预览功能作为备选方案
   async getTablePreview(dataSourceId: string, tableName: string, limit: number = 10): Promise<any[]> {
     if (USE_MOCK_API) {
       // 使用mock api中类似的功能
