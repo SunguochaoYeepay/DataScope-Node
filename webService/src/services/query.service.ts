@@ -1,5 +1,6 @@
 import { PrismaClient, Query, QueryHistory, QueryPlanHistory, Prisma } from '@prisma/client';
-import { ApiError } from '../utils/error';
+import { ApiError } from '../utils/errors/types/api-error';
+import { ERROR_CODES } from '../utils/errors/error-codes';
 import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
 import { QueryPlanService } from '../database-core/query-plan/query-plan-service';
@@ -630,7 +631,7 @@ export class QueryService {
     try {
       logger.info(`添加收藏查询, queryId: ${queryId}, userId: ${userId}`);
       
-      // 查询是否存在且可用(为了静默处理不存在的查询，这一步是可选的)
+      // 查询是否存在且可用
       try {
         const query = await prisma.query.findUnique({
           where: { id: queryId }
@@ -638,34 +639,47 @@ export class QueryService {
         
         if (!query) {
           logger.warn(`要收藏的查询不存在: ${queryId}`);
-          // 但不抛出错误，仍然创建收藏记录
+          throw new ApiError('查询不存在', ERROR_CODES.RESOURCE_NOT_FOUND);
         }
       } catch (err: any) {
-        logger.warn(`检查查询时出错，但将继续添加收藏: ${err.message}`);
+        if (err instanceof ApiError) {
+          throw err;
+        }
+        logger.warn(`检查查询时出错: ${err.message}`);
+        throw ApiError.internal('查询检查失败', { originalError: err.message });
       }
       
-      // 检查是否已经收藏
-      const existingFavorite = await prisma.$queryRaw<any[]>`
-        SELECT id FROM tbl_query_favorite 
-        WHERE query_id = ${queryId} AND user_id = ${userId}
-      `;
+      // 检查是否已经收藏 - 使用Prisma API而不是原始SQL
+      const existingFavorite = await prisma.queryFavorite.findFirst({
+        where: {
+          queryId: queryId,
+          userId: userId
+        }
+      });
       
-      if (existingFavorite && existingFavorite.length > 0) {
+      if (existingFavorite) {
         // 已经收藏过，直接返回
-        return existingFavorite[0];
+        logger.debug(`查询已被收藏, 返回现有收藏记录, id: ${existingFavorite.id}`);
+        return existingFavorite;
       }
       
-      // 创建收藏记录
-      const id = uuidv4();
-      await prisma.$executeRaw`
-        INSERT INTO tbl_query_favorite (id, query_id, user_id, created_at)
-        VALUES (${id}, ${queryId}, ${userId}, NOW())
-      `;
+      // 创建新的收藏记录 - 使用Prisma API
+      const favorite = await prisma.queryFavorite.create({
+        data: {
+          queryId: queryId,
+          userId: userId
+        }
+      });
       
-      return { id, queryId, userId, createdAt: new Date() };
+      logger.info(`成功添加收藏, id: ${favorite.id}`);
+      return favorite;
     } catch (error: any) {
       logger.error(`添加收藏查询失败, queryId: ${queryId}, userId: ${userId}`, { error });
-      throw new ApiError('添加收藏查询失败', 500, error.message);
+      
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('添加收藏查询失败', { originalError: error.message });
     }
   }
   
@@ -679,27 +693,36 @@ export class QueryService {
     try {
       logger.info(`取消收藏查询, queryId: ${queryId}, userId: ${userId}`);
       
-      // 查找收藏记录
-      const favorites = await prisma.$queryRaw<any[]>`
-        SELECT id FROM tbl_query_favorite 
-        WHERE query_id = ${queryId} AND user_id = ${userId}
-      `;
+      // 查找收藏记录 - 使用Prisma API而不是原始SQL
+      const favorite = await prisma.queryFavorite.findFirst({
+        where: {
+          queryId: queryId,
+          userId: userId
+        }
+      });
       
-      if (!favorites || favorites.length === 0) {
+      if (!favorite) {
         // 未找到收藏记录，视为成功
+        logger.debug(`未找到收藏记录, queryId: ${queryId}, userId: ${userId}`);
         return true;
       }
       
-      // 删除收藏记录
-      await prisma.$executeRaw`
-        DELETE FROM tbl_query_favorite
-        WHERE id = ${favorites[0].id}
-      `;
+      // 删除收藏记录 - 使用Prisma API
+      await prisma.queryFavorite.delete({
+        where: {
+          id: favorite.id
+        }
+      });
       
+      logger.info(`成功取消收藏, id: ${favorite.id}`);
       return true;
     } catch (error: any) {
       logger.error(`取消收藏查询失败, queryId: ${queryId}, userId: ${userId}`, { error });
-      throw new ApiError('取消收藏查询失败', 500, error.message);
+      
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw ApiError.internal('取消收藏查询失败', { originalError: error.message });
     }
   }
 }

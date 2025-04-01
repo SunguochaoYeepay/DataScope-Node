@@ -32,6 +32,7 @@
 - 修复错误码定义一致性问题
 - 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
 - 改进查询收藏相关接口(POST /api/queries/{id}/favorite, DELETE /api/queries/{id}/favorite)的错误处理
+- 修复查询收藏功能无法正常工作的问题，使用Prisma ORM替代原始SQL操作
 
 ### Changed
 - 改进SQL执行错误处理
