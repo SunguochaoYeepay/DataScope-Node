@@ -237,11 +237,40 @@ export class QueryService {
    */
   async getQueryPlanById(id: string): Promise<any | null> {
     try {
-      return await prisma.queryPlanHistory.findUnique({
+      // 首先尝试从QueryPlanHistory表获取
+      const historyPlan = await prisma.queryPlanHistory.findUnique({
         where: { id }
       });
+      
+      if (historyPlan) {
+        logger.debug(`在QueryPlanHistory表中找到查询计划: ${id}`);
+        return historyPlan;
+      }
+      
+      // 如果不存在，尝试从QueryPlan表获取
+      const plan = await prisma.queryPlan.findUnique({
+        where: { id }
+      });
+      
+      if (plan) {
+        logger.debug(`在QueryPlan表中找到查询计划: ${id}`);
+        return plan;
+      }
+      
+      // 最后尝试根据查询ID寻找相关的执行计划
+      const queryPlan = await prisma.queryPlan.findFirst({
+        where: { queryId: id }
+      });
+      
+      if (queryPlan) {
+        logger.debug(`找到查询(${id})关联的执行计划: ${queryPlan.id}`);
+        return queryPlan;
+      }
+      
+      logger.warn(`未找到查询计划: ${id}`);
+      return null;
     } catch (error) {
-      logger.error('获取查询计划历史记录失败', { error, id });
+      logger.error('获取查询计划失败', { error, id });
       return null;
     }
   }

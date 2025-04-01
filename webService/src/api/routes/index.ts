@@ -1,10 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import dataSourceRoutes from './datasource.routes';
-import queryRoutes from './query.routes';
-import metadataRoutes from './metadata.routes';
-import examplesRoutes from './examples.routes';
-import planVisualizationRoutes from './plan-visualization.routes';
-import queryPlanRoutes from './query-plan.routes';
+import dataSourceRouter from './datasource.routes';
+import queryRouter from './query.routes';
+import metadataRouter from './metadata.routes';
+import planVisualizationRouter from './plan-visualization.routes';
+import queryPlanRouter from './query-plan.routes';
+import examplesRouter from './examples.routes';
 import metadataController from '../controllers/metadata.controller';
 
 const router = Router();
@@ -15,13 +15,28 @@ router.get('/metadata/:dataSourceId/tables/:tableName/data', (req: Request, res:
   return metadataController.getTableData(req, res);
 });
 
-// API路由
-router.use('/datasources', dataSourceRoutes);
-router.use('/queries', queryRoutes);
-router.use('/metadata', metadataRoutes);
-router.use('/examples', examplesRoutes);
-router.use('/plan-visualization', planVisualizationRoutes);
-router.use('/query-plans', queryPlanRoutes);
+// Placeholder route
+router.get('/', (req: Request, res: Response) => {
+  res.json({
+    message: 'DataScope API Root',
+    endpoints: [
+      '/api/datasources',
+      '/api/queries',
+      '/api/metadata',
+      '/api/plan-visualization',
+      '/api/query-plans',
+      '/api/examples',
+    ]
+  });
+});
+
+// Register routes
+router.use('/datasources', dataSourceRouter);
+router.use('/queries', queryRouter);
+router.use('/metadata', metadataRouter);
+router.use('/plan-visualization', planVisualizationRouter);
+router.use('/query-plans', queryPlanRouter);
+router.use('/examples', examplesRouter);
 
 // API文档
 router.get('/', (req, res) => {

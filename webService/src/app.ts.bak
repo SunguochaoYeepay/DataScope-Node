@@ -14,6 +14,9 @@ import apiRoutes from './api/routes';
 import { DataSourceService } from './services/datasource.service';
 import { DataSourceMonitorService } from './services/datasource-monitor.service';
 import metadataController from './api/controllers/metadata.controller';
+import visualizationRouter from './api/routes/visualization.routes';
+import queryPlanRouter from './api/routes/query-plan.routes';
+import planVisualizationRouter from './api/routes/plan-visualization.routes';
 import mockPlanRouter from './api/routes/mock-plan.routes';
 import { registerDirectRoutes } from './api/direct-routes';
 

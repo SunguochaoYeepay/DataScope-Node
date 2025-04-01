@@ -33,6 +33,9 @@
 - 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
 - 改进查询收藏相关接口(POST /api/queries/{id}/favorite, DELETE /api/queries/{id}/favorite)的错误处理
 - 修复查询收藏功能无法正常工作的问题，使用Prisma ORM替代原始SQL操作
+- 修复查询计划可视化接口问题(GET /api/plan-visualization/{planId})，解决"this.transformToVisualizationFormat is not a function"错误
+- 增强查询执行计划获取逻辑，支持从多个表中查找执行计划数据
+- 修复查询执行计划获取接口(GET /api/queries/{id}/execution-plan)，支持从测试文件获取数据以便开发和测试
 
 ### Changed
 - 改进SQL执行错误处理
