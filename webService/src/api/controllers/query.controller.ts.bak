@@ -451,18 +451,6 @@ export class QueryController {
       const { id } = req.params;
       const userId = (req as any).user?.id || 'anonymous'; // 如果有认证系统，获取用户ID
       
-      // 首先验证查询是否存在
-      try {
-        await queryService.getQueryById(id);
-      } catch (error) {
-        if (error instanceof ApiError && error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
-          return res.status(404).json({
-            success: false,
-            message: '添加收藏失败：查询不存在'
-          });
-        }
-      }
-      
       const favorite = await queryService.favoriteQuery(id, userId);
       
       res.status(200).json({
@@ -471,22 +459,7 @@ export class QueryController {
         message: '查询已添加到收藏夹'
       });
     } catch (error: any) {
-      logger.error('添加查询到收藏夹失败', { error, queryId: req.params.id, userId: (req as any).user?.id || 'anonymous' });
-      
-      // 处理特定类型的错误
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode || 500).json({
-          success: false,
-          message: `添加收藏失败：${error.message}`,
-          errorCode: error.errorCode
-        });
-      }
-      
-      // 未知错误处理
-      return res.status(500).json({
-        success: false,
-        message: `添加收藏失败：${error.message || '未知错误'}`
-      });
+      next(error);
     }
   }
 
@@ -505,22 +478,7 @@ export class QueryController {
         message: '查询已从收藏夹中移除'
       });
     } catch (error: any) {
-      logger.error('从收藏夹移除查询失败', { error, queryId: req.params.id, userId: (req as any).user?.id || 'anonymous' });
-      
-      // 处理特定类型的错误
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode || 500).json({
-          success: false,
-          message: `取消收藏失败：${error.message}`,
-          errorCode: error.errorCode
-        });
-      }
-      
-      // 未知错误处理
-      return res.status(500).json({
-        success: false,
-        message: `取消收藏失败：${error.message || '未知错误'}`
-      });
+      next(error);
     }
   }
 

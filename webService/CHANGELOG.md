@@ -30,6 +30,18 @@
 - 修复查询执行中的500错误问题
 - 修复查询/可视化接口的404错误
 - 修复错误码定义一致性问题
+- 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
+- 改进查询收藏相关接口(POST /api/queries/{id}/favorite, DELETE /api/queries/{id}/favorite)的错误处理
+
+### Changed
+- 改进SQL执行错误处理
+- 增强日志记录功能
+- 查询执行计划功能增强
+- 数据模型优化
+- 移除了查询计划API的认证需求，使所有计划分析API无需授权即可访问
+
+### Fixed
+- 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
 
 ## [1.0.9] - 2024-05-07
 
