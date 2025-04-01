@@ -99,14 +99,14 @@ export interface DateRange {
   preset?: string;
 }
 
-interface _InternalDatePreset {
+interface DatePresetDefinition {
   label: string;
   value: string;
   getRange: () => { startDate: string, endDate: string };
 }
 
 export default defineComponent({
-  name: 'DateRangeSelectorComponent',
+  name: 'DateRangeSelect',
   props: {
     modelValue: {
       type: Object as () => DateRange | null,
@@ -134,7 +134,7 @@ export default defineComponent({
       endDate: ''
     });
 
-    const allPresets: Record<string, _InternalDatePreset> = {
+    const allPresets: Record<string, DatePresetDefinition> = {
       today: {
         label: '今天',
         value: 'today',

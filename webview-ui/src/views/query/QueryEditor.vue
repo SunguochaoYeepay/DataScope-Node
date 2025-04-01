@@ -241,7 +241,7 @@
             <!-- 自然语言查询 -->
             <div v-else-if="activeTab === 'nlq'" class="h-full flex flex-col">
               <NaturalLanguageQuery
-                v-model="nlQuery"
+                v-model="naturalLanguageQuery"
                 :data-source-id="selectedDataSourceId"
                 @execute="executeQuery"
                 @save="saveQuery"
@@ -346,7 +346,7 @@
     :query="{
     id: currentQueryId || '',
     name: queryName || '未命名查询',
-    queryText: activeTab === 'editor' ? sqlQuery : (activeTab === 'nlq' ? nlQuery : builderQuery),
+    queryText: activeTab === 'editor' ? sqlQuery : (activeTab === 'nlq' ? naturalLanguageQuery : builderQuery),
     queryType: activeTab === 'builder' || activeTab === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE',
     dataSourceId: selectedDataSourceId
     }"
@@ -358,7 +358,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
 import { useDark, useToggle } from '@vueuse/core'
@@ -378,6 +378,7 @@ import QueryManager from '@/components/query/QueryManager.vue'
 
 // 路由
 const route = useRoute()
+const router = useRouter()
 
 // 暗黑模式
 const isDark = useDark()
@@ -391,7 +392,7 @@ const dataSourceStore = useDataSourceStore()
 const activeTab = ref<'editor' | 'nlq' | 'builder'>('editor')
 const selectedDataSourceId = ref('')
 const sqlQuery = ref('')
-const nlQuery = ref('')
+const naturalLanguageQuery = ref('')
 const builderQuery = ref('')
 const isExecuting = ref(false)
 const queryError = ref<string | null>(null)
@@ -482,7 +483,7 @@ const canExecuteQuery = computed(() => {
     return false
   }
   
-  if (activeTab.value === 'nlq' && (!nlQuery.value || !nlQuery.value.trim())) {
+  if (activeTab.value === 'nlq' && (!naturalLanguageQuery.value || !naturalLanguageQuery.value.trim())) {
     return false
   }
   
@@ -515,14 +516,14 @@ const loadQueryById = async (queryId: string) => {
       }
       
       // 从历史列表查找
-      query = queryStore.queryHistory.find(q => q.id === queryId) || null
+      query = queryStore.queryHistory.find((q: Query) => q.id === queryId) || null
       
       if (!query) {
         console.log('从历史列表也未找到查询，尝试获取查询列表')
         
         // 尝试从查询列表查找
         const queries = await queryStore.fetchQueries()
-        query = queries.find(q => q.id === queryId) || null
+        query = queries.find((q: Query) => q.id === queryId) || null
         
         if (!query) {
           throw new Error(`未找到ID为 ${queryId} 的查询`)
@@ -546,7 +547,7 @@ const loadQueryById = async (queryId: string) => {
       sqlQuery.value = query.queryText
     } else if (query.queryType === 'NATURAL_LANGUAGE') {
       activeTab.value = 'nlq'
-      nlQuery.value = query.queryText
+      naturalLanguageQuery.value = query.queryText
     }
     
     statusMessage.value = '查询加载成功'
@@ -582,7 +583,7 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   if (queryType === 'SQL') {
     queryText = sqlQuery.value;
   } else if (queryType === 'NATURAL_LANGUAGE') {
-    queryText = nlQuery.value;
+    queryText = naturalLanguageQuery.value;
   } else {
     queryText = builderQuery.value;
   }
@@ -676,7 +677,7 @@ const getExecuteButtonTooltip = () => {
     return '请在SQL编辑器中输入查询语句';
   } else if (activeTab.value === 'builder' && builderQuery.value.trim().length === 0) {
     return '查询构建器未生成有效的查询语句';
-  } else if (activeTab.value === 'nlq' && nlQuery.value.trim().length === 0) {
+  } else if (activeTab.value === 'nlq' && naturalLanguageQuery.value.trim().length === 0) {
     return '请在自然语言查询输入框中输入问题';
   }
   
@@ -768,6 +769,25 @@ const toggleFavorite = async () => {
 
 // 保存查询
 const saveQuery = () => {
+  // 在显示保存对话框前，验证必要数据
+  if (!selectedDataSourceId.value) {
+    statusMessage.value = '请先选择数据源再保存查询'
+    setTimeout(() => {
+      statusMessage.value = null
+    }, 3000)
+    return
+  }
+  
+  // 验证查询内容
+  if (!sqlQuery.value.trim() && !naturalLanguageQuery.value.trim()) {
+    statusMessage.value = '查询内容不能为空'
+    setTimeout(() => {
+      statusMessage.value = null
+    }, 3000)
+    return
+  }
+  
+  // 显示保存对话框
   isSaveModalVisible.value = true
 }
 
@@ -782,7 +802,7 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     statusMessage.value = '正在保存查询...'
     
     // 确保必要的字段存在
-    if (!saveData.name || !saveData.dataSourceId || !saveData.queryText || !saveData.queryType) {
+    if (!saveData.name || !saveData.dataSourceId || (!saveData.queryText && !sqlQuery.value && !naturalLanguageQuery.value) || !saveData.queryType) {
       statusMessage.value = '保存查询失败：缺少必要信息'
       setTimeout(() => {
         statusMessage.value = null
@@ -792,14 +812,16 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     
     // 构造符合SaveQueryParams的对象
     const queryData: SaveQueryParams = {
-      id: saveData.id,
+      id: saveData.id || currentQueryId.value,
       name: saveData.name,
       dataSourceId: saveData.dataSourceId,
-      queryText: saveData.queryText,
-      queryType: saveData.queryType,
+      queryText: saveData.queryText || (activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value),
+      queryType: saveData.queryType || (activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
       description: saveData.description,
       tags: saveData.tags
     }
+    
+    console.log('保存查询数据:', queryData);
     
     // 使用传入的保存数据
     const savedQuery = await queryStore.saveQuery(queryData)
@@ -809,6 +831,20 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
       queryName.value = savedQuery.name || ''
       currentQueryId.value = savedQuery.id
       statusMessage.value = '查询保存成功'
+      
+      // 保存成功后，将ID存入localStorage以便恢复
+      try {
+        localStorage.setItem('last_saved_query_id', savedQuery.id);
+      } catch (e) {
+        console.warn('无法将查询ID存入localStorage:', e);
+      }
+      
+      // 更新路由参数，但不重新加载页面
+      router.replace({
+        query: { ...route.query, id: savedQuery.id }
+      }).catch(err => {
+        console.error('更新路由参数失败:', err);
+      });
     }
     
     setTimeout(() => {
@@ -816,7 +852,7 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     }, 3000)
   } catch (error) {
     console.error('保存查询失败:', error)
-    statusMessage.value = '保存查询失败'
+    statusMessage.value = `保存查询失败: ${error instanceof Error ? error.message : '未知错误'}`
     setTimeout(() => {
       statusMessage.value = null
     }, 5000)
@@ -958,7 +994,7 @@ const checkAndExecuteQuery = () => {
     } else if (activeTab.value === 'builder' && !builderQuery.value.trim()) {
       showError('查询构建器未生成有效的查询语句');
       return;
-    } else if (activeTab.value === 'nlq' && !nlQuery.value.trim()) {
+    } else if (activeTab.value === 'nlq' && !naturalLanguageQuery.value.trim()) {
       showError('请在自然语言查询输入框中输入问题');
       return;
     }

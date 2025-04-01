@@ -459,13 +459,15 @@ export const queryService = {
       // 构建请求体，适配后端API格式
       const requestBody = {
         id: params.id,
-        name: params.name,
+        name: params.name || `未命名查询 ${new Date().toLocaleString('zh-CN')}`,
         dataSourceId: params.dataSourceId,
         queryType: params.queryType,
         sql: params.queryText,  // 后端可能使用sql字段而非queryText
         description: params.description,
         tags: params.tags
       }
+
+      console.log('保存查询，请求数据:', requestBody);
 
       const method = params.id ? 'PUT' : 'POST'
       const url = params.id ? `${getApiBaseUrl()}/api/queries/${params.id}` : `${getApiBaseUrl()}/api/queries`
@@ -479,26 +481,52 @@ export const queryService = {
       })
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('保存查询响应错误:', response.status, errorText);
         throw new Error(`保存查询失败: ${response.statusText}`)
       }
 
       const responseData = await response.json()
+      console.log('保存查询响应数据:', responseData);
+      
       const result = responseData.data || responseData
 
+      // 验证返回的ID是否有效
+      if (!result.id || typeof result.id !== 'string' || result.id.trim() === '') {
+        console.error('保存查询响应中没有有效的ID:', result);
+        throw new Error('服务器返回的查询ID无效')
+      }
+
       // 转换返回结果为前端所需的Query对象
-      return {
+      const savedQuery: Query = {
         id: result.id,
-        name: result.name,
-        dataSourceId: result.dataSourceId,
-        queryType: result.queryType || params.queryType,
+        name: result.name || requestBody.name,
+        dataSourceId: result.dataSourceId || requestBody.dataSourceId,
+        queryType: result.queryType || params.queryType || 'SQL',
         queryText: result.sql || result.queryText || params.queryText,
         status: 'COMPLETED', // 新保存的查询默认为已完成状态
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: result.updatedAt || new Date().toISOString(),
-        description: result.description,
-        tags: result.tags,
+        description: result.description || params.description,
+        tags: result.tags || params.tags || [],
         isFavorite: result.isFavorite || false
       }
+      
+      console.log('转换后的查询对象:', savedQuery);
+      
+      // 保存到本地存储以便于恢复
+      try {
+        window.localStorage.setItem('last_saved_query_id', savedQuery.id);
+        window.localStorage.setItem('last_saved_query', JSON.stringify({
+          id: savedQuery.id,
+          name: savedQuery.name,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (storageError) {
+        console.warn('无法保存查询到本地存储:', storageError);
+      }
+      
+      return savedQuery;
     } catch (error) {
       console.error('保存查询错误:', error)
       throw error

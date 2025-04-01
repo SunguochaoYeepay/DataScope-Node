@@ -14,13 +14,22 @@
         <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
         <h2 class="text-xl font-medium text-gray-800 mb-2">加载失败</h2>
         <p class="text-gray-600 mb-4">{{ errorMessage }}</p>
-        <button
-          @click="loadQueryData"
-          class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <i class="fas fa-sync-alt mr-2"></i>
-          重试
-        </button>
+        <div class="flex justify-center space-x-3">
+          <button
+            @click="loadQueryData"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <i class="fas fa-sync-alt mr-2"></i>
+            重试
+          </button>
+          <router-link
+            to="/query/history"
+            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <i class="fas fa-arrow-left mr-2"></i>
+            返回查询历史
+          </router-link>
+        </div>
       </div>
     </div>
     
@@ -455,8 +464,9 @@ const loadQueryData = async () => {
     
     // 检查是否获取到查询数据
     if (!result || !queryStore.currentQuery) {
-      errorMessage.value = '找不到指定ID的查询，请返回查询历史页面重新选择'
+      errorMessage.value = '找不到指定ID的查询，该查询可能已被删除或不存在'
       isLoading.value = false
+      console.error(`查询ID ${queryId.value} 不存在`)
       return
     }
     
@@ -466,7 +476,9 @@ const loadQueryData = async () => {
     isLoading.value = false
   } catch (error) {
     console.error('Failed to load query data:', error)
-    errorMessage.value = '无法加载查询信息，请检查查询ID是否有效'
+    errorMessage.value = error instanceof Error 
+      ? `无法加载查询信息: ${error.message}` 
+      : '无法加载查询信息，请检查查询ID是否有效'
     isLoading.value = false
   }
 }

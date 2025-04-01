@@ -88,7 +88,7 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">日期范围</label>
           <select
-            v-model="dateRangePreset"
+            v-model="dateRangePresetValue"
             @change="applyFilters"
             class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
@@ -112,7 +112,7 @@
       </div>
       
       <!-- 自定义日期范围 (仅在选择自定义范围时显示) -->
-      <div v-if="dateRangePreset === 'custom'" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <div v-if="dateRangePresetValue === 'custom'" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
           <input
@@ -339,9 +339,15 @@ import Button from '@/components/common/Button.vue'
 import Modal from '@/components/common/Modal.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import DateRangePicker, { DateRange } from '@/components/common/DateRangePicker.vue'
 import type { Query, QueryHistoryParams, QueryStatus } from '@/types/query'
 import message from '@/types/message/index'
+
+// 内联定义DateRange接口，避免类型冲突
+interface DateRange {
+  startDate: string;
+  endDate: string;
+  preset?: string;
+}
 
 export default defineComponent({
   components: {
@@ -350,7 +356,6 @@ export default defineComponent({
     Modal,
     Pagination,
     StatusBadge,
-    DateRangePicker
   },
   setup() {
     const router = useRouter()
@@ -360,7 +365,7 @@ export default defineComponent({
     const searchTerm = ref('')
     const selectedQueryType = ref<string>('')
     const selectedStatus = ref<string>('')
-    const dateRange = ref<[Date | null, Date | null]>([null, null])
+    const dateRange = ref<DateRange | null>(null)
     const customDateRange = ref(false)
     const page = ref(1)
     const pageSize = ref(10)
@@ -420,10 +425,10 @@ export default defineComponent({
     })
 
     // 日期范围预设
-    const dateRangePreset = ref('24h')
+    const dateRangePresetValue = ref<string>('24h')
 
     // 监听日期范围预设变化
-    watch(dateRangePreset, (newValue) => {
+    watch(dateRangePresetValue, (newValue) => {
       if (newValue !== 'custom') {
         const now = new Date()
         const endDate = now.toISOString().split('T')[0]
@@ -505,7 +510,7 @@ export default defineComponent({
       filters.status = ''
       filters.startDate = ''
       filters.endDate = ''
-      dateRangePreset.value = '24h'
+      dateRangePresetValue.value = '24h'
       applyFilters()
     }
 
@@ -758,7 +763,7 @@ export default defineComponent({
       applyFilters,
       loadQueryHistory,
       filters,
-      dateRangePreset,
+      dateRangePresetValue,
       debounceSearch,
       message
     }

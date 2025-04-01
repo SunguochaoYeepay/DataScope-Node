@@ -360,15 +360,24 @@ export const useQueryStore = defineStore('query', () => {
   
   // 获取查询详情
   const getQuery = async (id: string) => {
+    if (!id) {
+      error.value = new Error('查询ID不能为空')
+      return null
+    }
+    
     try {
       loading.show('加载查询信息...')
+      currentQuery.value = await queryService.getQuery(id)
       
-      const query = await queryService.getQuery(id)
-      currentQuery.value = query
-      return query
+      if (!currentQuery.value) {
+        error.value = new Error(`未找到ID为 ${id} 的查询，该查询可能已被删除或不存在`)
+        return null
+      }
+      
+      return currentQuery.value
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('加载查询信息失败')
+      message.error(error.value.message)
       return null
     } finally {
       loading.hide()
@@ -388,7 +397,14 @@ export const useQueryStore = defineStore('query', () => {
       }
       
       message.success('查询保存成功')
-      fetchQueryHistory()
+      
+      // 检查查询历史中是否存在该ID
+      const existsInHistory = queryHistory.value.some(q => q.id === savedQuery.id)
+      if (!existsInHistory) {
+        console.log('保存的查询ID不在历史记录中，重新加载查询历史')
+        await fetchQueryHistory()
+      }
+      
       return savedQuery
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
