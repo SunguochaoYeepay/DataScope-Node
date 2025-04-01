@@ -263,7 +263,11 @@ class MetadataController {
       }
       
       // 添加分页
-      sql += ` LIMIT ${offset}, ${size}`;
+      if (offset > 0) {
+        sql += ` LIMIT ${offset}, ${size}`;
+      } else {
+        sql += ` LIMIT ${size}`;
+      }
       
       // 执行查询
       const result = await connector.executeQuery(sql, params);

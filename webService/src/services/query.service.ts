@@ -611,9 +611,9 @@ export class QueryService {
       
       // 直接使用原始查询
       const favorites = await prisma.$queryRaw<QueryFavorite[]>`
-        SELECT id, query_id as queryId, user_id as userId, created_at as createdAt
+        SELECT id, queryId, userId, createdAt
         FROM tbl_query_favorite
-        WHERE user_id = ${userId}
+        WHERE userId = ${userId}
       `;
       
       // 如果没有收藏，返回空数组

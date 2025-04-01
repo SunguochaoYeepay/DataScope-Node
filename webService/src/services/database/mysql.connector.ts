@@ -356,7 +356,9 @@ export class MySQLConnector implements DatabaseConnector {
       trimmedSql.startsWith('show status ') ||
       trimmedSql.startsWith('show engine ') ||
       trimmedSql.startsWith('set ') ||
-      trimmedSql.startsWith('use ')
+      trimmedSql.startsWith('use ') ||
+      // 将包含LIMIT关键字的查询视为特殊命令，不再添加额外的LIMIT
+      trimmedSql.includes(' limit ')
     );
     
     // 添加详细调试日志
@@ -553,7 +555,11 @@ export class MySQLConnector implements DatabaseConnector {
           const offset = options.offset !== undefined ? options.offset : (page - 1) * pageSize;
           const limit = pageSize;
           
-          modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+          if (offset > 0) {
+            modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+          } else {
+            modifiedSql = `${modifiedSql} LIMIT ${limit}`;
+          }
           logger.debug('添加分页限制', { offset, limit });
           
           // 计算总记录数（可选）

@@ -9,10 +9,17 @@ import { StatusCodes } from 'http-status-codes';
 
 /**
  * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
+ * 注意：MariaDB中的带LIMIT关键字的查询也需要作为特殊命令处理，避免追加额外的LIMIT
  */
 function isSpecialCommand(sql: string): boolean {
   if (!sql) return false;
   const trimmedSql = sql.trim().toLowerCase();
+  
+  // MariaDB兼容性：将包含LIMIT关键字的SQL也视为特殊命令，避免额外添加分页参数
+  if (trimmedSql.includes(' limit ')) {
+    return true;
+  }
+  
   return (
     trimmedSql.startsWith('show ') || 
     trimmedSql.startsWith('describe ') || 

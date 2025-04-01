@@ -260,23 +260,72 @@ router.get('/', queryController.getQueries);
 
 /**
  * @swagger
- * /queries/{id}:
+ * /queries/favorites:
  *   get:
- *     summary: 获取指定ID的查询
+ *     summary: 获取收藏的查询列表
  *     tags: [Queries]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
  *     responses:
  *       200:
- *         description: 查询详情
- *       404:
- *         description: 查询不存在
+ *         description: 查询收藏列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/QueryFavorite'
  */
-router.get('/:id', queryController.getQueryById);
+router.get('/favorites', queryController.getFavorites);
+
+// 查询计划相关路由
+router.get('/plans', 
+  [
+    check('dataSourceId').optional(),
+    check('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
+    check('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
+  ],
+  queryController.getQueryPlanHistory
+);
+
+// 优化建议路由
+router.get(
+  '/plans/:id/tips',
+  [
+    check('id').isUUID().withMessage('无效的查询计划ID'),
+  ],
+  queryController.getQueryOptimizationTips
+);
+
+// 查询计划详情路由
+router.get('/plans/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await queryPlanController.getQueryPlanById(req as any, res);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: '获取查询计划失败',
+      error: error.message
+    });
+  }
+});
+
+// 查询计划历史路由
+router.get('/history/:queryId/plans', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // 转发到查询计划控制器
+    req.params.planId = req.params.queryId; // 适配控制器参数
+    await queryPlanController.getQueryPlanById(req as any, res);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || '获取查询计划失败'
+    });
+  }
+});
 
 /**
  * @swagger
@@ -323,9 +372,9 @@ router.post(
 
 /**
  * @swagger
- * /queries/plans/{id}/tips:
+ * /queries/{id}:
  *   get:
- *     summary: 获取查询计划的优化建议
+ *     summary: 获取指定ID的查询
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -335,52 +384,11 @@ router.post(
  *           type: string
  *     responses:
  *       200:
- *         description: 查询计划优化建议
+ *         description: 查询详情
  *       404:
- *         description: 查询计划不存在
+ *         description: 查询不存在
  */
-router.get(
-  '/plans/:id/tips',
-  [
-    check('id').isUUID().withMessage('无效的查询计划ID'),
-  ],
-  queryController.getQueryOptimizationTips
-);
-
-/**
- * @swagger
- * /queries/plans:
- *   get:
- *     summary: 获取查询计划历史记录
- *     tags: [Queries]
- *     parameters:
- *       - in: query
- *         name: dataSourceId
- *         schema:
- *           type: string
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 20
- *       - in: query
- *         name: offset
- *         schema:
- *           type: integer
- *           default: 0
- *     responses:
- *       200:
- *         description: 查询计划历史记录列表
- */
-router.get(
-  '/plans',
-  [
-    check('dataSourceId').optional(),
-    check('limit').optional().isInt({ min: 1, max: 100 }).withMessage('限制数必须是1-100之间的整数'),
-    check('offset').optional().isInt({ min: 0 }).withMessage('偏移量必须是非负整数'),
-  ],
-  queryController.getQueryPlanHistory
-);
+router.get('/:id', queryController.getQueryById);
 
 /**
  * @swagger
@@ -537,55 +545,6 @@ router.get(
     }
   }
 );
-
-// 引用查询计划详情的路由
-router.get('/plans/:id', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    await queryPlanController.getQueryPlanById(req as any, res);
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: '获取查询计划失败',
-      error: error.message
-    });
-  }
-});
-
-router.get('/history/:queryId/plans', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    // 转发到查询计划控制器
-    req.params.planId = req.params.queryId; // 适配控制器参数
-    await queryPlanController.getQueryPlanById(req as any, res);
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message || '获取查询计划失败'
-    });
-  }
-});
-
-/**
- * @swagger
- * /queries/favorites:
- *   get:
- *     summary: 获取收藏的查询列表
- *     tags: [Queries]
- *     responses:
- *       200:
- *         description: 查询收藏列表
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/QueryFavorite'
- */
-router.get('/favorites', queryController.getFavorites);
 
 /**
  * @swagger

@@ -17,6 +17,19 @@
 - 数据库关系定义优化
 
 ### 修复
+- **SQL LIMIT语法错误**: 修复了MariaDB中"LIMIT x, y"语法不兼容的问题
+  - 将MySQL风格的`LIMIT offset, limit`语法更改为标准SQL的`LIMIT limit OFFSET offset`语法
+  - 修改`isSpecialCommand`函数，将包含LIMIT关键字的SQL查询视为特殊命令，避免自动添加额外的分页参数
+  - 解决了"check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LIMIT 0, 50'"错误
+  - 提升了与MariaDB数据库的兼容性
+- **查询计划列表接口404错误**: 修复了访问`/api/queries/plans`时返回"查询不存在"错误的问题
+  - 调整了路由定义的顺序，确保特定路径(如`/plans`)在通用路径(`/:id`)之前定义
+  - 重构了路由定义结构，分类整理所有路由以避免顺序问题
+  - 解决了Express路由匹配顺序导致的路径解析错误
+- **查询收藏功能SQL错误**: 修复查询收藏列表获取时出现的"Unknown column 'query_id' in 'SELECT'"错误
+  - 更新了原始SQL查询中的列名，从下划线格式改为驼峰命名法格式
+  - 将 `query_id` 更正为 `queryId`，将 `user_id` 更正为 `userId`，将 `created_at` 更正为 `createdAt`
+  - 确保了SQL查询与数据库表结构保持一致
 - **数据源密码解密故障**: 修复了数据源密码解密时出现的"Invalid initialization vector"错误
   - 统一了加密密钥配置，确保加密和解密使用相同的密钥
   - 增强了解密函数的错误处理，添加详细的错误日志
@@ -36,6 +49,20 @@
 - 修复查询计划可视化接口问题(GET /api/plan-visualization/{planId})，解决"this.transformToVisualizationFormat is not a function"错误
 - 增强查询执行计划获取逻辑，支持从多个表中查找执行计划数据
 - 修复查询执行计划获取接口(GET /api/queries/{id}/execution-plan)，支持从测试文件获取数据以便开发和测试
+- **数据库连接问题**: 修复了数据库连接器在容器环境和本地环境中的主机名解析问题，现在系统会根据环境变量 `CONTAINER_ENV` 自动将容器名称解析为 localhost 或实际容器名
+- **元数据同步问题**: 修复了元数据同步接口中使用原始 SQL 查询导致的语法错误问题，改用 Prisma ORM API
+- **元数据表丢失问题**: 使用 `prisma db push` 同步了数据库架构，确保元数据表 `tbl_metadata` 存在
+- **特殊SQL命令处理问题**: 优化了特殊命令(如SHOW TABLES)的执行方式，将isSpecialCommand从类方法改为全局函数，避免this绑定问题，现在控制器可以直接使用连接器执行特殊命令
+- **错误处理兼容性问题**: 增强了QueryExecutionError错误类的参数处理，提供更好的参数顺序兼容性，防止dataSourceId和sql参数传递错误
+- **元数据同步请求兼容性**: 增强了元数据同步接口，支持前端发送的filters格式请求体，实现与前端应用的无缝集成
+
+### 提升服务稳定性
+
+- 增强了数据库连接器的日志输出，方便故障排查
+- 在多个数据库连接点统一使用主机名解析逻辑
+- 修复 `createConnectorFromDataSourceId` 和 `createConnector` 方法中的容器名称处理逻辑
+- 改进了MySQL连接器中对SQL查询的处理，包括更精确的排序和分页应用条件
+- 简化了MySQL连接器的executeQuery方法，优化特殊命令执行逻辑
 
 ### Changed
 - 改进SQL执行错误处理
@@ -282,17 +309,4 @@
 
 - **数据库连接问题**: 修复了数据库连接器在容器环境和本地环境中的主机名解析问题，现在系统会根据环境变量 `CONTAINER_ENV` 自动将容器名称解析为 localhost 或实际容器名
 - **元数据同步问题**: 修复了元数据同步接口中使用原始 SQL 查询导致的语法错误问题，改用 Prisma ORM API
-- **元数据表丢失问题**: 使用 `prisma db push` 同步了数据库架构，确保元数据表 `tbl_metadata` 存在
-- **特殊SQL命令处理问题**: 优化了特殊命令(如SHOW TABLES)的执行方式，将isSpecialCommand从类方法改为全局函数，避免this绑定问题，现在控制器可以直接使用连接器执行特殊命令
-- **错误处理兼容性问题**: 增强了QueryExecutionError错误类的参数处理，提供更好的参数顺序兼容性，防止dataSourceId和sql参数传递错误
-- **元数据同步请求兼容性**: 增强了元数据同步接口，支持前端发送的filters格式请求体，实现与前端应用的无缝集成
-
-### 提升服务稳定性
-
-- 增强了数据库连接器的日志输出，方便故障排查
-- 在多个数据库连接点统一使用主机名解析逻辑
-- 修复 `createConnectorFromDataSourceId` 和 `createConnector` 方法中的容器名称处理逻辑
-- 改进了MySQL连接器中对SQL查询的处理，包括更精确的排序和分页应用条件
-- 简化了MySQL连接器的executeQuery方法，优化特殊命令执行逻辑
-
-## 更新日志 (之前)
+- **元数据表丢失问题**: 使用 `prisma db push`
