@@ -278,636 +278,227 @@ const generateMockRelationships = (dataSource: DataSource): TableRelationship[] 
   return relationships
 }
 
-// 模拟 API 服务
+// 模拟数据源API
 export const mockDataSourceApi = {
   // 获取数据源列表
-  getDataSources: async (params: any) => {
-    const { name, type, status, page = 1, size = 10 } = params
-    
-    // 应用筛选条件
-    let filtered = [...mockDataSources]
-    
+  async getDataSources(params: any) {
+    const { page = 1, size = 10, name, type, status } = params
+
+    // 过滤数据源
+    let filteredSources = [...mockDataSources]
     if (name) {
-      filtered = filtered.filter(ds => ds.name.toLowerCase().includes(name.toLowerCase()))
+      filteredSources = filteredSources.filter(ds => ds.name.toLowerCase().includes(name.toLowerCase()))
     }
-    
     if (type) {
-      filtered = filtered.filter(ds => ds.type === type)
+      filteredSources = filteredSources.filter(ds => ds.type === type)
     }
-    
     if (status) {
-      filtered = filtered.filter(ds => ds.status === status)
+      filteredSources = filteredSources.filter(ds => ds.status === status)
     }
-    
+
     // 计算分页
-    const total = filtered.length
-    const totalPages = Math.ceil(total / size)
     const start = (page - 1) * size
     const end = start + size
-    const items = filtered.slice(start, end)
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
+    const items = filteredSources.slice(start, end)
+
     return {
       items,
-      total,
+      total: filteredSources.length,
       page,
       size,
-      totalPages
+      totalPages: Math.ceil(filteredSources.length / size)
     }
   },
-  
-  // 获取数据源详情
-  getDataSource: async (id: string) => {
+
+  // 获取单个数据源
+  async getDataSource(id: string) {
     const dataSource = mockDataSources.find(ds => ds.id === id)
-    
     if (!dataSource) {
-      throw new Error('Data source not found')
+      throw new Error(`数据源 ${id} 不存在`)
     }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
     return dataSource
   },
-  
+
   // 创建数据源
-  createDataSource: async (params: any) => {
+  async createDataSource(data: any) {
     const newDataSource: DataSource = {
       id: generateId(),
-      name: params.name,
-      description: params.description || '',
-      type: params.type as DataSourceType,
-      host: params.host,
-      port: params.port,
-      databaseName: params.databaseName,
-      username: params.username,
+      name: data.name,
+      description: data.description || '',
+      type: data.type as DataSourceType,
+      host: data.host,
+      port: data.port,
+      databaseName: data.database || data.databaseName || '',
+      username: data.username,
       status: 'ACTIVE' as DataSourceStatus,
-      syncFrequency: params.syncFrequency as SyncFrequency,
+      syncFrequency: (data.syncFrequency || 'MANUAL') as SyncFrequency,
+      lastSyncTime: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
-    
-    mockDataSources.unshift(newDataSource)
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 800))
-    
+    mockDataSources.push(newDataSource)
     return newDataSource
   },
-  
+
   // 更新数据源
-  updateDataSource: async (params: any) => {
+  async updateDataSource(params: any) {
     const index = mockDataSources.findIndex(ds => ds.id === params.id)
-    
     if (index === -1) {
-      throw new Error('Data source not found')
+      throw new Error(`数据源 ${params.id} 不存在`)
     }
-    
+
     const updatedDataSource = {
       ...mockDataSources[index],
       ...params,
       updatedAt: new Date().toISOString()
     }
-    
     mockDataSources[index] = updatedDataSource
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 600))
-    
     return updatedDataSource
   },
-  
+
   // 删除数据源
-  deleteDataSource: async (id: string) => {
+  async deleteDataSource(id: string) {
     const index = mockDataSources.findIndex(ds => ds.id === id)
-    
     if (index === -1) {
-      throw new Error('Data source not found')
+      throw new Error(`数据源 ${id} 不存在`)
     }
-    
     mockDataSources.splice(index, 1)
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    return { success: true }
   },
-  
+
   // 测试连接
-  testConnection: async (params: any) => {
-    console.log('Testing connection with params:', params)
-    
-    // 模拟连接成功率80%
-    const success = Math.random() > 0.2
-    
-    // 模拟网络延迟
+  async testConnection(data: any) {
+    // 模拟连接测试
     await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    return {
-      success,
-      message: success ? '连接成功' : '连接失败: 无法连接到数据库，请检查连接参数',
-      connectionInfo: success ? {
-        databaseType: params.type,
-        databaseVersion: '8.0.27',
-        driverVersion: '8.0.25',
-        pingTime: Math.floor(Math.random() * 50) + 10
-      } : undefined
-    }
+    return true
   },
-  
+
   // 同步元数据
-  syncMetadata: async (params: { id: string }) => {
-    const index = mockDataSources.findIndex(ds => ds.id === params.id)
-    
-    if (index === -1) {
-      throw new Error('Data source not found')
-    }
-    
+  async syncMetadata(params: any) {
     // 模拟同步过程
-    mockDataSources[index].status = 'SYNCING'
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // 更新同步状态
-    mockDataSources[index].status = 'ACTIVE'
-    mockDataSources[index].lastSyncTime = new Date().toISOString()
-    mockDataSources[index].updatedAt = new Date().toISOString()
-    
-    // 生成模拟元数据
-    if (!mockDataSources[index].metadata) {
-      mockDataSources[index].metadata = {
-        tables: generateMockTables(5 + Math.floor(Math.random() * 10), mockDataSources[index].type),
-        databaseVersion: '8.0.27',
-        databaseProductName: getDatabaseProductName(mockDataSources[index].type),
-        lastSyncTime: new Date().toISOString()
-      }
-    }
-    
-    return { 
-      success: true, 
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    return {
+      success: true,
       message: '元数据同步成功',
-      tablesCount: mockDataSources[index].metadata?.tables.length || 0,
-      viewsCount: mockDataSources[index].metadata?.views?.length || 0,
-      syncDuration: Math.floor(Math.random() * 500) + 100,
-      lastSyncTime: mockDataSources[index].lastSyncTime
+      tablesCount: 10,
+      viewsCount: 2,
+      syncDuration: 2000,
+      lastSyncTime: new Date().toISOString()
     }
   },
-  
-  // 获取数据源元数据
-  getDataSourceMetadata: async (dataSourceId: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 如果还没有元数据，生成一些模拟数据
-    if (!dataSource.metadata) {
-      dataSource.metadata = {
-        tables: generateMockTables(5 + Math.floor(Math.random() * 10), dataSource.type),
-        databaseVersion: '8.0.27',
-        databaseProductName: getDatabaseProductName(dataSource.type),
-        lastSyncTime: new Date().toISOString()
-      }
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    return dataSource.metadata
-  },
-  
+
   // 获取表元数据
-  getTableMetadata: async (dataSourceId: string, tableName: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
+  async getTableMetadata(dataSourceId: string, tableName?: string) {
+    const dataSource = await this.getDataSource(dataSourceId)
+    const tables = generateMockTables(10, dataSource.type)
     
-    if (!dataSource || !dataSource.metadata || !dataSource.metadata.tables) {
-      throw new Error('Data source metadata not found')
+    if (tableName) {
+      const table = tables.find(t => t.name === tableName)
+      return table || {}
     }
     
-    const table = dataSource.metadata.tables.find(t => t.name === tableName)
-    
-    if (!table) {
-      throw new Error('Table not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    return table
+    return tables.reduce((acc, table) => {
+      acc[table.name] = table
+      return acc
+    }, {} as Record<string, TableMetadata>)
   },
-  
-  // 搜索元数据
-  searchMetadata: async (dataSourceId: string, term: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource || !dataSource.metadata || !dataSource.metadata.tables) {
-      return { tables: [], columns: [] }
-    }
-    
-    const result = {
-      tables: [],
-      columns: []
-    }
-    
-    if (!term) return result
-    
-    const searchTerm = term.toLowerCase()
-    
-    // 搜索表
-    result.tables = dataSource.metadata.tables.filter(table => 
-      table.name.toLowerCase().includes(searchTerm)
-    )
-    
-    // 搜索列
-    dataSource.metadata.tables.forEach(table => {
-      table.columns.forEach(column => {
-        if (column.name.toLowerCase().includes(searchTerm)) {
-          result.columns.push({
-            table: table.name,
-            column: column.name
-          })
-        }
-      })
-    })
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 200))
-    
-    return result
+
+  // 获取表字段信息
+  async getTableColumns(dataSourceId: string, tableName: string) {
+    return generateMockColumns(10, tableName)
   },
-  
+
   // 获取表关系
-  getTableRelationships: async (dataSourceId: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    // 生成一些模拟关系
+  async getTableRelationships(dataSourceId: string) {
+    const dataSource = await this.getDataSource(dataSourceId)
     return generateMockRelationships(dataSource)
   },
-  
-  // 保存表关系
-  saveTableRelationship: async (dataSourceId: string, relationship: Omit<TableRelationship, 'id'>) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 400))
-    
-    return {
-      ...relationship,
-      id: generateId()
-    } as TableRelationship
-  },
-  
-  // 删除表关系
-  deleteTableRelationship: async (dataSourceId: string, relationshipId: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    return { success: true }
-  },
-  
+
   // 获取表数据预览
-  getTableDataPreview: async (
-    dataSourceId: string, 
-    tableName: string, 
-    params: {
-      page?: number, 
-      size?: number, 
-      sort?: string, 
-      order?: 'asc' | 'desc',
-      filters?: Record<string, any>
-    } = {}
-  ) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 查找表元数据
-    let tableMetadata = null
-    if (dataSource.metadata && dataSource.metadata.tables) {
-      tableMetadata = dataSource.metadata.tables.find(t => t.name === tableName)
-    }
-    
-    if (!tableMetadata) {
-      throw new Error('Table not found')
-    }
+  async getTableDataPreview(dataSourceId: string, tableName: string, params: any) {
+    const { page = 1, size = 10 } = params
+    const columns = await this.getTableColumns(dataSourceId, tableName)
     
     // 生成模拟数据
-    const columns = tableMetadata.columns.map(col => ({
-      name: col.name,
-      type: col.type
-    }))
-    
-    // 生成随机行数据
-    const totalRows = 100
-    let allRows = []
-    
-    for (let i = 0; i < totalRows; i++) {
+    const data = Array(size).fill(null).map((_, rowIndex) => {
       const row: Record<string, any> = {}
-      
-      // 为每一列生成模拟数据
-      tableMetadata.columns.forEach(column => {
-        switch (column.type) {
+      columns.forEach(col => {
+        switch (col.type) {
           case 'INT':
-            row[column.name] = Math.floor(Math.random() * 10000)
+            row[col.name] = rowIndex + 1
             break
           case 'VARCHAR':
-            row[column.name] = `Value-${Math.random().toString(36).substring(2, 7)}`
-            break
-          case 'DECIMAL':
-            row[column.name] = +(Math.random() * 1000).toFixed(2)
+            row[col.name] = `${col.name}_value_${rowIndex + 1}`
             break
           case 'TIMESTAMP':
-            row[column.name] = new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString()
-            break
-          case 'BOOLEAN':
-            row[column.name] = Math.random() > 0.5
-            break
-          case 'TEXT':
-            row[column.name] = `This is a sample text for ${column.name}. It can contain multiple sentences.`
-            break
-          case 'DATE':
-            const date = new Date()
-            date.setDate(date.getDate() - Math.floor(Math.random() * 365))
-            row[column.name] = date.toISOString().split('T')[0]
+            row[col.name] = new Date(Date.now() - rowIndex * 86400000).toISOString()
             break
           default:
-            row[column.name] = `Default-${Math.random().toString(36).substring(2, 7)}`
+            row[col.name] = `${col.name}_${rowIndex + 1}`
         }
       })
-      
-      allRows.push(row)
-    }
-    
-    // 应用排序
-    if (params.sort) {
-      const sortField = params.sort
-      const sortOrder = params.order || 'asc'
-      
-      allRows.sort((a, b) => {
-        if (a[sortField] === b[sortField]) return 0
-        if (sortOrder === 'asc') {
-          return a[sortField] < b[sortField] ? -1 : 1
-        } else {
-          return a[sortField] > b[sortField] ? -1 : 1
-        }
-      })
-    }
-    
-    // 应用分页
-    const page = params.page || 1
-    const size = params.size || 10
-    const start = (page - 1) * size
-    const end = Math.min(start + size, allRows.length)
-    const data = allRows.slice(start, end)
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
+      return row
+    })
+
     return {
       data,
       columns,
-      total: totalRows,
       page,
       size,
-      totalPages: Math.ceil(totalRows / size)
+      total: 100,
+      totalPages: 10
     }
   },
-  
-  // 获取数据源统计信息
-  getDataSourceStats: async (dataSourceId: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
+
+  // 搜索元数据
+  async searchMetadata(dataSourceId: string, keyword: string) {
+    const tables = await this.getTableMetadata(dataSourceId)
+    const results = []
     
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    // 生成模拟统计数据
-    return {
-      dataSourceId: dataSourceId,
-      tablesCount: dataSource.metadata?.tables?.length || 0,
-      viewsCount: Math.floor(Math.random() * 5),
-      totalRows: Math.floor(Math.random() * 1000000),
-      totalSize: Math.floor(Math.random() * 10000) + 'MB',
-      lastUpdate: new Date().toISOString(),
-      queriesCount: Math.floor(Math.random() * 500),
-      connectionPoolSize: Math.floor(Math.random() * 20) + 5,
-      activeConnections: Math.floor(Math.random() * 10),
-      avgQueryTime: Math.floor(Math.random() * 1000) + 'ms',
-      // 添加缺失的字段
-      totalTables: dataSource.metadata?.tables?.length || 0, 
-      totalViews: Math.floor(Math.random() * 5),
-      totalQueries: Math.floor(Math.random() * 500),
-      avgResponseTime: Math.floor(Math.random() * 100),
-      peakConnections: Math.floor(Math.random() * 20) + 5
-    }
-  },
-  
-  // 获取数据源权限
-  getDataSourcePermissions: async (dataSourceId: string) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    // 生成模拟权限数据
-    const users = ['admin', 'user1', 'user2', 'analyst', 'developer']
-    const permissions = ['READ', 'WRITE', 'ADMIN', 'EXECUTE']
-    
-    return users.map(user => ({
-      id: generateId(),
-      dataSourceId,
-      userId: user,
-      permission: permissions[Math.floor(Math.random() * permissions.length)],
-      createdAt: getRandomDate(30),
-      updatedAt: getRandomDate(10)
-    }))
-  },
-  
-  // 更新数据源权限
-  updateDataSourcePermissions: async (dataSourceId: string, permissions: any[]) => {
-    const dataSource = mockDataSources.find(ds => ds.id === dataSourceId)
-    
-    if (!dataSource) {
-      throw new Error('Data source not found')
-    }
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 400))
-    
-    // 生成响应数据
-    return permissions.map(p => ({
-      ...p,
-      id: p.id || generateId(),
-      dataSourceId,
-      updatedAt: new Date().toISOString()
-    }))
-  },
-  
-  // 高级搜索
-  advancedSearch: async (
-    params: {
-      keyword: string,
-      dataSourceIds: string[],
-      entityTypes: ('table' | 'column' | 'view')[],
-      caseSensitive?: boolean,
-      page?: number,
-      size?: number
-    }
-  ) => {
-    // 获取所选的数据源
-    const selectedDataSources = mockDataSources.filter(ds => 
-      params.dataSourceIds.includes(ds.id)
-    )
-    
-    if (selectedDataSources.length === 0) {
-      return {
-        tables: [],
-        columns: [],
-        views: [],
-        total: 0
-      }
-    }
-    
-    const result = {
-      tables: [] as { dataSourceId: string, dataSourceName: string, tables: { name: string, type: string, schema: string }[] }[],
-      columns: [] as { dataSourceId: string, dataSourceName: string, columns: { table: string, column: string, type: string }[] }[],
-      views: [] as { dataSourceId: string, dataSourceName: string, views: { name: string, schema: string }[] }[],
-      total: 0
-    }
-    
-    const searchTerm = params.caseSensitive 
-      ? params.keyword 
-      : params.keyword.toLowerCase()
-    
-    // 对每个选定的数据源执行搜索
-    for (const ds of selectedDataSources) {
-      // 跳过没有元数据的数据源
-      if (!ds.metadata || !ds.metadata.tables) {
-        continue
-      }
-      
-      const tablesResult: { name: string, type: string, schema: string }[] = []
-      const columnsResult: { table: string, column: string, type: string }[] = []
-      const viewsResult: { name: string, schema: string }[] = []
-      
-      // 搜索表和视图
-      if (params.entityTypes.includes('table') || params.entityTypes.includes('view')) {
-        ds.metadata.tables.forEach(table => {
-          const tableName = params.caseSensitive 
-            ? table.name 
-            : table.name.toLowerCase()
-          
-          const isView = table.type === 'VIEW'
-          
-          // 表名匹配
-          if (tableName.includes(searchTerm)) {
-            if (!isView && params.entityTypes.includes('table')) {
-              tablesResult.push({
-                name: table.name,
-                type: table.type || 'TABLE',
-                schema: table.schema || 'public'
-              })
-            } else if (isView && params.entityTypes.includes('view')) {
-              viewsResult.push({
-                name: table.name,
-                schema: table.schema || 'public'
-              })
-            }
-          }
+    for (const tableName in tables) {
+      if (tableName.toLowerCase().includes(keyword.toLowerCase())) {
+        results.push({
+          type: 'table',
+          name: tableName,
+          score: 1.0
         })
       }
       
-      // 搜索列
-      if (params.entityTypes.includes('column')) {
-        ds.metadata.tables.forEach(table => {
-          const matchingColumns: { table: string, column: string, type: string }[] = []
-          
-          table.columns.forEach(column => {
-            const columnName = params.caseSensitive 
-              ? column.name
-              : column.name.toLowerCase()
-            
-            if (columnName.includes(searchTerm)) {
-              matchingColumns.push({
-                table: table.name,
-                column: column.name,
-                type: column.type
-              })
-            }
+      const columns = await this.getTableColumns(dataSourceId, tableName)
+      for (const column of columns) {
+        if (column.name.toLowerCase().includes(keyword.toLowerCase())) {
+          results.push({
+            type: 'column',
+            table: tableName,
+            name: column.name,
+            score: 0.8
           })
-          
-          if (matchingColumns.length > 0) {
-            columnsResult.push(...matchingColumns)
-          }
-        })
-      }
-      
-      // 只有在有匹配结果时才添加到结果中
-      if (tablesResult.length > 0) {
-        result.tables.push({
-          dataSourceId: ds.id,
-          dataSourceName: ds.name,
-          tables: tablesResult
-        })
-      }
-      
-      if (columnsResult.length > 0) {
-        result.columns.push({
-          dataSourceId: ds.id,
-          dataSourceName: ds.name,
-          columns: columnsResult
-        })
-      }
-      
-      if (viewsResult.length > 0) {
-        result.views.push({
-          dataSourceId: ds.id,
-          dataSourceName: ds.name,
-          views: viewsResult
-        })
+        }
       }
     }
     
-    // 计算总匹配数
-    result.total = 
-      result.tables.reduce((sum, item) => sum + item.tables.length, 0) +
-      result.columns.reduce((sum, item) => sum + item.columns.length, 0) +
-      result.views.reduce((sum, item) => sum + item.views.length, 0)
-    
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 800))
-    
-    return result
+    return results
+  },
+
+  // 获取数据源统计信息
+  async getDataSourceStats(id: string) {
+    const dataSource = await this.getDataSource(id)
+    return {
+      dataSourceId: id,
+      tablesCount: 100,
+      viewsCount: 20,
+      totalRows: 1000000,
+      totalSize: '1.5 GB',
+      lastUpdate: dataSource.updatedAt,
+      queriesCount: 5000,
+      connectionPoolSize: 10,
+      activeConnections: 5,
+      avgQueryTime: '100ms',
+      totalTables: 100,
+      totalViews: 20,
+      totalQueries: 5000,
+      avgResponseTime: 100,
+      peakConnections: 15
+    }
   }
 }
 

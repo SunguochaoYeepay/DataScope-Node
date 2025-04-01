@@ -27,11 +27,11 @@ export interface DataSource {
   password?: string
   status: DataSourceStatus
   syncFrequency: SyncFrequency
-  lastSyncTime?: string
+  lastSyncTime: string | null | undefined
   createdAt: string
   updatedAt: string
   errorMessage?: string
-  connectionOptions?: Record<string, string>
+  connectionParams?: Record<string, string>
   encryptionType?: EncryptionType
   encryptionOptions?: Record<string, string>
   
@@ -52,7 +52,7 @@ export interface CreateDataSourceParams {
   username: string
   password: string
   syncFrequency: SyncFrequency
-  connectionOptions?: Record<string, string>
+  connectionParams?: Record<string, string>
   encryptionType?: EncryptionType
   encryptionOptions?: Record<string, string>
 }
@@ -69,7 +69,7 @@ export interface UpdateDataSourceParams {
   username?: string
   password?: string
   syncFrequency?: SyncFrequency
-  connectionOptions?: Record<string, string>
+  connectionParams?: Record<string, string>
   encryptionType?: EncryptionType
   encryptionOptions?: Record<string, string>
 }

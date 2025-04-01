@@ -38,6 +38,21 @@ export const queryService = {
     }
 
     try {
+      // 验证查询参数
+      if (!params.dataSourceId) {
+        throw new Error('执行查询失败: 缺少数据源ID')
+      }
+      
+      if (!params.queryText || params.queryText.trim() === '') {
+        throw new Error('执行查询失败: SQL语句不能为空')
+      }
+      
+      // 验证SQL语法的基本完整性
+      const trimmedSQL = params.queryText.trim();
+      if (trimmedSQL === 'SELECT *' || trimmedSQL === 'SELECT * FROM') {
+        throw new Error('执行查询失败: 不完整的SQL语句，请指定表名')
+      }
+
       // 构建符合后端格式的请求体
       const requestBody = {
         dataSourceId: params.dataSourceId,
@@ -47,6 +62,8 @@ export const queryService = {
         parameters: params.parameters
       }
 
+      console.log('执行查询请求:', requestBody);
+
       const response = await fetch(`${getApiBaseUrl()}/execute`, {
         method: 'POST',
         headers: {
@@ -55,13 +72,52 @@ export const queryService = {
         body: JSON.stringify(requestBody)
       })
       
+      // 处理非200响应
       if (!response.ok) {
-        throw new Error(`执行查询失败: ${response.statusText}`)
+        let errorMessage = `执行查询失败: ${response.statusText}`;
+        
+        try {
+          // 尝试从响应体中获取更详细的错误信息
+          const errorData = await response.json();
+          if (errorData && (errorData.message || errorData.error)) {
+            errorMessage = `执行查询失败: ${errorData.message || errorData.error}`;
+          }
+        } catch (e) {
+          // 如果无法解析JSON，使用默认错误消息
+          console.error('无法解析错误响应:', e);
+        }
+        
+        throw new Error(errorMessage);
       }
       
       // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
       const responseData = await response.json()
-      const result = responseData.data || responseData  // 兼容不同的响应格式
+      console.log('查询结果原始数据:', responseData)
+      
+      // 检查是否是历史查询结果格式
+      let result
+      if (responseData.data && responseData.data.history && Array.isArray(responseData.data.history) && responseData.data.history.length > 0) {
+        // 从历史记录中提取最新的结果
+        const latestHistory = responseData.data.history[0]
+        
+        // 将历史记录转换为QueryResult格式
+        result = {
+          id: latestHistory.id,
+          columns: latestHistory.columns || [],
+          columnTypes: latestHistory.columnTypes,
+          rows: latestHistory.rows || [],
+          rowCount: latestHistory.rowCount || 0,
+          executionTime: latestHistory.duration,
+          hasMore: false,
+          status: 'COMPLETED',
+          createdAt: latestHistory.createdAt
+        }
+      } else {
+        // 使用标准格式
+        result = responseData.data || responseData
+      }
+      
+      console.log('处理后的结果数据:', result)
       
       // 确保返回结果符合前端QueryResult类型
       return {

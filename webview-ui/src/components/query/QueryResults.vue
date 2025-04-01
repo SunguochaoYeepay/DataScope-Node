@@ -296,7 +296,7 @@ watch(() => props.results, (newResults) => {
     </div>
     
     <!-- 无结果 -->
-    <div v-else-if="!results || !results.rows || results.rows.length === 0 || error" class="flex-1 flex items-center justify-center p-4">
+    <div v-else-if="!results || !results.rows || results.rows.length === 0" class="flex-1 flex items-center justify-center p-4">
       <div class="text-center text-gray-500">
         <i class="fas fa-database text-gray-400 text-3xl mb-2"></i>
         <p>没有查询结果</p>

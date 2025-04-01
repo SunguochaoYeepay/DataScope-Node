@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import type { DataSource, DataSourceType, SyncFrequency, CreateDataSourceParams, ConnectionTestResult, TestConnectionParams } from '@/types/datasource'
+import type { DataSource, DataSourceType, SyncFrequency, CreateDataSourceParams, ConnectionTestResult, TestConnectionParams, EncryptionType } from '@/types/datasource'
 import { useDataSourceStore } from '@/stores/datasource'
 import { message } from '@/services/message'
 
@@ -21,13 +21,26 @@ const emit = defineEmits<{
 const dataSourceStore = useDataSourceStore()
 
 // 表单数据
-interface FormData extends Omit<CreateDataSourceParams, 'connectionOptions'> {
+interface FormData {
   id?: string
+  name: string
+  description: string
+  type: DataSourceType
+  host: string
+  port: number
+  database: string
+  databaseName: string
   schema?: string
-  connectionTimeout: number
-  maxPoolSize: number
-  autoSync: boolean
-  connectionOptions: Record<string, string>
+  username: string
+  password: string
+  confirmPassword: string
+  syncFrequency: SyncFrequency
+  connectionTimeout?: number
+  maxPoolSize?: number
+  autoSync?: boolean
+  connectionParams: Record<string, string>
+  encryptionType?: EncryptionType
+  encryptionOptions?: Record<string, string>
 }
 
 const formData = reactive<FormData>({
@@ -36,15 +49,17 @@ const formData = reactive<FormData>({
   type: 'MYSQL',
   host: '',
   port: 3306,
+  database: '',
   databaseName: '',
-  schema: '',
   username: '',
   password: '',
+  confirmPassword: '',
   syncFrequency: 'MANUAL',
   connectionTimeout: 30,
   maxPoolSize: 10,
   autoSync: false,
-  connectionOptions: {}
+  schema: '',
+  connectionParams: {}
 })
 
 // 表单验证状态
@@ -74,8 +89,8 @@ const validateForm = () => {
   }
   
   // 验证数据库名
-  if (!formData.databaseName.trim()) {
-    errors.databaseName = '请输入数据库名称'
+  if (!formData.database.trim()) {
+    errors.database = '请输入数据库名称'
   }
   
   // 验证用户名
@@ -122,8 +137,7 @@ onMounted(() => {
     formData.type = 'MYSQL'
     formData.host = ds.host
     formData.port = ds.port || 3306
-    formData.databaseName = ds.databaseName
-    formData.schema = ds.schema
+    formData.database = ds.databaseName
     formData.username = ds.username
     formData.syncFrequency = ds.syncFrequency
     
@@ -133,15 +147,15 @@ onMounted(() => {
     }
     
     // 处理高级选项
-    if (ds.connectionOptions) {
-      formData.connectionOptions = { ...ds.connectionOptions }
+    if (ds.connectionParams) {
+      formData.connectionParams = { ...ds.connectionParams }
       
-      if (ds.connectionOptions.connectionTimeout) {
-        formData.connectionTimeout = parseInt(ds.connectionOptions.connectionTimeout, 10)
+      if (ds.connectionParams.connectionTimeout) {
+        formData.connectionTimeout = parseInt(ds.connectionParams.connectionTimeout, 10)
       }
       
-      if (ds.connectionOptions.maxPoolSize) {
-        formData.maxPoolSize = parseInt(ds.connectionOptions.maxPoolSize, 10)
+      if (ds.connectionParams.maxPoolSize) {
+        formData.maxPoolSize = parseInt(ds.connectionParams.maxPoolSize, 10)
       }
       
       formData.autoSync = ds.syncFrequency !== 'MANUAL'
@@ -172,7 +186,7 @@ watch([
   () => formData.name,
   () => formData.host,
   () => formData.port,
-  () => formData.databaseName,
+  () => formData.database,
   () => formData.username,
   () => formData.password
 ], () => {
@@ -182,7 +196,7 @@ watch([
       formData.name.trim() && 
       formData.host.trim() && 
       formData.port > 0 && 
-      formData.databaseName.trim() && 
+      formData.database.trim() && 
       formData.username.trim();
     
     // 如果所有必填字段都有值，则强制设置表单有效
@@ -199,7 +213,7 @@ watch([
     const hasInteracted = formData.name.trim() || 
                            formData.host.trim() || 
                            (formData.port !== 3306) || 
-                           formData.databaseName.trim() || 
+                           formData.database.trim() || 
                            formData.username.trim() || 
                            formData.password.trim();
     
@@ -223,8 +237,7 @@ watch(() => props.dataSource, (newDataSource) => {
     formData.type = 'MYSQL'
     formData.host = newDataSource.host
     formData.port = newDataSource.port || 3306
-    formData.databaseName = newDataSource.databaseName
-    formData.schema = newDataSource.schema || ''
+    formData.database = newDataSource.databaseName
     formData.username = newDataSource.username
     formData.syncFrequency = newDataSource.syncFrequency
     
@@ -234,15 +247,15 @@ watch(() => props.dataSource, (newDataSource) => {
     }
     
     // 处理高级选项
-    if (newDataSource.connectionOptions) {
-      formData.connectionOptions = { ...newDataSource.connectionOptions }
+    if (newDataSource.connectionParams) {
+      formData.connectionParams = { ...newDataSource.connectionParams }
       
-      if (newDataSource.connectionOptions.connectionTimeout) {
-        formData.connectionTimeout = parseInt(newDataSource.connectionOptions.connectionTimeout, 10)
+      if (newDataSource.connectionParams.connectionTimeout) {
+        formData.connectionTimeout = parseInt(newDataSource.connectionParams.connectionTimeout, 10)
       }
       
-      if (newDataSource.connectionOptions.maxPoolSize) {
-        formData.maxPoolSize = parseInt(newDataSource.connectionOptions.maxPoolSize, 10)
+      if (newDataSource.connectionParams.maxPoolSize) {
+        formData.maxPoolSize = parseInt(newDataSource.connectionParams.maxPoolSize, 10)
       }
       
       formData.autoSync = newDataSource.syncFrequency !== 'MANUAL'
@@ -273,14 +286,14 @@ const prepareDataForSave = (): CreateDataSourceParams => {
     type: 'MYSQL',
     host: formData.host,
     port: formData.port,
-    databaseName: formData.databaseName,
+    databaseName: formData.database,
     username: formData.username,
     password: formData.password,
     syncFrequency: formData.syncFrequency,
-    connectionOptions: {
-      ...formData.connectionOptions,
-      connectionTimeout: formData.connectionTimeout.toString(),
-      maxPoolSize: formData.maxPoolSize.toString(),
+    connectionParams: {
+      ...formData.connectionParams,
+      connectionTimeout: formData.connectionTimeout?.toString() || '',
+      maxPoolSize: formData.maxPoolSize?.toString() || '',
       schema: formData.schema || ''
     }
   }
@@ -325,7 +338,7 @@ const handleTestConnection = async () => {
       databaseName: params.databaseName,
       username: params.username,
       password: params.password,
-      connectionParams: formData.connectionOptions
+      connectionParams: formData.connectionParams
     }
     
     // 如果是编辑模式，添加ID
@@ -482,14 +495,14 @@ if (props.isEdit) {
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">数据库名<span class="text-red-500">*</span></label>
             <input
-              v-model="formData.databaseName"
+              v-model="formData.database"
               type="text"
               class="block w-full h-9 px-3 rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              :class="{ 'border-red-300': formErrors.databaseName }"
+              :class="{ 'border-red-300': formErrors.database }"
               placeholder="请输入数据库名称"
               @input="handleInput"
             />
-            <p v-if="formErrors.databaseName" class="mt-1 text-sm text-red-600">{{ formErrors.databaseName }}</p>
+            <p v-if="formErrors.database" class="mt-1 text-sm text-red-600">{{ formErrors.database }}</p>
           </div>
 
           <!-- Schema -->

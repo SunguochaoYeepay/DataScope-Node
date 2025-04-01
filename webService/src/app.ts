@@ -72,14 +72,20 @@ const requestLogger = (req: Request, res: Response, next: NextFunction) => {
 
 // 错误处理中间件
 const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  const statusCode = err.statusCode || 500;
+  // 确保状态码是有效的 HTTP 状态码
+  const statusCode = (err.statusCode && err.statusCode >= 100 && err.statusCode < 600) ? err.statusCode : 500;
   const message = err.message || 'Internal Server Error';
   
   logger.error(`错误: ${message}`, { error: err, path: req.originalUrl });
   
+  // 统一错误响应格式
   res.status(statusCode).json({
     success: false,
-    message,
+    error: {
+      code: err.code || 'INTERNAL_ERROR',
+      message: message,
+      details: err.details || null
+    },
     stack: config.server.nodeEnv === 'development' ? err.stack : undefined
   });
 };

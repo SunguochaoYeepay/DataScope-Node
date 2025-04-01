@@ -364,6 +364,8 @@ import { useDataSourceStore } from '@/stores/datasource'
 import { useDark, useToggle } from '@vueuse/core'
 import type { Query, SaveQueryParams } from '@/types/query'
 import type { QueryBuilderState } from '@/types/builder'
+import { message } from 'ant-design-vue'
+import type { QueryType } from '@/types/query'
 
 // 导入组件
 import MetadataExplorer from '@/components/query/MetadataExplorer.vue'
@@ -535,68 +537,54 @@ const loadQueryById = async (queryId: string) => {
   }
 }
 
-// 执行SQL查询
-const executeQuery = async () => {
-  if (isExecuting.value) return
-  
-  // 重置错误状态
-  queryError.value = null;
-  statusMessage.value = null;
-  
-  // 检查数据源选择
+// 执行查询
+const executeQuery = async (queryType: QueryType = 'SQL') => {
   if (!selectedDataSourceId.value) {
-    queryError.value = '请在左侧面板中选择一个数据源';
-    statusMessage.value = queryError.value;
-    setTimeout(() => {
-      statusMessage.value = null;
-      queryError.value = null;
-    }, 5000);
+    message.error('请先选择数据源');
     return;
   }
   
-  // 检查查询内容
   let queryText = '';
-  let queryType = 'SQL';
+  if (queryType === 'SQL') {
+    queryText = sqlQuery.value;
+  } else if (queryType === 'NATURAL_LANGUAGE') {
+    queryText = nlQuery.value;
+  } else {
+    queryText = builderQuery.value;
+  }
   
-  if (activeTab.value === 'editor') {
-    queryText = sqlQuery.value.trim();
-    queryType = 'SQL';
-    if (queryText.length === 0) {
-      queryError.value = '请在SQL编辑器中输入查询语句';
-      statusMessage.value = queryError.value;
-      setTimeout(() => {
-        statusMessage.value = null;
-        queryError.value = null;
-      }, 5000);
+  if (!queryText.trim()) {
+    message.error('请输入查询语句');
+    return;
+  }
+  
+  // 验证SQL语法的基本完整性
+  if (queryType === 'SQL') {
+    const trimmedSQL = queryText.trim().toLowerCase();
+    
+    // 检查是否是简单的SELECT *
+    if (trimmedSQL === 'select *') {
+      message.error('不完整的SQL语句，请指定表名');
       return;
     }
-  } else if (activeTab.value === 'builder') {
-    queryText = builderQuery.value.trim();
-    queryType = 'SQL';
-    if (queryText.length === 0) {
-      queryError.value = '查询构建器未生成有效的查询语句';
-      statusMessage.value = queryError.value;
-      setTimeout(() => {
-        statusMessage.value = null;
-        queryError.value = null;
-      }, 5000);
+    
+    // 检查SELECT * FROM 后是否有表名
+    if (trimmedSQL.startsWith('select * from') && trimmedSQL.split(' ').length <= 3) {
+      message.error('请在FROM子句后指定表名');
       return;
     }
-  } else if (activeTab.value === 'nlq') {
-    queryText = nlQuery.value.trim();
-    queryType = 'NATURAL_LANGUAGE';
-    if (queryText.length === 0) {
-      queryError.value = '请在自然语言查询输入框中输入问题';
-      statusMessage.value = queryError.value;
-      setTimeout(() => {
-        statusMessage.value = null;
-        queryError.value = null;
-      }, 5000);
-      return;
+    
+    // 检查SQL语句是否有基本有效性
+    if (!trimmedSQL.includes('select') || !trimmedSQL.includes('from')) {
+      if (!confirm('您的SQL语句可能不完整或格式不正确。确定要执行吗？')) {
+        return;
+      }
     }
   }
   
-  isExecuting.value = true;
+  if (isExecuting.value) return
+  
+  // 重置错误状态
   queryError.value = null;
   statusMessage.value = null;
   

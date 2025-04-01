@@ -452,9 +452,9 @@ onMounted(() => {
             <div class="sm:col-span-2">
               <dt class="text-sm font-medium text-gray-500">连接选项</dt>
               <dd class="mt-1 text-sm text-gray-900">
-                <div v-if="dataSource.connectionOptions && Object.keys(dataSource.connectionOptions).length > 0">
+                <div v-if="dataSource.connectionParams && Object.keys(dataSource.connectionParams).length > 0">
                   <ul class="list-disc pl-5 text-sm">
-                    <li v-for="(value, key) in dataSource.connectionOptions" :key="key">
+                    <li v-for="(value, key) in dataSource.connectionParams" :key="key">
                       {{ key }}: {{ value }}
                     </li>
                   </ul>

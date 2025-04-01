@@ -22,6 +22,11 @@
 - 数据库关系定义优化
 
 ### 修复
+- **错误处理中间件状态码问题**: 修复了错误处理中间件中的状态码问题，防止非法HTTP状态码导致的"Invalid status code"错误
+  - 添加状态码验证，确保返回的是有效的HTTP状态码(100-599)
+  - 统一错误响应格式，包含error对象结构(code, message, details)
+  - 增强系统稳定性，避免内部错误导致的HTML格式错误页面
+  - 确保所有API错误都返回一致的JSON格式响应
 - **SQL LIMIT语法错误**: 修复了MariaDB中"LIMIT x, y"语法不兼容的问题
   - 将MySQL风格的`LIMIT offset, limit`语法更改为标准SQL的`LIMIT limit OFFSET offset`语法
   - 修改`isSpecialCommand`函数，将包含LIMIT关键字的SQL查询视为特殊命令，避免自动添加额外的分页参数
