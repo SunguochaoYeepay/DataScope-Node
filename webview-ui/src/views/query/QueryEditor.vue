@@ -15,6 +15,13 @@
       </div>
       <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
         <button
+          @click="returnToList"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          <i class="fas fa-arrow-left mr-2"></i>
+          返回列表
+        </button>
+        <button
           @click="toggleFavorite"
           class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
@@ -310,22 +317,24 @@
     
     <!-- 保存查询对话框 -->
     <SaveQueryModal
-    v-model:visible="isSaveModalVisible"
-    :query="{
-    id: currentQueryId || '',
-    name: queryName || '未命名查询',
-    queryText: activeTab === 'editor' ? sqlQuery : (activeTab === 'nlq' ? naturalLanguageQuery : builderQuery),
-    queryType: activeTab === 'builder' || activeTab === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE',
-    dataSourceId: selectedDataSourceId
-    }"
-      :data-sources="dataSourceStore.dataSources"
+      v-if="isComponentMounted && isSaveModalVisible"
+      :visible="isSaveModalVisible"
+      @update:visible="isSaveModalVisible = $event"
+      :query="{
+        id: currentQueryId || '',
+        name: queryName || '未命名查询',
+        queryText: getQueryTextByType(activeTab === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
+        queryType: activeTab === 'builder' || activeTab === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE',
+        dataSourceId: selectedDataSourceId || (dataSourceStore.dataSources[0]?.id || '')
+      }"
+      :data-sources="dataSourceStore.dataSources || []"
       @save="handleSaveQuery"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
@@ -347,6 +356,12 @@ import QueryManager from '@/components/query/QueryManager.vue'
 // 路由
 const route = useRoute()
 const router = useRouter()
+
+// 组件状态标志
+let isComponentMounted = true
+
+// 防抖/节流变量
+let lastPanelSwitchTime = 0
 
 // 暗黑模式
 const isDark = useDark()
@@ -396,6 +411,7 @@ const queryManagerRef = ref(null)
 
 // 加载状态
 onMounted(async () => {
+  isComponentMounted = true
   // 加载数据源
   if (dataSourceStore.dataSources.length === 0) {
     await dataSourceStore.fetchDataSources()
@@ -415,7 +431,90 @@ onMounted(async () => {
   // 加载查询历史和收藏
   await queryStore.fetchQueryHistory()
   await queryStore.getFavorites()
+  
+  // 预加载保存的查询列表，用于左侧面板的"保存的查询"标签页
+  if (leftPanel.value === 'saved') {
+    await queryStore.fetchQueries({
+      page: 1,
+      size: 20,
+      sortBy: 'updatedAt',
+      sortDir: 'desc'
+    })
+  }
+  
+  // 添加页面离开提示
+  window.addEventListener('beforeunload', handleBeforeUnload)
 })
+
+// 页面离开处理
+const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+  // 如果有未保存的更改，提示用户
+  if (isExecuting.value) {
+    const message = '查询正在执行中，确定要离开吗？'
+    event.returnValue = message
+    return message
+  }
+}
+
+// 组件卸载时
+onUnmounted(() => {
+  console.log('QueryEditor组件已卸载')
+  isComponentMounted = false
+  
+  // 清理定时器和事件监听
+  if (executionTimer.value) {
+    clearInterval(executionTimer.value)
+    executionTimer.value = null
+  }
+  
+  // 清理引用
+  queryBuilderRef.value = null
+  queryManagerRef.value = null
+  
+  // 删除可能的DOM事件监听器
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  
+  // 重置可能的状态
+  lastPanelSwitchTime = 0
+})
+
+// 监听左侧面板标签切换，当切换到保存的查询时刷新数据
+watch(leftPanel, async (newValue) => {
+  if (newValue === 'saved') {
+    console.log('切换到保存的查询面板，刷新保存的查询列表')
+    try {
+      // 检查组件是否已卸载
+      if (!isComponentMounted) {
+        console.log('组件已卸载，取消查询刷新')
+        return
+      }
+      
+      // 防止事件循环和重复刷新
+      const currentTimestamp = Date.now()
+      if (lastPanelSwitchTime && (currentTimestamp - lastPanelSwitchTime < 500)) {
+        console.log('面板切换过于频繁，跳过此次刷新')
+        return
+      }
+      lastPanelSwitchTime = currentTimestamp
+      
+      // 使用组件状态检查，如果store不可用，则不执行
+      if (!queryStore || !queryStore.fetchQueries) {
+        console.log('store不可用，取消操作')
+        return
+      }
+      
+      // 使用fetchQueries获取正式保存的查询，而不是查询历史
+      await queryStore.fetchQueries({
+        page: 1,
+        size: 20, // 获取更多保存的查询以便浏览
+        sortBy: 'updatedAt',
+        sortDir: 'desc'
+      })
+    } catch (err) {
+      console.error('刷新保存的查询列表失败:', err)
+    }
+  }
+}, { flush: 'post' }) // 使用post选项确保DOM更新后再执行
 
 // 刷新元数据
 const refreshMetadata = async () => {
@@ -467,16 +566,27 @@ const canExecuteQuery = computed(() => {
 
 // 从ID加载查询
 const loadQueryById = async (queryId: string) => {
+  if (!isComponentMounted) {
+    console.log('组件已卸载，取消加载查询')
+    return
+  }
+  
   isLoadingQuery.value = true
   statusMessage.value = '正在加载查询...'
   
   try {
+    // 检查组件是否已卸载
+    if (!isComponentMounted) return
+    
     // 尝试直接获取查询详情
     let query = await queryStore.getQuery(queryId)
     
     // 如果没有通过getQuery获取到，尝试从历史列表中查找
     if (!query) {
       console.log('从direct API未找到查询，尝试从历史列表查找')
+      
+      // 再次检查组件状态
+      if (!isComponentMounted) return
       
       // 确保历史列表已加载
       if (queryStore.queryHistory.length === 0) {
@@ -489,6 +599,9 @@ const loadQueryById = async (queryId: string) => {
       if (!query) {
         console.log('从历史列表也未找到查询，尝试获取查询列表')
         
+        // 再次检查组件状态
+        if (!isComponentMounted) return
+        
         // 尝试从查询列表查找
         const queries = await queryStore.fetchQueries()
         query = queries.find((q: Query) => q.id === queryId) || null
@@ -498,6 +611,9 @@ const loadQueryById = async (queryId: string) => {
         }
       }
     }
+    
+    // 检查组件是否已卸载
+    if (!isComponentMounted) return
     
     console.log('成功加载查询:', query)
     
@@ -520,6 +636,7 @@ const loadQueryById = async (queryId: string) => {
     
     statusMessage.value = '查询加载成功'
     setTimeout(() => {
+      if (!isComponentMounted) return
       statusMessage.value = null
     }, 3000)
     
@@ -533,6 +650,7 @@ const loadQueryById = async (queryId: string) => {
     queryError.value = error instanceof Error ? error.message : '加载查询失败'
     statusMessage.value = '加载查询失败'
     setTimeout(() => {
+      if (!isComponentMounted) return
       statusMessage.value = null
     }, 5000)
   } finally {
@@ -542,6 +660,12 @@ const loadQueryById = async (queryId: string) => {
 
 // 执行查询
 const executeQuery = async (queryType: QueryType = 'SQL') => {
+  // 检查组件是否已卸载
+  if (!isComponentMounted) {
+    console.log('组件已卸载，取消查询执行')
+    return
+  }
+  
   if (!selectedDataSourceId.value) {
     message.error('请先选择数据源');
     return;
@@ -566,6 +690,13 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   initializeQueryExecution();
   
   try {
+    // 再次检查组件状态
+    if (!isComponentMounted) {
+      // 清理资源
+      finalizeQueryExecution();
+      return;
+    }
+    
     // 构建查询参数
     const queryParams = {
       dataSourceId: selectedDataSourceId.value,
@@ -583,14 +714,43 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
           question: queryText
         });
     
+    // 检查组件是否已卸载
+    if (!isComponentMounted) {
+      finalizeQueryExecution();
+      return;
+    }
+    
     // 更新查询ID
     currentQueryId.value = queryStore.currentQueryResult?.id || null;
+    
+    // 在查询执行完成后自动获取执行计划
+    if (currentQueryId.value) {
+      console.log(`查询执行完成，尝试获取执行计划，查询ID: ${currentQueryId.value}`);
+      try {
+        // 检查组件是否已卸载
+        if (!isComponentMounted) return;
+        
+        await queryStore.getQueryExecutionPlan(currentQueryId.value);
+        console.log('执行计划加载完成');
+      } catch (planError) {
+        console.error('获取执行计划失败，但不影响查询结果显示:', planError);
+      }
+    }
+    
+    // 检查组件是否已卸载
+    if (!isComponentMounted) {
+      finalizeQueryExecution();
+      return;
+    }
     
     console.log('查询执行成功:', result);
     statusMessage.value = '查询执行成功';
     
     // 自动滚动到结果区域
     nextTick(() => {
+      // 检查组件是否已卸载
+      if (!isComponentMounted) return;
+      
       const resultsElement = document.getElementById('query-results');
       if (resultsElement) {
         resultsElement.scrollIntoView({ behavior: 'smooth' });
@@ -790,10 +950,14 @@ const toggleFavorite = async () => {
 
 // 保存查询
 const saveQuery = () => {
+  // 检查组件是否已卸载
+  if (!isComponentMounted) return
+  
   // 在显示保存对话框前，验证必要数据
   if (!selectedDataSourceId.value) {
     statusMessage.value = '请先选择数据源再保存查询'
     setTimeout(() => {
+      if (!isComponentMounted) return
       statusMessage.value = null
     }, 3000)
     return
@@ -803,6 +967,7 @@ const saveQuery = () => {
   if (!sqlQuery.value.trim() && !naturalLanguageQuery.value.trim()) {
     statusMessage.value = '查询内容不能为空'
     setTimeout(() => {
+      if (!isComponentMounted) return
       statusMessage.value = null
     }, 3000)
     return
@@ -814,11 +979,20 @@ const saveQuery = () => {
 
 // 执行构建器查询
 const executeBuilderQuery = () => {
+  // 安全检查
+  if (!isComponentMounted) return
+  
   executeQuery()
 }
 
 // 处理保存查询
 const handleSaveQuery = async (saveData: Partial<Query>) => {
+  // 检查组件是否已卸载
+  if (!isComponentMounted) {
+    console.log('组件已卸载，取消保存查询')
+    return
+  }
+  
   try {
     statusMessage.value = '正在保存查询...'
     
@@ -826,6 +1000,7 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     if (!saveData.name || !saveData.dataSourceId || (!saveData.queryText && !sqlQuery.value && !naturalLanguageQuery.value) || !saveData.queryType) {
       statusMessage.value = '保存查询失败：缺少必要信息'
       setTimeout(() => {
+        if (!isComponentMounted) return
         statusMessage.value = null
       }, 5000)
       return
@@ -844,8 +1019,14 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     
     console.log('保存查询数据:', queryData);
     
+    // 检查组件是否已卸载
+    if (!isComponentMounted) return
+    
     // 使用传入的保存数据
     const savedQuery = await queryStore.saveQuery(queryData)
+    
+    // 检查组件是否已卸载
+    if (!isComponentMounted) return
     
     // 更新查询名称和ID
     if (savedQuery) {
@@ -881,6 +1062,9 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
         }
       }
       
+      // 检查组件是否已卸载
+      if (!isComponentMounted) return
+      
       // 更新路由参数，但不重新加载页面
       router.replace({
         query: { ...route.query, id: savedQuery.id }
@@ -890,6 +1074,7 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     }
     
     setTimeout(() => {
+      if (!isComponentMounted) return
       statusMessage.value = null
     }, 3000)
   } catch (error) {
@@ -968,7 +1153,7 @@ const insertColumnName = (columnName: string) => {
 // 过滤保存的查询
 const filteredSavedQueries = computed(() => {
   const search = savedQuerySearch.value.toLowerCase()
-  return queryStore.queryHistory.filter(query => 
+  return queryStore.queries.filter(query => 
     !search || (query.name && query.name.toLowerCase().includes(search))
   )
 })
@@ -1074,6 +1259,11 @@ const checkAndExecuteQuery = () => {
   
   // 如果条件满足，执行查询
   executeQuery();
+}
+
+// 返回列表
+const returnToList = () => {
+  router.push('/query/history');
 }
 </script>
 

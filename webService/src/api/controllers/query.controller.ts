@@ -2,11 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { check, validationResult } from 'express-validator';
 import queryService from '../../services/query.service';
 import { ApiError } from '../../utils/errors/types/api-error';
-import { ERROR_CODES } from '../../utils/errors/error-codes';
+import { ERROR_CODES, GENERAL_ERROR, VALIDATION_ERROR } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 import dataSourceService from '../../services/datasource.service';
 import { StatusCodes } from 'http-status-codes';
 import { getPaginationParams, createSuccessResponse } from '../../utils/api.utils';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 /**
  * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
@@ -180,7 +183,7 @@ export class QueryController {
         throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
-      const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order, createHistory } = req.body;
+      const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order, createHistory, explainQuery } = req.body;
       
       // 检查是否为特殊命令，使用外部函数
       if (isSpecialCommand(sql)) {
@@ -206,15 +209,72 @@ export class QueryController {
           throw error;
         }
       } else {
+        // 如果启用了执行计划
+        if (explainQuery) {
+          logger.debug('启用执行计划，调用explainQuery', { dataSourceId, sql });
+          try {
+            const planResult = await queryService.explainQuery(dataSourceId, sql, params || []);
+            return res.status(200).json({
+              success: true,
+              data: planResult
+            });
+          } catch (error: any) {
+            logger.error('获取查询执行计划失败', { 
+              error: error?.message || '未知错误', 
+              dataSourceId, 
+              sql 
+            });
+            throw error;
+          }
+        }
+        
         // 普通查询通过查询服务执行
         logger.debug('执行普通查询', { dataSourceId, sql, createHistory });
+        
+        // 获取查询ID - 从请求中获取
+        const queryId = req.body.id || req.params.id;
         
         // 直接传递分页参数，让查询服务决定是否应用
         const queryOptions = {
           page, pageSize, offset, limit, sort, order, createHistory
         };
         
+        // 执行查询
+        const startTime = new Date();
         const result = await queryService.executeQuery(dataSourceId, sql, params, queryOptions);
+        const endTime = new Date();
+        const duration = endTime.getTime() - startTime.getTime();
+        
+        // 如果用户要求创建历史记录或者提供了queryId，直接创建
+        if (createHistory || queryId) {
+          console.log('执行成功，尝试创建查询历史记录', { queryId, dataSourceId });
+          
+          try {
+            // 使用原生MySQL直接插入记录
+            const mysql = require('mysql2/promise');
+            const pool = mysql.createPool({
+              host: process.env.DATABASE_HOST || 'localhost',
+              user: process.env.DATABASE_USER || 'root',
+              password: process.env.DATABASE_PASSWORD || 'datascope',
+              database: process.env.DATABASE_NAME || 'datascope'
+            });
+            
+            // 插入历史记录
+            const [insertResult] = await pool.query(
+              `INSERT INTO tbl_query_history 
+                (id, queryId, dataSourceId, sqlContent, status, startTime, endTime, duration, rowCount, createdAt, createdBy) 
+               VALUES (UUID(), ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, NOW(), 'system')`,
+              [queryId || null, dataSourceId, sql, startTime, endTime, duration, result.rows?.length || 0]
+            );
+            
+            console.log('历史记录创建成功', insertResult);
+            
+            // 关闭连接池
+            await pool.end();
+          } catch (historyError) {
+            console.error('创建历史记录失败', historyError);
+          }
+        }
         
         return res.status(200).json({
           success: true,
@@ -373,8 +433,11 @@ export class QueryController {
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
-          message: '查询更新失败：输入验证错误',
-          errors: errors.array()
+          error: {
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: '查询更新失败：输入验证错误',
+            details: errors.array()
+          }
         });
       }
 
@@ -411,8 +474,11 @@ export class QueryController {
           // 如果是自定义API错误，使用它的状态码和错误码
           return res.status(error.statusCode || 500).json({
             success: false,
-            message: `更新失败：${error.message}`,
-            errorCode: error.errorCode
+            error: {
+              code: error.errorCode,
+              message: `更新失败：${error.message}`,
+              details: null
+            }
           });
         }
         
@@ -420,7 +486,11 @@ export class QueryController {
         logger.error('更新查询时发生错误', { id, error });
         return res.status(500).json({
           success: false,
-          message: `更新失败：${error.message || '未知错误'}`
+          error: {
+            code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+            message: `更新失败：${error.message || '未知错误'}`,
+            details: null
+          }
         });
       }
     } catch (error: any) {
@@ -449,23 +519,33 @@ export class QueryController {
         if (error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
           return res.status(404).json({
             success: false,
-            message: '删除失败：查询不存在',
-            errorCode: error.errorCode
+            error: {
+              code: error.errorCode,
+              message: '删除失败：查询不存在',
+              details: null
+            }
           });
         }
         
         // 其他API错误
         return res.status(error.statusCode || 500).json({
           success: false,
-          message: `删除失败：${error.message}`,
-          errorCode: error.errorCode
+          error: {
+            code: error.errorCode,
+            message: `删除失败：${error.message}`,
+            details: null
+          }
         });
       }
       
       // 未知错误处理
       return res.status(500).json({
         success: false,
-        message: `删除失败：${error.message || '未知错误'}`
+        error: {
+          code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+          message: `删除失败：${error.message || '未知错误'}`,
+          details: null
+        }
       });
     }
   }
@@ -481,44 +561,62 @@ export class QueryController {
       let finalLimit = limit ? Number(limit) : (size ? Number(size) : 20);
       let finalOffset = offset ? Number(offset) : (page ? (Number(page) - 1) * finalLimit : 0);
       
-      logger.debug('查询历史API请求参数', { 
-        dataSourceId, 
-        limit, 
-        offset, 
-        page, 
-        size, 
-        finalLimit,
-        finalOffset
-      });
+      // 使用Prisma ORM查询数据
+      logger.debug('获取查询历史记录', { dataSourceId, limit: finalLimit, offset: finalOffset });
       
-      const result = await queryService.getQueryHistory(
-        dataSourceId as string,
-        finalLimit,
-        finalOffset
-      );
+      // 构建查询条件
+      const where = dataSourceId ? { dataSourceId: dataSourceId as string } : {};
       
-      // 确保响应中包含完整数据
-      if (!result) {
-        logger.error('查询历史记录结果为空');
-        return res.status(500).json({
-          success: false,
-          message: '获取查询历史记录失败：结果为空'
+      try {
+        // 使用Prisma查询
+        const [history, total] = await Promise.all([
+          prisma.queryHistory.findMany({
+            where,
+            orderBy: [
+              { startTime: 'desc' },
+              { createdAt: 'desc' }
+            ],
+            skip: finalOffset,
+            take: finalLimit
+          }),
+          prisma.queryHistory.count({ where })
+        ]);
+        
+        logger.debug(`成功获取查询历史记录: ${history.length} 条，总计: ${total}`);
+        
+        // 构建分页信息
+        const pagination = {
+          page: Math.floor(finalOffset / finalLimit) + 1,
+          pageSize: finalLimit,
+          total,
+          totalPages: Math.ceil(total / finalLimit),
+          hasMore: finalOffset + finalLimit < total
+        };
+        
+        // 返回标准响应格式
+        return res.status(200).json({
+          success: true,
+          data: {
+            items: history,
+            pagination
+          }
         });
+      } catch (dbError) {
+        logger.error('Prisma查询历史记录失败', { error: dbError });
+        throw new ApiError('获取查询历史记录失败', 500);
       }
-      
-      // 输出调试信息
-      logger.debug('查询历史API响应', { 
-        resultSize: JSON.stringify(result).length,
-        itemsCount: result.items?.length
-      });
-      
-      return res.status(200).json({
-        success: true,
-        data: result
-      });
     } catch (error: any) {
+      console.error('获取查询历史记录失败:', error);
       logger.error('获取查询历史记录失败', { error });
-      next(error);
+      
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+          message: `获取查询历史记录失败: ${error.message || '未知错误'}`,
+          details: null
+        }
+      });
     }
   }
 
@@ -559,7 +657,11 @@ export class QueryController {
         if (error instanceof ApiError && error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
           return res.status(404).json({
             success: false,
-            message: '添加收藏失败：查询不存在'
+            error: {
+              code: ERROR_CODES.RESOURCE_NOT_FOUND,
+              message: '添加收藏失败：查询不存在',
+              details: null
+            }
           });
         }
       }
@@ -578,15 +680,22 @@ export class QueryController {
       if (error instanceof ApiError) {
         return res.status(error.statusCode || 500).json({
           success: false,
-          message: `添加收藏失败：${error.message}`,
-          errorCode: error.errorCode
+          error: {
+            code: error.errorCode,
+            message: `添加收藏失败：${error.message}`,
+            details: null
+          }
         });
       }
       
       // 未知错误处理
       return res.status(500).json({
         success: false,
-        message: `添加收藏失败：${error.message || '未知错误'}`
+        error: {
+          code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+          message: `添加收藏失败：${error.message || '未知错误'}`,
+          details: null
+        }
       });
     }
   }
@@ -612,15 +721,22 @@ export class QueryController {
       if (error instanceof ApiError) {
         return res.status(error.statusCode || 500).json({
           success: false,
-          message: `取消收藏失败：${error.message}`,
-          errorCode: error.errorCode
+          error: {
+            code: error.errorCode,
+            message: `取消收藏失败：${error.message}`,
+            details: null
+          }
         });
       }
       
       // 未知错误处理
       return res.status(500).json({
         success: false,
-        message: `取消收藏失败：${error.message || '未知错误'}`
+        error: {
+          code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+          message: `取消收藏失败：${error.message || '未知错误'}`,
+          details: null
+        }
       });
     }
   }
@@ -645,16 +761,22 @@ export class QueryController {
         if (error.statusCode === 404 || error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
           return res.status(404).json({
             success: false,
-            message: '查询历史记录不存在',
-            errorCode: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND
+            error: {
+              code: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND,
+              message: '查询历史记录不存在',
+              details: null
+            }
           });
         }
         
         // 其他API错误
         return res.status(error.statusCode || 500).json({
           success: false,
-          message: error.message,
-          errorCode: error.errorCode
+          error: {
+            code: error.errorCode,
+            message: error.message,
+            details: null
+          }
         });
       }
       
@@ -671,6 +793,7 @@ export class QueryController {
       check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
       check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
       check('createHistory').optional().isBoolean().withMessage('createHistory必须是布尔值'),
+      check('explainQuery').optional().isBoolean().withMessage('explainQuery必须是布尔值'),
     ];
   }
 
@@ -720,14 +843,21 @@ export class QueryController {
       if (error instanceof ApiError) {
         return res.status(error.statusCode || 500).json({
           success: false,
-          message: error.message,
-          errorCode: error.errorCode
+          error: {
+            code: error.errorCode,
+            message: error.message,
+            details: null
+          }
         });
       }
       
       return res.status(500).json({
         success: false,
-        message: `清空临时查询历史记录失败: ${error.message || '未知错误'}`
+        error: {
+          code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+          message: `清空临时查询历史记录失败: ${error.message || '未知错误'}`,
+          details: null
+        }
       });
     }
   }

@@ -406,9 +406,9 @@ export const queryService = {
           // 已保存查询，使用名称或者默认名
           displayName = item.name || `已保存查询`;
         } else {
-          // 临时查询，使用SQL前缀
+          // 未命名查询，使用SQL前缀
           const sqlPrefix = (item.sqlContent || item.sql || item.queryText || '').trim().substring(0, 20);
-          displayName = `临时查询: ${sqlPrefix}${sqlPrefix.length >= 20 ? '...' : ''}`;
+          displayName = `未命名查询: ${sqlPrefix}${sqlPrefix.length >= 20 ? '...' : ''}`;
         }
         
         const query: Query = {
@@ -587,6 +587,7 @@ export const queryService = {
     }
 
     try {
+      // 确保使用正确的API路径格式
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}`, {
         method: 'DELETE',
         headers: {
@@ -787,30 +788,58 @@ export const queryService = {
   // 获取查询执行计划
   async getQueryExecutionPlan(queryId: string): Promise<QueryExecutionPlan> {
     if (isUsingMockApi()) {
-      return mockQueryApi.getQueryExecutionPlan(queryId)
+      console.log('使用模拟API获取执行计划');
+      return mockQueryApi.getQueryExecutionPlan(queryId);
     }
 
     try {
+      console.log(`获取查询执行计划，queryId: ${queryId}`);
+      
       // 使用正确的API路径获取查询执行计划
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`, {
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`;
+      console.log(`执行计划API URL: ${url}`);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
-      })
+      });
+      
+      // 输出响应状态和headers用于调试
+      console.log(`执行计划API响应状态: ${response.status} ${response.statusText}`);
       
       if (!response.ok) {
+        // 尝试读取错误响应内容
+        const errorText = await response.text();
+        console.error(`获取查询执行计划失败: ${response.statusText}, 错误内容: ${errorText}`);
+        
         // 如果返回404，尝试获取查询计划
         if (response.status === 404) {
+          console.log('未找到执行计划，尝试使用plans路径获取');
           // 尝试使用plans路径获取
           return this.getQueryPlanById(queryId);
         }
-        throw new Error(`获取查询执行计划失败: ${response.statusText}`)
+        
+        // 直接抛出错误，不使用模拟数据
+        throw new Error(`获取查询执行计划失败: ${response.statusText}`);
       }
       
-      // 解析响应数据
-      const responseData = await response.json()
-      const result = responseData.data || responseData // 兼容不同的响应格式
+      // 尝试获取原始响应文本
+      const responseText = await response.text();
+      console.log(`执行计划API原始响应: ${responseText.substring(0, 200)}...`);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('解析执行计划响应JSON失败:', e);
+        // 直接抛出错误，不使用模拟数据
+        throw new Error('无法解析执行计划响应JSON');
+      }
+      
+      // 解析响应数据，支持多种格式
+      const result = responseData.data || responseData; // 兼容不同的响应格式
       
       // 确保返回的数据结构符合QueryExecutionPlan
       const plan: QueryExecutionPlan = {
@@ -824,12 +853,14 @@ export const queryService = {
         estimatedCost: result.estimatedCost,
         estimatedRows: result.estimatedRows,
         createdAt: result.createdAt || new Date().toISOString()
-      }
+      };
       
-      return plan
+      console.log('成功解析执行计划:', plan);
+      return plan;
     } catch (error) {
-      console.error(`获取查询执行计划错误:`, error)
-      throw error
+      console.error(`获取查询执行计划错误:`, error);
+      // 直接抛出错误，不使用模拟数据
+      throw error;
     }
   },
   
@@ -882,15 +913,23 @@ export const queryService = {
 
     try {
       // 使用正确的API路径获取查询优化建议
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/plans/${queryId}/tips`, {
+      console.log(`获取查询优化建议，queryId: ${queryId}`);
+      const url = `${getApiBaseUrl()}/api/queries/plans/${queryId}/tips`;
+      console.log(`优化建议API URL: ${url}`);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
       })
       
+      // 输出响应状态用于调试
+      console.log(`优化建议API响应状态: ${response.status} ${response.statusText}`);
+      
       // 如果没有优化建议，返回空数组而不是错误
       if (response.status === 404) {
+        console.log('未找到优化建议，返回空数组');
         return [];
       }
       
@@ -899,24 +938,38 @@ export const queryService = {
       }
       
       // 解析响应数据
-      const responseData = await response.json()
+      const responseText = await response.text();
+      console.log(`优化建议API原始响应: ${responseText.substring(0, 200)}...`);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('解析优化建议响应JSON失败:', e);
+        throw new Error('无法解析优化建议响应JSON');
+      }
+      
       const result = responseData.data || responseData
       
       // 确保结果是数组
       if (!Array.isArray(result)) {
         if (result && typeof result === 'object') {
           // 如果结果是单个对象，将其包装为数组
+          console.log('优化建议响应是单个对象，包装为数组');
           return [formatSuggestion(result, queryId)];
         }
+        console.log('优化建议响应不是数组也不是对象，返回空数组');
         return [];
       }
       
       // 映射为标准格式
-      return result.map(item => formatSuggestion(item, queryId));
+      const suggestions = result.map(item => formatSuggestion(item, queryId));
+      console.log(`成功获取 ${suggestions.length} 条优化建议`);
+      return suggestions;
     } catch (error) {
-      console.error('获取查询优化建议失败:', error)
-      // 返回空数组而不是抛出错误，避免中断用户体验
-      return []
+      console.error('获取查询优化建议失败:', error);
+      // 不再静默失败，抛出错误让调用者处理
+      throw error;
     }
   },
   
@@ -928,14 +981,22 @@ export const queryService = {
 
     try {
       // 使用正确的API路径获取查询可视化数据
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/visualization`, {
+      console.log(`获取查询可视化，queryId: ${queryId}`);
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/visualization`;
+      console.log(`可视化API URL: ${url}`);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
       })
       
+      // 输出响应状态用于调试
+      console.log(`可视化API响应状态: ${response.status} ${response.statusText}`);
+      
       if (response.status === 404) {
+        console.log('未找到可视化配置，返回null');
         return null // 没有找到可视化配置
       }
       
@@ -944,11 +1005,21 @@ export const queryService = {
       }
       
       // 解析响应数据
-      const responseData = await response.json()
+      const responseText = await response.text();
+      console.log(`可视化API原始响应: ${responseText.substring(0, 200)}...`);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('解析可视化响应JSON失败:', e);
+        throw new Error('无法解析可视化响应JSON');
+      }
+      
       const result = responseData.data || responseData
       
       // 确保返回数据符合QueryVisualization格式
-      return {
+      const visualization = {
         id: result.id || `visual-${queryId}`,
         queryId: result.queryId || queryId,
         nodes: result.nodes || [],
@@ -958,10 +1029,14 @@ export const queryService = {
         description: result.description,
         config: result.config || {},
         createdAt: result.createdAt || new Date().toISOString()
-      }
+      };
+      
+      console.log('成功解析可视化配置:', visualization);
+      return visualization;
     } catch (error) {
       // 如果是404错误，我们返回null而不是抛出错误
       if (error instanceof Error && error.message.includes('404')) {
+        console.log('404错误，返回null');
         return null
       }
       console.error(`获取查询可视化失败: ${queryId}`, error)

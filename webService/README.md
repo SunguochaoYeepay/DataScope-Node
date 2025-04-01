@@ -156,11 +156,56 @@ npx prisma migrate dev
 
 ### 查询管理
 
-- `POST /api/queries/execute`: 执行SQL查询
-  - 支持`createHistory`参数，控制是否生成查询历史记录
-  - 当`createHistory=true`或执行已保存查询时，会创建历史记录
-  - 默认不创建历史记录，减少系统负担
-- `GET /api/queries/history`: 获取查询历史
+- `POST /api/queries/execute`: 执行SQL查询，支持参数：
+  - `dataSourceId`: 数据源ID
+  - `sql`: 查询语句
+  - `params`: 查询参数(可选)
+  - `createHistory=true`: 是否创建查询历史记录(默认false)
+  - `explainQuery=true`: 获取查询执行计划而非执行实际查询(默认false)
+  - `id` 或 `queryId`: 要执行的已保存查询的ID，提供此参数会自动记录查询历史
+
+**注意**: 执行已保存的查询时，需要提供查询ID才能生成查询历史记录。有两种方式：
+1. 在请求体中包含`id`参数 (推荐方式)
+```json
+{
+  "dataSourceId": "123",
+  "sql": "SELECT * FROM users",
+  "id": "c6uh7gw8yd5" 
+}
+```
+2. 通过`createHistory=true`参数显式创建历史记录
+```json
+{
+  "dataSourceId": "123",
+  "sql": "SELECT * FROM users",
+  "createHistory": true
+}
+```
+
+#### 测试环境支持
+对于测试/开发环境，可以使用特殊数据源ID `test-ds` 来执行查询或获取执行计划，无需配置真实数据库连接：
+
+```javascript
+// 示例：在测试环境获取执行计划
+const response = await fetch('/api/queries/execute', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    dataSourceId: 'test-ds',
+    sql: 'SELECT * FROM users',
+    explainQuery: true
+  })
+});
+const result = await response.json();
+// result包含模拟的执行计划
+```
+
+### 查询执行计划
+- `GET /api/queries/{id}/execution-plan`: 获取已执行的查询的执行计划
+- `POST /api/queries/explain`: 直接获取SQL查询的执行计划，无需执行查询
+
+### 查询历史
+- `GET /api/queries/history`: 获取查询历史记录，支持分页和筛选
 - `GET /api/queries/history/:id`: 获取单个查询历史记录详情
 - `GET /api/queries/saved`: 获取已保存的查询
 - `POST /api/queries`: 保存查询

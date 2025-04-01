@@ -121,7 +121,7 @@ export const useQueryStore = defineStore('query', () => {
       // 更新当前查询结果
       currentQueryResult.value = result
       
-      // 创建临时查询对象
+      // 创建未命名查询对象
       const tempQuery: Query = {
         id: result.id,
         name: 'Query at ' + new Date().toLocaleString(),
@@ -451,6 +451,18 @@ export const useQueryStore = defineStore('query', () => {
         await fetchQueryHistory()
       }
       
+      // 同时更新保存的查询列表(queries)
+      const existsInQueries = queries.value.some(q => q.id === savedQuery.id)
+      if (!existsInQueries) {
+        // 如果是新查询，添加到查询列表的开头
+        queries.value = [savedQuery, ...queries.value]
+      } else {
+        // 如果是更新查询，替换已有的
+        queries.value = queries.value.map(q => 
+          q.id === savedQuery.id ? savedQuery : q
+        )
+      }
+      
       return savedQuery
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
@@ -476,6 +488,9 @@ export const useQueryStore = defineStore('query', () => {
       
       // 从历史中移除
       queryHistory.value = queryHistory.value.filter(q => q.id !== id)
+      
+      // 从保存的查询列表中移除
+      queries.value = queries.value.filter(q => q.id !== id)
       
       message.success('查询已删除')
       return true

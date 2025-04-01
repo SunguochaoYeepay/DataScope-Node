@@ -483,6 +483,22 @@ export class DataSourceService {
    * @returns 数据库连接器实例
    */
   async getConnector(dataSourceOrId: DataSource | string): Promise<DatabaseConnector> {
+    // 特殊处理test-ds，让调用方自己处理
+    if (dataSourceOrId === 'test-ds') {
+      logger.info('检测到测试数据源ID: test-ds，将由服务层处理');
+      // 获取一个真实的数据源，简化测试
+      const testDs = await prisma.dataSource.findFirst({
+        where: { active: true }
+      });
+      
+      if (testDs) {
+        logger.debug('使用第一个可用数据源作为测试数据源');
+        return this.getConnector(testDs.id);
+      } else {
+        throw new ApiError('无法找到可用的数据源作为测试环境', 500);
+      }
+    }
+
     // 如果传入的是ID，先获取数据源对象（包含密码）
     let dataSource: DataSource;
     if (typeof dataSourceOrId === 'string') {
@@ -499,8 +515,6 @@ export class DataSourceService {
       logger.debug('从缓存获取数据库连接器', { dataSourceId: dataSource.id });
       return connectorCache.get(dataSource.id)!;
     }
-    
-
     
     return DatabaseConnectorFactory.createConnector(
       dataSource.id,

@@ -107,6 +107,22 @@ npm install
 npm run dev
 ```
 
+### 使用真实API数据
+默认情况下，前端项目配置为使用模拟数据（mock data）。如果要使用真实的后端API数据，需要修改配置：
+
+1. 打开`.env.development`文件
+2. 将`VITE_USE_MOCK_API`设置为`false`
+3. 确保`VITE_API_BASE_URL`指向正确的后端API地址（默认为`http://localhost:8080`）
+4. 重启开发服务器
+
+```bash
+# .env.development示例
+VITE_API_BASE_URL=http://localhost:8080
+VITE_USE_MOCK_API=false
+```
+
+如果在开发过程中遇到API请求问题，可以查看浏览器控制台的日志输出，获取详细的请求和响应信息以便调试。
+
 ### 构建生产版本
 ```bash
 npm run build

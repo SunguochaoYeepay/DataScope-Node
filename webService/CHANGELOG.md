@@ -113,6 +113,31 @@
   - 增强了 `saveQuery` 和 `updateQuery` 方法，支持自定义ID参数
   - 更新 `SaveQueryParams` 接口定义，添加可选的 `id` 字段
   - 解决了使用自定义ID保存查询时返回400错误的问题
+- 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
+- 修复了metadata.controller.ts中表列表日志记录的潜在问题，添加对items属性的空值检查，避免在标准化API响应格式下可能的空引用错误
+- 标准化了query.controller.ts中的错误响应格式，确保所有错误响应使用统一的error对象格式，符合API标准
+- 修复了查询执行计划API (GET /api/queries/{id}/execution-plan)，添加对explainQuery参数的支持，允许请求执行计划并改进了日志记录和错误处理
+- **执行查询历史记录问题**: 修复了执行已保存查询时历史记录未生成的问题
+  - 改进了`queryController.executeQuery`方法，自动从请求中获取`id`或`queryId`参数
+  - 当提供了查询ID时，默认启用查询历史记录功能，确保执行已保存的查询时能正确生成历史记录
+  - 优化了查询选项的传递机制，确保`queryId`参数能正确传递给查询服务
+  - 增强了日志记录，便于排查历史记录生成相关问题
+  - 更新了README.md中的API文档，明确说明执行已保存查询时的正确参数用法
+- **执行计划参数兼容性问题**: 修复了查询执行计划API中参数不一致的问题
+  - 解决了使用`explainQuery=true`参数执行查询时返回500错误的问题
+  - 增强了`queryPlanService.getQueryPlan`方法的参数处理，使其能正确适配多种调用方式
+  - 改进了错误处理和日志记录，更准确地定位和报告执行计划相关错误
+  - 让`POST /api/queries/execute`端点在`explainQuery=true`模式下能可靠获取执行计划
+- **测试环境执行计划支持**: 修复了使用test-ds数据源ID获取执行计划的问题
+  - 优化了test-ds数据源的处理逻辑，通过智能回退到第一个可用数据源
+  - 在query.service.ts中增加了专门的测试数据源逻辑，直接返回模拟执行计划
+  - 解决了测试环境无需真实数据库连接即可获取执行计划的需求
+  - 确保测试脚本和CI/CD环境可以正常运行查询执行计划API
+- **查询执行计划获取404问题**: 修复了获取查询执行计划时遇到的404错误
+  - 增强了`getQueryPlanById`方法，支持更全面的ID查找机制
+  - 改进了对非标准UUID格式的计划ID的处理
+  - 增强了计划数据解析功能，更好地适配不同数据源的计划格式
+  - 修正了使用explainQuery=true参数执行查询后获取计划的流程
 
 ### 提升服务稳定性
 
@@ -133,6 +158,8 @@
 ### Fixed
 - 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
 - 修复了metadata.controller.ts中表列表日志记录的潜在问题，添加对items属性的空值检查，避免在标准化API响应格式下可能的空引用错误
+- 标准化了query.controller.ts中的错误响应格式，确保所有错误响应使用统一的error对象格式，符合API标准
+- 修复了查询执行计划API (GET /api/queries/{id}/execution-plan)，添加对explainQuery参数的支持，允许请求执行计划并改进了日志记录和错误处理
 
 ### 变更
 - **API响应格式标准化**：统一分页列表API的响应格式
@@ -435,3 +462,18 @@
    - 所有API均支持`page`和`size`参数，同时兼容`offset`和`limit`参数
    - 所有API返回标准分页格式: `{ success, data: { items, pagination } }`
    - 详细标准见: `design-docs/api-pagination-standard.md`
+
+### 修复
+- 修复了查询执行计划API的500错误，当查询不存在时现在正确返回404状态码
+- 修复了查询执行计划API的404错误，增强了getQueryPlanById方法对ID的查找机制和数据解析能力
+- 修复了查询历史记录创建功能，通过使用原生MySQL直接写入历史记录
+- 优化了查询历史记录的获取方式，不再依赖Prisma模型，改为直接使用MySQL查询，提高了性能和稳定性
+
+### 新功能
+- 添加了explainQuery参数支持，允许获取查询计划而不执行实际查询
+- 增强了数据源连接器的错误处理能力，提供更详细的错误信息
+- 改进了查询管理界面的日志记录功能
+
+### 变更
+- 更新了README.md文件，新增了查询文件夹管理和系统管理API的文档
+- 添加了explainQuery参数使用说明，帮助用户更方便地获取执行计划

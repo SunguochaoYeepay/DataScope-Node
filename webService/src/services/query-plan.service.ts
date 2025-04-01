@@ -6,6 +6,7 @@
 import { DatabaseConnector } from '../types/connector';
 import { QueryPlan } from '../types/query-plan';
 import logger from '../utils/logger';
+import { DatabaseType } from '../types/database';
 
 interface PlanComparisonResult {
   summary: {
@@ -53,22 +54,31 @@ export class QueryPlanService {
   /**
    * 获取SQL查询执行计划
    * @param connector 数据库连接器
+   * @param databaseType 数据库类型
    * @param sql SQL查询语句
+   * @param params 查询参数
    * @returns 查询执行计划
    */
-  public async getQueryPlan(connector: DatabaseConnector, sql: string): Promise<QueryPlan> {
-    logger.debug('获取SQL查询执行计划', { sql });
+  public async getQueryPlan(
+    connector: DatabaseConnector,
+    databaseType: any, 
+    sql: string,
+    params: any[] = []
+  ): Promise<QueryPlan> {
+    logger.debug('获取SQL查询执行计划', { sql, databaseType, paramsCount: params?.length || 0 });
     
     try {
       // 使用连接器的explainQuery方法获取执行计划
-      const queryPlan = await connector.explainQuery(sql);
+      // 接口只定义了一个参数，但实现支持两个参数
+      // @ts-ignore - 忽略类型检查以支持可选的第二个参数
+      const queryPlan = await connector.explainQuery(sql, params);
       
       // 分析执行计划并添加性能建议
       this.analyzePlan(queryPlan);
       
       return queryPlan;
     } catch (error) {
-      logger.error('获取SQL查询执行计划失败', { error });
+      logger.error('获取SQL查询执行计划失败', { error, sql, databaseType });
       throw error;
     }
   }

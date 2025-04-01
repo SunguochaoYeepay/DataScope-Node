@@ -223,7 +223,6 @@ const handleSave = () => {
               rows="4"
               class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               placeholder="查询内容"
-              readonly
             ></textarea>
             <p v-if="errors.queryText" class="text-red-500 text-xs">{{ errors.queryText }}</p>
           </div>
