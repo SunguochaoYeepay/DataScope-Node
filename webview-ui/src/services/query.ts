@@ -24,7 +24,7 @@ export const isUsingMockApi = () => {
 
 // API 基础路径
 export const getApiBaseUrl = () => {
-  // 只返回基础URL，不包含API路径前缀
+  // 使用环境变量中配置的API基础URL
   return import.meta.env.VITE_API_BASE_URL || '';
 }
 
