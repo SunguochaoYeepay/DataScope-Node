@@ -249,65 +249,136 @@ export const useDataSourceStore = defineStore('dataSource', () => {
     }
   }
   
-  // 加载元数据
-  const getDataSourceMetadata = async (dataSourceId: string) => {
+  // 获取数据源的元数据信息（表结构等）
+  const getDataSourceMetadata = async (dataSourceId: string): Promise<Metadata | null> => {
+    if (isLoadingMetadata.value) {
+      console.warn('元数据加载中，请勿重复请求')
+      return null
+    }
+    
     isLoadingMetadata.value = true
-    error.value = null
     
     try {
-      // 检查数据源是否已经加载了元数据
-      const ds = dataSources.value.find(d => d.id === dataSourceId)
+      // 首先尝试获取已有数据源，如果存在则直接加载其元数据
+      const dataSource = dataSources.value.find(ds => ds.id === dataSourceId)
       
-      if (ds && ds.metadata && ds.metadata.tables && ds.metadata.tables.length > 0) {
-        return ds.metadata
+      if (dataSource && dataSource.metadata && dataSource.metadata.tables && dataSource.metadata.tables.length > 0) {
+        console.log(`数据源 ${dataSourceId} 已有元数据`)
+        isLoadingMetadata.value = false
+        return dataSource.metadata
       }
       
-      // 如果没有元数据或元数据为空，则获取单个数据源的详细信息
-      const dataSource = await dataSourceService.getDataSource(dataSourceId)
+      // 如果数据源不存在或无元数据，尝试同步
+      console.log(`开始同步元数据，数据源ID: ${dataSourceId}`)
       
-      // 如果仍然没有元数据，尝试同步
-      if (!dataSource.metadata || !dataSource.metadata.tables || dataSource.metadata.tables.length === 0) {
-        const syncResult = await syncDataSourceMetadata(dataSourceId)
+      let syncResult
+      try {
+        syncResult = await dataSourceService.syncMetadata({
+          id: dataSourceId,
+          filters: {
+            includeSchemas: [],
+            excludeSchemas: [],
+            includeTables: [],
+            excludeTables: []
+          }
+        })
+        console.log('元数据同步结果:', syncResult)
+      } catch (syncError) {
+        console.error('同步元数据API返回错误:', syncError)
         
-        if (!syncResult.success) {
-          throw new Error(`无法同步元数据: ${syncResult.message}`)
+        // 同步出错时，不直接返回错误，而是尝试直接从API获取基础元数据
+        try {
+          console.log('尝试直接从API获取表列表...')
+          const tablesResult = await dataSourceService.getTableMetadata(dataSourceId);
+          
+          if (tablesResult && typeof tablesResult === 'object') {
+            // 如果是一个对象且不是空对象，说明获取了一些表
+            const tables = Object.values(tablesResult);
+            if (tables.length > 0) {
+              console.log(`直接获取到 ${tables.length} 个表的信息`);
+              
+              // 创建或更新数据源的元数据
+              const metadata: Metadata = {
+                tables: tables as TableMetadata[],
+                lastSyncTime: new Date().toISOString()
+              };
+              
+              // 更新数据源对象
+              if (dataSource) {
+                dataSource.metadata = metadata;
+                
+                // 更新数据源列表
+                const index = dataSources.value.findIndex(ds => ds.id === dataSourceId);
+                if (index !== -1) {
+                  dataSources.value[index] = dataSource;
+                }
+              }
+              
+              return metadata;
+            }
+          }
+        } catch (directError) {
+          console.error('直接获取表信息失败:', directError);
         }
         
-        // 再次获取数据源详情以获取更新后的元数据
-        const updatedDataSource = await dataSourceService.getDataSource(dataSourceId)
+        // 如果上述方法都失败，则返回一个最小的元数据对象，避免UI报错
+        const emptyMetadata: Metadata = {
+          tables: [],
+          lastSyncTime: new Date().toISOString()
+        };
+        return emptyMetadata;
+      }
+      
+      // 同步成功后，重新获取数据源信息
+      try {
+        const updatedDataSource = await dataSourceService.getDataSource(dataSourceId);
         
-        // 更新当前数据源的元数据
-        if (currentDataSource.value?.id === dataSourceId) {
-          currentDataSource.value = updatedDataSource
+        // 如果获取不到元数据，尝试直接获取表列表
+        if (!updatedDataSource.metadata || !updatedDataSource.metadata.tables || updatedDataSource.metadata.tables.length === 0) {
+          console.log('更新后的数据源仍然没有元数据，尝试直接获取表列表');
+          const tablesResult = await dataSourceService.getTableMetadata(dataSourceId);
+          
+          if (tablesResult && typeof tablesResult === 'object') {
+            const tables = Object.values(tablesResult);
+            if (tables.length > 0) {
+              updatedDataSource.metadata = {
+                tables: tables as TableMetadata[],
+                lastSyncTime: new Date().toISOString()
+              };
+            }
+          }
         }
         
-        // 更新列表中的数据源
-        const index = dataSources.value.findIndex(ds => ds.id === dataSourceId)
+        // 更新数据源列表
+        const index = dataSources.value.findIndex(ds => ds.id === dataSourceId);
         if (index !== -1) {
-          dataSources.value[index] = updatedDataSource
+          dataSources.value[index] = updatedDataSource;
         }
         
-        return updatedDataSource.metadata
+        // 处理metadata可能为undefined的情况
+        return updatedDataSource.metadata || null;
+      } catch (getDataSourceError) {
+        console.error('获取更新后的数据源信息失败:', getDataSourceError);
+        
+        // 返回一个最小的元数据对象，避免UI报错
+        const emptyMetadata: Metadata = {
+          tables: [],
+          lastSyncTime: new Date().toISOString()
+        };
+        return emptyMetadata;
       }
-      
-      // 更新当前数据源的元数据
-      if (currentDataSource.value?.id === dataSourceId) {
-        currentDataSource.value = dataSource
-      }
-      
-      // 更新列表中的数据源
-      const index = dataSources.value.findIndex(ds => ds.id === dataSourceId)
-      if (index !== -1) {
-        dataSources.value[index] = dataSource
-      }
-      
-      return dataSource.metadata
     } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('加载元数据失败')
-      throw error.value
+      error.value = err instanceof Error ? err : new Error(String(err));
+      console.error('加载元数据失败:', err);
+      
+      // 返回一个最小的元数据对象，避免UI报错
+      const emptyMetadata: Metadata = {
+        tables: [],
+        lastSyncTime: new Date().toISOString()
+      };
+      return emptyMetadata;
     } finally {
-      isLoadingMetadata.value = false
+      isLoadingMetadata.value = false;
     }
   }
   

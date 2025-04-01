@@ -908,4 +908,61 @@ router.get(
   metadataController.getTableData
 );
 
+/**
+ * @swagger
+ * /api/metadata/{dataSourceId}/tables/{tableName}/columns:
+ *   get:
+ *     summary: 获取表的字段信息
+ *     description: 获取指定数据源中指定表的所有字段信息
+ *     tags: [Metadata]
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         description: 数据源ID
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: tableName
+ *         required: true
+ *         description: 表名
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 成功获取表的字段信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                       nullable:
+ *                         type: boolean
+ *                       defaultValue:
+ *                         type: string
+ *                       isPrimaryKey:
+ *                         type: boolean
+ *                       comment:
+ *                         type: string
+ *       404:
+ *         description: 数据源或表不存在
+ *       500:
+ *         description: 服务器内部错误
+ */
+router.get('/:dataSourceId/tables/:tableName/columns', metadataController.getTableColumns);
+
+// 兼容路径
+router.get('/datasources/:dataSourceId/tables/:tableName/columns', metadataController.getTableColumns);
+
 export default router;

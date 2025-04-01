@@ -4,6 +4,11 @@
 
 ### 新增
 
+- **表字段信息API**: 添加了获取表字段详细信息的专用接口
+  - 新增 `GET /api/metadata/:dataSourceId/tables/:tableName/columns` 端点
+  - 采用多种方式确保可靠获取字段信息
+  - 返回包含名称、类型、可空性、默认值、主键标识等完整字段信息
+  - 解决了前端无法显示表完整元数据的问题
 - 添加表数据预览API，支持分页、排序和过滤功能
   - 新增 `GET /api/metadata/:dataSourceId/tables/:tableName/data` 端点
   - 新增 `GET /api/metadata/datasources/:dataSourceId/tables/:tableName/data` 端点

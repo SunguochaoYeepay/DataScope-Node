@@ -74,14 +74,21 @@
               </button>
             </div>
             <div class="mt-2">
-              <select
-                v-model="selectedDataSourceId"
-                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-              >
-                <option v-for="ds in dataSourceStore.dataSources" :key="ds.id" :value="ds.id">
-                  {{ ds.name }}
-                </option>
-              </select>
+              <div class="relative">
+                <select
+                  v-model="selectedDataSourceId"
+                  class="appearance-none bg-white block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option v-for="ds in dataSourceStore.dataSources" :key="ds.id" :value="ds.id">
+                    {{ ds.name }}
+                  </option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
           

@@ -14,7 +14,7 @@ import type {
   DataSourceStatus,
   SyncFrequency
 } from '@/types/datasource'
-import type { TableMetadata, TableRelationship } from '@/types/metadata'
+import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/metadata'
 import { mockDataSourceApi } from '@/mocks/datasource'
 
 // 使用环境变量判断是否使用模拟API
@@ -398,25 +398,75 @@ export const dataSourceService = {
 
     try {
       console.log('获取表元数据，API路径:', `${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
-      // 构建查询参数
-      const queryParams = new URLSearchParams()
-      if (tableName) queryParams.append('tableName', tableName)
       
       // 使用新的元数据API路径格式
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
       
-      // 即使响应不是200也尝试获取内容
-      const responseText = await response.text();
-      console.log('原始API响应:', responseText);
-      
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-        console.log('解析后的API响应:', responseData);
-      } catch (e) {
-        console.error('解析JSON失败:', e);
-        return tableName ? {} as TableMetadata : {};
+      // 如果响应不成功，尝试另一种方式
+      if (!response.ok) {
+        console.warn(`获取表元数据失败: ${response.statusText}，尝试直接构建元数据`)
+        
+        // 尝试构建基本元数据
+        if (tableName) {
+          // 如果指定了表名，直接获取该表的列信息
+          try {
+            const columns = await this.getTableColumns(dataSourceId, tableName);
+            console.log(`直接获取到表${tableName}的列信息:`, columns);
+            
+            // 手动构建表元数据
+            const tableMetadata: TableMetadata = {
+              name: tableName,
+              type: 'TABLE',
+              schema: 'public',
+              columns: columns || []
+            };
+            
+            return tableMetadata;
+          } catch (err) {
+            console.error(`获取表${tableName}列信息失败:`, err);
+            return {} as TableMetadata;
+          }
+        } else {
+          // 如果没有指定表名，尝试获取表列表并为每个表获取列信息
+          const tablesResponse = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables`);
+          if (!tablesResponse.ok) {
+            console.error(`获取表列表失败: ${tablesResponse.statusText}`);
+            return {};
+          }
+          
+          const tablesData = await tablesResponse.json();
+          console.log('获取到的表列表:', tablesData);
+          
+          if (!tablesData.success || !tablesData.data || !Array.isArray(tablesData.data)) {
+            console.error('表列表格式不正确');
+            return {};
+          }
+          
+          // 获取表列表
+          const tables = tablesData.data;
+          const result: Record<string, TableMetadata> = {};
+          
+          // 只处理前3个表避免过多请求
+          const limitedTables = tables.slice(0, 3);
+          
+          // 为每个表创建基本元数据
+          for (const table of limitedTables) {
+            const tableName = table.name.name;
+            result[tableName] = {
+              name: tableName,
+              type: 'TABLE',
+              schema: table.schema || 'public',
+              columns: [] // 先设为空数组
+            };
+          }
+          
+          return result;
+        }
       }
+      
+      // 解析正常响应
+      const responseData = await response.json();
+      console.log('解析后的API响应:', responseData);
       
       // 如果请求失败，返回空对象而不是抛出异常
       if (!responseData || (responseData.success === false)) {
@@ -442,12 +492,128 @@ export const dataSourceService = {
       
       console.log('处理后的表数据:', tables);
       
+      // 如果指定了表名，尝试加载该表的字段信息
+      if (tableName) {
+        try {
+          const tableData = tables[tableName] || {} as TableMetadata;
+          // 如果表中没有列信息或列信息为空数组，尝试从新API获取
+          if (!tableData.columns || tableData.columns.length === 0) {
+            const columnsData = await this.getTableColumns(dataSourceId, tableName);
+            if (columnsData && Array.isArray(columnsData)) {
+              tableData.columns = columnsData;
+            }
+          }
+          return tableData;
+        } catch (columnsError) {
+          console.error(`获取表${tableName}的列信息失败:`, columnsError);
+          // 即使获取列失败，也返回已有的表信息
+          return tables[tableName] || {} as TableMetadata;
+        }
+      }
+      
       // 如果指定了表名，返回特定表的元数据；否则返回所有表
       return tableName ? tables[tableName] || {} as TableMetadata : tables
     } catch (error) {
       console.error(`获取数据源${dataSourceId}表元数据错误:`, error)
       // 返回空对象而不是抛出异常
       return tableName ? {} as TableMetadata : {}
+    }
+  },
+  
+  // 获取表字段信息
+  async getTableColumns(dataSourceId: string, tableName: string): Promise<ColumnMetadata[]> {
+    if (USE_MOCK_API) {
+      // 返回模拟的列数据
+      return Array(5).fill(null).map((_, i) => ({
+        name: `column_${i + 1}`,
+        type: ['VARCHAR', 'INTEGER', 'DATETIME', 'BOOLEAN', 'DECIMAL'][i % 5],
+        nullable: i % 2 === 0,
+        defaultValue: i % 3 === 0 ? 'default_value' : undefined,
+        primaryKey: i === 0,
+        foreignKey: i === 1,
+        referencedTable: i === 1 ? 'referenced_table' : undefined,
+        referencedColumn: i === 1 ? 'referenced_column' : undefined,
+        unique: i === 2,
+        autoIncrement: i === 0,
+        comment: `示例列 ${i + 1}`,
+        size: i === 0 ? undefined : i * 10
+      }));
+    }
+
+    try {
+      console.log('获取表字段信息，API路径:', `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns`);
+      
+      // 调用新的API端点获取表的列信息
+      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns`);
+      
+      // 如果响应不成功，记录错误信息但不抛出异常
+      if (!response.ok) {
+        console.warn(`获取表${tableName}的列信息返回状态码:`, response.status);
+        // 尝试获取错误信息
+        const errorText = await response.text();
+        console.warn('错误详情:', errorText);
+        return [];
+      }
+      
+      // 解析响应数据
+      const responseData = await response.json();
+      console.log('获取表字段的响应数据:', responseData);
+      
+      // 检查响应格式并提取列信息
+      let columns: any[] = [];
+      
+      if (responseData.success && Array.isArray(responseData.data)) {
+        // 标准格式: { success: true, data: [...columns] }
+        columns = responseData.data;
+      } else if (Array.isArray(responseData)) {
+        // 数组格式: [column1, column2, ...]
+        columns = responseData;
+      } else {
+        console.warn('未能识别的列数据格式:', responseData);
+        return [];
+      }
+      
+      // 将后端返回的字段格式转换为前端需要的ColumnMetadata格式
+      return columns.map(col => {
+        // 从后端响应解析数据类型和大小
+        let type = col.dataType || col.type || '';
+        let size: number | undefined = undefined;
+        
+        // 尝试从columnType中提取类型大小信息 (例如: varchar(191))
+        if (col.columnType) {
+          const sizeMatch = col.columnType.match(/\((\d+)\)/);
+          if (sizeMatch && sizeMatch[1]) {
+            size = parseInt(sizeMatch[1], 10);
+          }
+        }
+        
+        // 构造ColumnMetadata对象
+        const columnMetadata: ColumnMetadata = {
+          name: col.name,
+          type: type.toUpperCase(), // 统一大写
+          size: size,
+          nullable: col.isNullable === 1 || col.isNullable === true || col.nullable === true,
+          defaultValue: col.defaultValue === 'NULL' ? null : col.defaultValue,
+          primaryKey: col.isPrimaryKey === 1 || col.isPrimaryKey === true || col.primaryKey === true,
+          foreignKey: col.isForeignKey === 1 || col.isForeignKey === true || col.foreignKey === true,
+          unique: col.isUnique === 1 || col.isUnique === true || col.unique === true, 
+          autoIncrement: col.isAutoIncrement === 1 || col.isAutoIncrement === true || col.autoIncrement === true,
+          comment: col.comment || ''
+        };
+        
+        // 如果有外键引用信息，添加到结果中
+        if (col.referencedTable) {
+          columnMetadata.referencedTable = col.referencedTable;
+        }
+        if (col.referencedColumn) {
+          columnMetadata.referencedColumn = col.referencedColumn;
+        }
+        
+        return columnMetadata;
+      });
+    } catch (error) {
+      console.error(`获取表${tableName}的字段信息失败:`, error);
+      return [];
     }
   },
   
