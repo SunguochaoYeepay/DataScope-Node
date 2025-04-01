@@ -35,7 +35,7 @@ export default defineConfig({
     },
     cors: true, // 启用CORS
     headers: {
-      // 设置正确的CSP策略
+      // 更新CSP策略，确保允许本地样式加载
       'Content-Security-Policy': "default-src 'self' http://localhost:5000; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:5000 ws://localhost:5000"
     }
   },

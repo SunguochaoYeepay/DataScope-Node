@@ -499,35 +499,69 @@ const canExecuteQuery = computed(() => {
 // 从ID加载查询
 const loadQueryById = async (queryId: string) => {
   isLoadingQuery.value = true
+  statusMessage.value = '正在加载查询...'
   
   try {
-    await queryStore.getQuery(queryId)
-    // 从store中查找查询
-    const query = queryStore.queryHistory.find(q => q.id === queryId)
+    // 尝试直接获取查询详情
+    let query = await queryStore.getQuery(queryId)
     
-    if (query) {
-      selectedDataSourceId.value = query.dataSourceId
-      queryName.value = query.name || '未命名查询'
+    // 如果没有通过getQuery获取到，尝试从历史列表中查找
+    if (!query) {
+      console.log('从direct API未找到查询，尝试从历史列表查找')
       
-      // 检查是否是收藏的查询
-      isFavorite.value = queryStore.favorites.some(fav => fav.queryId === queryId)
-      
-      if (query.queryType === 'SQL') {
-        activeTab.value = 'editor'
-        sqlQuery.value = query.queryText
-      } else {
-        activeTab.value = 'nlq'
-        nlQuery.value = query.queryText
+      // 确保历史列表已加载
+      if (queryStore.queryHistory.length === 0) {
+        await queryStore.fetchQueryHistory()
       }
       
-      // 如果查询有结果，可以尝试加载结果
-      if (query.status === 'COMPLETED') {
-        // 直接执行查询而不是获取结果，因为这样可以同时获取结果
-        await executeQuery()
+      // 从历史列表查找
+      query = queryStore.queryHistory.find(q => q.id === queryId) || null
+      
+      if (!query) {
+        console.log('从历史列表也未找到查询，尝试获取查询列表')
+        
+        // 尝试从查询列表查找
+        const queries = await queryStore.fetchQueries()
+        query = queries.find(q => q.id === queryId) || null
+        
+        if (!query) {
+          throw new Error(`未找到ID为 ${queryId} 的查询`)
+        }
       }
+    }
+    
+    console.log('成功加载查询:', query)
+    
+    // 设置查询详情
+    currentQueryId.value = query.id
+    selectedDataSourceId.value = query.dataSourceId
+    queryName.value = query.name || '未命名查询'
+    
+    // 检查是否是收藏的查询
+    isFavorite.value = queryStore.favorites.some(fav => fav.queryId === queryId)
+    
+    // 根据查询类型设置对应的查询内容
+    if (query.queryType === 'SQL' || !query.queryType) {
+      activeTab.value = 'editor'
+      sqlQuery.value = query.queryText
+    } else if (query.queryType === 'NATURAL_LANGUAGE') {
+      activeTab.value = 'nlq'
+      nlQuery.value = query.queryText
+    }
+    
+    statusMessage.value = '查询加载成功'
+    setTimeout(() => {
+      statusMessage.value = null
+    }, 3000)
+    
+    // 如果查询有执行结果，获取结果
+    if (query.status === 'COMPLETED' && query.resultCount) {
+      // 如果需要，可以通过executeQuery重新执行查询
+      // await executeQuery(query.queryType)
     }
   } catch (error) {
     console.error('加载查询失败:', error)
+    queryError.value = error instanceof Error ? error.message : '加载查询失败'
     statusMessage.value = '加载查询失败'
     setTimeout(() => {
       statusMessage.value = null

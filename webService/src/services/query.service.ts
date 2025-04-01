@@ -6,6 +6,7 @@ import logger from '../utils/logger';
 import { QueryPlanService } from '../database-core/query-plan/query-plan-service';
 import config from '../config';
 import { v4 as uuidv4 } from 'uuid';
+import { createPaginatedResponse, offsetToPage } from '../utils/api.utils';
 
 const prisma = new PrismaClient();
 
@@ -287,10 +288,14 @@ export class QueryService {
     limit: number = 20,
     offset: number = 0
   ): Promise<{
-    history: any[];
-    total: number;
-    limit: number;
-    offset: number;
+    items: any[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
   }> {
     try {
       const where = dataSourceId ? { dataSourceId } : {};
@@ -305,12 +310,9 @@ export class QueryService {
         prisma.queryPlanHistory.count({ where })
       ]);
       
-      return {
-        history,
-        total,
-        limit,
-        offset
-      };
+      const { page, pageSize } = offsetToPage(offset, limit);
+      
+      return createPaginatedResponse(history, total, page, pageSize);
     } catch (error) {
       logger.error('获取查询计划历史记录列表失败', { error, dataSourceId });
       throw new ApiError('获取查询计划历史记录列表失败', 500);
@@ -463,7 +465,9 @@ export class QueryService {
       });
       
       if (!query) {
-        throw new ApiError('查询不存在', 404);
+        const error = new ApiError('查询不存在', 404);
+        error.errorCode = ERROR_CODES.RESOURCE_NOT_FOUND;
+        throw error;
       }
       
       return query;
@@ -562,10 +566,14 @@ export class QueryService {
     limit: number = 50,
     offset: number = 0
   ): Promise<{
-    history: QueryHistory[];
-    total: number;
-    limit: number;
-    offset: number;
+    items: QueryHistory[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
   }> {
     try {
       const where = dataSourceId ? { dataSourceId } : {};
@@ -580,12 +588,9 @@ export class QueryService {
         prisma.queryHistory.count({ where })
       ]);
       
-      return {
-        history,
-        total,
-        limit,
-        offset
-      };
+      const { page, pageSize } = offsetToPage(offset, limit);
+      
+      return createPaginatedResponse(history, total, page, pageSize);
     } catch (error) {
       logger.error('获取查询历史记录列表失败', { error, dataSourceId });
       throw new ApiError('获取查询历史记录列表失败', 500);

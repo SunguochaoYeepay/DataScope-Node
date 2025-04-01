@@ -13,11 +13,14 @@ import type {
   QuerySuggestion,
   QueryExecutionPlan,
   QueryVisualization,
-  ChartConfig
+  ChartConfig,
+  Pagination,
+  PageResponse
 } from '@/types/query'
-import { queryService, isUsingMockApi } from '@/services/query'
+import { queryService, isUsingMockApi, getApiBaseUrl } from '@/services/query'
 import { message } from '@/services/message'
 import { loading } from '@/services/loading'
+import { getErrorMessage } from '@/utils/error'
 
 // 查询参数接口
 export interface FetchQueryParams {
@@ -84,11 +87,12 @@ export const useQueryStore = defineStore('query', () => {
   const executionPlan = ref<QueryExecutionPlan | null>(null)
   const suggestions = ref<QuerySuggestion[]>([])
   const visualization = ref<QueryVisualization | null>(null)
-  const pagination = ref({
+  const pagination = ref<Pagination>({
     total: 0,
     page: 1,
     size: 10,
-    totalPages: 0
+    totalPages: 0,
+    hasMore: false
   })
   const isExecuting = ref(false)
   const isLoadingHistory = ref(false)
@@ -288,30 +292,67 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
   
-  // 加载查询历史
-  const fetchQueryHistory = async (params: QueryHistoryParams = {}) => {
-    isLoadingHistory.value = true
-    
+  // 获取查询历史
+  const fetchQueryHistory = async (params: QueryHistoryParams = { page: 1, size: 10 }) => {
     try {
-      const response = await queryService.getQueryHistory({
-        ...params,
-        page: params.page || pagination.value.page,
-        size: params.size || pagination.value.size
-      })
+      isLoadingHistory.value = true
+      error.value = null
+      console.log('查询历史请求参数:', params)
       
-      queryHistory.value = response.items
-      pagination.value = {
-        total: response.total,
-        page: response.page,
-        size: response.size,
-        totalPages: response.totalPages
+      // 确保params中至少有page和size参数
+      const safeParams: QueryHistoryParams = {
+        page: params.page || 1,
+        size: params.size || 10,
+        ...params
       }
       
-      return response
+      // 调用API获取查询历史
+      const result = await queryService.getQueryHistory(safeParams)
+      console.log('查询历史结果:', {
+        items: result.items?.length,
+        page: result.page,
+        totalItems: result.total,
+        totalPages: result.totalPages
+      })
+      
+      // 将查询历史数据存储到store
+      queryHistory.value = result.items || []
+      
+      // 更新分页信息
+      pagination.value = {
+        page: result.page || 1,
+        size: result.size || 10,
+        total: result.total || 0,
+        totalPages: result.totalPages || 1,
+        hasMore: result.totalPages ? (result.page < result.totalPages) : false
+      }
+      
+      console.log('查询历史加载完成, 共 ' + queryHistory.value.length + ' 条记录')
+      return result
     } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      console.error('加载查询历史失败', error.value)
-      return null
+      console.error('获取查询历史失败:', err)
+      
+      // 使用工具函数获取错误消息
+      let errorMessage = ''
+      if (err instanceof Error) {
+        errorMessage = err.message
+      } else if (typeof err === 'string') {
+        errorMessage = err
+      } else {
+        errorMessage = '未知错误'
+      }
+      
+      // 将错误消息创建为Error对象存储
+      error.value = new Error(errorMessage)
+      
+      // 返回空结果
+      return {
+        items: [],
+        page: 1,
+        size: 10,
+        total: 0,
+        totalPages: 0
+      }
     } finally {
       isLoadingHistory.value = false
     }
@@ -540,13 +581,35 @@ export const useQueryStore = defineStore('query', () => {
     try {
       loading.show(`正在导出为 ${format.toUpperCase()} 格式...`)
       
-      await queryService.exportQueryResults(queryId, format)
+      // 使用自定义实现，如果API不支持
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/export?format=${format}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`导出失败: ${response.statusText}`);
+      }
+      
+      // 处理响应，下载文件
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `query-${queryId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
       
       message.success(`查询结果已导出为 ${format.toUpperCase()} 格式`)
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error(`导出查询结果失败: ${error.value.message}`)
+      message.error(`导出为 ${format.toUpperCase()} 格式失败`)
       return false
     } finally {
       loading.hide()
@@ -632,31 +695,98 @@ export const useQueryStore = defineStore('query', () => {
   // 获取查询列表
   const fetchQueries = async (params?: FetchQueryParams) => {
     try {
-      console.log('Query store: fetchQueries called with params:', params);
+      loading.show('加载查询列表...')
       
-      const result = await queryService.getQueryHistory({
-        dataSourceId: params?.dataSourceId,
-        queryType: params?.queryType as any,
-        page: params?.page || 0,
-        size: params?.size || 100
-      });
+      // 直接构建查询参数
+      const queryParams = new URLSearchParams();
+      if (params?.queryType) {
+        queryParams.append('queryType', params.queryType);
+      }
+      if (params?.dataSourceId) {
+        queryParams.append('dataSourceId', params.dataSourceId);
+      }
+      if (params?.search) {
+        queryParams.append('search', params.search);
+      }
+      if (params?.page) {
+        queryParams.append('page', params.page.toString());
+      }
+      if (params?.size) {
+        queryParams.append('size', params.size.toString());
+      }
       
-      console.log('Query store: fetchQueries result:', result);
+      // 构建API URL
+      const url = `${getApiBaseUrl()}/api/queries?${queryParams.toString()}`;
       
-      // 确保每个查询都有name属性
-      const queriesWithNames = result.items.map(query => {
-        if (!query.name) {
-          return { ...query, name: `查询 ${query.id}` };
+      // 执行请求
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
         }
-        return query;
       });
       
-      console.log('Query store: queriesWithNames:', queriesWithNames);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch queries: ${response.statusText}`);
+      }
       
-      return queriesWithNames;
+      const responseData = await response.json();
+      
+      // 处理标准API响应格式
+      if (!responseData.success) {
+        throw new Error(`API returned error: ${responseData.message || 'Unknown error'}`);
+      }
+      
+      // 提取数据并转换为前端Query对象
+      const data = responseData.data || [];
+      const items = Array.isArray(data) ? data : (data.items || []);
+      
+      // 映射为标准Query对象
+      const result = items.map((item: any) => ({
+        id: item.id,
+        name: item.name || `Query ${item.id.substring(0, 8)}`,
+        dataSourceId: item.dataSourceId,
+        queryType: item.queryType || 'SQL',
+        queryText: item.sqlContent || item.sql || '',
+        status: item.status || 'COMPLETED',
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        executionTime: item.executionTime,
+        resultCount: item.resultCount || 0,
+        error: item.error,
+        isFavorite: item.isFavorite || false,
+        description: item.description || '',
+        tags: item.tags || []
+      }));
+      
+      // 更新store
+      queryHistory.value = result;
+      
+      // 如果有分页信息，更新分页状态
+      if (data.pagination || data.total) {
+        const total = data.pagination?.total || data.total || result.length;
+        const page = data.pagination?.page || data.page || (params?.page || 1);
+        const size = data.pagination?.size || data.size || (params?.size || 10);
+        const totalPages = data.pagination?.totalPages || data.totalPages || Math.ceil(total / size);
+        
+        pagination.value = {
+          total,
+          page,
+          size,
+          totalPages,
+          hasMore: page < totalPages
+        };
+      }
+      
+      message.success(`已加载 ${result.length} 个查询`);
+      return result;
     } catch (err) {
-      console.error('获取查询列表失败', err);
-      return [];
+      error.value = err instanceof Error ? err : new Error(String(err))
+      message.error('加载查询列表失败')
+      console.error('加载查询列表失败:', err)
+      return []
+    } finally {
+      loading.hide()
     }
   };
   

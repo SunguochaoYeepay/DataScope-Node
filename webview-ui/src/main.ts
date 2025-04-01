@@ -6,6 +6,8 @@ import './plugins/dayjs'
 
 import App from './App.vue'
 import router from './router'
+
+// 导入自定义样式，确保Tailwind可以正确应用
 import './styles/index.css'
 import { initQueryTemplates } from './services/queryTemplates'
 
@@ -25,10 +27,11 @@ import './plugins/echarts'
 // 初始化查询模板
 initQueryTemplates()
 
+// 创建应用实例
 const app = createApp(App)
 
+// 使用插件
 app.use(createPinia())
 app.use(router)
-app.use(Antd, { locale: zhCN }) // 应用中文配置
-
+app.use(Antd)
 app.mount('#app')

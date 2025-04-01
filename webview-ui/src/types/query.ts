@@ -133,6 +133,15 @@ export interface PageResponse<T> {
   hasMore?: boolean
 }
 
+// 分页信息
+export interface Pagination {
+  total: number
+  page: number
+  size: number
+  totalPages: number
+  hasMore: boolean
+}
+
 // SQL执行计划
 export interface QueryExecutionPlan {
   id: string

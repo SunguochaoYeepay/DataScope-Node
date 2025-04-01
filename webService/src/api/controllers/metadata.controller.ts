@@ -643,7 +643,7 @@ class MetadataController {
         res.json({
           success: true,
           data: {
-            rows,
+            items: rows,
             columns,
             pagination: {
               page,

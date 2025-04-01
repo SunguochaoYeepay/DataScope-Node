@@ -324,7 +324,32 @@ export class QueryController {
         data: query
       });
     } catch (error: any) {
-      next(error);
+      logger.error('获取查询失败', { error, id: req.params.id });
+      
+      // 处理特定类型的错误
+      if (error instanceof ApiError) {
+        // 处理资源不存在的情况
+        if (error.statusCode === 404 || error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
+          return res.status(404).json({
+            success: false,
+            message: '查询不存在',
+            errorCode: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND
+          });
+        }
+        
+        // 其他API错误
+        return res.status(error.statusCode || 500).json({
+          success: false,
+          message: error.message,
+          errorCode: error.errorCode
+        });
+      }
+      
+      // 未知错误处理
+      return res.status(500).json({
+        success: false,
+        message: error.message || '获取查询时发生未知错误'
+      });
     }
   }
 

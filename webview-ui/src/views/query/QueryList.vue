@@ -215,13 +215,42 @@ const pageSize = ref(10);
 
 // Fetch data
 onMounted(async () => {
-  if (dataSourceStore.dataSources.length === 0) {
-    await dataSourceStore.fetchDataSources();
-  }
+  loading.value = true;
   
-  await queryStore.fetchQueryHistory();
-  await queryStore.getFavorites();
-  loading.value = false;
+  try {
+    // 加载数据源，如果尚未加载
+    if (dataSourceStore.dataSources.length === 0) {
+      await dataSourceStore.fetchDataSources();
+      console.log('Data sources loaded:', dataSourceStore.dataSources);
+    }
+    
+    // 使用try-catch包装每个API调用，防止一个失败影响后续操作
+    try {
+      // 直接加载查询历史，添加详细日志
+      await queryStore.fetchQueryHistory({
+        page: 1,
+        size: 10
+      });
+      console.log('Query history loaded, records:', queryStore.queryHistory?.length || 0);
+    } catch (err) {
+      console.error('Failed to load query history:', err);
+      // 失败时使用空数组初始化，防止UI错误
+      queryStore.queryHistory = [];
+    }
+    
+    // 尝试加载收藏
+    try {
+      await queryStore.getFavorites();
+      console.log('Favorites loaded:', queryStore.favorites?.length || 0);
+    } catch (err) {
+      console.error('Failed to load favorites:', err);
+    }
+  } catch (err) {
+    console.error('Error during page initialization:', err);
+  } finally {
+    loading.value = false;
+    console.log('Page loading completed');
+  }
 });
 
 // Computed properties

@@ -22,6 +22,11 @@
 - 数据库关系定义优化
 
 ### 修复
+- **查询不存在错误返回500问题**: 修复了尝试获取不存在的查询时错误返回500的问题
+  - 修改了`getQueryById`控制器方法，正确处理404错误
+  - 当查询不存在时返回404状态码，而不是内部服务器错误(500)
+  - 明确设置错误代码为`RESOURCE_NOT_FOUND`，提供更具体的错误信息
+  - 解决了前端在访问不存在查询时遇到的内部服务器错误
 - **错误处理中间件状态码问题**: 修复了错误处理中间件中的状态码问题，防止非法HTTP状态码导致的"Invalid status code"错误
   - 添加状态码验证，确保返回的是有效的HTTP状态码(100-599)
   - 统一错误响应格式，包含error对象结构(code, message, details)
@@ -83,6 +88,18 @@
 
 ### Fixed
 - 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
+
+### 变更
+- **API响应格式标准化**：统一分页列表API的响应格式
+  - 所有分页数据统一使用 `items` 字段返回数据项（原先部分API使用 `rows` 或 `history`）
+  - 所有分页信息统一封装在 `pagination` 对象中
+  - 分页信息包含: `page`, `pageSize`, `total`, `totalPages`, `hasMore`
+  - 受影响的API:
+    - `GET /api/queries/history` - 查询历史列表（将 `history` 改为 `items`）
+    - `GET /api/queries/plans` - 查询计划历史（将 `history` 改为 `items`）
+    - `GET /api/metadata/:dataSourceId/tables/:tableName/data` - 表数据预览（将 `rows` 改为 `items`）
+  - 创建了工具函数统一处理分页响应格式
+  - 注意：此变更需要前端对应修改，以适应新的数据结构
 
 ## [1.0.9] - 2024-05-07
 

@@ -46,7 +46,7 @@
             </div>
             <input
               type="text"
-              v-model="filters.keyword"
+              v-model="filters.searchTerm"
               @input="debounceSearch"
               class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               placeholder="搜索查询名称或内容..."
@@ -146,7 +146,7 @@
       </div>
       
       <!-- 无结果 -->
-      <div v-else-if="!filteredQueries.length" class="h-64 flex items-center justify-center">
+      <div v-else-if="!queries.length" class="h-64 flex items-center justify-center">
         <div class="text-center text-gray-500">
           <i class="fas fa-history text-gray-400 text-3xl mb-2"></i>
           <p>没有查询历史</p>
@@ -158,7 +158,7 @@
       <div v-else>
         <div class="grid grid-cols-1 gap-4">
           <div 
-            v-for="query in filteredQueries" 
+            v-for="query in queries" 
             :key="query.id"
             class="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow p-4"
           >
@@ -255,7 +255,7 @@
         <div class="mt-6">
           <div class="flex items-center justify-between">
             <div class="text-sm text-gray-700">
-              显示 <span class="font-medium">{{ (currentPage - 1) * 10 + 1 }}</span> 到 <span class="font-medium">{{ Math.min(currentPage * 10, queryStore.pagination?.total || 0) }}</span> 共 <span class="font-medium">{{ queryStore.pagination?.total || 0 }}</span> 条结果
+              显示 <span class="font-medium">{{ (currentPage - 1) * 10 + 1 }}</span> 到 <span class="font-medium">{{ Math.min(currentPage * 10, totalItems) }}</span> 共 <span class="font-medium">{{ totalItems }}</span> 条结果
             </div>
             <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
               <!-- 上一页按钮 -->
@@ -329,416 +329,441 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted, reactive, watch } from 'vue'
+<script lang="ts">
+import { defineComponent, ref, computed, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
-import type { Query, QueryStatus, QueryType } from '@/types/query'
-import { message } from '@/services/message'
+import { formatDateTime, formatDuration } from '@/utils/formatters'
+import Icon from '@/components/common/Icon.vue'
+import Button from '@/components/common/Button.vue'
+import Modal from '@/components/common/Modal.vue'
+import Pagination from '@/components/common/Pagination.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
+import DateRangePicker, { DateRange } from '@/components/common/DateRangePicker.vue'
+import type { Query, QueryHistoryParams, QueryStatus } from '@/types/query'
+import message from '@/types/message/index'
 
-const queryStore = useQueryStore()
-const router = useRouter()
-
-// 加载状态
-const isLoading = ref(true)
-const isLoadingMore = ref(false)
-
-// 筛选条件
-const filters = reactive({
-  keyword: '',
-  queryType: '',
-  status: '',
-  startDate: '',
-  endDate: ''
-})
-
-// 日期范围预设
-const dateRangePreset = ref('24h')
-
-// 分页
-const currentPage = computed(() => queryStore.pagination?.page || 1)
-const totalPages = computed(() => queryStore.pagination?.totalPages || 1)
-
-// 确认删除
-const showDeleteConfirm = ref(false)
-const queryToDelete = ref<Query | null>(null)
-
-// 监听日期范围预设变化
-watch(dateRangePreset, (value) => {
-  if (value !== 'custom') {
-    const now = new Date()
-    const endDate = now.toISOString().split('T')[0]
-    let startDate = ''
+export default defineComponent({
+  components: {
+    Icon,
+    Button,
+    Modal,
+    Pagination,
+    StatusBadge,
+    DateRangePicker
+  },
+  setup() {
+    const router = useRouter()
+    const queryStore = useQueryStore()
     
-    switch (value) {
-      case '24h':
-        now.setDate(now.getDate() - 1)
-        startDate = now.toISOString().split('T')[0]
-        break
-      case '7d':
-        now.setDate(now.getDate() - 7)
-        startDate = now.toISOString().split('T')[0]
-        break
-      case '30d':
-        now.setDate(now.getDate() - 30)
-        startDate = now.toISOString().split('T')[0]
-        break
+    // 查询参数
+    const searchTerm = ref('')
+    const selectedQueryType = ref<string>('')
+    const selectedStatus = ref<string>('')
+    const dateRange = ref<[Date | null, Date | null]>([null, null])
+    const customDateRange = ref(false)
+    const page = ref(1)
+    const pageSize = ref(10)
+    const isLoading = ref(false)
+    const showDeleteConfirm = ref(false)
+    const queryToDelete = ref<Query | null>(null)
+    
+    // 防抖搜索
+    let searchTimeout: number | null = null
+    const debounceSearch = () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout)
+      }
+      searchTimeout = setTimeout(() => {
+        applyFilters()
+      }, 500) as unknown as number
     }
     
-    filters.startDate = startDate
-    filters.endDate = endDate
-  }
-})
-
-// 查询历史
-onMounted(async () => {
-  // 设置默认日期范围
-  const now = new Date()
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  
-  filters.startDate = yesterday.toISOString().split('T')[0]
-  filters.endDate = now.toISOString().split('T')[0]
-  
-  await loadQueryHistory()
-  isLoading.value = false
-})
-
-// 搜索防抖
-let searchTimeout: number | null = null
-const debounceSearch = () => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
-  
-  searchTimeout = window.setTimeout(() => {
-    applyFilters()
-    searchTimeout = null
-  }, 500) // 500ms延迟
-}
-
-// 加载查询历史
-const loadQueryHistory = async () => {
-  try {
-    await queryStore.fetchQueryHistory({
-      page: 1,
-      size: 10,
-      queryType: filters.queryType ? (filters.queryType as any) : undefined,
-      status: filters.status ? (filters.status as any) : undefined,
-      startDate: filters.startDate,
-      endDate: filters.endDate
+    // 计算属性: 当前页
+    const currentPage = computed({
+      get: () => page.value,
+      set: (val: number) => { page.value = val }
     })
     
-    // 获取收藏夹，以便标记已收藏的查询
-    await queryStore.getFavorites()
-  } catch (error) {
-    console.error('加载查询历史失败:', error)
-  }
-}
-
-// 刷新历史
-const refreshHistory = async () => {
-  isLoading.value = true
-  await loadQueryHistory()
-  isLoading.value = false
-}
-
-// 应用筛选条件
-const applyFilters = async () => {
-  isLoading.value = true
-  await loadQueryHistory()
-  isLoading.value = false
-}
-
-// 清除筛选条件
-const clearFilters = () => {
-  filters.keyword = ''
-  filters.queryType = ''
-  filters.status = ''
-  filters.startDate = ''
-  filters.endDate = ''
-  dateRangePreset.value = '24h'
-  applyFilters()
-}
-
-// 前一页
-const prevPage = async () => {
-  if (currentPage.value <= 1) return
-  
-  isLoading.value = true
-  
-  try {
-    await queryStore.fetchQueryHistory({
-      page: currentPage.value - 1,
-      size: 10,
-      queryType: filters.queryType ? (filters.queryType as any) : undefined,
-      status: filters.status ? (filters.status as any) : undefined,
-      startDate: filters.startDate,
-      endDate: filters.endDate
+    // 计算属性: 总页数
+    const totalPages = computed(() => {
+      return queryStore.pagination?.totalPages || 0
     })
-  } catch (error) {
-    console.error('加载前一页失败:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 下一页
-const nextPage = async () => {
-  if (!hasMorePages.value) return
-  
-  isLoading.value = true
-  
-  try {
-    await queryStore.fetchQueryHistory({
-      page: currentPage.value + 1,
-      size: 10,
-      queryType: filters.queryType ? (filters.queryType as any) : undefined,
-      status: filters.status ? (filters.status as any) : undefined,
-      startDate: filters.startDate,
-      endDate: filters.endDate
-    })
-  } catch (error) {
-    console.error('加载下一页失败:', error)
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 导出历史数据
-const exportHistoryData = () => {
-  // 创建CSV内容
-  const csvContent = [
-    // 表头
-    ['查询名称', '查询类型', '状态', '创建时间', '执行时间(ms)', '数据源', '查询文本'].join(','),
-    // 数据行
-    ...filteredQueries.value.map(query => [
-      (query.name || '未命名查询').replace(/,/g, ' '), // 避免逗号干扰CSV
-      query.queryType === 'SQL' ? 'SQL' : '自然语言',
-      getStatusDisplay(query.status),
-      formatDateTime(query.createdAt),
-      query.executionTime || 0,
-      query.dataSourceId,
-      `"${query.queryText.replace(/"/g, '""')}"` // 避免引号干扰，并用双引号包围
-    ].join(','))
-  ].join('\n')
-  
-  // 创建下载链接
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.setAttribute('download', `查询历史_${new Date().toISOString().split('T')[0]}.csv`)
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  
-  message.success('查询历史已导出为CSV文件')
-}
-
-// 编辑查询
-const editQuery = (query: Query) => {
-  router.push({
-    path: '/query/editor',
-    query: { id: query.id }
-  })
-}
-
-// 收藏/取消收藏
-const toggleFavorite = async (query: Query) => {
-  try {
-    if (query.isFavorite) {
-      await queryStore.unfavoriteQuery(query.id)
-    } else {
-      await queryStore.favoriteQuery(query.id)
-    }
     
-    // 更新本地状态
-    query.isFavorite = !query.isFavorite
-  } catch (error) {
-    console.error('收藏操作失败:', error)
-  }
-}
-
-// 查看查询详情
-const viewQueryDetail = (query: Query) => {
-  router.push(`/query/detail/${query.id}`)
-}
-
-// 查看查询分析
-const viewQueryAnalytics = (query: Query) => {
-  router.push(`/query/analytics/${query.id}`)
-}
-
-// 确认删除查询
-const confirmDelete = (query: Query) => {
-  queryToDelete.value = query
-  showDeleteConfirm.value = true
-}
-
-// 删除查询
-const deleteQuery = async () => {
-  if (!queryToDelete.value) return
-  
-  try {
-    await queryStore.deleteQuery(queryToDelete.value.id)
-    showDeleteConfirm.value = false
-    queryToDelete.value = null
-    
-    // 刷新列表
-    await refreshHistory()
-  } catch (error) {
-    console.error('删除查询失败:', error)
-  }
-}
-
-// 计算属性：过滤后的查询列表
-const filteredQueries = computed(() => {
-  let result = queryStore.queryHistory
-
-  // 如果有关键字筛选
-  if (filters.keyword) {
-    const keyword = filters.keyword.toLowerCase()
-    result = result.filter(q => 
-      (q.name || '').toLowerCase().includes(keyword) ||
-      q.queryText.toLowerCase().includes(keyword)
-    )
-  }
-  
-  return result
-})
-
-// 计算属性：是否有更多页面
-const hasMorePages = computed(() => {
-  return queryStore.pagination && queryStore.pagination.page < queryStore.pagination.totalPages
-})
-
-// 获取查询状态样式类
-const getStatusClass = (status: QueryStatus) => {
-  switch (status) {
-    case 'COMPLETED':
-      return 'bg-green-100 text-green-800'
-    case 'RUNNING':
-      return 'bg-blue-100 text-blue-800'
-    case 'FAILED':
-      return 'bg-red-100 text-red-800'
-    case 'CANCELLED':
-      return 'bg-gray-100 text-gray-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
-
-// 获取查询状态显示文本
-const getStatusDisplay = (status: QueryStatus) => {
-  switch (status) {
-    case 'COMPLETED':
-      return '完成'
-    case 'RUNNING':
-      return '运行中'
-    case 'FAILED':
-      return '失败'
-    case 'CANCELLED':
-      return '已取消'
-    default:
-      return status
-  }
-}
-
-// 格式化日期时间
-const formatDateTime = (dateString: string) => {
-  if (!dateString) return ''
-  
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-// 格式化执行时间
-const formatExecutionTime = (ms: number | undefined) => {
-  if (!ms) return '0 ms'
-  
-  if (ms < 1000) {
-    return `${ms} ms`
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(2)} 秒`
-  } else {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = ((ms % 60000) / 1000).toFixed(2)
-    return `${minutes} 分 ${seconds} 秒`
-  }
-}
-
-// 获取页码按钮
-const getPageNumbers = () => {
-  const total = queryStore.pagination?.totalPages || 1
-  const current = currentPage.value
-  
-  // 如果总页数较少，全部显示
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, i) => (i + 1).toString())
-  }
-  
-  // 否则显示部分页码，带省略号
-  const result = []
-  
-  // 总是显示第一页
-  result.push('1')
-  
-  // 如果当前页靠近开始
-  if (current <= 4) {
-    for (let i = 2; i <= 5; i++) {
-      result.push(i.toString())
-    }
-    result.push('...')
-    result.push(total.toString())
-  } 
-  // 如果当前页靠近结束
-  else if (current >= total - 3) {
-    result.push('...')
-    for (let i = total - 4; i < total; i++) {
-      result.push(i.toString())
-    }
-  } 
-  // 如果当前页在中间
-  else {
-    result.push('...')
-    for (let i = current - 1; i <= current + 1; i++) {
-      result.push(i.toString())
-    }
-    result.push('...')
-    result.push(total.toString())
-  }
-  
-  return result
-}
-
-// 跳转到指定页码
-const goToPage = async (page: number) => {
-  if (page < 1 || (queryStore.pagination && page > queryStore.pagination.totalPages)) return
-  
-  isLoading.value = true
-  
-  try {
-    await queryStore.fetchQueryHistory({
-      page: page,
-      size: 10,
-      queryType: filters.queryType ? (filters.queryType as any) : undefined,
-      status: filters.status ? (filters.status as any) : undefined,
-      startDate: filters.startDate,
-      endDate: filters.endDate
+    // 计算属性: 总记录数
+    const totalItems = computed(() => {
+      return queryStore.pagination?.total || 0
     })
-  } catch (error) {
-    console.error('跳转到指定页码失败:', error)
-  } finally {
-    isLoading.value = false
+    
+    // 计算属性: 当前页查询列表
+    const queries = computed(() => {
+      return queryStore.queryHistory || []
+    })
+    
+    // 计算属性: 是否可以查看上一页
+    const canGoToPrevPage = computed(() => {
+      return currentPage.value > 1
+    })
+    
+    // 计算属性: 是否可以查看下一页
+    const canGoToNextPage = computed(() => {
+      return currentPage.value < totalPages.value
+    })
+
+    // 筛选条件
+    const filters = reactive({
+      searchTerm: '',
+      queryType: '',
+      status: '',
+      startDate: '',
+      endDate: ''
+    })
+
+    // 日期范围预设
+    const dateRangePreset = ref('24h')
+
+    // 监听日期范围预设变化
+    watch(dateRangePreset, (newValue) => {
+      if (newValue !== 'custom') {
+        const now = new Date()
+        const endDate = now.toISOString().split('T')[0]
+        let startDate = ''
+        
+        switch (newValue) {
+          case '24h':
+            now.setDate(now.getDate() - 1)
+            startDate = now.toISOString().split('T')[0]
+            break
+          case '7d':
+            now.setDate(now.getDate() - 7)
+            startDate = now.toISOString().split('T')[0]
+            break
+          case '30d':
+            now.setDate(now.getDate() - 30)
+            startDate = now.toISOString().split('T')[0]
+            break
+        }
+        
+        filters.startDate = startDate
+        filters.endDate = endDate
+      }
+    })
+
+    // 加载查询历史
+    const loadQueryHistory = async () => {
+      try {
+        isLoading.value = true
+        
+        // 构建查询参数对象
+        const params = {
+          page: currentPage.value,
+          size: 10,
+          queryType: filters.queryType ? (filters.queryType as any) : undefined,
+          status: filters.status ? (filters.status as any) : undefined,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          searchTerm: filters.searchTerm
+        };
+        
+        console.log('Loading history with params:', params);
+        
+        // 调用store方法获取查询历史
+        await queryStore.fetchQueryHistory(params);
+        
+        console.log('History loaded:', {
+          totalQueries: queryStore.queryHistory.length,
+          pagination: queryStore.pagination
+        });
+        
+        // 获取收藏夹，以便标记已收藏的查询
+        await queryStore.getFavorites();
+      } catch (error) {
+        console.error('加载查询历史失败:', error);
+      } finally {
+        isLoading.value = false;
+      }
+    }
+
+    // 刷新历史
+    const refreshHistory = async () => {
+      isLoading.value = true
+      await loadQueryHistory()
+      isLoading.value = false
+    }
+
+    // 应用筛选条件
+    const applyFilters = async () => {
+      isLoading.value = true
+      await loadQueryHistory()
+      isLoading.value = false
+    }
+
+    // 清除筛选条件
+    const clearFilters = () => {
+      filters.searchTerm = ''
+      filters.queryType = ''
+      filters.status = ''
+      filters.startDate = ''
+      filters.endDate = ''
+      dateRangePreset.value = '24h'
+      applyFilters()
+    }
+
+    // 前一页
+    const prevPage = async () => {
+      if (currentPage.value <= 1) return;
+      
+      page.value -= 1;
+      await loadQueryHistory();
+    }
+
+    // 下一页
+    const nextPage = async () => {
+      if (currentPage.value >= totalPages.value) return;
+      
+      page.value += 1;
+      await loadQueryHistory();
+    }
+
+    // 导出历史数据
+    const exportHistoryData = () => {
+      // 创建CSV内容
+      const csvContent = [
+        // 表头
+        ['查询名称', '查询类型', '状态', '创建时间', '执行时间(ms)', '数据源', '查询文本'].join(','),
+        // 数据行
+        ...queries.value.map(query => [
+          (query.name || '未命名查询').replace(/,/g, ' '), // 避免逗号干扰CSV
+          query.queryType === 'SQL' ? 'SQL' : '自然语言',
+          getStatusDisplay(query.status),
+          formatDateTime(query.createdAt),
+          query.executionTime || 0,
+          query.dataSourceId,
+          `"${query.queryText.replace(/"/g, '""')}"` // 避免引号干扰，并用双引号包围
+        ].join(','))
+      ].join('\n')
+      
+      // 创建下载链接
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `查询历史_${new Date().toISOString().split('T')[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      message.success('查询历史已导出为CSV文件')
+    }
+
+    // 编辑查询
+    const editQuery = (query: Query) => {
+      router.push({
+        path: '/query/editor',
+        query: { id: query.id }
+      })
+    }
+
+    // 收藏/取消收藏
+    const toggleFavorite = async (query: Query) => {
+      try {
+        if (query.isFavorite) {
+          await queryStore.unfavoriteQuery(query.id)
+        } else {
+          await queryStore.favoriteQuery(query.id)
+        }
+        
+        // 更新本地状态
+        query.isFavorite = !query.isFavorite
+      } catch (error) {
+        console.error('收藏操作失败:', error)
+      }
+    }
+
+    // 查看查询详情
+    const viewQueryDetail = (query: Query) => {
+      router.push(`/query/detail/${query.id}`)
+    }
+
+    // 查看查询分析
+    const viewQueryAnalytics = (query: Query) => {
+      router.push(`/query/analytics/${query.id}`)
+    }
+
+    // 确认删除查询
+    const confirmDelete = (query: Query) => {
+      queryToDelete.value = query
+      showDeleteConfirm.value = true
+    }
+
+    // 删除查询
+    const deleteQuery = async () => {
+      if (!queryToDelete.value) return
+      
+      try {
+        await queryStore.deleteQuery(queryToDelete.value.id)
+        showDeleteConfirm.value = false
+        queryToDelete.value = null
+        
+        // 刷新列表
+        await refreshHistory()
+      } catch (error) {
+        console.error('删除查询失败:', error)
+      }
+    }
+
+    // 获取查询状态样式类
+    const getStatusClass = (status: QueryStatus) => {
+      switch (status) {
+        case 'COMPLETED':
+          return 'bg-green-100 text-green-800'
+        case 'RUNNING':
+          return 'bg-blue-100 text-blue-800'
+        case 'FAILED':
+          return 'bg-red-100 text-red-800'
+        case 'CANCELLED':
+          return 'bg-gray-100 text-gray-800'
+        default:
+          return 'bg-gray-100 text-gray-800'
+      }
+    }
+
+    // 获取查询状态显示文本
+    const getStatusDisplay = (status: QueryStatus) => {
+      switch (status) {
+        case 'COMPLETED':
+          return '完成'
+        case 'RUNNING':
+          return '运行中'
+        case 'FAILED':
+          return '失败'
+        case 'CANCELLED':
+          return '已取消'
+        default:
+          return status
+      }
+    }
+
+    // 格式化日期时间
+    const formatDateTime = (dateString: string) => {
+      if (!dateString) return ''
+      
+      const date = new Date(dateString)
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
+
+    // 格式化执行时间
+    const formatExecutionTime = (ms: number | undefined) => {
+      if (!ms) return '0 ms'
+      
+      if (ms < 1000) {
+        return `${ms} ms`
+      } else if (ms < 60000) {
+        return `${(ms / 1000).toFixed(2)} 秒`
+      } else {
+        const minutes = Math.floor(ms / 60000)
+        const seconds = ((ms % 60000) / 1000).toFixed(2)
+        return `${minutes} 分 ${seconds} 秒`
+      }
+    }
+
+    // 获取页码按钮
+    const getPageNumbers = () => {
+      const total = queryStore.pagination?.totalPages || 1
+      const current = currentPage.value
+      
+      // 如果总页数较少，全部显示
+      if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => (i + 1).toString())
+      }
+      
+      // 否则显示部分页码，带省略号
+      const result = []
+      
+      // 总是显示第一页
+      result.push('1')
+      
+      // 如果当前页靠近开始
+      if (current <= 4) {
+        for (let i = 2; i <= 5; i++) {
+          result.push(i.toString())
+        }
+        result.push('...')
+        result.push(total.toString())
+      } 
+      // 如果当前页靠近结束
+      else if (current >= total - 3) {
+        result.push('...')
+        for (let i = total - 4; i < total; i++) {
+          result.push(i.toString())
+        }
+      } 
+      // 如果当前页在中间
+      else {
+        result.push('...')
+        for (let i = current - 1; i <= current + 1; i++) {
+          result.push(i.toString())
+        }
+        result.push('...')
+        result.push(total.toString())
+      }
+      
+      return result
+    }
+
+    // 跳转到指定页码
+    const goToPage = async (pageNum: number) => {
+      if (pageNum < 1 || pageNum > totalPages.value) return;
+      
+      page.value = pageNum;
+      await loadQueryHistory();
+    }
+
+    return {
+      isLoading,
+      showDeleteConfirm,
+      queryToDelete,
+      currentPage,
+      totalPages,
+      totalItems,
+      queries,
+      canGoToPrevPage,
+      canGoToNextPage,
+      hasMorePages: computed(() => {
+        return queryStore.pagination && queryStore.pagination.page < queryStore.pagination.totalPages
+      }),
+      getStatusClass,
+      getStatusDisplay,
+      formatDateTime,
+      formatExecutionTime,
+      getPageNumbers,
+      goToPage,
+      refreshHistory,
+      exportHistoryData,
+      editQuery,
+      toggleFavorite,
+      viewQueryDetail,
+      viewQueryAnalytics,
+      confirmDelete,
+      deleteQuery,
+      clearFilters,
+      prevPage,
+      nextPage,
+      applyFilters,
+      loadQueryHistory,
+      filters,
+      dateRangePreset,
+      debounceSearch,
+      message
+    }
   }
-}
+})
 </script>
 
 <style scoped>

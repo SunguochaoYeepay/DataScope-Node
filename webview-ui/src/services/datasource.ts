@@ -568,54 +568,65 @@ export const dataSourceService = {
         totalPages: 0
       };
       
-      // 检查不同的响应格式并适配
-      if (data.data.rows !== undefined) {
-        // 标准格式 data.data.rows
-        rows = data.data.rows || [];
-        
-        // 处理columns格式转换，将MySQL格式的列定义转换为组件需要的格式
-        if (data.data.columns && Array.isArray(data.data.columns)) {
-          formattedColumns = data.data.columns.map((col: any) => {
-            // 处理MySQL DESC格式的列
-            if (col.Field) {
-              return {
-                name: col.Field,
-                type: col.Type || 'VARCHAR'
-              };
-            }
-            // 处理标准格式的列
+      // 使用统一的API响应格式
+      const responseData = data.data;
+      
+      // 现在使用items字段而不是rows
+      if (responseData.items !== undefined) {
+        rows = responseData.items || [];
+      } else if (responseData.rows !== undefined) {
+        // 兼容旧格式
+        rows = responseData.rows || [];
+      } else if (Array.isArray(responseData)) {
+        // 直接返回数组的情况
+        rows = responseData;
+      }
+      
+      // 处理列信息
+      if (responseData.columns && Array.isArray(responseData.columns)) {
+        formattedColumns = responseData.columns.map((col: any) => {
+          // 处理MySQL DESC格式的列
+          if (col.Field) {
             return {
-              name: col.name || col.column_name || col.columnName || col.Field || '',
-              type: col.type || col.data_type || col.dataType || col.Type || 'VARCHAR'
+              name: col.Field,
+              type: col.Type || 'VARCHAR'
             };
-          });
-        }
-        
-        // 处理分页信息
-        if (data.data.pagination) {
-          pagination = {
-            ...pagination,
-            page: data.data.pagination.page || params.page || 1,
-            size: data.data.pagination.size || params.size || 10,
-            total: data.data.pagination.total || 0,
-            totalPages: data.data.pagination.totalPages || 0
+          }
+          // 处理标准格式的列
+          return {
+            name: col.name || col.column_name || col.columnName || col.Field || '',
+            type: col.type || col.data_type || col.dataType || col.Type || 'VARCHAR'
           };
-        }
-      } else if (Array.isArray(data.data)) {
-        // 如果直接返回了数据数组
-        rows = data.data;
-        // 尝试从第一行数据推断列
-        if (rows.length > 0) {
-          formattedColumns = Object.keys(rows[0]).map(key => ({
-            name: key,
-            type: typeof rows[0][key] === 'number' ? 'NUMBER' : 
-                  typeof rows[0][key] === 'boolean' ? 'BOOLEAN' : 'VARCHAR'
-          }));
-        }
+        });
+      } else if (rows.length > 0) {
+        // 如果没有列信息但有数据，从数据中推断列
+        formattedColumns = Object.keys(rows[0]).map(key => ({
+          name: key,
+          type: typeof rows[0][key] === 'number' ? 'NUMBER' : 
+                typeof rows[0][key] === 'boolean' ? 'BOOLEAN' : 'VARCHAR'
+        }));
+      }
+      
+      // 处理分页信息 - 现在使用统一的pagination对象
+      if (responseData.pagination) {
+        pagination = {
+          page: responseData.pagination.page !== undefined ? responseData.pagination.page : (params.page || 1),
+          size: responseData.pagination.size !== undefined ? responseData.pagination.size : (params.size || 10),
+          total: responseData.pagination.total || 0,
+          totalPages: responseData.pagination.totalPages !== undefined ? 
+                      responseData.pagination.totalPages : 
+                      Math.ceil((responseData.pagination.total || 0) / (responseData.pagination.size || 10))
+        };
       } else {
-        // 如果返回了其他结构，给出警告但尝试处理
-        console.warn('未识别的表数据预览响应格式:', data);
-        rows = [];
+        // 兼容旧格式或简单格式
+        pagination = {
+          page: responseData.page !== undefined ? responseData.page : (params.page || 1),
+          size: responseData.size !== undefined ? responseData.size : (params.size || 10),
+          total: responseData.total || rows.length,
+          totalPages: responseData.totalPages !== undefined ? 
+                      responseData.totalPages : 
+                      Math.ceil((responseData.total || rows.length) / (responseData.size || params.size || 10))
+        };
       }
       
       return {
@@ -623,8 +634,8 @@ export const dataSourceService = {
         columns: formattedColumns,
         page: pagination.page,
         size: pagination.size,
-        total: pagination.total || rows.length,
-        totalPages: pagination.totalPages || Math.ceil((pagination.total || rows.length) / pagination.size)
+        total: pagination.total,
+        totalPages: pagination.totalPages
       };
     } catch (error) {
       console.error(`获取数据源${dataSourceId}表${tableName}预览错误:`, error);

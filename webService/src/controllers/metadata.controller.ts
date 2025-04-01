@@ -281,7 +281,7 @@ class MetadataController {
 
       // 构造响应数据
       const responseData = {
-        rows: result.rows,
+        items: result.rows,
         columns: result.fields ? result.fields.map((field: any) => ({
           name: field.name,
           type: field.type
