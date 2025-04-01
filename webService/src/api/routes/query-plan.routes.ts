@@ -87,7 +87,6 @@ const queryPlanController = new QueryPlanController();
  *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
  */
 router.post('/analyze',
-  authenticate,
   [
     check('dataSourceId').isString().not().isEmpty().withMessage('数据源ID不能为空'),
     check('sql').isString().not().isEmpty().withMessage('SQL查询语句不能为空')
@@ -141,7 +140,6 @@ router.post('/analyze',
  *                 optimizedSql: "SELECT * FROM users FORCE INDEX(idx_users_status) JOIN orders ON users.id = orders.user_id WHERE users.status = 'active'"
  */
 router.get('/:planId/optimize',
-  authenticate,
   [
     check('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
   ],
@@ -204,7 +202,6 @@ router.get('/:planId/optimize',
  *                     description: "优化后估算成本降低了 40%"
  */
 router.post('/compare',
-  authenticate,
   [
     check('planAId').isString().not().isEmpty().withMessage('原始执行计划ID不能为空'),
     check('planBId').isString().not().isEmpty().withMessage('对比执行计划ID不能为空')
@@ -279,7 +276,6 @@ router.post('/compare',
  *                 offset: 0
  */
 router.get('/history',
-  authenticate,
   queryPlanController.getQueryPlanHistory.bind(queryPlanController)
 );
 
@@ -330,7 +326,6 @@ router.get('/history',
  *                       key: "idx_status"
  */
 router.get('/:planId',
-  authenticate,
   [
     check('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
   ],

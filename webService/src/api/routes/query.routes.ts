@@ -539,7 +539,7 @@ router.get(
 );
 
 // 引用查询计划详情的路由
-router.get('/plans/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/plans/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await queryPlanController.getQueryPlanById(req as any, res);
   } catch (error: any) {
@@ -551,7 +551,7 @@ router.get('/plans/:id', authenticate, async (req: Request, res: Response, next:
   }
 });
 
-router.get('/history/:queryId/plans', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/history/:queryId/plans', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // 转发到查询计划控制器
     req.params.planId = req.params.queryId; // 适配控制器参数
