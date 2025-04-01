@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 查询模块联调分支创建
+  - 修复LIMIT语句SQL语法问题，支持各种复杂查询场景
+  - 完善查询计划分析功能，优化性能分析体验 
+  - 修复查询收藏功能，提升用户体验
+  - 所有查询相关接口完成修复和验证
 - 初始化Vue3项目结构
   - 使用Vue 3.2.47 + TypeScript 5.0
   - 使用Vite 4.3.9作为构建工具
