@@ -291,31 +291,27 @@ export const useDataSourceStore = defineStore('dataSource', () => {
           console.log('尝试直接从API获取表列表...')
           const tablesResult = await dataSourceService.getTableMetadata(dataSourceId);
           
-          if (tablesResult && typeof tablesResult === 'object') {
-            // 如果是一个对象且不是空对象，说明获取了一些表
-            const tables = Object.values(tablesResult);
-            if (tables.length > 0) {
-              console.log(`直接获取到 ${tables.length} 个表的信息`);
+          if (tablesResult && tablesResult.length > 0) {
+            console.log(`直接获取到 ${tablesResult.length} 个表的信息`);
+            
+            // 创建或更新数据源的元数据
+            const metadata: Metadata = {
+              tables: tablesResult,
+              lastSyncTime: new Date().toISOString()
+            };
+            
+            // 更新数据源对象
+            if (dataSource) {
+              dataSource.metadata = metadata;
               
-              // 创建或更新数据源的元数据
-              const metadata: Metadata = {
-                tables: tables as TableMetadata[],
-                lastSyncTime: new Date().toISOString()
-              };
-              
-              // 更新数据源对象
-              if (dataSource) {
-                dataSource.metadata = metadata;
-                
-                // 更新数据源列表
-                const index = dataSources.value.findIndex(ds => ds.id === dataSourceId);
-                if (index !== -1) {
-                  dataSources.value[index] = dataSource;
-                }
+              // 更新数据源列表
+              const index = dataSources.value.findIndex(ds => ds.id === dataSourceId);
+              if (index !== -1) {
+                dataSources.value[index] = dataSource;
               }
-              
-              return metadata;
             }
+            
+            return metadata;
           }
         } catch (directError) {
           console.error('直接获取表信息失败:', directError);
@@ -338,14 +334,11 @@ export const useDataSourceStore = defineStore('dataSource', () => {
           console.log('更新后的数据源仍然没有元数据，尝试直接获取表列表');
           const tablesResult = await dataSourceService.getTableMetadata(dataSourceId);
           
-          if (tablesResult && typeof tablesResult === 'object') {
-            const tables = Object.values(tablesResult);
-            if (tables.length > 0) {
-              updatedDataSource.metadata = {
-                tables: tables as TableMetadata[],
-                lastSyncTime: new Date().toISOString()
-              };
-            }
+          if (tablesResult && tablesResult.length > 0) {
+            updatedDataSource.metadata = {
+              tables: tablesResult,
+              lastSyncTime: new Date().toISOString()
+            };
           }
         }
         

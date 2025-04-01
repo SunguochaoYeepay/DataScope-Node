@@ -143,12 +143,19 @@
         </div>
       </div>
       
-      <!-- 无结果 -->
-      <div v-else-if="!queries.length" class="h-64 flex items-center justify-center">
-        <div class="text-center text-gray-500">
-          <i class="fas fa-history text-gray-400 text-3xl mb-2"></i>
-          <p>没有查询历史</p>
-          <p class="text-sm mt-1">试试修改筛选条件或创建新查询</p>
+      <!-- 没有记录状态 -->
+      <div v-else-if="queries.length === 0" class="flex flex-col items-center justify-center p-12 text-gray-500">
+        <div class="mb-4">
+          <Icon name="circle-info" class="h-12 w-12 text-gray-300" />
+        </div>
+        <h3 class="text-lg font-medium mb-2">没有查询历史</h3>
+        <p class="text-sm">尝试修改筛选条件或创建新查询</p>
+        
+        <!-- 调试信息 -->
+        <div class="mt-8 p-4 border border-gray-300 rounded-md bg-gray-50 w-full max-w-xl text-xs text-left">
+          <h4 class="font-bold mb-2">调试信息</h4>
+          <p>查询历史数量: {{ queries.length }}</p>
+          <p>分页信息: {{ totalPages > 0 ? `第 ${currentPage}/${totalPages} 页，共 ${totalItems} 条记录` : '无分页数据' }}</p>
         </div>
       </div>
       
@@ -406,12 +413,11 @@ export default defineComponent({
     
     // 计算属性: 当前页查询列表
     const queries = computed(() => {
-      // 过滤掉临时查询，只返回已保存的查询
-      return (queryStore.queryHistory || []).filter(query => {
-        // 判断是否为临时查询：名称以"临时查询:"开头 或 没有名称的查询
-        const isTempQuery = query.name?.startsWith('临时查询:') || !query.name;
-        return !isTempQuery;
-      });
+      // 检查是否有查询记录
+      console.log(`查询历史数量: ${queryStore.queryHistory?.length || 0}`);
+      
+      // 直接返回所有查询记录，不做过滤
+      return queryStore.queryHistory || [];
     })
     
     // 计算属性: 是否可以查看上一页
@@ -479,14 +485,15 @@ export default defineComponent({
           searchTerm: filters.searchTerm
         };
         
-        console.log('Loading history with params:', params);
+        console.log('开始查询历史，使用参数:', params);
         
         // 调用store方法获取查询历史
         await queryStore.fetchQueryHistory(params);
         
-        console.log('History loaded:', {
-          totalQueries: queryStore.queryHistory.length,
-          pagination: queryStore.pagination
+        console.log('查询结果:', {
+          结果长度: queryStore.queryHistory.length,
+          分页信息: queryStore.pagination,
+          是否有内容: queryStore.queryHistory.length > 0 ? '有' : '无'
         });
         
         // 获取收藏夹，以便标记已收藏的查询

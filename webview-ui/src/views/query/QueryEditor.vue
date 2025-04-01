@@ -325,7 +325,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
@@ -547,93 +547,146 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
     return;
   }
   
-  let queryText = '';
-  if (queryType === 'SQL') {
-    queryText = sqlQuery.value;
-  } else if (queryType === 'NATURAL_LANGUAGE') {
-    queryText = naturalLanguageQuery.value;
-  } else {
-    queryText = builderQuery.value;
-  }
+  // 根据查询类型获取查询文本
+  const queryText = getQueryTextByType(queryType);
   
   if (!queryText.trim()) {
     message.error('请输入查询语句');
     return;
   }
   
-  // 验证SQL语法的基本完整性
-  if (queryType === 'SQL') {
-    const trimmedSQL = queryText.trim().toLowerCase();
+  // 验证SQL语句（仅SQL类型需要验证）
+  if (queryType === 'SQL' && !validateSqlQuery(queryText)) {
+    return;
+  }
+  
+  if (isExecuting.value) return;
+  
+  // 初始化查询执行
+  initializeQueryExecution();
+  
+  try {
+    // 构建查询参数
+    const queryParams = {
+      dataSourceId: selectedDataSourceId.value,
+      queryText,
+      queryType
+    };
     
-    // 检查是否是简单的SELECT *
-    if (trimmedSQL === 'select *') {
-      message.error('不完整的SQL语句，请指定表名');
-      return;
-    }
+    console.log(`开始执行${queryType}查询...`);
     
-    // 检查SELECT * FROM 后是否有表名
-    if (trimmedSQL.startsWith('select * from') && trimmedSQL.split(' ').length <= 3) {
-      message.error('请在FROM子句后指定表名');
-      return;
-    }
+    // 根据查询类型执行不同的查询
+    const result = queryType === 'SQL'
+      ? await queryStore.executeQuery(queryParams)
+      : await queryStore.executeNaturalLanguageQuery({
+          dataSourceId: selectedDataSourceId.value,
+          question: queryText
+        });
     
-    // 检查SQL语句是否有基本有效性
-    if (!trimmedSQL.includes('select') || !trimmedSQL.includes('from')) {
-      if (!confirm('您的SQL语句可能不完整或格式不正确。确定要执行吗？')) {
-        return;
+    // 更新查询ID
+    currentQueryId.value = queryStore.currentQueryResult?.id || null;
+    
+    console.log('查询执行成功:', result);
+    statusMessage.value = '查询执行成功';
+    
+    // 自动滚动到结果区域
+    nextTick(() => {
+      const resultsElement = document.getElementById('query-results');
+      if (resultsElement) {
+        resultsElement.scrollIntoView({ behavior: 'smooth' });
       }
+    });
+  } catch (error) {
+    handleQueryError(error);
+  } finally {
+    finalizeQueryExecution();
+  }
+};
+
+// 根据查询类型获取查询文本
+const getQueryTextByType = (queryType: QueryType): string => {
+  switch (queryType) {
+    case 'SQL':
+      return sqlQuery.value;
+    case 'NATURAL_LANGUAGE':
+      return naturalLanguageQuery.value;
+    default:
+      return builderQuery.value;
+  }
+};
+
+// 验证SQL查询
+const validateSqlQuery = (queryText: string): boolean => {
+  const trimmedSQL = queryText.trim().toLowerCase();
+  
+  // 检查是否是简单的SELECT *
+  if (trimmedSQL === 'select *') {
+    message.error('不完整的SQL语句，请指定表名');
+    return false;
+  }
+  
+  // 检查SELECT * FROM 后是否有表名
+  if (trimmedSQL.startsWith('select * from') && trimmedSQL.split(' ').length <= 3) {
+    message.error('请在FROM子句后指定表名');
+    return false;
+  }
+  
+  // 检查SQL语句是否有基本有效性
+  if (!trimmedSQL.includes('select') || !trimmedSQL.includes('from')) {
+    if (!confirm('您的SQL语句可能不完整或格式不正确。确定要执行吗？')) {
+      return false;
     }
   }
   
-  if (isExecuting.value) return
-  
+  return true;
+};
+
+// 初始化查询执行状态
+const initializeQueryExecution = () => {
   // 重置错误状态
   queryError.value = null;
   statusMessage.value = null;
+  isExecuting.value = true;
   
   // 重置并启动执行时间计时器
-  executionTime.value = 0
+  executionTime.value = 0;
   if (executionTimer.value) {
-    clearInterval(executionTimer.value)
+    clearInterval(executionTimer.value);
   }
   executionTimer.value = window.setInterval(() => {
-    executionTime.value += 1
-  }, 1000)
+    executionTime.value += 1;
+  }, 1000);
+};
+
+// 处理查询错误
+const handleQueryError = (error: any) => {
+  console.error('查询执行失败:', error);
+  queryError.value = error instanceof Error ? error.message : '执行查询时出错';
+  statusMessage.value = '查询执行失败';
   
-  try {
-    let result;
-    
-    // 根据查询类型执行不同的查询
-    if (queryType === 'SQL') {
-      result = await queryStore.executeQuery({
-        dataSourceId: selectedDataSourceId.value,
-        queryText: queryText,
-        queryType: 'SQL'
-      });
-    } else {
-      result = await queryStore.executeNaturalLanguageQuery({
-        dataSourceId: selectedDataSourceId.value,
-        question: queryText
-      });
-    }
-    
-    // 更新当前查询ID
-    currentQueryId.value = queryStore.currentQueryResult?.id || null
-  } catch (error) {
-    queryError.value = error instanceof Error ? error.message : '执行查询时出错'
-    statusMessage.value = '查询执行失败'
-    setTimeout(() => {
-      statusMessage.value = null
-    }, 5000)
-  } finally {
-    // 清除执行时间计时器
-    if (executionTimer.value) {
-      clearInterval(executionTimer.value)
-      executionTimer.value = null
-    }
-    isExecuting.value = false
+  // 显示详细错误提示
+  message.error({
+    content: queryError.value,
+    duration: 5
+  });
+};
+
+// 完成查询执行
+const finalizeQueryExecution = () => {
+  // 清除执行时间计时器
+  if (executionTimer.value) {
+    clearInterval(executionTimer.value);
+    executionTimer.value = null;
   }
-}
+  isExecuting.value = false;
+  
+  // 5秒后清除状态消息
+  if (statusMessage.value) {
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 5000);
+  }
+};
 
 // 获取执行按钮提示信息
 const getExecuteButtonTooltip = () => {
@@ -804,7 +857,28 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
       try {
         localStorage.setItem('last_saved_query_id', savedQuery.id);
       } catch (e) {
+        // 增强错误处理，提供更详细的错误分类
         console.warn('无法将查询ID存入localStorage:', e);
+        
+        let errorReason: string;
+        
+        if (e instanceof DOMException && (
+          // 检测配额超出异常
+          e.name === 'QuotaExceededError' || 
+          e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+          errorReason = 'localStorage空间已满';
+        } else if (e instanceof DOMException && e.name === 'SecurityError') {
+          errorReason = '浏览器安全设置限制';
+        } else if (typeof window.localStorage === 'undefined') {
+          errorReason = 'localStorage不可用';
+        } else {
+          errorReason = '未知错误';
+        }
+        
+        // 只在开发环境中显示错误提示
+        if (import.meta.env.DEV) {
+          message.warning(`无法保存查询状态: ${errorReason}`);
+        }
       }
       
       // 更新路由参数，但不重新加载页面
@@ -819,8 +893,36 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
       statusMessage.value = null
     }, 3000)
   } catch (error) {
-    console.error('保存查询失败:', error)
-    statusMessage.value = `保存查询失败: ${error instanceof Error ? error.message : '未知错误'}`
+    // 增强错误处理逻辑
+    console.error('保存查询失败:', error);
+    
+    // 获取详细的错误信息
+    let errorMessage = '未知错误';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      // 处理API返回的错误对象
+      if ('message' in error) {
+        errorMessage = String(error.message);
+      } else if ('error' in error) {
+        errorMessage = typeof error.error === 'string' ? error.error : '服务器错误';
+      } else if ('statusText' in error) {
+        errorMessage = `服务器返回: ${error.statusText}`;
+      }
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    // 显示友好的错误消息
+    statusMessage.value = `保存查询失败: ${errorMessage}`;
+    
+    // 向用户显示错误消息
+    message.error({
+      content: `保存查询失败: ${errorMessage}`,
+      duration: 5
+    });
+    
     setTimeout(() => {
       statusMessage.value = null
     }, 5000)

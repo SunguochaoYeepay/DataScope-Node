@@ -15,7 +15,8 @@ import type {
   QueryNode,
   ColumnType,
   QueryStatus,
-  ChartConfig
+  ChartConfig,
+  QueryExecution
 } from '@/types/query'
 import { mockDataSourceApi } from './datasource'
 
@@ -480,6 +481,58 @@ const generateSqlResult = (query: string): QueryResult => {
     status: 'COMPLETED',
     createdAt: new Date().toISOString()
   }
+}
+
+// 模拟查询执行历史数据
+function mockQueryExecutionHistory(queryId: string): QueryExecution[] {
+  const now = Date.now()
+  return [
+    {
+      id: `exec-${queryId}-1`,
+      queryId,
+      executedAt: new Date(now - 3600000).toISOString(),
+      executionTime: 1250,
+      status: 'COMPLETED',
+      rowCount: 128
+    },
+    {
+      id: `exec-${queryId}-2`,
+      queryId,
+      executedAt: new Date(now - 7200000).toISOString(),
+      executionTime: 2100,
+      status: 'COMPLETED',
+      rowCount: 256
+    },
+    {
+      id: `exec-${queryId}-3`,
+      queryId,
+      executedAt: new Date(now - 14400000).toISOString(),
+      executionTime: 890,
+      status: 'FAILED',
+      errorMessage: '查询超时或语法错误'
+    },
+    {
+      id: `exec-${queryId}-4`,
+      queryId,
+      executedAt: new Date(now - 86400000).toISOString(),
+      executionTime: 1500,
+      status: 'COMPLETED',
+      rowCount: 64
+    },
+    {
+      id: `exec-${queryId}-5`,
+      queryId,
+      executedAt: new Date(now - 172800000).toISOString(),
+      executionTime: 3200,
+      status: 'CANCELLED'
+    }
+  ]
+}
+
+// 获取查询执行历史
+async function getQueryExecutionHistory(queryId: string): Promise<QueryExecution[]> {
+  await new Promise(resolve => setTimeout(resolve, 300)); // 模拟延迟
+  return mockQueryExecutionHistory(queryId);
 }
 
 // 查询API实现
@@ -1124,28 +1177,89 @@ const queryApiImpl = {
   },
   
   // 专门获取查询列表的方法(用于下拉选择框)
-  async getQueries(params?: { queryType?: string }): Promise<Query[]> {
+  async getQueries(params: {
+    page?: number;
+    size?: number;
+    queryType?: string; 
+    status?: string;
+    searchTerm?: string;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+  } = {}): Promise<PageResponse<Query>> {
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 200));
     
     // 过滤查询列表
     let filteredQueries = [...mockQueries];
     
-    if (params?.queryType) {
+    // 应用过滤条件
+    if (params.queryType) {
       filteredQueries = filteredQueries.filter(q => q.queryType === params.queryType);
     }
     
+    if (params.status) {
+      filteredQueries = filteredQueries.filter(q => q.status === params.status);
+    }
+    
+    if (params.searchTerm) {
+      const searchTerm = params.searchTerm.toLowerCase();
+      filteredQueries = filteredQueries.filter(q => 
+        (q.name && q.name.toLowerCase().includes(searchTerm)) || 
+        q.queryText.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    // 应用排序
+    if (params.sortBy) {
+      const sortField = params.sortBy as keyof Query;
+      const sortDir = params.sortDir === 'desc' ? -1 : 1;
+      
+      filteredQueries.sort((a, b) => {
+        const valueA = a[sortField];
+        const valueB = b[sortField];
+        
+        if (typeof valueA === 'string' && typeof valueB === 'string') {
+          return sortDir * valueA.localeCompare(valueB);
+        } else if (valueA < valueB) {
+          return -1 * sortDir;
+        } else if (valueA > valueB) {
+          return 1 * sortDir;
+        }
+        return 0;
+      });
+    } else {
+      // 默认按创建时间排序
+      filteredQueries.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+    
+    // 应用分页
+    const page = params.page || 1;
+    const size = params.size || 10;
+    const start = (page - 1) * size;
+    const end = start + size;
+    const paginatedQueries = filteredQueries.slice(start, end);
+    
     // 确保所有查询都有name属性
-    const result = filteredQueries.map(query => {
-      if (!query.name) {
-        return { ...query, name: `查询 ${query.id}` };
-      }
-      return query;
+    const items = paginatedQueries.map(query => ensureQueryName({...query}));
+    
+    console.log('Mock API: getQueries返回数据:', {
+      items,
+      page,
+      size,
+      total: filteredQueries.length,
+      totalPages: Math.ceil(filteredQueries.length / size)
     });
     
-    console.log('Mock API: getQueries返回数据:', result);
-    
-    return result;
+    // 返回标准分页响应
+    return {
+      items,
+      page,
+      size,
+      total: filteredQueries.length,
+      totalPages: Math.ceil(filteredQueries.length / size)
+    };
   },
 }
 

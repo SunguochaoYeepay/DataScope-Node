@@ -30,6 +30,15 @@
   - 当执行已保存查询(有queryId)或显式设置createHistory=true时才创建历史记录
   - 减少了大量临时查询时生成的无用历史记录，提高系统性能和数据清晰度
   - 前端可以在需要时显式请求生成历史记录，提高用户体验
+- 实现查询文件夹管理API，提供标准分页格式的文件夹列表和CRUD操作：
+  - `GET /api/query-folders` - 获取文件夹列表（支持分页和父文件夹筛选）
+  - `GET /api/query-folders/:id` - 获取文件夹详情（包含子文件夹和查询）
+  - `POST /api/query-folders` - 创建文件夹
+  - `PUT /api/query-folders/:id` - 更新文件夹
+  - `DELETE /api/query-folders/:id` - 删除文件夹（仅当文件夹为空时）
+- 实现系统日志API，采用标准分页格式：
+  - `GET /api/system/logs` - 获取系统日志（支持分页、日志级别过滤、关键词搜索和日期范围）
+  - `GET /api/system/health` - 获取系统健康状态（包含内存、CPU、数据库连接状态等）
 
 ### 改进
 
@@ -119,9 +128,11 @@
 - 查询执行计划功能增强
 - 数据模型优化
 - 移除了查询计划API的认证需求，使所有计划分析API无需授权即可访问
+- 修复了metadata.controller.ts中关于表列表的日志记录，以适应新的标准化API响应格式
 
 ### Fixed
 - 改进查询管理接口(POST /api/queries, PUT /api/queries/{id}, DELETE /api/queries/{id})的错误处理，提供更详细的错误信息
+- 修复了metadata.controller.ts中表列表日志记录的潜在问题，添加对items属性的空值检查，避免在标准化API响应格式下可能的空引用错误
 
 ### 变更
 - **API响应格式标准化**：统一分页列表API的响应格式
@@ -405,3 +416,22 @@
     - 地区销售业绩比较
   - 每个示例查询都包含完整的描述和标签
   - 添加了业务分析场景的SQL示例，可直接用于演示和测试
+
+## 计划中的变更
+1. API分页参数标准化 (2024-Q4)
+   - 统一所有分页API使用`page`和`size`作为入参
+   - 统一分页响应格式为`{ success, data: { items, pagination } }`
+   - 优先标准化: 查询列表、数据源列表、收藏列表
+   - 详细标准见: `design-docs/api-pagination-standard.md`
+
+## 已完成的变更
+1. API分页参数标准化 (2024-本次)
+   - 统一了5个核心API的分页参数和响应格式:
+     - 查询列表API (`GET /api/queries`)
+     - 数据源列表API (`GET /api/datasources`)
+     - 收藏列表API (`GET /api/queries/favorites`)
+     - 元数据表列表API (`GET /api/metadata/:dataSourceId/tables`)
+     - 元数据同步历史API (`GET /api/metadata/:dataSourceId/sync-history`)
+   - 所有API均支持`page`和`size`参数，同时兼容`offset`和`limit`参数
+   - 所有API返回标准分页格式: `{ success, data: { items, pagination } }`
+   - 详细标准见: `design-docs/api-pagination-standard.md`

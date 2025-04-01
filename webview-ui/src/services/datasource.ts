@@ -93,36 +93,97 @@ export const dataSourceService = {
     }
 
     try {
-      // 构建查询参数
+      // 构建查询参数 - 使用标准参数：page/size
       const queryParams = new URLSearchParams()
-      if (params.name) queryParams.append('name', params.name)
-      if (params.type) queryParams.append('type', params.type.toLowerCase()) // 发送小写类型
-      if (params.status) queryParams.append('status', params.status)
-      if (params.page !== undefined) queryParams.append('page', params.page.toString())
-      if (params.size) queryParams.append('size', params.size.toString())
+      
+      // 添加过滤参数
+      if (params.name) {
+        queryParams.append('name', params.name);
+      }
+      if (params.type) {
+        queryParams.append('type', params.type.toLowerCase());
+      }
+      if (params.status) {
+        queryParams.append('status', params.status);
+      }
+      
+      // 添加分页参数（使用标准page/size参数名）
+      queryParams.append('page', String(params.page || 1));
+      queryParams.append('size', String(params.size || 10));
       
       // 发送请求
-      const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`)
+      const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`);
+      
       if (!response.ok) {
-        throw new Error(`获取数据源列表失败: ${response.statusText}`)
+        throw new Error(`获取数据源列表失败: ${response.statusText}`);
       }
       
-      // 处理响应数据 - 文档中明确返回的是数组而非分页对象
-      const rawData = await handleResponse<any[]>(response)
+      // 处理响应数据
+      const responseData = await response.json();
+      console.log('数据源列表原始响应:', responseData);
       
-      // 将后端数据适配为前端需要的格式
-      const adaptedData: DataSource[] = Array.isArray(rawData) 
-        ? rawData.map(adaptDataSource) 
-        : [];
+      // 处理不同响应格式
+      let items: any[] = [];
+      let totalItems = 0;
+      let totalPages = 1;
+      let currentPage = Number(params.page || 1);
+      let pageSize = Number(params.size || 10);
       
-      // 手动构造分页对象
+      // 1. 处理标准成功响应格式
+      if (responseData.success === true && responseData.data) {
+        // 提取items数组
+        if (Array.isArray(responseData.data)) {
+          items = responseData.data;
+          totalItems = items.length;
+        } else if (responseData.data.items && Array.isArray(responseData.data.items)) {
+          items = responseData.data.items;
+          
+          // 从pagination对象中提取分页信息
+          if (responseData.data.pagination) {
+            totalItems = responseData.data.pagination.total || items.length;
+            totalPages = responseData.data.pagination.totalPages || 
+                        Math.ceil(totalItems / pageSize);
+            currentPage = responseData.data.pagination.page || currentPage;
+            pageSize = responseData.data.pagination.size || pageSize;
+          }
+        }
+      } 
+      // 2. 处理直接返回数组的格式
+      else if (Array.isArray(responseData)) {
+        items = responseData;
+        totalItems = items.length;
+      } 
+      // 3. 处理其他格式
+      else {
+        // 尝试从各种可能的字段中提取数据
+        if (responseData.items && Array.isArray(responseData.items)) {
+          items = responseData.items;
+        } else if (responseData.dataSources && Array.isArray(responseData.dataSources)) {
+          items = responseData.dataSources;
+        } else if (responseData.data && Array.isArray(responseData.data)) {
+          items = responseData.data;
+        }
+        
+        // 提取分页信息
+        totalItems = responseData.total || responseData.totalCount || items.length;
+        totalPages = responseData.totalPages || 
+                    responseData.pages || 
+                    Math.ceil(totalItems / pageSize);
+        currentPage = responseData.page || currentPage;
+        pageSize = responseData.size || responseData.pageSize || pageSize;
+      }
+      
+      // 适配数据源对象
+      const dataSources: DataSource[] = items.map(adaptDataSource);
+      
+      // 返回标准分页响应
       return {
-        items: adaptedData,
-        total: adaptedData.length,
-        page: params.page || 1,
-        size: params.size || adaptedData.length,
-        totalPages: Math.ceil(adaptedData.length / (params.size || adaptedData.length || 10))
-      }
+        items: dataSources,
+        page: currentPage,
+        size: pageSize,
+        total: totalItems,
+        totalPages: totalPages
+      };
     } catch (error) {
       console.error('获取数据源列表错误:', error)
       throw error
@@ -412,27 +473,72 @@ export const dataSourceService = {
   },
   
   // 获取表元数据
-  async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata | Record<string, TableMetadata>> {
+  async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata[]> {
     if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableMetadata(dataSourceId, tableName)
+      const result = await mockDataSourceApi.getTableMetadata(dataSourceId, tableName);
+      // 确保返回数组格式
+      return Array.isArray(result) ? result : (tableName ? [result as TableMetadata] : Object.values(result as Record<string, TableMetadata>));
     }
 
     try {
       // 使用标准API路径
       const url = tableName 
         ? `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}`
-        : `${METADATA_API_BASE_URL}/${dataSourceId}/tables`
+        : `${METADATA_API_BASE_URL}/${dataSourceId}/tables`;
 
-      const response = await fetch(url)
+      console.log(`获取表元数据URL: ${url}`);
+      const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`获取表元数据失败: ${response.statusText}`)
+        throw new Error(`获取表元数据失败: ${response.statusText}`);
       }
 
-      const data = await handleResponse<any>(response)
-      return data
+      // 处理多种可能的响应格式
+      const responseText = await response.text();
+      console.log(`表元数据原始响应: ${responseText.substring(0, 100)}...`);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('解析表元数据响应失败:', e);
+        throw new Error(`解析表元数据响应失败: ${responseText.substring(0, 100)}`);
+      }
+      
+      // 处理标准化的 success/data/items/pagination 响应格式
+      if (responseData.success === true && responseData.data && responseData.data.items) {
+        console.log(`从标准化响应中提取表元数据: ${responseData.data.items.length}个表`);
+        return responseData.data.items;
+      } 
+      // 处理直接返回表对象的情况
+      else if (tableName && responseData.name) {
+        console.log(`获取到单个表元数据: ${responseData.name}`);
+        return [responseData];
+      }
+      // 处理直接返回表数组的情况
+      else if (Array.isArray(responseData)) {
+        console.log(`获取到表元数据数组: ${responseData.length}个表`);
+        return responseData;
+      }
+      // 处理返回对象的情况
+      else if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
+        // 如果是对象但不是数组，可能是旧格式的键值对
+        if (Object.keys(responseData).length > 0 && typeof Object.values(responseData)[0] === 'object') {
+          console.log(`从对象中提取表元数据: ${Object.keys(responseData).length}个表`);
+          return Object.values(responseData);
+        }
+        // 单个表的情况
+        else if (responseData.name) {
+          console.log(`获取到单个表元数据对象: ${responseData.name}`);
+          return [responseData];
+        }
+      }
+      
+      // 无法识别的响应格式
+      console.error('无法识别的表元数据响应格式:', responseData);
+      return [];
     } catch (error) {
-      console.error('获取表元数据错误:', error)
-      throw error
+      console.error('获取表元数据错误:', error);
+      throw error;
     }
   },
   
@@ -612,10 +718,10 @@ export const dataSourceService = {
         pagination = {
           page: responseData.pagination.page !== undefined ? responseData.pagination.page : (params.page || 1),
           size: responseData.pagination.size !== undefined ? responseData.pagination.size : (params.size || 10),
-          total: responseData.pagination.total || 0,
+          total: responseData.pagination.total || rows.length,
           totalPages: responseData.pagination.totalPages !== undefined ? 
                       responseData.pagination.totalPages : 
-                      Math.ceil((responseData.pagination.total || 0) / (responseData.pagination.size || 10))
+                      Math.ceil((responseData.pagination.total || rows.length) / (responseData.pagination.size || params.size || 10))
         };
       } else {
         // 兼容旧格式或简单格式

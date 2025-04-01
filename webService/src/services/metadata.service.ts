@@ -9,6 +9,7 @@ import ApiError from '../utils/apiError';
 import { DatabaseConnectorFactory } from '../utils/database-utils';
 import dataSourceService from './datasource.service';
 import { v4 as uuidv4 } from 'uuid';
+import { createPaginatedResponse, offsetToPage } from '../utils/api.utils';
 
 // 定义自定义类型，用于表示元数据表
 type PrismaMetadata = {
@@ -176,17 +177,21 @@ class MetadataService {
    * @param dataSourceId 数据源ID
    * @param limit 记录数限制
    * @param offset 偏移量
-   * @returns 同步历史记录
+   * @returns 标准格式的分页响应
    */
   async getSyncHistory(
     dataSourceId: string,
     limit: number = 10,
     offset: number = 0
   ): Promise<{
-    history: any[];
-    total: number;
-    limit: number;
-    offset: number;
+    items: any[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
   }> {
     try {
       // 获取同步历史记录
@@ -202,15 +207,14 @@ class MetadataService {
         where: { dataSourceId }
       });
       
-      return {
-        history,
-        total,
-        limit,
-        offset
-      };
+      // 转换为页码
+      const { page, pageSize } = offsetToPage(offset, limit);
+      
+      // 返回标准格式的分页响应
+      return createPaginatedResponse(history, total, page, pageSize);
     } catch (error: any) {
-      logger.error(`获取数据源 ${dataSourceId} 的同步历史失败`, { error });
-      throw new ApiError(`获取同步历史失败: ${error.message}`, 500);
+      logger.error(`获取数据源 ${dataSourceId} 的元数据同步历史失败`, { error });
+      throw new ApiError(`获取元数据同步历史失败: ${error.message}`, 500);
     }
   }
 
@@ -265,8 +269,9 @@ class MetadataService {
   async getTableList(dataSourceId: string): Promise<any[]> {
     try {
       // 与getTables方法类似，但返回格式不同
-      const tables = await this.getTables(dataSourceId);
-      return tables;
+      const tablesResponse = await this.getTables(dataSourceId);
+      // 直接返回items数组，而不是完整的分页响应对象
+      return tablesResponse.items;
     } catch (error: any) {
       logger.error(`获取数据源 ${dataSourceId} 的表结构列表失败`, { error });
       if (error instanceof ApiError) {
@@ -313,43 +318,85 @@ class MetadataService {
   /**
    * 获取数据源的表列表
    * @param dataSourceId 数据源ID
-   * @returns 表名列表
+   * @param options 分页选项
+   * @returns 标准格式的分页响应
    */
-  async getTables(dataSourceId: string): Promise<any[]> {
+  async getTables(
+    dataSourceId: string,
+    options?: {
+      page?: number;
+      size?: number;
+      offset?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    items: any[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+  }> {
     try {
-      logger.info(`获取数据源 ${dataSourceId} 的表列表`);
+      logger.debug(`获取数据源 ${dataSourceId} 的表列表`);
       
-      // 获取数据源信息
-      const dataSource = await prisma.dataSource.findUnique({
-        where: { id: dataSourceId }
+      // 处理分页参数
+      const limit = options?.limit || options?.size || 10;
+      const offset = options?.offset !== undefined ? options.offset : 
+                    (options?.page ? (options.page - 1) * limit : 0);
+      const page = options?.page || Math.floor(offset / limit) + 1;
+      
+      // 从元数据中获取表列表
+      let tables: any[] = [];
+      
+      // 尝试从元数据中获取表列表
+      const metadata = await prisma.metadata.findFirst({
+        where: { dataSourceId }
       });
       
-      if (!dataSource) {
-        throw new ApiError(`数据源 ${dataSourceId} 不存在`, 404);
+      if (metadata) {
+        // 从保存的元数据中提取表信息
+        try {
+          const structure = JSON.parse(metadata.structure);
+          if (structure && structure.tables) {
+            tables = structure.tables.map((table: any) => ({
+              name: table.name,
+              columnsCount: Array.isArray(table.columns) ? table.columns.length : 0,
+              createdAt: metadata.createdAt,
+              updatedAt: metadata.updatedAt
+            }));
+          }
+        } catch (error) {
+          logger.error('解析元数据结构失败', { error, dataSourceId });
+        }
       }
       
-      // 创建连接器
-      const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+      // 如果元数据中没有表信息，则尝试从数据库中获取
+      if (tables.length === 0) {
+        // 获取数据源连接器
+        const connector = await DatabaseConnectorFactory.createConnectorFromDataSourceId(dataSourceId);
+        
+        // 获取表列表
+        const result = await connector.getTables();
+        
+        // 关闭连接
+        await connector.disconnect();
+        
+        tables = result;
+      }
       
-      // 获取表列表
-      const tables = await connector.getTables();
+      // 获取表的总数
+      const total = tables.length;
       
-      // 关闭连接
-      await connector.disconnect();
+      // 应用分页
+      const paginatedTables = tables.slice(offset, offset + limit);
       
-      logger.info(`获取到数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
-      
-      // 格式化返回结果
-      return tables.map(tableName => ({
-        name: tableName,
-        type: 'TABLE',
-        schema: 'public'
-      }));
+      // 返回标准格式的分页响应
+      return createPaginatedResponse(paginatedTables, total, page, limit);
     } catch (error: any) {
       logger.error(`获取数据源 ${dataSourceId} 的表列表失败`, { error });
-      if (error instanceof ApiError) {
-        throw error;
-      }
       throw new ApiError(`获取表列表失败: ${error.message}`, 500);
     }
   }

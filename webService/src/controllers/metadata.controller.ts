@@ -4,6 +4,7 @@ import logger from '../utils/logger';
 import metadataService from '../services/metadata.service';
 import datasourceService from '../services/datasource.service';
 import ApiError from '../utils/apiError';
+import { getPaginationParams } from '../utils/api.utils';
 
 /**
  * 元数据控制器，处理与数据源元数据相关的请求
@@ -25,7 +26,14 @@ class MetadataController {
         throw new ApiError(`数据源 ${dataSourceId} 不存在`, StatusCodes.NOT_FOUND);
       }
 
-      const tables = await metadataService.getTables(dataSourceId);
+      // 获取分页参数
+      const pagination = getPaginationParams(req);
+
+      // 获取表列表，传递分页参数
+      const tables = await metadataService.getTables(dataSourceId, {
+        page: pagination.page,
+        size: pagination.size
+      });
       
       res.status(StatusCodes.OK).json({
         success: true,

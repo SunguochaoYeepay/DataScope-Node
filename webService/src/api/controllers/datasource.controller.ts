@@ -4,6 +4,7 @@ import dataSourceService from '../../services/datasource.service';
 import { ApiError } from '../../utils/errors/types/api-error';
 import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
+import { getPaginationParams, createSuccessResponse } from '../../utils/api.utils';
 
 export class DataSourceController {
   /**
@@ -11,10 +12,15 @@ export class DataSourceController {
    */
   async getAllDataSources(req: Request, res: Response, next: NextFunction) {
     try {
-      const dataSources = await dataSourceService.getAllDataSources();
+      const pagination = getPaginationParams(req);
+      const dataSources = await dataSourceService.getAllDataSources({
+        page: pagination.page,
+        size: pagination.size
+      });
+      
       res.status(200).json({
         success: true,
-        data: dataSources,
+        data: dataSources
       });
     } catch (error: any) {
       next(error);

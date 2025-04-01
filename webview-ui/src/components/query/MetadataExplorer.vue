@@ -274,9 +274,9 @@ const fetchMetadata = async () => {
       console.log('MetadataExplorer: 元数据中没有表，尝试直接API获取')
       try {
         const tablesData = await dataSourceService.getTableMetadata(props.dataSourceId)
-        if (tablesData && Object.values(tablesData).length > 0) {
+        if (tablesData && tablesData.length > 0) {
           console.log('MetadataExplorer: API直接获取表成功', tablesData)
-          tables.value = Object.values(tablesData)
+          tables.value = tablesData
           emit('tablesLoaded', tables.value)
           return
         }
@@ -305,9 +305,9 @@ const fetchMetadata = async () => {
     try {
       console.log('MetadataExplorer: 错误恢复，尝试直接API获取表')
       const tablesData = await dataSourceService.getTableMetadata(props.dataSourceId)
-      if (tablesData && Object.values(tablesData).length > 0) {
+      if (tablesData && tablesData.length > 0) {
         console.log('MetadataExplorer: 错误恢复成功', tablesData)
-        tables.value = Object.values(tablesData)
+        tables.value = tablesData
         error.value = '' // 清除错误
         emit('tablesLoaded', tables.value)
       }

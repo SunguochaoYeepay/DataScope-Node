@@ -9,6 +9,7 @@ import { CreateDataSourceDto, UpdateDataSourceDto, TestConnectionDto } from '../
 import { DatabaseType } from '../types/database';
 import { DatabaseConnectorFactory } from '../types/database-factory';
 import crypto from 'crypto';
+import { createPaginatedResponse } from '../utils/api.utils';
 
 const prisma = new PrismaClient();
 
@@ -122,21 +123,56 @@ export class DataSourceService {
   
   /**
    * 获取所有数据源
+   * @param options 分页选项
+   * @returns 分页后的数据源列表
    */
-  async getAllDataSources(): Promise<Omit<DataSource, 'passwordEncrypted' | 'passwordSalt'>[]> {
+  async getAllDataSources(options?: {
+    page?: number;
+    size?: number;
+    offset?: number;
+    limit?: number;
+  }): Promise<{
+    items: Omit<DataSource, 'passwordEncrypted' | 'passwordSalt'>[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+  }> {
     try {
+      // 处理分页参数
+      const limit = options?.limit || options?.size || 10;
+      const offset = options?.offset !== undefined ? options.offset : 
+                    (options?.page ? (options.page - 1) * limit : 0);
+      const page = options?.page || Math.floor(offset / limit) + 1;
       
-      const dataSources = await prisma.dataSource.findMany({
+      // 查询总数
+      const total = await prisma.dataSource.count({
         where: {
           active: true
         }
       });
       
+      // 查询分页数据
+      const dataSources = await prisma.dataSource.findMany({
+        where: {
+          active: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit
+      });
+      
       // 移除敏感信息
-      return dataSources.map(ds => {
+      const items = dataSources.map(ds => {
         const { passwordEncrypted, passwordSalt, ...rest } = ds;
         return rest;
       });
+      
+      // 返回标准格式的分页响应
+      return createPaginatedResponse(items, total, page, limit);
     } catch (error: any) {
       logger.error('获取数据源列表失败', { error });
       throw new ApiError('获取数据源列表失败', 500, error.message);

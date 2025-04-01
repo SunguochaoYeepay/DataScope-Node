@@ -25,7 +25,9 @@ export const isUsingMockApi = () => {
 // API 基础路径
 export const getApiBaseUrl = () => {
   // 使用环境变量中配置的API基础URL
-  return import.meta.env.VITE_API_BASE_URL || '';
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  console.log('【API基础URL】:', baseUrl);
+  return baseUrl;
 }
 
 export const getQueryPlansApiUrl = () => {
@@ -274,11 +276,11 @@ export const queryService = {
         queryParams.append('status', status)
       }
       
-      console.log('Query history request params:', Object.fromEntries(queryParams.entries()));
+      console.log('查询历史请求参数对象:', Object.fromEntries(queryParams.entries()));
 
-      // 使用相对路径请求API - 修复URL路径重复问题
+      // 使用标准API URL - 改回使用5000端口
       const apiUrl = `${getApiBaseUrl()}/api/queries/history?${queryParams.toString()}`
-      console.log('Query history API URL:', apiUrl)
+      console.log('查询历史API URL:', apiUrl)
       
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -289,21 +291,22 @@ export const queryService = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API response not OK:', response.status, errorText)
-        throw new Error(`Failed to fetch query history: ${response.status} ${response.statusText}`)
+        console.error('API响应错误:', response.status, errorText)
+        throw new Error(`获取查询历史失败: ${response.status} ${response.statusText}`)
       }
 
       const responseData = await response.json()
-      console.log('Query history raw response:', responseData)
+      console.log('查询历史原始响应:', JSON.stringify(responseData).substring(0, 500) + '...')
       
       // 如果API返回错误状态
       if (responseData && responseData.success === false) {
-        console.error('API returned failure:', responseData.message || 'Unknown error')
-        throw new Error(responseData.message || 'API returned failure status')
+        console.error('API返回失败状态:', responseData.message || '未知错误')
+        throw new Error(responseData.message || 'API返回失败状态')
       }
       
       // 提取并规范化数据部分 - 处理所有可能的响应格式
       const responseBody = responseData.success === true ? responseData.data : responseData
+      console.log('提取的响应主体:', JSON.stringify(responseBody).substring(0, 500) + '...')
       
       // 提取历史记录数组 - 适应多种可能的字段名
       let historyItems = []
@@ -311,19 +314,26 @@ export const queryService = {
         if (Array.isArray(responseBody)) {
           // 直接返回数组的情况
           historyItems = responseBody
+          console.log('响应是数组格式')
         } else if (Array.isArray(responseBody.history)) {
           // {history: [...]} 格式
           historyItems = responseBody.history
+          console.log('响应使用history字段')
         } else if (Array.isArray(responseBody.items)) {
           // {items: [...]} 格式
           historyItems = responseBody.items
+          console.log('响应使用items字段')
         } else if (responseBody.data && Array.isArray(responseBody.data)) {
           // {data: [...]} 格式
           historyItems = responseBody.data
+          console.log('响应使用data字段')
         }
       }
       
-      console.log(`Got ${historyItems.length} history items`)
+      console.log(`获取到 ${historyItems.length} 条历史记录`)
+      if (historyItems.length > 0) {
+        console.log('第一条记录示例:', JSON.stringify(historyItems[0]).substring(0, 300) + '...')
+      }
       
       // 提取分页信息
       let totalItems = historyItems.length
@@ -333,39 +343,58 @@ export const queryService = {
       
       // 从响应中尝试提取分页信息
       if (responseBody && typeof responseBody === 'object') {
+        // 记录所有可能包含分页信息的字段
+        console.log('可能的分页信息字段:',
+          responseBody.total !== undefined ? 'total' : '',
+          responseBody.totalPages !== undefined ? 'totalPages' : '',
+          responseBody.pagination !== undefined ? 'pagination' : ''
+        )
+        
         // 尝试获取total
         if (responseBody.total !== undefined) {
           totalItems = Number(responseBody.total)
+          console.log('从total字段获取总数:', totalItems)
         } else if (responseBody.pagination && responseBody.pagination.total !== undefined) {
           totalItems = Number(responseBody.pagination.total)
+          console.log('从pagination.total字段获取总数:', totalItems)
         }
         
         // 尝试获取totalPages
         if (responseBody.totalPages !== undefined) {
           totalPages = Number(responseBody.totalPages)
+          console.log('从totalPages字段获取总页数:', totalPages)
         } else if (responseBody.pagination && responseBody.pagination.totalPages !== undefined) {
           totalPages = Number(responseBody.pagination.totalPages)
+          console.log('从pagination.totalPages字段获取总页数:', totalPages)
         } else {
           // 如果没有提供totalPages，则根据total和size计算
           totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+          console.log('计算得到的总页数:', totalPages)
         }
         
         // 尝试获取当前页码
         if (responseBody.page !== undefined) {
           currentPage = Number(responseBody.page)
+          console.log('从page字段获取当前页:', currentPage)
         } else if (responseBody.pagination && responseBody.pagination.page !== undefined) {
           currentPage = Number(responseBody.pagination.page)
+          console.log('从pagination.page字段获取当前页:', currentPage)
         }
         
         // 尝试获取页大小
         if (responseBody.size !== undefined) {
           pageSize = Number(responseBody.size) 
+          console.log('从size字段获取页大小:', pageSize)
         } else if (responseBody.pagination && responseBody.pagination.size !== undefined) {
           pageSize = Number(responseBody.pagination.size)
+          console.log('从pagination.size字段获取页大小:', pageSize)
+        } else if (responseBody.pagination && responseBody.pagination.pageSize !== undefined) {
+          pageSize = Number(responseBody.pagination.pageSize)
+          console.log('从pagination.pageSize字段获取页大小:', pageSize)
         }
       }
       
-      console.log('Pagination info:', { currentPage, pageSize, totalItems, totalPages })
+      console.log('最终分页信息:', { currentPage, pageSize, totalItems, totalPages })
       
       // 将原始数据映射为前端所需的Query对象格式
       const mappedItems = historyItems.map((item: any) => {
@@ -383,21 +412,28 @@ export const queryService = {
         }
         
         const query: Query = {
-          id: item.id || `query-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          name: displayName,
+          id: item.id,
+          name: item.name || `测试查询: ${item.sqlContent?.substring(0, 20) || ''}`,
           dataSourceId: item.dataSourceId || '',
           queryType: (item.queryType as QueryType) || 'SQL',
           queryText: item.sqlContent || item.sql || item.queryText || '',
           status: (item.status as QueryStatus) || 'COMPLETED',
           createdAt: item.startTime || item.createdAt || new Date().toISOString(),
-          updatedAt: item.endTime || item.updatedAt || new Date().toISOString(),
-          executionTime: item.duration || item.executionTime,
+          updatedAt: item.endTime || item.updatedAt || item.createdAt || new Date().toISOString(),
+          executionTime: item.duration || item.executionTime || 0,
           resultCount: item.rowCount || item.resultCount || 0,
-          error: item.errorMessage || item.error,
-          isFavorite: item.isFavorite || false
-        }
+          error: item.errorMessage || item.error || null,
+          isFavorite: item.isFavorite || false,
+          description: item.description || '',
+          tags: item.tags || []
+        };
         return query
       })
+      
+      console.log(`映射后得到 ${mappedItems.length} 条记录`)
+      if (mappedItems.length > 0) {
+        console.log('第一条映射后记录示例:', JSON.stringify(mappedItems[0]).substring(0, 300) + '...')
+      }
       
       // 返回标准化的分页响应对象
       return {
@@ -408,7 +444,7 @@ export const queryService = {
         totalPages: totalPages
       }
     } catch (error) {
-      console.error('Error in getQueryHistory:', error)
+      console.error('获取查询历史错误:', error)
       // 重新抛出错误，让调用者处理
       throw error
     }
@@ -662,7 +698,26 @@ export const queryService = {
       }
 
       const responseData = await response.json()
-      const result = responseData.data || responseData
+      let result;
+      
+      // 处理标准响应格式: {success: true, data: {items: []}}
+      if (responseData.success === true && responseData.data) {
+        if (responseData.data.items && Array.isArray(responseData.data.items)) {
+          result = responseData.data.items;
+        } else if (Array.isArray(responseData.data)) {
+          // 兼容旧格式: {success: true, data: []}
+          result = responseData.data;
+        } else {
+          // 兼容旧格式: {success: true, data: {...}}
+          result = [responseData.data];
+        }
+      } else if (Array.isArray(responseData)) {
+        // 兼容极简格式: 直接返回数组
+        result = responseData;
+      } else {
+        // 未知格式，尝试提取，默认为空数组
+        result = responseData.items || responseData.list || responseData.favorites || [];
+      }
 
       // 转换结果为前端所需的QueryFavorite数组
       return Array.isArray(result) ? result.map((item: any) => ({
@@ -1007,6 +1062,157 @@ export const queryService = {
       };
     } catch (error) {
       console.error('获取查询计划历史失败:', error);
+      throw error;
+    }
+  },
+
+  // 获取查询列表
+  async getQueries(params: {
+    page?: number;
+    size?: number;
+    queryType?: string; 
+    status?: string;
+    searchTerm?: string;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+  } = {}): Promise<PageResponse<Query>> {
+    if (isUsingMockApi()) {
+      return mockQueryApi.getQueries(params)
+    }
+
+    try {
+      // 构建查询参数
+      const { 
+        page = 1, 
+        size = 10, 
+        queryType, 
+        status, 
+        searchTerm,
+        sortBy,
+        sortDir = 'desc'
+      } = params;
+      
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', page.toString());
+      queryParams.append('size', size.toString());
+      
+      if (queryType) {
+        queryParams.append('queryType', queryType);
+      }
+      
+      if (status) {
+        queryParams.append('status', status);
+      }
+      
+      if (searchTerm) {
+        queryParams.append('searchTerm', searchTerm);
+      }
+      
+      if (sortBy) {
+        queryParams.append('sortBy', sortBy);
+        queryParams.append('sortDir', sortDir);
+      }
+      
+      console.log('获取查询列表参数:', Object.fromEntries(queryParams.entries()));
+      
+      // 构建API请求路径
+      const apiUrl = `${getApiBaseUrl()}/api/queries?${queryParams.toString()}`;
+      console.log('查询列表API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error('API响应错误:', response.status, response.statusText);
+        throw new Error(`获取查询列表失败: ${response.statusText}`);
+      }
+      
+      // 解析响应数据
+      const responseData = await response.json();
+      console.log('查询列表原始响应:', responseData);
+      
+      // 处理标准响应格式: { success: true, data: { items: [], pagination: {} } }
+      // 或其他可能的响应格式
+      let queryItems: any[] = [];
+      let totalItems = 0;
+      let totalPages = 1;
+      
+      // 1. 处理标准成功响应格式
+      if (responseData.success === true && responseData.data) {
+        // 提取items数组
+        if (Array.isArray(responseData.data)) {
+          queryItems = responseData.data;
+          totalItems = queryItems.length;
+        } else if (responseData.data.items && Array.isArray(responseData.data.items)) {
+          queryItems = responseData.data.items;
+          
+          // 从pagination对象中提取分页信息
+          if (responseData.data.pagination) {
+            totalItems = responseData.data.pagination.total || queryItems.length;
+            totalPages = responseData.data.pagination.totalPages || 
+                        Math.ceil(totalItems / size);
+          }
+        }
+      } 
+      // 2. 处理直接返回数组的格式
+      else if (Array.isArray(responseData)) {
+        queryItems = responseData;
+        totalItems = queryItems.length;
+      } 
+      // 3. 处理其他格式
+      else {
+        // 尝试从各种可能的字段中提取数据
+        if (responseData.items && Array.isArray(responseData.items)) {
+          queryItems = responseData.items;
+        } else if (responseData.queries && Array.isArray(responseData.queries)) {
+          queryItems = responseData.queries;
+        } else if (responseData.data && Array.isArray(responseData.data)) {
+          queryItems = responseData.data;
+        }
+        
+        // 提取分页信息
+        totalItems = responseData.total || responseData.totalCount || queryItems.length;
+        totalPages = responseData.totalPages || 
+                    responseData.pages || 
+                    Math.ceil(totalItems / size);
+      }
+      
+      // 将原始数据转换为前端Query对象
+      const queries: Query[] = queryItems.map((item: any): Query => {
+        return {
+          id: item.id,
+          name: item.name || '未命名查询',
+          dataSourceId: item.dataSourceId,
+          queryType: (item.queryType as QueryType) || 'SQL',
+          queryText: item.sqlContent || item.sql || item.queryText || '',
+          status: (item.status as QueryStatus) || 'COMPLETED',
+          createdAt: item.startTime || item.createdAt || new Date().toISOString(),
+          updatedAt: item.endTime || item.updatedAt || item.createdAt || new Date().toISOString(),
+          executionTime: item.duration || item.executionTime || 0,
+          resultCount: item.resultCount || item.rowCount || 0,
+          error: item.error || item.errorMessage,
+          isFavorite: item.isFavorite || false,
+          description: item.description || '',
+          tags: item.tags || []
+        };
+      });
+      
+      // 返回标准化的分页响应
+      const pageResponse: PageResponse<Query> = {
+        items: queries,
+        page: Number(page),
+        size: Number(size),
+        total: totalItems,
+        totalPages: totalPages
+      };
+
+      return pageResponse;
+    } catch (error) {
+      console.error('获取查询列表错误:', error);
       throw error;
     }
   },

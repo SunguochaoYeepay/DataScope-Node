@@ -58,6 +58,8 @@ export interface QueryResult {
   status?: QueryStatus
   error?: string
   createdAt?: string
+  // 字段定义，用于渲染表头和处理数据类型
+  fields?: Array<{name: string; type: string; table?: string; schema?: string} | string>
   // 添加对 API 返回的包裹数据结构的支持
   data?: {
     fields?: Array<{name: string; type: string; table?: string; schema?: string} | string>
@@ -223,4 +225,55 @@ export interface QuerySuggestion {
   suggestedQuery?: string
   impact?: 'HIGH' | 'MEDIUM' | 'LOW'
   createdAt: string
+}
+
+// 查询构建器状态
+export interface QueryBuilderState {
+  selectedTables: Array<{
+    name: string;
+    schema?: string;
+    alias?: string;
+  }>;
+  joins?: Array<{
+    leftTable: string;
+    leftColumn: string;
+    rightTable: string;
+    rightColumn: string;
+    type: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
+  }>;
+  selectedColumns?: Array<{
+    name: string;
+    table: string;
+    alias?: string;
+    aggregate?: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT';
+  }>;
+  filters?: Array<{
+    column: string;
+    table: string;
+    operator: string;
+    value: any;
+    logicalOperator?: 'AND' | 'OR';
+  }>;
+  groupBy?: Array<{
+    column: string;
+    table: string;
+  }>;
+  orderBy?: Array<{
+    column: string;
+    table: string;
+    direction: 'ASC' | 'DESC';
+  }>;
+  limit?: number;
+  offset?: number;
+}
+
+// 查询执行记录
+export interface QueryExecution {
+  id: string;
+  queryId: string;
+  executedAt: string;
+  executionTime?: number;
+  status: QueryStatus;
+  rowCount?: number;
+  errorMessage?: string;
 }

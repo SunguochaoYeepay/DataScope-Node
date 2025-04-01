@@ -430,7 +430,20 @@ export class QueryService {
     tag?: string;
     isPublic?: boolean;
     search?: string;
-  } = {}): Promise<Query[]> {
+    page?: number;
+    size?: number;
+    offset?: number;
+    limit?: number;
+  } = {}): Promise<{
+    items: Query[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+  }> {
     try {
       // 构建查询条件
       const where: any = {};
@@ -461,11 +474,25 @@ export class QueryService {
         ];
       }
       
-      // 查询数据库
-      return await prisma.query.findMany({
+      // 处理分页参数
+      const limit = options.limit || options.size || 10;
+      const offset = options.offset !== undefined ? options.offset : 
+                     (options.page ? (options.page - 1) * limit : 0);
+      const page = options.page || Math.floor(offset / limit) + 1;
+      
+      // 查询数据库获取总数
+      const total = await prisma.query.count({ where });
+      
+      // 查询数据库获取分页数据
+      const queries = await prisma.query.findMany({
         where,
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit
       });
+      
+      // 返回标准格式的分页响应
+      return createPaginatedResponse(queries, total, page, limit);
     } catch (error: any) {
       logger.error('获取查询列表失败', { error, options });
       throw new ApiError('获取查询列表失败', 500, error.message);
@@ -658,13 +685,45 @@ export class QueryService {
   /**
    * 获取收藏的查询列表
    * @param userId 用户ID
-   * @returns 收藏的查询列表
+   * @param options 分页选项
+   * @returns 分页的收藏查询列表
    */
-  async getFavorites(userId: string = 'anonymous'): Promise<any[]> {
+  async getFavorites(
+    userId: string = 'anonymous',
+    options?: {
+      page?: number;
+      size?: number;
+      offset?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    items: any[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+  }> {
     try {
       logger.info(`获取用户收藏的查询, userId: ${userId}`);
       
-      // 查询用户收藏
+      // 处理分页参数
+      const limit = options?.limit || options?.size || 10;
+      const offset = options?.offset !== undefined ? options.offset : 
+                    (options?.page ? (options.page - 1) * limit : 0);
+      const page = options?.page || Math.floor(offset / limit) + 1;
+      
+      // 获取总记录数
+      const totalCount = await prisma.$queryRaw<[{count: number}]>`
+        SELECT COUNT(*) as count
+        FROM tbl_query_favorite
+        WHERE userId = ${userId}
+      `;
+      const total = Number(totalCount[0].count);
+      
+      // 查询用户收藏（带分页）
       interface QueryFavorite {
         id: string;
         queryId: string;
@@ -672,16 +731,18 @@ export class QueryService {
         createdAt: Date;
       }
       
-      // 直接使用原始查询
+      // 直接使用原始查询，添加分页
       const favorites = await prisma.$queryRaw<QueryFavorite[]>`
         SELECT id, queryId, userId, createdAt
         FROM tbl_query_favorite
         WHERE userId = ${userId}
+        ORDER BY createdAt DESC
+        LIMIT ${limit} OFFSET ${offset}
       `;
       
       // 如果没有收藏，返回空数组
       if (!favorites || favorites.length === 0) {
-        return [];
+        return createPaginatedResponse([], total, page, limit);
       }
       
       // 收集所有收藏的查询ID
@@ -697,7 +758,7 @@ export class QueryService {
       });
       
       // 将查询信息与收藏信息合并
-      return favorites.map(favorite => {
+      const items = favorites.map(favorite => {
         const query = queries.find(q => q.id === favorite.queryId);
         return {
           id: favorite.id,
@@ -707,6 +768,9 @@ export class QueryService {
           query: query || null // 查询可能已被删除
         };
       });
+      
+      // 返回标准格式的分页响应
+      return createPaginatedResponse(items, total, page, limit);
     } catch (error: any) {
       logger.error(`获取收藏查询失败, userId: ${userId}`, { error });
       throw new ApiError('获取收藏查询失败', 500, error.message);

@@ -177,6 +177,108 @@ npx prisma migrate dev
 - `POST /api/queries/:id/favorite`: 收藏查询
 - `DELETE /api/queries/:id/favorite`: 取消收藏查询
 
+### 查询文件夹管理
+
+- `GET /api/query-folders`: 获取查询文件夹列表
+  - 支持分页参数`page`和`size`以及备用分页参数`offset`和`limit`
+  - 支持通过`parentId`参数筛选特定父文件夹下的子文件夹
+  - 返回标准化的分页格式：`{success: true, data: {items: [], pagination: {}}}`
+- `GET /api/query-folders/:id`: 获取文件夹详情
+  - 返回文件夹的详细信息，包括父文件夹、子文件夹和包含的查询
+- `POST /api/query-folders`: 创建新文件夹
+  - 必须参数：`name`（文件夹名称）
+  - 可选参数：`description`（文件夹描述）、`parentId`（父文件夹ID）
+- `PUT /api/query-folders/:id`: 更新文件夹
+  - 可更新文件夹的名称、描述和父文件夹
+  - 自动检测并防止形成循环引用
+- `DELETE /api/query-folders/:id`: 删除文件夹
+  - 仅当文件夹为空（不包含子文件夹和查询）时才能删除
+  - 防止意外删除包含内容的文件夹
+
+### 系统管理
+
+- `GET /api/system/logs`: 获取系统日志
+  - 支持标准分页参数`page`和`size`以及备用参数`offset`和`limit`
+  - 支持过滤参数：`level`（日志级别）、`search`（关键词搜索）、`startDate`和`endDate`（日期范围）
+  - 返回标准化的分页格式，日志按时间倒序排列（最新的在前）
+  - 每条日志包含时间戳、级别、消息和相关数据
+- `GET /api/system/health`: 获取系统健康状态
+  - 返回详细的系统状态信息，包括：
+    - 系统信息（平台、架构、Node.js版本、运行时间）
+    - 内存使用情况（总内存、空闲内存、使用率）
+    - CPU信息（型号、核心数、负载）
+    - 进程信息（PID、运行时间、内存使用）
+    - 数据库连接状态
+  - 可用于监控系统运行状况和排查性能问题
+
+## API标准化响应格式
+
+为提高系统一致性和开发效率，所有分页API均采用统一的响应格式：
+
+### 标准分页响应格式
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      // 数据项数组
+    ],
+    "pagination": {
+      "page": 1,          // 当前页码
+      "pageSize": 10,     // 每页大小
+      "total": 100,       // 总记录数
+      "totalPages": 10,   // 总页数
+      "hasMore": true     // 是否有更多数据
+    }
+  }
+}
+```
+
+### 分页参数支持
+
+所有分页API支持以下两套参数系统，系统会自动进行适配转换：
+
+1. **主要参数系统** (`page`/`size`)
+   - `page`: 页码，从1开始计数
+   - `size`: 每页记录数
+
+2. **备选参数系统** (`offset`/`limit`)
+   - `offset`: 从第几条记录开始
+   - `limit`: 返回多少条记录
+
+系统优先使用`offset`/`limit`参数，如未提供则使用`page`/`size`参数。
+
+### 已标准化的API
+
+以下API已采用标准响应格式：
+
+1. `GET /api/queries/history` - 查询历史列表
+2. `GET /api/queries/plans` - 查询计划历史
+3. `GET /api/metadata/:dataSourceId/tables/:tableName/data` - 表数据预览
+4. `GET /api/queries` - 查询列表
+5. `GET /api/datasources` - 数据源列表
+6. `GET /api/queries/favorites` - 收藏查询列表
+7. `GET /api/metadata/:dataSourceId/tables` - 表列表
+8. `GET /api/metadata/:dataSourceId/sync-history` - 元数据同步历史
+9. `GET /api/query-folders` - 查询文件夹列表
+10. `GET /api/system/logs` - 系统日志
+
+### 使用示例
+
+客户端请求示例：
+
+```javascript
+// 使用page/size参数系统
+fetch('/api/queries?page=2&size=15')
+
+// 使用offset/limit参数系统
+fetch('/api/queries?offset=15&limit=15')
+```
+
+两种参数系统对应同样的数据范围，系统会自动进行换算：
+- `page=2, size=15` 等同于 `offset=15, limit=15`
+
 ## 特殊命令支持
 
 系统支持执行多种特殊的SQL命令，这些命令在处理时不会追加LIMIT子句：

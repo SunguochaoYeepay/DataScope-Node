@@ -80,14 +80,32 @@
 3. `GET /api/metadata/:dataSourceId/tables/:tableName/data` - 表数据预览
    - 原先使用 `rows` 字段返回数据项，现在改为 `items`
 
+4. `GET /api/queries` - 查询列表
+   - 原先直接返回数组，现在使用标准的分页格式
+
+5. `GET /api/datasources` - 数据源列表
+   - 原先直接返回数组，现在使用标准的分页格式
+
+6. `GET /api/queries/favorites` - 收藏查询列表
+   - 原先直接返回数组，现在使用标准的分页格式
+
+7. `GET /api/metadata/:dataSourceId/tables` - 表列表
+   - 原先直接返回数组，现在使用标准的分页格式
+
+8. `GET /api/metadata/:dataSourceId/sync-history` - 元数据同步历史
+   - 原先使用 `history` 字段返回数据项，现在改为 `items`
+
+9. `GET /api/query-folders` - 查询文件夹列表
+   - 原生设计采用标准分页格式，包含父文件夹筛选功能
+
+10. `GET /api/system/logs` - 系统日志
+    - 新增接口，原生设计采用标准分页格式，支持多种过滤条件
+
 ## 待统一的API列表
 
 以下API计划后续统一为标准格式：
 
-1. `GET /api/queries` - 查询列表
-2. `GET /api/datasources` - 数据源列表
-3. `GET /api/metadata/:dataSourceId/tables` - 表列表
-4. 其他返回列表数据的API
+1. 其他返回列表数据的API，特别是元数据接口中的特殊结构API
 
 ## 实现方法
 

@@ -386,20 +386,42 @@ export const mockDataSourceApi = {
     }
   },
 
-  // 获取表元数据
-  async getTableMetadata(dataSourceId: string, tableName?: string) {
-    const dataSource = await this.getDataSource(dataSourceId)
-    const tables = generateMockTables(10, dataSource.type)
+  /**
+   * 获取表元数据
+   */
+  async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata[]> {
+    // 获取数据源
+    const dataSource = await this.getDataSource(dataSourceId);
     
-    if (tableName) {
-      const table = tables.find(t => t.name === tableName)
-      return table || {}
+    if (!dataSource) {
+      throw new Error(`找不到ID为${dataSourceId}的数据源`);
     }
     
-    return tables.reduce((acc, table) => {
-      acc[table.name] = table
-      return acc
-    }, {} as Record<string, TableMetadata>)
+    // 如果数据源没有元数据，创建模拟元数据
+    if (!dataSource.metadata || !dataSource.metadata.tables || dataSource.metadata.tables.length < 2) {
+      const dbType = dataSource.type as DataSourceType;
+      console.log(`为数据源${dataSource.name}生成模拟表元数据`);
+      
+      // 生成或使用现有表
+      const tables = dataSource.metadata?.tables || generateMockTables(15, dbType);
+      
+      // 如果指定了表名，返回单个表
+      if (tableName) {
+        const table = tables.find((t: TableMetadata) => t.name === tableName);
+        return table ? [table] : [];
+      }
+      
+      // 否则返回所有表
+      return tables;
+    }
+    
+    // 返回已有元数据
+    if (tableName) {
+      const table = dataSource.metadata.tables.find((t: TableMetadata) => t.name === tableName);
+      return table ? [table] : [];
+    }
+    
+    return dataSource.metadata.tables;
   },
 
   // 获取表字段信息

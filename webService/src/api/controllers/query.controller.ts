@@ -6,6 +6,7 @@ import { ERROR_CODES } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 import dataSourceService from '../../services/datasource.service';
 import { StatusCodes } from 'http-status-codes';
+import { getPaginationParams, createSuccessResponse } from '../../utils/api.utils';
 
 /**
  * 检查SQL是否为特殊命令（如SHOW, DESCRIBE等），这些命令不支持LIMIT子句
@@ -301,17 +302,20 @@ export class QueryController {
   async getQueries(req: Request, res: Response, next: NextFunction) {
     try {
       const { dataSourceId, tag, isPublic, search } = req.query;
+      const pagination = getPaginationParams(req);
       
-      const queries = await queryService.getQueries({
+      const result = await queryService.getQueries({
         dataSourceId: dataSourceId as string,
         tag: tag as string,
         isPublic: isPublic === 'true',
-        search: search as string
+        search: search as string,
+        page: pagination.page,
+        size: pagination.size
       });
       
       res.status(200).json({
         success: true,
-        data: queries
+        data: result
       });
     } catch (error: any) {
       next(error);
@@ -524,8 +528,12 @@ export class QueryController {
   async getFavorites(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = (req as any).user?.id || 'anonymous'; // 如果有认证系统，获取用户ID
+      const pagination = getPaginationParams(req);
       
-      const favorites = await queryService.getFavorites(userId);
+      const favorites = await queryService.getFavorites(userId, {
+        page: pagination.page,
+        size: pagination.size
+      });
       
       res.status(200).json({
         success: true,

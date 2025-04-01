@@ -110,144 +110,102 @@ export const useQueryStore = defineStore('query', () => {
   })
 
   // 执行 SQL 查询
-  const executeQuery = async (params: ExecuteQueryParams) => {
+  const executeQuery = async (params: ExecuteQueryParams): Promise<QueryResult> => {
     try {
-      loading.show('执行查询中...')
       isExecuting.value = true
-      error.value = null
+      loading.show('正在执行查询...')
       
-      console.log('执行查询请求:', params)
-      
-      // 调用查询服务执行查询
+      // 使用查询服务执行查询
       const result = await queryService.executeQuery(params)
       
-      console.log('查询结果原始数据:', result)
+      // 更新当前查询结果
+      currentQueryResult.value = result
       
-      // 规范化结果数据，确保符合QueryResult类型
-      const normalizedResult: QueryResult = {
-        id: result.id || crypto.randomUUID(),
-        columns: result.fields || result.columns || [],
-        rows: processQueryResultRows(result),
-        rowCount: result.rowCount || (Array.isArray(result.rows) ? result.rows.length : 1),
-        executionTime: result.executionTime,
+      // 创建临时查询对象
+      const tempQuery: Query = {
+        id: result.id,
+        name: 'Query at ' + new Date().toLocaleString(),
+        dataSourceId: params.dataSourceId,
+        queryType: params.queryType,
+        queryText: params.queryText,
         status: result.status || 'COMPLETED',
-        hasMore: result.hasMore,
-        createdAt: result.createdAt || new Date().toISOString()
+        createdAt: result.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        executionTime: result.executionTime,
+        resultCount: result.rowCount,
+        error: result.error
       }
       
-      console.log('处理后的结果数据:', normalizedResult)
+      // 添加到查询历史
+      currentQuery.value = tempQuery
+      queryHistory.value = [tempQuery, ...queryHistory.value].slice(0, 100)
       
-      // 更新当前查询结果
-      currentQueryResult.value = normalizedResult
+      // 处理数据格式，确保在前端一致展示
+      const processedResult = processQueryResult(result);
       
-      // 更新UI显示
-      loading.hide()
       message.success('查询执行成功')
-      
-      return normalizedResult
-    } catch (err) {
-      console.error('执行查询错误:', err)
-      error.value = err instanceof Error ? err : new Error(String(err))
-      message.error(`执行查询失败: ${error.value.message}`)
-      throw error.value
+      return processedResult
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('执行查询失败:', errorMessage)
+      message.error('执行查询失败: ' + errorMessage)
+      throw error
     } finally {
       isExecuting.value = false
       loading.hide()
     }
   }
   
-  // 处理查询结果行数据，确保格式兼容
-  const processQueryResultRows = (result: any): Record<string, any>[] => {
-    console.log('处理查询结果数据:', result);
+  // 处理查询结果数据
+  const processQueryResult = (result: QueryResult): QueryResult => {
+    // 复制结果对象，避免修改原始对象
+    const processedResult: QueryResult = { ...result };
     
-    // 如果有标准API封装，先解包
-    if (result.success === true && result.data) {
-      console.log('检测到API标准包装，解析data字段:', result.data);
-      result = result.data;
-    }
-    
-    // 如果rows是数组，检查每个元素并处理
-    if (Array.isArray(result.rows)) {
-      console.log('rows是数组，元素数量:', result.rows.length);
-      // 处理数组中的每个元素，转换可能的JSON字符串
-      return result.rows.map(row => {
-        if (typeof row === 'object' && row !== null) {
-          // 处理对象中的每个属性
-          const processedRow: Record<string, any> = {};
-          Object.keys(row).forEach(key => {
-            const value = row[key];
-            if (typeof value === 'string' && 
-                ((value.startsWith('{') && value.endsWith('}')) || 
-                (value.startsWith('[') && value.endsWith(']')))) {
-              try {
-                // 尝试解析JSON字符串
-                processedRow[key] = JSON.parse(value);
-              } catch (e) {
-                // 解析失败则保留原始字符串
-                processedRow[key] = value;
-              }
-            } else {
-              processedRow[key] = value;
+    // 确保rows是标准格式的数组数据
+    if (processedResult.rows && Array.isArray(processedResult.rows)) {
+      // 确保每一行都是对象类型
+      processedResult.rows = processedResult.rows.map((row: any) => {
+        // 如果行已经是对象，直接返回
+        if (row && typeof row === 'object' && !Array.isArray(row)) {
+          return row;
+        }
+        
+        // 如果行是数组，转换为对象
+        if (Array.isArray(row)) {
+          const rowObj: Record<string, any> = {};
+          processedResult.columns.forEach((col, index) => {
+            if (index < row.length) {
+              rowObj[col] = row[index];
             }
           });
-          return processedRow;
+          return rowObj;
         }
-        return row;
+        
+        // 其他情况返回空对象
+        return {};
       });
     }
     
-    // 特殊处理status_count字段
-    if (result.rows && typeof result.rows === 'object' && 'status_count' in result.rows) {
-      console.log('发现status_count字段:', result.rows.status_count);
-      
-      // 检查status_count是否为JSON字符串
-      if (typeof result.rows.status_count === 'string') {
-        try {
-          // 尝试解析成JSON对象
-          const statusData = JSON.parse(result.rows.status_count);
-          console.log('解析status_count成功:', statusData);
-          
-          // 返回解析后的数据作为单行
-          return [{ status_count: statusData }];
-        } catch (e) {
-          console.error('解析status_count失败:', e);
+    // 如果存在fields字段但没有columns字段，从fields提取columns
+    if (!processedResult.columns && processedResult.fields) {
+      processedResult.columns = processedResult.fields.map((field: any) => {
+        if (typeof field === 'string') {
+          return field;
+        } else if (field && typeof field === 'object' && field.name) {
+          return field.name;
         }
-      }
-      
-      // 无法解析时，返回原始数据
-      return [result.rows];
+        return '';
+      }).filter(Boolean);
     }
     
-    // 特殊处理COUNT(*)查询结果
-    if (result.rows && typeof result.rows === 'object' && 'COUNT(*)' in result.rows) {
-      console.log('处理COUNT(*)查询结果:', result.rows);
-      return [{ 'COUNT(*)': result.rows['COUNT(*)'] }];
-    }
-    
-    // 处理其他对象格式
-    if (result.rows && typeof result.rows === 'object') {
-      // 尝试从各种位置提取数据
-      if ('data' in result.rows && Array.isArray(result.rows.data)) {
-        return result.rows.data;
-      }
-      
-      if ('items' in result.rows && Array.isArray(result.rows.items)) {
-        return result.rows.items;
-      }
-      
-      // 将对象转为单行数据
-      if (Object.keys(result.rows).length > 0) {
-        return [result.rows];
-      }
-    }
-    
-    // 如果无法识别格式，返回空数组并警告
-    console.warn('无法识别的查询结果格式:', result);
-    return [];
-  }
+    return processedResult;
+  };
   
   // 执行自然语言查询
-  const executeNaturalLanguageQuery = async (params: NaturalLanguageQueryParams) => {
+  const executeNaturalLanguageQuery = async (params: NaturalLanguageQueryParams): Promise<{
+    query: Query;
+    result: QueryResult;
+  }> => {
     isExecuting.value = true
     error.value = null
     loading.show('处理自然语言查询中...', {
@@ -370,7 +328,8 @@ export const useQueryStore = defineStore('query', () => {
     try {
       isLoadingHistory.value = true
       error.value = null
-      console.log('查询历史请求参数:', params)
+      console.log('=====================================================')
+      console.log('开始获取查询历史，参数:', params)
       
       // 确保params中至少有page和size参数
       const safeParams: QueryHistoryParams = {
@@ -379,31 +338,45 @@ export const useQueryStore = defineStore('query', () => {
         ...params
       }
       
+      console.log('处理后的参数:', safeParams)
+      
       // 调用API获取查询历史
       const result = await queryService.getQueryHistory(safeParams)
-      console.log('查询历史结果:', {
-        items: result.items?.length,
-        page: result.page,
-        totalItems: result.total,
-        totalPages: result.totalPages
-      })
+      console.log('获取到查询历史返回值:', result.items ? `包含${result.items.length}条记录` : '无记录')
+      
+      // 检查服务返回的数据结构
+      if (!result.items || !Array.isArray(result.items)) {
+        console.warn('查询历史API返回了空的或非数组的items:', result)
+        
+        // 尝试查看原始响应格式，帮助调试
+        if (result) {
+          console.log('响应格式详情:', 
+            Object.keys(result).join(','), 
+            'items类型:', result.items ? typeof result.items : '无items字段'
+          )
+        }
+      }
       
       // 将查询历史数据存储到store
       queryHistory.value = result.items || []
+      console.log('查询历史存储成功，记录数:', queryHistory.value.length)
       
       // 更新分页信息
       pagination.value = {
         page: result.page || 1,
         size: result.size || 10,
         total: result.total || 0,
-        totalPages: result.totalPages || 1,
-        hasMore: result.totalPages ? (result.page < result.totalPages) : false
+        totalPages: result.totalPages || Math.ceil((result.total || 0) / (result.size || 10)),
+        hasMore: (result.page || 1) < (result.totalPages || 1)
       }
       
-      console.log('查询历史加载完成, 共 ' + queryHistory.value.length + ' 条记录')
+      console.log('分页信息更新:', pagination.value)
+      console.log('=====================================================')
+      
       return result
     } catch (err) {
       console.error('获取查询历史失败:', err)
+      console.log('=====================================================')
       
       // 使用工具函数获取错误消息
       let errorMessage = ''
@@ -786,89 +759,31 @@ export const useQueryStore = defineStore('query', () => {
     try {
       loading.show('加载查询列表...')
       
-      // 直接构建查询参数
-      const queryParams = new URLSearchParams();
-      if (params?.queryType) {
-        queryParams.append('queryType', params.queryType);
-      }
-      if (params?.dataSourceId) {
-        queryParams.append('dataSourceId', params.dataSourceId);
-      }
-      if (params?.search) {
-        queryParams.append('search', params.search);
-      }
-      if (params?.page) {
-        queryParams.append('page', params.page.toString());
-      }
-      if (params?.size) {
-        queryParams.append('size', params.size.toString());
-      }
-      
-      // 构建API URL
-      const url = `${getApiBaseUrl()}/api/queries?${queryParams.toString()}`;
-      
-      // 执行请求
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
+      // 使用queryService.getQueries获取标准化查询列表
+      const result = await queryService.getQueries({
+        page: params?.page,
+        size: params?.size,
+        queryType: params?.queryType,
+        status: params?.status,
+        searchTerm: params?.search,
+        sortBy: params?.sortBy,
+        sortDir: params?.sortDir
       });
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch queries: ${response.statusText}`);
-      }
+      // 更新store状态
+      queryHistory.value = result.items;
       
-      const responseData = await response.json();
+      // 更新分页信息
+      pagination.value = {
+        total: result.total || 0,
+        page: result.page || 1,
+        size: result.size || 10,
+        totalPages: result.totalPages || Math.ceil((result.total || 0) / (result.size || 10)),
+        hasMore: (result.page || 1) < (result.totalPages || 1)
+      };
       
-      // 处理标准API响应格式
-      if (!responseData.success) {
-        throw new Error(`API returned error: ${responseData.message || 'Unknown error'}`);
-      }
-      
-      // 提取数据并转换为前端Query对象
-      const data = responseData.data || [];
-      const items = Array.isArray(data) ? data : (data.items || []);
-      
-      // 映射为标准Query对象
-      const result = items.map((item: any) => ({
-        id: item.id,
-        name: item.name || `Query ${item.id.substring(0, 8)}`,
-        dataSourceId: item.dataSourceId,
-        queryType: item.queryType || 'SQL',
-        queryText: item.sqlContent || item.sql || '',
-        status: item.status || 'COMPLETED',
-        createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: item.updatedAt || new Date().toISOString(),
-        executionTime: item.executionTime,
-        resultCount: item.resultCount || 0,
-        error: item.error,
-        isFavorite: item.isFavorite || false,
-        description: item.description || '',
-        tags: item.tags || []
-      }));
-      
-      // 更新store
-      queryHistory.value = result;
-      
-      // 如果有分页信息，更新分页状态
-      if (data.pagination || data.total) {
-        const total = data.pagination?.total || data.total || result.length;
-        const page = data.pagination?.page || data.page || (params?.page || 1);
-        const size = data.pagination?.size || data.size || (params?.size || 10);
-        const totalPages = data.pagination?.totalPages || data.totalPages || Math.ceil(total / size);
-        
-        pagination.value = {
-          total,
-          page,
-          size,
-          totalPages,
-          hasMore: page < totalPages
-        };
-      }
-      
-      message.success(`已加载 ${result.length} 个查询`);
-      return result;
+      message.success(`已加载 ${result.items.length} 个查询`);
+      return result.items;
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
       message.error('加载查询列表失败')

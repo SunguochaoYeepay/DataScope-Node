@@ -9,6 +9,7 @@ import config from '../../config';
 import { PrismaClient } from '@prisma/client';
 import { StatusCodes } from 'http-status-codes';
 import mysql from 'mysql2/promise';
+import { getPaginationParams } from '../../utils/api.utils';
 
 const dataSourceService = new DataSourceService();
 const prisma = new PrismaClient();
@@ -102,18 +103,18 @@ class MetadataController {
   async getSyncHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const { dataSourceId } = req.params;
-      const { limit, offset } = req.query;
+      const pagination = getPaginationParams(req);
       
       const result = await metadataService.getSyncHistory(
-      dataSourceId,
-        Number(limit) || 10,
-        Number(offset) || 0
-    );
-    
+        dataSourceId,
+        pagination.limit,
+        pagination.offset
+      );
+      
       res.status(200).json({
-      success: true,
+        success: true,
         data: result
-    });
+      });
     } catch (error: any) {
       next(error);
     }
@@ -476,7 +477,7 @@ class MetadataController {
       // 获取数据源的表列表
       const tables = await metadataService.getTables(dataSourceId);
       
-      logger.info(`成功获取数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
+      logger.info(`成功获取数据源 ${dataSourceId} 的表列表，共 ${tables.items ? tables.items.length : 0} 张表`);
       
       return res.status(200).json({
       success: true,
