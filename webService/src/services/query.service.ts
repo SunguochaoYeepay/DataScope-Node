@@ -21,47 +21,49 @@ export class QueryService {
     limit?: number;
     sort?: string;
     order?: 'asc' | 'desc';
+    queryId?: string;
+    createHistory?: boolean;
   }): Promise<any> {
     try {
-      logger.info('开始执行查询', { dataSourceId, sql, params });
+      logger.debug('执行查询', { dataSourceId, sql, params, options });
+      
+      let queryHistoryId: string | undefined;
+      const startTime = new Date();
       
       // 获取数据源连接器
-      logger.debug('尝试获取数据源连接器');
       const connector = await dataSourceService.getConnector(dataSourceId);
-      logger.debug('成功获取数据源连接器', { dataSourceId, connectorType: connector.constructor.name });
-      
-      // 检查是否为特殊命令
-      const isSpecialCommand = this.isSpecialCommand(sql);
-      logger.debug(`SQL命令类型: "${sql}" -> ${isSpecialCommand ? '特殊命令' : '普通查询'}`);
-      
-      // 特殊命令处理：不应用分页和排序
-      let queryOptionsToUse = options;
-      if (isSpecialCommand) {
-        logger.debug('特殊命令不使用分页和排序选项');
-        queryOptionsToUse = {}; // 特殊命令不应用任何选项
-      } else {
-        logger.debug('普通查询使用原始查询选项', options);
+      if (!connector) {
+        throw new ApiError('数据源连接失败', ERROR_CODES.DATABASE_CONNECTION_ERROR);
       }
       
-      // 记录查询开始
-      const startTime = new Date();
-      let queryHistoryId: string | null = null;
+      // 默认查询选项
+      const queryOptionsToUse = {
+        ...options
+      };
       
       try {
-        // 创建查询历史记录
-        logger.debug('创建查询历史记录');
-        const queryHistory = await prisma.queryHistory.create({
-          data: {
-            dataSourceId,
-            sqlContent: sql,
-            status: 'RUNNING',
-            startTime,
-          }
-        });
-        queryHistoryId = queryHistory.id;
-        logger.debug('查询历史记录已创建', { queryHistoryId });
+        // 只有在以下情况下才创建查询历史记录：
+        // 1. 执行已保存的查询(queryId存在)
+        // 2. 显式指定需要创建历史记录(createHistory=true)
+        if (options?.queryId || options?.createHistory) {
+          logger.debug('创建查询历史记录');
+          const queryHistory = await prisma.queryHistory.create({
+            data: {
+              dataSourceId,
+              sqlContent: sql,
+              status: 'RUNNING',
+              startTime,
+              // 如果有queryId，则关联到已保存的查询
+              queryId: options?.queryId
+            }
+          });
+          queryHistoryId = queryHistory.id;
+          logger.debug('查询历史记录已创建', { queryHistoryId });
+        } else {
+          logger.debug('跳过创建查询历史记录');
+        }
         
-        // 执行查询 - 传递queryHistoryId作为queryId以支持取消功能
+        // 执行查询 - 传递queryHistoryId作为cancelId以支持取消功能
         logger.debug('开始执行数据库查询', { 
           sql, 
           params, 
@@ -72,20 +74,22 @@ export class QueryService {
         const result = await connector.executeQuery(sql, params, queryHistoryId, queryOptionsToUse);
         logger.debug('数据库查询执行成功', { rowCount: result.rows.length });
         
-        // 更新查询历史为成功
-        const endTime = new Date();
-        const duration = endTime.getTime() - startTime.getTime();
-        
-        await prisma.queryHistory.update({
-          where: { id: queryHistoryId },
-          data: {
-            status: 'COMPLETED',
-            endTime,
-            duration,
-            rowCount: result.rows.length,
-          }
-        });
-        logger.debug('查询历史记录已更新为完成状态');
+        // 如果创建了查询历史，则更新状态
+        if (queryHistoryId) {
+          const endTime = new Date();
+          const duration = endTime.getTime() - startTime.getTime();
+          
+          await prisma.queryHistory.update({
+            where: { id: queryHistoryId },
+            data: {
+              status: 'COMPLETED',
+              endTime,
+              duration,
+              rowCount: result.rows.length,
+            }
+          });
+          logger.debug('查询历史记录已更新为完成状态');
+        }
         
         return result;
       } catch (error: any) {
@@ -377,6 +381,7 @@ export class QueryService {
    * 保存查询
    */
   async saveQuery(data: {
+    id?: string;
     name: string;
     dataSourceId: string;
     sql: string;
@@ -385,19 +390,31 @@ export class QueryService {
     isPublic?: boolean;
   }): Promise<Query> {
     try {
+      // 记录请求内容
+      logger.debug('保存查询请求参数', { ...data, id: data.id || '(未提供，将自动生成)' });
+      
+      // 准备创建数据
+      const createData: any = {
+        name: data.name,
+        dataSourceId: data.dataSourceId,
+        sqlContent: data.sql,
+        description: data.description || '',
+        tags: data.tags?.join(',') || '',
+        status: data.isPublic ? 'PUBLISHED' : 'DRAFT',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // 如果提供了自定义ID，使用它
+      if (data.id) {
+        createData.id = data.id;
+      }
+      
       const query = await prisma.query.create({
-        data: {
-          name: data.name,
-          dataSourceId: data.dataSourceId,
-          sqlContent: data.sql,
-          description: data.description || '',
-          tags: data.tags?.join(',') || '',
-          status: data.isPublic ? 'PUBLISHED' : 'DRAFT',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
+        data: createData
       });
       
+      logger.debug('查询保存成功', { id: query.id });
       return query;
     } catch (error: any) {
       logger.error('保存查询失败', { error, data });
@@ -491,16 +508,54 @@ export class QueryService {
       description?: string;
       tags?: string[];
       isPublic?: boolean;
+      dataSourceId?: string; // 添加dataSourceId参数，用于创建不存在的查询
     }
   ): Promise<Query> {
     try {
+      // 记录详细的请求信息以辅助调试
+      logger.debug('尝试更新查询', { id, updateData: data });
+      
       // 检查查询是否存在
       const existingQuery = await prisma.query.findUnique({
         where: { id }
       });
       
+      // 如果查询不存在且提供了必要的数据，则创建新查询
       if (!existingQuery) {
-        throw new ApiError('查询不存在', 404);
+        logger.info('查询不存在，尝试创建新查询', { id, data });
+        
+        // 检查创建查询所需的必要字段
+        if (!data.dataSourceId || !data.name) {
+          logger.warn('缺少创建查询所需的必要字段', { id, data });
+          throw new ApiError('查询不存在，且缺少创建所需的必要字段 (dataSourceId, name)', 404);
+        }
+        
+        // 创建新查询
+        const createData: any = {
+          id: id, // 使用传入的ID
+          name: data.name,
+          dataSourceId: data.dataSourceId,
+          sqlContent: data.sql || '', 
+          description: data.description || '',
+          tags: data.tags?.join(',') || '',
+          status: data.isPublic ? 'PUBLISHED' : 'DRAFT',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        logger.debug('创建新查询', { id, createData });
+        
+        try {
+          const newQuery = await prisma.query.create({
+            data: createData
+          });
+          
+          logger.info('已创建新查询', { id: newQuery.id });
+          return newQuery;
+        } catch (createError: any) {
+          logger.error('创建新查询失败', { error: createError, id, data });
+          throw new ApiError(`创建新查询失败: ${createError.message}`, 500);
+        }
       }
       
       // 准备更新数据
@@ -514,10 +569,13 @@ export class QueryService {
       if (data.tags !== undefined) updateData.tags = data.tags.join(',');
       
       // 更新时间
-      return await prisma.query.update({
+      const updatedQuery = await prisma.query.update({
         where: { id },
         data: updateData
       });
+      
+      logger.debug('查询更新成功', { id });
+      return updatedQuery;
     } catch (error: any) {
       logger.error('更新查询失败', { error, id, data });
       if (error instanceof ApiError) {
@@ -784,6 +842,46 @@ export class QueryService {
         throw error;
       }
       throw new ApiError('获取查询历史记录失败', 500, error.message);
+    }
+  }
+
+  /**
+   * 清空临时查询历史记录
+   * 仅删除未关联到保存查询的历史记录(queryId为null的记录)
+   * @param dataSourceId 可选数据源ID，如果提供则只清空该数据源的临时历史
+   * @returns 删除的记录数量
+   */
+  async clearTemporaryQueryHistory(dataSourceId?: string): Promise<number> {
+    try {
+      logger.info('清空临时查询历史记录', { dataSourceId: dataSourceId || '全部数据源' });
+      
+      // 构建删除条件
+      const where: any = {
+        queryId: null // 仅删除未关联到保存查询的记录
+      };
+      
+      // 如果提供了数据源ID，则添加到过滤条件
+      if (dataSourceId) {
+        where.dataSourceId = dataSourceId;
+      }
+      
+      // 执行删除操作
+      const result = await prisma.queryHistory.deleteMany({
+        where
+      });
+      
+      logger.info(`临时查询历史记录清空成功，共删除${result.count}条记录`, { 
+        dataSourceId: dataSourceId || '全部数据源',
+        deletedCount: result.count 
+      });
+      
+      return result.count;
+    } catch (error: any) {
+      logger.error('清空临时查询历史记录失败', { error, dataSourceId });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError('清空临时查询历史记录失败', 500, error.message);
     }
   }
 }

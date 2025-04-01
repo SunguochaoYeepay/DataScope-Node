@@ -63,6 +63,45 @@ router.get('/history/:id', queryController.getQueryHistoryById);
 
 /**
  * @swagger
+ * /queries/history/clear-temporary:
+ *   delete:
+ *     summary: 清空临时查询历史记录
+ *     description: 清空所有未关联到保存查询的临时历史记录(queryId为null的记录)
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: query
+ *         name: dataSourceId
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: 数据源ID，如果指定则只清除该数据源的临时历史
+ *     responses:
+ *       200:
+ *         description: 临时查询历史清空成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "已成功清空临时查询历史记录，共删除10条记录"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     deletedCount:
+ *                       type: integer
+ *                       example: 10
+ *       500:
+ *         description: 服务器内部错误
+ */
+router.delete('/history/clear-temporary', queryController.clearTemporaryQueryHistory);
+
+/**
+ * @swagger
  * /queries/execute:
  *   post:
  *     summary: 执行SQL查询
@@ -316,7 +355,7 @@ router.get('/plans',
 router.get(
   '/plans/:id/tips',
   [
-    check('id').isUUID().withMessage('无效的查询计划ID'),
+    check('id').not().isEmpty().withMessage('无效的查询计划ID'),
   ],
   queryController.getQueryOptimizationTips
 );
@@ -432,7 +471,7 @@ router.get('/:id', queryController.getQueryById);
 router.post(
   '/:id/cancel',
   [
-    check('id').isUUID().withMessage('无效的查询ID'),
+    check('id').not().isEmpty().withMessage('查询ID不能为空'),
   ],
   queryController.cancelQuery
 );
@@ -464,7 +503,7 @@ router.post(
 router.put(
   '/:id',
   [
-    check('id').isUUID().withMessage('无效的查询ID'),
+    check('id').not().isEmpty().withMessage('查询ID不能为空'),
   ],
   queryController.updateQuery
 );
@@ -490,7 +529,7 @@ router.put(
 router.delete(
   '/:id',
   [
-    check('id').isUUID().withMessage('无效的查询ID'),
+    check('id').not().isEmpty().withMessage('查询ID不能为空'),
   ],
   queryController.deleteQuery
 );
@@ -518,7 +557,7 @@ router.delete(
 router.get(
   '/:queryId/execution-plan',
   [
-    check('queryId').isUUID().withMessage('无效的查询ID'),
+    check('queryId').not().isEmpty().withMessage('查询ID不能为空'),
   ],
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -554,7 +593,7 @@ router.get(
 router.get(
   '/:queryId/visualization',
   [
-    check('queryId').isUUID().withMessage('无效的查询ID'),
+    check('queryId').not().isEmpty().withMessage('查询ID不能为空'),
   ],
   async (req: Request, res: Response, next: NextFunction) => {
     try {

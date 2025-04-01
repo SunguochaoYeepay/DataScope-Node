@@ -387,6 +387,51 @@ describe('QueryController', () => {
       }));
     });
     
+    it('应当使用自定义ID保存查询', async () => {
+      // 准备测试数据
+      const customId = 'custom-test-id';
+      mockReq.body = {
+        id: customId,
+        dataSourceId: 'test-ds-id',
+        name: 'Find All Users With Custom ID',
+        description: 'Retrieves all users with a custom query ID',
+        sql: 'SELECT * FROM users',
+        tags: ['users', 'findAll', 'customId'],
+        isPublic: true
+      };
+      
+      // 模拟saveQuery返回使用自定义ID的查询
+      mockQueryService.saveQuery.mockResolvedValueOnce({
+        id: customId,
+        dataSourceId: 'test-ds-id',
+        name: 'Find All Users With Custom ID',
+        sqlContent: 'SELECT * FROM users',
+        description: 'Retrieves all users with a custom query ID',
+        tags: 'users,findAll,customId',
+        status: 'PUBLISHED',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      // 执行测试
+      await queryController.saveQuery(mockReq, mockRes, mockNext);
+      
+      // 验证
+      expect(mockQueryService.saveQuery).toHaveBeenCalledWith(expect.objectContaining({
+        id: customId,
+        dataSourceId: 'test-ds-id',
+        name: 'Find All Users With Custom ID',
+        sql: 'SELECT * FROM users'
+      }));
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          id: customId
+        })
+      }));
+    });
+    
     it('应当处理验证错误', async () => {
       // 设置验证错误
       validationResult.mockReturnValue({

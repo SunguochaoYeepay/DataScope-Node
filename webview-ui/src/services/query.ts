@@ -113,25 +113,11 @@ export const queryService = {
       
       if (responseData.success && responseData.data) {
         // 后端API文档中的标准成功响应
-        if (responseData.data.columns && responseData.data.rows) {
-          result = responseData.data;
-        } else if (responseData.data.history && Array.isArray(responseData.data.history) && responseData.data.history.length > 0) {
-          // 查询历史API的响应格式
-          const latestHistory = responseData.data.history[0];
-          result = {
-            id: latestHistory.id,
-            columns: latestHistory.columns || [],
-            columnTypes: latestHistory.columnTypes || [],
-            rows: latestHistory.rows || [],
-            rowCount: latestHistory.rowCount || 0,
-            executionTime: latestHistory.duration || 0,
-            hasMore: false,
-            status: 'COMPLETED',
-            createdAt: latestHistory.createdAt
-          };
-        } else {
-          // 其他响应格式
-          result = responseData.data;
+        result = responseData.data;
+        
+        // 如果data中包含fields字段，使用它作为columns
+        if (result.fields && Array.isArray(result.fields)) {
+          result.columns = result.fields;
         }
       } else {
         // 直接返回结果的情况
@@ -145,17 +131,30 @@ export const queryService = {
         id: result.metadata?.queryId || result.id || Math.random().toString(36).substring(2, 15),
         columns: Array.isArray(result.columns) 
           ? result.columns.map((col: any) => typeof col === 'string' ? col : col.name)
-          : result.columns || [],
+          : (Array.isArray(result.fields) 
+             ? result.fields.map((field: any) => typeof field === 'string' ? field : field.name)
+             : result.columns || []),
         columnTypes: Array.isArray(result.columns) && typeof result.columns[0] !== 'string'
           ? result.columns.map((col: any) => col.type)
-          : result.columnTypes || [],
+          : (Array.isArray(result.fields) && typeof result.fields[0] !== 'string'
+             ? result.fields.map((field: any) => field.type)
+             : result.columnTypes || []),
         rows: result.rows || [],
-        rowCount: result.metadata?.rowCount || result.rowCount || result.rows?.length || 0,
+        rowCount: result.metadata?.rowCount || result.rowCount || result.totalCount || result.rows?.length || 0,
         executionTime: result.metadata?.executionTime || result.executionTime || 0,
         hasMore: !!result.metadata?.totalRows && result.metadata.totalRows > (result.rowCount || result.rows?.length || 0),
         status: result.status || 'COMPLETED',
         error: result.error,
-        createdAt: result.createdAt || new Date().toISOString()
+        createdAt: result.createdAt || new Date().toISOString(),
+        data: {
+          fields: result.fields,
+          rows: result.rows,
+          rowCount: result.rowCount,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalCount: result.totalCount,
+          totalPages: result.totalPages
+        }
       }
     } catch (error) {
       console.error('执行查询出错:', error)

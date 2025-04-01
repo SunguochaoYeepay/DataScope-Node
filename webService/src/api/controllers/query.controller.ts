@@ -179,7 +179,7 @@ export class QueryController {
         throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
-      const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order } = req.body;
+      const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order, createHistory } = req.body;
       
       // 检查是否为特殊命令，使用外部函数
       if (isSpecialCommand(sql)) {
@@ -206,11 +206,11 @@ export class QueryController {
         }
       } else {
         // 普通查询通过查询服务执行
-        logger.debug('执行普通查询', { dataSourceId, sql });
+        logger.debug('执行普通查询', { dataSourceId, sql, createHistory });
         
         // 直接传递分页参数，让查询服务决定是否应用
         const queryOptions = {
-          page, pageSize, offset, limit, sort, order
+          page, pageSize, offset, limit, sort, order, createHistory
         };
         
         const result = await queryService.executeQuery(dataSourceId, sql, params, queryOptions);
@@ -247,6 +247,7 @@ export class QueryController {
       }
 
       const {
+        id,
         dataSourceId,
         name,
         description,
@@ -255,7 +256,13 @@ export class QueryController {
         isPublic
       } = req.body;
 
+      // 如果前端提供了ID，记录一下
+      if (id) {
+        logger.debug('前端提供了自定义ID', { id });
+      }
+
       const savedQuery = await queryService.saveQuery({
+        id,
         dataSourceId,
         name,
         description,
@@ -354,62 +361,66 @@ export class QueryController {
   }
 
   /**
-   * 更新保存的查询
+   * 更新查询
    */
   async updateQuery(req: Request, res: Response, next: NextFunction) {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        // 格式化验证错误，提供更详细的错误信息
-        const formattedErrors = errors.array().map(error => ({
-          field: (error as any).path || (error as any).param,
-          value: (error as any).value,
-          message: error.msg
-        }));
-        
         return res.status(400).json({
           success: false,
           message: '查询更新失败：输入验证错误',
-          errors: formattedErrors
+          errors: errors.array()
         });
       }
 
       const { id } = req.params;
-      const updateData = req.body;
+      const {
+        name,
+        sql,
+        description,
+        tags,
+        isPublic,
+        dataSourceId
+      } = req.body;
 
-      const updatedQuery = await queryService.updateQuery(id, updateData);
-      
-      res.status(200).json({
-        success: true,
-        data: updatedQuery
-      });
-    } catch (error: any) {
-      logger.error('更新查询失败', { error, id: req.params.id, body: req.body });
-      
-      // 处理特定类型的错误
-      if (error instanceof ApiError) {
-        // 处理资源不存在的情况
-        if (error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
-          return res.status(404).json({
+      // 记录更详细的操作信息
+      logger.debug('尝试更新查询', { id, requestBody: req.body });
+
+      try {
+        const updatedQuery = await queryService.updateQuery(id, {
+          name,
+          sql,
+          description,
+          tags,
+          isPublic,
+          dataSourceId // 传递dataSourceId给服务
+        });
+
+        return res.status(200).json({
+          success: true,
+          data: updatedQuery
+        });
+      } catch (error: any) {
+        // 错误处理
+        if (error instanceof ApiError) {
+          // 如果是自定义API错误，使用它的状态码和错误码
+          return res.status(error.statusCode || 500).json({
             success: false,
-            message: '更新失败：查询不存在',
+            message: `更新失败：${error.message}`,
             errorCode: error.errorCode
           });
         }
         
-        // 其他API错误
-        return res.status(error.statusCode || 500).json({
+        // 其他错误
+        logger.error('更新查询时发生错误', { id, error });
+        return res.status(500).json({
           success: false,
-          message: `更新失败：${error.message}`,
-          errorCode: error.errorCode
+          message: `更新失败：${error.message || '未知错误'}`
         });
       }
-      
-      // 未知错误处理
-      return res.status(500).json({
-        success: false,
-        message: `更新失败：${error.message || '未知错误'}`
-      });
+    } catch (error: any) {
+      next(error);
     }
   }
 
@@ -651,6 +662,7 @@ export class QueryController {
     return [
       check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
       check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
+      check('createHistory').optional().isBoolean().withMessage('createHistory必须是布尔值'),
     ];
   }
 
@@ -672,6 +684,44 @@ export class QueryController {
     return [
       check('id').not().isEmpty().withMessage('查询ID不能为空'),
     ];
+  }
+
+  /**
+   * 清空临时查询历史记录
+   * 仅删除未关联到保存查询的历史记录(queryId为null的记录)
+   */
+  async clearTemporaryQueryHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { dataSourceId } = req.query;
+      
+      // 调用服务层方法清空临时历史记录
+      const deletedCount = await queryService.clearTemporaryQueryHistory(
+        dataSourceId as string
+      );
+      
+      res.status(200).json({
+        success: true,
+        message: `已成功清空临时查询历史记录，共删除${deletedCount}条记录`,
+        data: {
+          deletedCount
+        }
+      });
+    } catch (error: any) {
+      logger.error('清空临时查询历史记录失败', { error });
+      
+      if (error instanceof ApiError) {
+        return res.status(error.statusCode || 500).json({
+          success: false,
+          message: error.message,
+          errorCode: error.errorCode
+        });
+      }
+      
+      return res.status(500).json({
+        success: false,
+        message: `清空临时查询历史记录失败: ${error.message || '未知错误'}`
+      });
+    }
   }
 }
 

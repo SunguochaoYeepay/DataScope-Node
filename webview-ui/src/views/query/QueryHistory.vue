@@ -253,7 +253,7 @@
         <div class="mt-6">
           <div class="flex items-center justify-between">
             <div class="text-sm text-gray-700">
-              显示 <span class="font-medium">{{ (currentPage - 1) * 10 + 1 }}</span> 到 <span class="font-medium">{{ Math.min(currentPage * 10, totalItems) }}</span> 共 <span class="font-medium">{{ totalItems }}</span> 条结果
+              显示 <span class="font-medium">{{ (currentPage - 1) * 10 + 1 }}</span> 到 <span class="font-medium">{{ Math.min(currentPage * 10, filteredTotalItems) }}</span> 共 <span class="font-medium">{{ filteredTotalItems }}</span> 条结果
             </div>
             <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
               <!-- 上一页按钮 -->
@@ -289,7 +289,7 @@
               <!-- 下一页按钮 -->
               <button
                 @click="nextPage"
-                :disabled="!hasMorePages"
+                :disabled="currentPage >= filteredTotalPages"
                 class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span class="sr-only">下一页</span>
@@ -406,7 +406,12 @@ export default defineComponent({
     
     // 计算属性: 当前页查询列表
     const queries = computed(() => {
-      return queryStore.queryHistory || []
+      // 过滤掉临时查询，只返回已保存的查询
+      return (queryStore.queryHistory || []).filter(query => {
+        // 判断是否为临时查询：名称以"临时查询:"开头 或 没有名称的查询
+        const isTempQuery = query.name?.startsWith('临时查询:') || !query.name;
+        return !isTempQuery;
+      });
     })
     
     // 计算属性: 是否可以查看上一页
@@ -684,7 +689,7 @@ export default defineComponent({
 
     // 获取页码按钮
     const getPageNumbers = () => {
-      const total = queryStore.pagination?.totalPages || 1
+      const total = filteredTotalPages.value
       const current = currentPage.value
       
       // 如果总页数较少，全部显示
@@ -701,23 +706,33 @@ export default defineComponent({
       // 如果当前页靠近开始
       if (current <= 4) {
         for (let i = 2; i <= 5; i++) {
-          result.push(i.toString())
+          if (i <= total) {
+            result.push(i.toString())
+          }
         }
-        result.push('...')
-        result.push(total.toString())
+        if (total > 6) {
+          result.push('...')
+        }
+        if (total > 5) {
+          result.push(total.toString())
+        }
       } 
       // 如果当前页靠近结束
       else if (current >= total - 3) {
         result.push('...')
         for (let i = total - 4; i < total; i++) {
-          result.push(i.toString())
+          if (i > 1) {
+            result.push(i.toString())
+          }
         }
       } 
       // 如果当前页在中间
       else {
         result.push('...')
         for (let i = current - 1; i <= current + 1; i++) {
-          result.push(i.toString())
+          if (i > 1 && i < total) {
+            result.push(i.toString())
+          }
         }
         result.push('...')
         result.push(total.toString())
@@ -733,6 +748,20 @@ export default defineComponent({
       page.value = pageNum;
       await loadQueryHistory();
     }
+
+    // 添加筛选后的计算属性
+    const filteredTotalItems = computed<number>(() => {
+      return totalItems.value;
+    })
+    
+    // 添加筛选后的总页数计算属性
+    const filteredTotalPages = computed<number>(() => {
+      // 如果没有分页信息，返回默认值1
+      if (!queryStore.pagination) return 1;
+      
+      // 如果值不存在或为0，返回1，否则返回实际值
+      return Math.ceil(filteredTotalItems.value / pageSize.value) || 1;
+    })
 
     return {
       isLoading,
@@ -769,7 +798,9 @@ export default defineComponent({
       filters,
       dateRangePresetValue,
       debounceSearch,
-      message
+      message,
+      filteredTotalItems,
+      filteredTotalPages
     }
   }
 })

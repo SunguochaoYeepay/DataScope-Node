@@ -63,6 +63,12 @@ src/
 └── index.ts          # 入口文件
 ```
 
+## 设计文档
+
+项目的设计规范和开发指南文档位于 `design-docs` 目录中：
+
+- [API响应格式规范](./design-docs/api-response-format.md) - 定义了统一的API响应格式标准
+
 ## 测试
 
 本项目包含全面的测试套件，以确保代码质量和功能正确性：
@@ -151,9 +157,22 @@ npx prisma migrate dev
 ### 查询管理
 
 - `POST /api/queries/execute`: 执行SQL查询
+  - 支持`createHistory`参数，控制是否生成查询历史记录
+  - 当`createHistory=true`或执行已保存查询时，会创建历史记录
+  - 默认不创建历史记录，减少系统负担
 - `GET /api/queries/history`: 获取查询历史
+- `GET /api/queries/history/:id`: 获取单个查询历史记录详情
 - `GET /api/queries/saved`: 获取已保存的查询
-- `POST /api/queries/save`: 保存查询
+- `POST /api/queries`: 保存查询
+  - 支持传入自定义`id`参数，允许创建使用非UUID格式的查询ID
+  - 如果不提供`id`，系统将自动生成UUID格式的ID
+  - 自定义ID必须是有效的字符串，不能包含特殊字符
+- `PUT /api/queries/:id`: 更新查询
+  - 支持使用自定义ID格式的查询
+  - ID可以是UUID格式或任何其他自定义格式
+  - 支持upsert操作：如果查询不存在且提供了必要参数(dataSourceId, name)，会自动创建查询
+  - 保留原始ID作为新创建查询的ID
+  - 极大简化了前端操作流程，无需区分创建/更新操作
 - `GET /api/queries/favorites`: 获取收藏的查询
 - `POST /api/queries/:id/favorite`: 收藏查询
 - `DELETE /api/queries/:id/favorite`: 取消收藏查询

@@ -24,6 +24,12 @@
   - 新增 `GET /api/queries/history/:id` 端点，用于获取单个查询历史记录的详细信息
   - 支持前端查询历史详情页面展示
   - 返回包含执行状态、SQL内容、执行时间等完整信息
+- **查询历史生成策略优化**: 修改了查询历史记录生成逻辑
+  - 查询执行时不再自动生成历史记录，只在符合特定条件时创建
+  - 新增 `createHistory` 参数，允许客户端明确指定是否要创建历史记录
+  - 当执行已保存查询(有queryId)或显式设置createHistory=true时才创建历史记录
+  - 减少了大量临时查询时生成的无用历史记录，提高系统性能和数据清晰度
+  - 前端可以在需要时显式请求生成历史记录，提高用户体验
 
 ### 改进
 
@@ -33,6 +39,12 @@
   - 自动将 `page/size` 转换为对应的 `limit/offset` 值
   - 提高了与前端不同分页方式的兼容性
   - 解决了分页参数不一致导致的查询结果异常问题
+- **查询更新API增强**: 改进查询更新API，支持upsert（更新或插入）操作
+  - 当更新不存在的查询ID时，如果提供了必要的字段（dataSourceId和name），自动创建新查询
+  - 保留传入的ID作为查询的唯一标识符
+  - 提供更详细的日志和错误信息，方便前端调试
+  - 解决了当查询不存在时返回404错误的问题
+  - 优化了错误处理流程
 
 ### 修复
 - **查询不存在错误返回500问题**: 修复了尝试获取不存在的查询时错误返回500的问题
@@ -83,6 +95,15 @@
 - **特殊SQL命令处理问题**: 优化了特殊命令(如SHOW TABLES)的执行方式，将isSpecialCommand从类方法改为全局函数，避免this绑定问题，现在控制器可以直接使用连接器执行特殊命令
 - **错误处理兼容性问题**: 增强了QueryExecutionError错误类的参数处理，提供更好的参数顺序兼容性，防止dataSourceId和sql参数传递错误
 - **元数据同步请求兼容性**: 增强了元数据同步接口，支持前端发送的filters格式请求体，实现与前端应用的无缝集成
+- **API路径兼容性问题**: 修复了前后端API路径不一致导致的元数据同步请求失败问题
+  - 添加了兼容路由 `/api/metadata/sync/:dataSourceId`，与现有的 `/api/metadata/datasources/:dataSourceId/sync` 保持功能一致
+  - 确保前端应用可以正常进行元数据同步操作
+  - 统一了API路径命名规范，同时保持向后兼容
+- **查询ID验证问题**: 修复了自定义ID格式无法通过验证的问题
+  - 更新查询ID验证逻辑，允许非UUID格式的自定义ID
+  - 增强了 `saveQuery` 和 `updateQuery` 方法，支持自定义ID参数
+  - 更新 `SaveQueryParams` 接口定义，添加可选的 `id` 字段
+  - 解决了使用自定义ID保存查询时返回400错误的问题
 
 ### 提升服务稳定性
 
@@ -337,6 +358,27 @@
 - `/api/metadata/{dataSourceId}/tables/{tableName}`: 标准路径获取表结构
 - `/api/queries/favorites`: 收藏查询列表
 - `/api/queries/{id}/favorite`: 添加/移除收藏
+
+## 2023-05-02
+
+### API路径修复
+- 修复了前端与后端API路径不一致的问题：
+  - 前端使用 `/api/metadata/sync/:dataSourceId` 
+  - 后端实际路径为 `/api/metadata/datasources/:dataSourceId/sync`
+  - 需确保前后端API调用路径一致
+
+### 查询ID验证修复
+- 修复了查询API中的ID格式验证问题：
+  - 将所有路由中的ID验证从`isUUID()`改为`not().isEmpty()`
+  - 路径包括：
+    - PUT `/api/queries/:id` - 更新查询
+    - DELETE `/api/queries/:id` - 删除查询 
+    - POST `/api/queries/:id/cancel` - 取消查询
+    - GET `/api/queries/:queryId/execution-plan` - 获取执行计划
+    - GET `/api/queries/:queryId/visualization` - 获取可视化数据
+  - 允许使用非UUID格式的查询ID
+  - 解决了前端使用自定义ID如`k9zadwa69y8`时返回400错误的问题
+  - 优化了查询服务updateQuery方法，添加更详细的日志输出
 
 ## 更新日志 (2025-03-31)
 

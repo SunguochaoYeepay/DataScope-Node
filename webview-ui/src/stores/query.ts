@@ -160,6 +160,12 @@ export const useQueryStore = defineStore('query', () => {
   const processQueryResultRows = (result: any): Record<string, any>[] => {
     console.log('处理查询结果数据:', result);
     
+    // 如果有标准API封装，先解包
+    if (result.success === true && result.data) {
+      console.log('检测到API标准包装，解析data字段:', result.data);
+      result = result.data;
+    }
+    
     // 如果rows是数组，检查每个元素并处理
     if (Array.isArray(result.rows)) {
       console.log('rows是数组，元素数量:', result.rows.length);

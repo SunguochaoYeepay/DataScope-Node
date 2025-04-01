@@ -15,43 +15,11 @@
       </div>
       <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
         <button
-          @click="saveQuery"
-          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <i class="fas fa-save mr-2"></i>
-          保存
-        </button>
-        <button
           @click="toggleFavorite"
           class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
           <i class="fas fa-star mr-2" :class="{ 'text-yellow-400': isFavorite }"></i>
           收藏
-        </button>
-        <button
-          v-if="!isExecuting"
-          @click="checkAndExecuteQuery"
-          :title="getExecuteButtonTooltip()"
-          :class="[
-            'inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white',
-            canExecuteQuery ? 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500' : 
-            'bg-indigo-300 cursor-not-allowed opacity-60'
-          ]"
-        >
-          <i class="fas fa-play mr-2"></i>
-          执行
-        </button>
-        <button
-          v-else
-          @click="cancelQuery"
-          class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 relative"
-        >
-          <i class="fas fa-stop mr-2"></i>
-          取消查询
-          <span class="absolute -top-1 -right-1 flex h-3 w-3">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-          </span>
         </button>
       </div>
     </div>
@@ -479,11 +447,11 @@ const canExecuteQuery = computed(() => {
     return false
   }
   
-  if (activeTab.value === 'editor' && (!sqlQuery.value || !sqlQuery.value.trim())) {
+  if (activeTab.value === 'editor' && (!sqlQuery.value || sqlQuery.value.trim().length === 0)) {
     return false
   }
   
-  if (activeTab.value === 'nlq' && (!naturalLanguageQuery.value || !naturalLanguageQuery.value.trim())) {
+  if (activeTab.value === 'nlq' && (!naturalLanguageQuery.value || naturalLanguageQuery.value.trim().length === 0)) {
     return false
   }
   
@@ -673,11 +641,11 @@ const getExecuteButtonTooltip = () => {
     return '请在左侧面板中选择一个数据源';
   }
   
-  if (activeTab.value === 'editor' && sqlQuery.value.trim().length === 0) {
+  if (activeTab.value === 'editor' && (!sqlQuery.value || sqlQuery.value.trim().length === 0)) {
     return '请在SQL编辑器中输入查询语句';
-  } else if (activeTab.value === 'builder' && builderQuery.value.trim().length === 0) {
+  } else if (activeTab.value === 'builder' && (!builderQuery.value || builderQuery.value.trim().length === 0)) {
     return '查询构建器未生成有效的查询语句';
-  } else if (activeTab.value === 'nlq' && naturalLanguageQuery.value.trim().length === 0) {
+  } else if (activeTab.value === 'nlq' && (!naturalLanguageQuery.value || naturalLanguageQuery.value.trim().length === 0)) {
     return '请在自然语言查询输入框中输入问题';
   }
   
@@ -812,7 +780,7 @@ const handleSaveQuery = async (saveData: Partial<Query>) => {
     
     // 构造符合SaveQueryParams的对象
     const queryData: SaveQueryParams = {
-      id: saveData.id || currentQueryId.value,
+      id: saveData.id || (currentQueryId.value || undefined),
       name: saveData.name,
       dataSourceId: saveData.dataSourceId,
       queryText: saveData.queryText || (activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value),
