@@ -64,8 +64,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        name: 'QueryList',
-        component: () => import('../views/query/QueryList.vue')
+        redirect: { name: 'QueryHistory' }
       },
       {
         path: 'editor',

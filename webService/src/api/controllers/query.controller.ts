@@ -460,19 +460,49 @@ export class QueryController {
    */
   async getQueryHistory(req: Request, res: Response, next: NextFunction) {
     try {
-      const { dataSourceId, limit, offset } = req.query;
+      const { dataSourceId, limit, offset, page, size } = req.query;
+      
+      // 优先使用limit和offset参数，如果未提供则尝试使用page和size参数
+      let finalLimit = limit ? Number(limit) : (size ? Number(size) : 20);
+      let finalOffset = offset ? Number(offset) : (page ? (Number(page) - 1) * finalLimit : 0);
+      
+      logger.debug('查询历史API请求参数', { 
+        dataSourceId, 
+        limit, 
+        offset, 
+        page, 
+        size, 
+        finalLimit,
+        finalOffset
+      });
       
       const result = await queryService.getQueryHistory(
         dataSourceId as string,
-        limit ? Number(limit) : 20,
-        offset ? Number(offset) : 0
+        finalLimit,
+        finalOffset
       );
       
-      res.status(200).json({
+      // 确保响应中包含完整数据
+      if (!result) {
+        logger.error('查询历史记录结果为空');
+        return res.status(500).json({
+          success: false,
+          message: '获取查询历史记录失败：结果为空'
+        });
+      }
+      
+      // 输出调试信息
+      logger.debug('查询历史API响应', { 
+        resultSize: JSON.stringify(result).length,
+        itemsCount: result.items?.length
+      });
+      
+      return res.status(200).json({
         success: true,
         data: result
       });
     } catch (error: any) {
+      logger.error('获取查询历史记录失败', { error });
       next(error);
     }
   }
@@ -573,6 +603,44 @@ export class QueryController {
         success: false,
         message: `取消收藏失败：${error.message || '未知错误'}`
       });
+    }
+  }
+
+  /**
+   * 获取单个查询历史记录
+   */
+  async getQueryHistoryById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      
+      const history = await queryService.getQueryHistoryById(id);
+      
+      res.status(200).json({
+        success: true,
+        data: history
+      });
+    } catch (error: any) {
+      // 处理特定类型的错误
+      if (error instanceof ApiError) {
+        // 处理资源不存在的情况
+        if (error.statusCode === 404 || error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
+          return res.status(404).json({
+            success: false,
+            message: '查询历史记录不存在',
+            errorCode: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND
+          });
+        }
+        
+        // 其他API错误
+        return res.status(error.statusCode || 500).json({
+          success: false,
+          message: error.message,
+          errorCode: error.errorCode
+        });
+      }
+      
+      // 未知错误处理
+      next(error);
     }
   }
 

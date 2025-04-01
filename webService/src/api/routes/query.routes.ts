@@ -42,6 +42,27 @@ router.get('/history', queryController.getQueryHistory);
 
 /**
  * @swagger
+ * /queries/history/{id}:
+ *   get:
+ *     summary: 获取单个查询历史记录
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: 查询历史记录ID
+ *     responses:
+ *       200:
+ *         description: 查询历史记录详情
+ *       404:
+ *         description: 查询历史记录不存在
+ */
+router.get('/history/:id', queryController.getQueryHistoryById);
+
+/**
+ * @swagger
  * /queries/execute:
  *   post:
  *     summary: 执行SQL查询

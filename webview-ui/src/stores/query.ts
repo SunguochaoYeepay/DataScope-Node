@@ -111,66 +111,133 @@ export const useQueryStore = defineStore('query', () => {
 
   // 执行 SQL 查询
   const executeQuery = async (params: ExecuteQueryParams) => {
-    isExecuting.value = true
-    error.value = null
-    loading.show('执行查询中...', {
-      showCancelButton: true,
-      onCancel: () => {
-        if (currentQuery.value?.id) {
-          cancelQuery(currentQuery.value.id)
-        } else {
-          isExecuting.value = false
-        }
-      }
-    })
-    
     try {
+      loading.show('执行查询中...')
+      isExecuting.value = true
+      error.value = null
+      
+      console.log('执行查询请求:', params)
+      
+      // 调用查询服务执行查询
       const result = await queryService.executeQuery(params)
-      currentQueryResult.value = result
       
-      // 如果没有错误，更新当前查询
-      currentQuery.value = {
-        id: result.id || '',
-        dataSourceId: params.dataSourceId,
-        queryType: params.queryType,
-        queryText: params.queryText,
-        status: result.status || 'COMPLETED',
-        createdAt: result.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      console.log('查询结果原始数据:', result)
+      
+      // 规范化结果数据，确保符合QueryResult类型
+      const normalizedResult: QueryResult = {
+        id: result.id || crypto.randomUUID(),
+        columns: result.fields || result.columns || [],
+        rows: processQueryResultRows(result),
+        rowCount: result.rowCount || (Array.isArray(result.rows) ? result.rows.length : 1),
         executionTime: result.executionTime,
-        resultCount: result.rowCount
+        status: result.status || 'COMPLETED',
+        hasMore: result.hasMore,
+        createdAt: result.createdAt || new Date().toISOString()
       }
       
-      // 获取查询优化建议
-      getQuerySuggestions(result.id)
+      console.log('处理后的结果数据:', normalizedResult)
       
-      // 尝试获取执行计划
-      if (params.queryType === 'SQL') {
-        getQueryExecutionPlan(result.id)
-      }
+      // 更新当前查询结果
+      currentQueryResult.value = normalizedResult
       
-      message.success(`查询成功，返回 ${result.rowCount} 条记录${result.executionTime ? `，执行时间 ${result.executionTime}ms` : ''}`)
-      fetchQueryHistory()
-      return result
+      // 更新UI显示
+      loading.hide()
+      message.success('查询执行成功')
+      
+      return normalizedResult
     } catch (err) {
+      console.error('执行查询错误:', err)
       error.value = err instanceof Error ? err : new Error(String(err))
-      currentQueryResult.value = null
-      
-      // 如果有错误，更新当前查询状态
-      if (currentQuery.value) {
-        currentQuery.value = {
-          ...currentQuery.value,
-          status: 'FAILED',
-          error: err instanceof Error ? err.message : String(err)
-        }
-      }
-      
-      message.error(`查询失败: ${error.value.message}`)
+      message.error(`执行查询失败: ${error.value.message}`)
       throw error.value
     } finally {
       isExecuting.value = false
       loading.hide()
     }
+  }
+  
+  // 处理查询结果行数据，确保格式兼容
+  const processQueryResultRows = (result: any): Record<string, any>[] => {
+    console.log('处理查询结果数据:', result);
+    
+    // 如果rows是数组，检查每个元素并处理
+    if (Array.isArray(result.rows)) {
+      console.log('rows是数组，元素数量:', result.rows.length);
+      // 处理数组中的每个元素，转换可能的JSON字符串
+      return result.rows.map(row => {
+        if (typeof row === 'object' && row !== null) {
+          // 处理对象中的每个属性
+          const processedRow: Record<string, any> = {};
+          Object.keys(row).forEach(key => {
+            const value = row[key];
+            if (typeof value === 'string' && 
+                ((value.startsWith('{') && value.endsWith('}')) || 
+                (value.startsWith('[') && value.endsWith(']')))) {
+              try {
+                // 尝试解析JSON字符串
+                processedRow[key] = JSON.parse(value);
+              } catch (e) {
+                // 解析失败则保留原始字符串
+                processedRow[key] = value;
+              }
+            } else {
+              processedRow[key] = value;
+            }
+          });
+          return processedRow;
+        }
+        return row;
+      });
+    }
+    
+    // 特殊处理status_count字段
+    if (result.rows && typeof result.rows === 'object' && 'status_count' in result.rows) {
+      console.log('发现status_count字段:', result.rows.status_count);
+      
+      // 检查status_count是否为JSON字符串
+      if (typeof result.rows.status_count === 'string') {
+        try {
+          // 尝试解析成JSON对象
+          const statusData = JSON.parse(result.rows.status_count);
+          console.log('解析status_count成功:', statusData);
+          
+          // 返回解析后的数据作为单行
+          return [{ status_count: statusData }];
+        } catch (e) {
+          console.error('解析status_count失败:', e);
+        }
+      }
+      
+      // 无法解析时，返回原始数据
+      return [result.rows];
+    }
+    
+    // 特殊处理COUNT(*)查询结果
+    if (result.rows && typeof result.rows === 'object' && 'COUNT(*)' in result.rows) {
+      console.log('处理COUNT(*)查询结果:', result.rows);
+      return [{ 'COUNT(*)': result.rows['COUNT(*)'] }];
+    }
+    
+    // 处理其他对象格式
+    if (result.rows && typeof result.rows === 'object') {
+      // 尝试从各种位置提取数据
+      if ('data' in result.rows && Array.isArray(result.rows.data)) {
+        return result.rows.data;
+      }
+      
+      if ('items' in result.rows && Array.isArray(result.rows.items)) {
+        return result.rows.items;
+      }
+      
+      // 将对象转为单行数据
+      if (Object.keys(result.rows).length > 0) {
+        return [result.rows];
+      }
+    }
+    
+    // 如果无法识别格式，返回空数组并警告
+    console.warn('无法识别的查询结果格式:', result);
+    return [];
   }
   
   // 执行自然语言查询

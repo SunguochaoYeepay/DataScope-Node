@@ -371,9 +371,21 @@ export const queryService = {
       // 将原始数据映射为前端所需的Query对象格式
       const mappedItems = historyItems.map((item: any) => {
         // 确保每个字段都有合理的默认值
+        let displayName = '';
+        
+        // 正确处理查询名称显示
+        if (item.queryId) {
+          // 已保存查询，使用名称或者默认名
+          displayName = item.name || `已保存查询`;
+        } else {
+          // 临时查询，使用SQL前缀
+          const sqlPrefix = (item.sqlContent || item.sql || item.queryText || '').trim().substring(0, 20);
+          displayName = `临时查询: ${sqlPrefix}${sqlPrefix.length >= 20 ? '...' : ''}`;
+        }
+        
         const query: Query = {
           id: item.id || `query-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          name: item.name || `查询 ${item.id ? item.id.substring(0, 8) : '未命名'}`,
+          name: displayName,
           dataSourceId: item.dataSourceId || '',
           queryType: (item.queryType as QueryType) || 'SQL',
           queryText: item.sqlContent || item.sql || item.queryText || '',

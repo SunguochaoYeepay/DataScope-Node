@@ -423,10 +423,10 @@ export class QueryService {
         where.dataSourceId = options.dataSourceId;
       }
       
-      // 添加公开状态过滤
-      if (options.isPublic !== undefined) {
-        where.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
-      }
+      // 添加公开状态过滤 - 注释掉此逻辑，以便返回所有状态的查询
+      // if (options.isPublic !== undefined) {
+      //   where.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
+      // }
       
       // 添加标签过滤
       if (options.tag) {
@@ -757,6 +757,33 @@ export class QueryService {
         throw error;
       }
       throw ApiError.internal('取消收藏查询失败', { originalError: error.message });
+    }
+  }
+
+  /**
+   * 根据ID获取查询历史记录
+   * @param id 查询历史记录ID
+   * @returns 查询历史记录
+   */
+  async getQueryHistoryById(id: string): Promise<any> {
+    try {
+      const history = await prisma.queryHistory.findUnique({
+        where: { id }
+      });
+      
+      if (!history) {
+        const error = new ApiError('查询历史记录不存在', 404);
+        error.errorCode = ERROR_CODES.RESOURCE_NOT_FOUND;
+        throw error;
+      }
+      
+      return history;
+    } catch (error: any) {
+      logger.error('获取查询历史记录失败', { error, id });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError('获取查询历史记录失败', 500, error.message);
     }
   }
 }

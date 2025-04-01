@@ -58,6 +58,18 @@ export interface QueryResult {
   status?: QueryStatus
   error?: string
   createdAt?: string
+  // 添加对 API 返回的包裹数据结构的支持
+  data?: {
+    fields?: Array<{name: string; type: string; table?: string; schema?: string} | string>
+    rows?: Record<string, any>[]
+    rowCount?: number
+    page?: number
+    pageSize?: number
+    totalCount?: number
+    totalPages?: number
+  }
+  // 添加success字段，用于判断 API 调用是否成功
+  success?: boolean
 }
 
 // 执行查询参数
