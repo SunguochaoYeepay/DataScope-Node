@@ -97,9 +97,19 @@ const execute = () => {
     return
   }
   
-  if (!content.value.trim()) {
+  if (!content.value || !content.value.trim()) {
     // 触发执行事件，但携带错误信息
     emit('execute', '请在SQL编辑器中输入查询语句')
+    return
+  }
+  
+  // 简单验证SQL语法
+  const sql = content.value.trim().toUpperCase();
+  if (!sql.includes('SELECT') && !sql.includes('INSERT') && 
+      !sql.includes('UPDATE') && !sql.includes('DELETE') &&
+      !sql.includes('CREATE') && !sql.includes('ALTER') &&
+      !sql.includes('DROP')) {
+    emit('execute', '无效的SQL语句，请检查语法')
     return
   }
   
@@ -131,6 +141,30 @@ const insertKeyword = (keyword: string) => {
     editor.focus()
   }, 0)
 }
+
+// 在mounted钩子中设置初始高度
+onMounted(() => {
+  if (editorEl.value) {
+    // 自动调整高度以适应内容
+    adjustHeight(editorEl.value)
+  }
+})
+
+// 自动调整高度函数
+const adjustHeight = (element: HTMLTextAreaElement) => {
+  element.style.height = 'auto'
+  element.style.height = Math.max(150, element.scrollHeight) + 'px'
+}
+
+// 监听内容变化，调整高度
+watch(content, () => {
+  if (editorEl.value) {
+    // 使用nextTick确保DOM更新后再调整高度
+    setTimeout(() => {
+      adjustHeight(editorEl.value!)
+    }, 0)
+  }
+})
 </script>
 
 <template>

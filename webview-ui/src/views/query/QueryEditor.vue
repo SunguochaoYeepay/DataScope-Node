@@ -814,35 +814,42 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
     return
   }
   
+  // 清除之前的错误信息
+  queryError.value = null
+  
   if (!selectedDataSourceId.value) {
-    message.error('请先选择数据源');
-    return;
+    message.error('请先选择数据源')
+    queryError.value = '未选择数据源'
+    return
   }
   
   // 根据查询类型获取查询文本
-  const queryText = getQueryTextByType(queryType);
+  const queryText = getQueryTextByType(queryType)
   
-  if (!queryText.trim()) {
-    message.error('请输入查询语句');
-    return;
+  if (!queryText || !queryText.trim()) {
+    message.error('请输入查询语句')
+    queryError.value = '查询语句为空'
+    return
   }
   
   // 验证SQL语句（仅SQL类型需要验证）
   if (queryType === 'SQL' && !validateSqlQuery(queryText)) {
-    return;
+    return
   }
   
-  if (isExecuting.value) return;
+  if (isExecuting.value) {
+    message.info('查询正在执行中，请稍候...')
+    return
+  }
   
   // 初始化查询执行
-  initializeQueryExecution();
+  initializeQueryExecution()
   
   try {
     // 再次检查组件状态
     if (!isComponentMounted) {
-      // 清理资源
-      finalizeQueryExecution();
-      return;
+      finalizeQueryExecution()
+      return
     }
     
     // 构建查询参数
@@ -850,9 +857,10 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
       dataSourceId: selectedDataSourceId.value,
       queryText,
       queryType
-    };
+    }
     
-    console.log(`开始执行${queryType}查询...`);
+    console.log(`开始执行${queryType}查询...`, queryParams)
+    statusMessage.value = '正在执行查询...'
     
     // 根据查询类型执行不同的查询
     const result = queryType === 'SQL'
@@ -860,56 +868,120 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
       : await queryStore.executeNaturalLanguageQuery({
           dataSourceId: selectedDataSourceId.value,
           question: queryText
-        });
+        })
     
     // 检查组件是否已卸载
     if (!isComponentMounted) {
-      finalizeQueryExecution();
-      return;
+      finalizeQueryExecution()
+      return
     }
     
     // 更新查询ID
-    currentQueryId.value = queryStore.currentQueryResult?.id || null;
+    currentQueryId.value = queryStore.currentQueryResult?.id || null
+    
+    // 更新状态信息
+    const rowCount = queryStore.currentQueryResult?.rowCount || 0
+    const execTime = queryStore.currentQueryResult?.executionTime || 0
+    statusMessage.value = `查询执行成功，返回 ${rowCount} 条记录，耗时 ${execTime}ms`
+    message.success(statusMessage.value)
     
     // 在查询执行完成后自动获取执行计划
     if (currentQueryId.value) {
-      console.log(`查询执行完成，尝试获取执行计划，查询ID: ${currentQueryId.value}`);
+      console.log(`查询执行完成，尝试获取执行计划，查询ID: ${currentQueryId.value}`)
       try {
         // 检查组件是否已卸载
-        if (!isComponentMounted) return;
+        if (!isComponentMounted) return
         
-        await queryStore.getQueryExecutionPlan(currentQueryId.value);
-        console.log('执行计划加载完成');
+        await queryStore.getQueryExecutionPlan(currentQueryId.value)
+        console.log('执行计划加载完成')
       } catch (planError) {
-        console.error('获取执行计划失败，但不影响查询结果显示:', planError);
+        console.error('获取执行计划失败，但不影响查询结果显示:', planError)
       }
     }
     
     // 检查组件是否已卸载
     if (!isComponentMounted) {
-      finalizeQueryExecution();
-      return;
+      finalizeQueryExecution()
+      return
     }
     
-    console.log('查询执行成功:', result);
-    statusMessage.value = '查询执行成功';
+    console.log('查询执行成功:', result)
     
     // 自动滚动到结果区域
     nextTick(() => {
       // 检查组件是否已卸载
-      if (!isComponentMounted) return;
+      if (!isComponentMounted) return
       
-      const resultsElement = document.getElementById('query-results');
+      const resultsElement = document.getElementById('query-results')
       if (resultsElement) {
-        resultsElement.scrollIntoView({ behavior: 'smooth' });
+        resultsElement.scrollIntoView({ behavior: 'smooth' })
       }
-    });
+    })
   } catch (error) {
-    handleQueryError(error);
+    handleQueryError(error)
   } finally {
-    finalizeQueryExecution();
+    finalizeQueryExecution()
   }
-};
+}
+
+// 验证SQL查询
+const validateSqlQuery = (queryText: string): boolean => {
+  const trimmedSQL = queryText.trim().toLowerCase()
+  
+  // 检查是否是简单的SELECT *
+  if (trimmedSQL === 'select *') {
+    message.error('不完整的SQL语句，请指定表名')
+    queryError.value = '不完整的SQL语句，请指定表名'
+    return false
+  }
+  
+  // 检查SELECT * FROM 后是否有表名
+  if (trimmedSQL.startsWith('select * from') && trimmedSQL.split(' ').length <= 3) {
+    message.error('请在FROM子句后指定表名')
+    queryError.value = '请在FROM子句后指定表名'
+    return false
+  }
+  
+  // 检查SQL语句是否有基本语法要素
+  if (!trimmedSQL.includes('select')) {
+    message.warning('SQL语句需要包含SELECT关键字')
+    queryError.value = 'SQL语句需要包含SELECT关键字'
+    // 仍然允许执行，不返回false
+  }
+  
+  if (!trimmedSQL.includes('from') && trimmedSQL.includes('select')) {
+    message.warning('SQL语句可能缺少FROM子句')
+    // 但不阻止执行
+  }
+  
+  return true
+}
+
+// 处理查询错误
+const handleQueryError = (error: any) => {
+  console.error('查询执行失败:', error)
+  
+  // 提取错误消息
+  let errorMessage = '执行查询时出错'
+  
+  if (error instanceof Error) {
+    errorMessage = error.message
+  } else if (typeof error === 'string') {
+    errorMessage = error
+  } else if (error && typeof error === 'object') {
+    errorMessage = error.message || error.error || JSON.stringify(error)
+  }
+  
+  // 设置错误状态
+  queryError.value = errorMessage
+  statusMessage.value = '查询执行失败'
+  
+  // 显示详细错误提示
+  message.error({
+    content: errorMessage,
+    duration: 5
+  })
+}
 
 // 根据查询类型获取查询文本
 const getQueryTextByType = (queryType: QueryType): string => {
@@ -921,32 +993,6 @@ const getQueryTextByType = (queryType: QueryType): string => {
     default:
       return builderQuery.value;
   }
-};
-
-// 验证SQL查询
-const validateSqlQuery = (queryText: string): boolean => {
-  const trimmedSQL = queryText.trim().toLowerCase();
-  
-  // 检查是否是简单的SELECT *
-  if (trimmedSQL === 'select *') {
-    message.error('不完整的SQL语句，请指定表名');
-    return false;
-  }
-  
-  // 检查SELECT * FROM 后是否有表名
-  if (trimmedSQL.startsWith('select * from') && trimmedSQL.split(' ').length <= 3) {
-    message.error('请在FROM子句后指定表名');
-    return false;
-  }
-  
-  // 检查SQL语句是否有基本有效性
-  if (!trimmedSQL.includes('select') || !trimmedSQL.includes('from')) {
-    if (!confirm('您的SQL语句可能不完整或格式不正确。确定要执行吗？')) {
-      return false;
-    }
-  }
-  
-  return true;
 };
 
 // 初始化查询执行状态
@@ -964,19 +1010,6 @@ const initializeQueryExecution = () => {
   executionTimer.value = window.setInterval(() => {
     executionTime.value += 1;
   }, 1000);
-};
-
-// 处理查询错误
-const handleQueryError = (error: any) => {
-  console.error('查询执行失败:', error);
-  queryError.value = error instanceof Error ? error.message : '执行查询时出错';
-  statusMessage.value = '查询执行失败';
-  
-  // 显示详细错误提示
-  message.error({
-    content: queryError.value,
-    duration: 5
-  });
 };
 
 // 完成查询执行

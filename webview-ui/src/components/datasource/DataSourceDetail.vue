@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import type { DataSource } from '@/types/datasource'
 import type { TableMetadata, ColumnMetadata } from '@/types/metadata'
 import { useDataSourceStore } from '@/stores/datasource'
-import { message } from '@/services/message'
+import { useMessageService } from '@/services/message'
 import TableDataPreview from './TableDataPreview.vue'
 
 // 组件属性
@@ -20,6 +20,9 @@ const emit = defineEmits<{
 
 // 数据源状态管理
 const dataSourceStore = useDataSourceStore()
+
+// 初始化消息服务
+const messageService = useMessageService()
 
 // 组件状态
 const isLoading = ref(true)
@@ -40,7 +43,7 @@ const loadDataSource = async () => {
     dataSource.value = await dataSourceStore.getDataSourceById(props.dataSourceId)
   } catch (err) {
     console.error('加载数据源详情失败:', err)
-    message.error('加载数据源详情失败')
+    messageService.error('加载数据源详情失败')
   } finally {
     isLoading.value = false
   }
@@ -163,7 +166,7 @@ const loadMetadata = async () => {
     }
   } catch (err) {
     console.error('加载元数据失败:', err)
-    message.error('加载元数据失败')
+    messageService.error('加载元数据失败')
     tables.value = []
   } finally {
     isMetadataLoading.value = false
@@ -181,16 +184,16 @@ const syncMetadata = async () => {
     const result = await dataSourceStore.syncDataSourceMetadata(dataSource.value.id)
     
     if (result.success) {
-      message.success('元数据同步成功')
+      messageService.success('元数据同步成功')
     } else {
-      message.error(`元数据同步失败: ${result.message || '未知错误'}`)
+      messageService.error(`元数据同步失败: ${result.message || '未知错误'}`)
     }
     
     // 重新加载元数据
     await loadMetadata()
   } catch (err) {
     console.error('同步元数据失败:', err)
-    message.error('同步元数据失败: ' + (err instanceof Error ? err.message : '未知错误'))
+    messageService.error('同步元数据失败: ' + (err instanceof Error ? err.message : '未知错误'))
   } finally {
     isSyncingMetadata.value = false
   }
