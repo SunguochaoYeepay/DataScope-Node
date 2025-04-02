@@ -327,14 +327,35 @@ const loadVersionData = async () => {
   errorMessage.value = ''
   
   try {
+    console.log('开始加载版本数据，查询ID:', queryId.value)
+    
     // 加载查询详情
+    console.log('正在获取查询详情...')
     await queryStore.getQuery(queryId.value)
+    console.log('查询详情获取成功:', queryStore.currentQuery)
     
     // 加载版本数据
+    console.log('正在获取版本列表...')
     await versionStore.getQueryVersions(queryId.value)
+    console.log('版本列表获取成功，数量:', versions.value.length, '数据:', versions.value)
     
     // 加载当前活跃版本
+    console.log('正在获取当前活跃版本...')
     await versionStore.getCurrentVersion(queryId.value)
+    console.log('当前活跃版本获取成功:', currentVersion.value)
+    
+    // 记录获取到的版本ID和queryId关系，用于调试
+    if (versions.value && versions.value.length > 0) {
+      console.log('版本和查询ID关系：', versions.value.map(v => ({
+        versionId: v.id,
+        queryId: v.queryId,
+        versionNumber: v.versionNumber,
+        isActive: v.isActive
+      })))
+    } else {
+      console.warn('没有找到任何版本数据!')
+      errorMessage.value = '该查询暂无版本历史记录'
+    }
     
     isLoading.value = false
   } catch (error) {
@@ -432,10 +453,21 @@ const confirmAction = async () => {
   
   if (action === 'activate') {
     try {
+      console.log('开始激活版本，查询ID:', queryId.value, '版本号:', data.versionNumber, '版本对象:', data)
+      
       await versionStore.activateVersion(queryId.value, data.versionNumber)
+      console.log('版本激活成功，开始重新加载数据')
+      
+      // 激活成功后重新加载数据以更新UI
+      await loadVersionData()
+      console.log('数据重新加载完成，当前活跃版本:', currentVersion.value)
+      
       showConfirmDialog.value = false
     } catch (error) {
       console.error('Failed to activate version:', error)
+      const errorMsg = error instanceof Error ? error.message : '未知错误'
+      console.error('激活版本失败，错误详情:', errorMsg)
+      
       errorMessage.value = error instanceof Error 
         ? `无法激活版本: ${error.message}` 
         : '无法激活版本，请稍后重试'

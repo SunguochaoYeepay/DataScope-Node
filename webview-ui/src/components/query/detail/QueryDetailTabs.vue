@@ -37,6 +37,11 @@ const tabs = [
     icon: 'fas fa-history'
   },
   {
+    id: 'versions',
+    name: '版本',
+    icon: 'fas fa-code-branch'
+  },
+  {
     id: 'visualization',
     name: '可视化',
     icon: 'fas fa-chart-bar'

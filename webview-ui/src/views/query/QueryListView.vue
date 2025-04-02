@@ -115,7 +115,10 @@
                 数据源/类型
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                状态
+                当前状态
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                当前版本
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 创建时间
@@ -151,22 +154,28 @@
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span 
-                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                  :class="{
-                    'bg-yellow-100 text-yellow-800': query.versionStatus === 'DRAFT',
-                    'bg-green-100 text-green-800': query.versionStatus === 'PUBLISHED',
-                    'bg-gray-100 text-gray-800': query.versionStatus === 'DEPRECATED'
-                  }"
-                >
-                  {{ getStatusText(query.versionStatus) }}
-                </span>
-                <span
-                  v-if="query.isActive"
-                  class="ml-1 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800"
-                >
-                  活跃
-                </span>
+                <div class="flex items-center">
+                  <span 
+                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                    :class="{
+                      'bg-blue-100 text-blue-800': query.isActive,
+                      'bg-gray-100 text-gray-800': !query.isActive
+                    }"
+                  >
+                    {{ query.isActive ? '活跃' : '禁用' }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div v-if="query.currentVersionId || query.currentVersion" class="flex items-center">
+                  <span class="inline-flex items-center mr-1">
+                    <i class="fas fa-code-branch text-blue-500"></i>
+                  </span>
+                  <span v-if="query.currentVersion" class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-medium">V{{ query.currentVersion.versionNumber }}</span>
+                  <span v-else-if="query.currentVersionId" class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">V{{ formatVersionId(query.currentVersionId) }}</span>
+                  <span v-else class="text-gray-400">-</span>
+                </div>
+                <div v-else class="text-xs text-gray-400">-</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {{ formatDate(query.createdAt) }}
@@ -206,12 +215,12 @@
                   @click="toggleQueryStatus(query)"
                   :class="[
                     'mx-1',
-                    query.versionStatus === 'PUBLISHED' ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'
+                    query.status === 'PUBLISHED' ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'
                   ]"
-                  :title="query.versionStatus === 'PUBLISHED' ? '禁用' : '启用'"
+                  :title="query.status === 'PUBLISHED' ? '禁用' : '启用'"
                 >
                   <i :class="[
-                    query.versionStatus === 'PUBLISHED' ? 'fas fa-pause-circle' : 'fas fa-play-circle'
+                    query.status === 'PUBLISHED' ? 'fas fa-pause-circle' : 'fas fa-play-circle'
                   ]"></i>
                 </button>
                 <button 
@@ -427,7 +436,7 @@ const filteredQueries = computed(() => {
   
   // 状态筛选
   if (statusFilter.value) {
-    result = result.filter(q => q.versionStatus === statusFilter.value)
+    result = result.filter(q => q.status === statusFilter.value)
   }
   
   return result
@@ -481,10 +490,92 @@ const fetchQueries = async () => {
     // 实际项目中应从API获取数据
     const response = await queryStore.fetchQueries()
     queries.value = response || []
+    
+    console.log('API返回原始查询列表:', JSON.stringify(queries.value.slice(0, 2)));
+    
+    // 补充数据源信息
+    await enrichDataSourceInfo()
+    
+    console.log('补充数据源信息后的列表:', queries.value.map(q => ({
+      id: q.id.substring(0, 8), 
+      name: q.name,
+      dataSourceId: q.dataSourceId ? q.dataSourceId.substring(0, 8) : 'none',
+      dataSourceName: q.dataSourceName
+    })));
   } catch (error) {
     console.error('获取查询列表失败:', error)
   } finally {
     isLoading.value = false
+  }
+}
+
+// 补充数据源信息
+const enrichDataSourceInfo = async () => {
+  if (!queries.value || queries.value.length === 0) return
+  
+  try {
+    // 收集所有数据源ID
+    const dataSourceIds = queries.value
+      .filter(q => q.dataSourceId && !q.dataSourceName)
+      .map(q => q.dataSourceId)
+    
+    if (dataSourceIds.length === 0) return
+    
+    // 导入数据源服务
+    const { dataSourceService } = await import('@/services/datasource')
+    
+    // 检查dataSourceService中是否有getDataSourceNames方法，如果没有则使用替代方法
+    if (typeof dataSourceService.getDataSourceNames === 'function') {
+      // 使用批量获取方法
+      const dataSourceNames = await dataSourceService.getDataSourceNames(dataSourceIds)
+      
+      // 更新查询中的数据源名称
+      queries.value.forEach(query => {
+        if (query.dataSourceId && !query.dataSourceName) {
+          query.dataSourceName = dataSourceNames[query.dataSourceId] || '未指定'
+        }
+      })
+      
+      console.log('已补充数据源信息，更新了', Object.keys(dataSourceNames).length, '个数据源')
+    } else {
+      // 如果批量方法不存在，则尝试使用getDataSources方法
+      try {
+        // 获取所有数据源
+        const response = await dataSourceService.getDataSources({ page: 1, size: 100 })
+        const dataSources = response.items || []
+        
+        // 创建ID到名称的映射
+        const dataSourceMap: Record<string, string> = {};
+        dataSources.forEach(ds => {
+          if (ds.id) dataSourceMap[ds.id] = ds.name || '未指定'
+        });
+        
+        // 更新查询中的数据源名称
+        queries.value.forEach(query => {
+          if (query.dataSourceId && !query.dataSourceName) {
+            query.dataSourceName = dataSourceMap[query.dataSourceId] || '未指定'
+          }
+        })
+        
+        console.log('已通过getDataSources方法补充数据源信息，更新了', Object.keys(dataSourceMap).length, '个数据源')
+      } catch (innerError) {
+        console.error('通过getDataSources补充数据源信息失败:', innerError)
+        // 最后的备选：为所有未设置的数据源名称设置默认值
+        queries.value.forEach(query => {
+          if (!query.dataSourceName) {
+            query.dataSourceName = '未指定'
+          }
+        })
+      }
+    }
+  } catch (error) {
+    console.error('补充数据源信息失败:', error)
+    // 确保所有查询都有默认的数据源名称
+    queries.value.forEach(query => {
+      if (!query.dataSourceName) {
+        query.dataSourceName = '未指定'
+      }
+    })
   }
 }
 
@@ -545,7 +636,7 @@ const toggleFavorite = async (query: any) => {
 // 修改切换查询状态处理函数，使用确认对话框
 const toggleQueryStatus = async (query: any) => {
   // 根据当前状态确定新状态
-  newStatus.value = query.versionStatus === 'PUBLISHED' ? 'DEPRECATED' : 'PUBLISHED'
+  newStatus.value = query.status === 'PUBLISHED' ? 'DEPRECATED' : 'PUBLISHED'
   queryToToggle.value = query
   showStatusConfirm.value = true
 }
@@ -559,7 +650,7 @@ const confirmStatusChange = async () => {
     // await queryStore.updateQueryStatus(queryToToggle.value.id, newStatus.value);
     
     // 这里只是模拟状态更新
-    queryToToggle.value.versionStatus = newStatus.value;
+    queryToToggle.value.status = newStatus.value;
     
     // 使用全局消息服务显示成功消息
     messageService.success(
@@ -711,6 +802,24 @@ const formatNumber = (num: number) => {
 // 前往收藏列表
 const navigateToFavorites = () => {
   router.push('/query/favorites')
+}
+
+// 格式化版本ID，显示更友好的格式
+const formatVersionId = (versionId: string) => {
+  if (!versionId) return '';
+  
+  // 简单显示顺序数字，与详情页保持一致
+  // 如果ID格式为UUID，则取部分值转换为数字
+  if (versionId.includes('-')) {
+    // 提取UUID的第一部分的前4个字符，转换为整数
+    const firstPart = versionId.split('-')[0];
+    // 简单处理：取第一个字符转为数字，确保不为0（如果是0则返回1）
+    const versionNumber = parseInt(firstPart.charAt(0), 16) || 1;
+    return `${versionNumber}`;
+  }
+  
+  // 其他情况返回1
+  return '1';
 }
 </script>
 

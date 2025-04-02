@@ -1281,7 +1281,8 @@ export const queryService = {
         return {
           id: item.id,
           name: item.name || '未命名查询',
-          dataSourceId: item.dataSourceId,
+          dataSourceId: item.dataSourceId || null,
+          dataSourceName: item.dataSourceName || null,
           queryType: (item.queryType as QueryType) || 'SQL',
           queryText: item.sqlContent || item.sql || item.queryText || '',
           status: (item.status as QueryStatus) || 'COMPLETED',
@@ -1292,7 +1293,20 @@ export const queryService = {
           error: item.error || item.errorMessage,
           isFavorite: item.isFavorite || false,
           description: item.description || '',
-          tags: item.tags || []
+          tags: item.tags || [],
+          // 增加版本相关信息
+          currentVersionId: item.currentVersionId || null, // 当前版本ID
+          versionStatus: item.status || 'DRAFT', // 版本状态
+          isActive: item.serviceStatus === 'ENABLED', // 是否活跃
+          // 如果有versionNumber字段，构造一个简单的currentVersion对象
+          currentVersion: item.versionNumber ? { 
+            id: item.currentVersionId || '',
+            versionNumber: item.versionNumber,
+            queryId: item.id,
+            status: item.status,
+            isLatest: true
+          } : null,
+          executionCount: item.executionCount || 0 // 执行次数，Query接口必需
         };
       });
       

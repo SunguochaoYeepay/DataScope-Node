@@ -9,7 +9,7 @@ import { getApiBaseUrl } from './query';
 import type { PageResponse } from '@/types/query';
 
 // 模拟API
-const mockVersionApi = {
+export const mockVersionApi = {
   // 获取版本列表
   async getVersions(params: GetVersionsParams): Promise<PageResponse<QueryVersion>> {
     console.log('模拟获取版本列表:', params);
@@ -35,20 +35,19 @@ const mockVersionApi = {
         id: `version-${params.queryId}-${i}`,
         queryId: params.queryId,
         versionNumber: i,
-        versionStatus: status,
-        sqlContent: `SELECT * FROM table_${i} WHERE condition = true LIMIT 100`,
-        dataSourceId: 'ds-1',
+        status: status,
+        queryText: `SELECT * FROM table_${i} WHERE condition = true LIMIT 100`,
         createdAt: new Date(Date.now() - i * 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - i * 86400000).toISOString(),
         publishedAt: status !== 'DRAFT' ? new Date(Date.now() - i * 86400000 + 3600000).toISOString() : undefined,
         deprecatedAt: status === 'DEPRECATED' ? new Date(Date.now() - 86400000).toISOString() : undefined,
-        description: i === 1 ? '初始版本' : `版本 ${i} 的描述信息`
       });
     }
     
     // 应用状态过滤
     let filteredItems = items;
     if (params.status) {
-      filteredItems = items.filter(item => item.versionStatus === params.status);
+      filteredItems = items.filter(item => item.status === params.status);
     }
     
     // 按版本号降序排序
@@ -94,13 +93,12 @@ const mockVersionApi = {
       id: versionId,
       queryId,
       versionNumber,
-      versionStatus: status,
-      sqlContent: `SELECT * FROM table_${versionNumber} WHERE condition = true LIMIT 100`,
-      dataSourceId: 'ds-1',
+      status: status,
+      queryText: `SELECT * FROM table_${versionNumber} WHERE condition = true LIMIT 100`,
       createdAt: new Date(Date.now() - versionNumber * 86400000).toISOString(),
+      updatedAt: new Date(Date.now() - versionNumber * 86400000).toISOString(),
       publishedAt: status !== 'DRAFT' ? new Date(Date.now() - versionNumber * 86400000 + 3600000).toISOString() : undefined,
       deprecatedAt: status === 'DEPRECATED' ? new Date(Date.now() - 86400000).toISOString() : undefined,
-      description: versionNumber === 1 ? '初始版本' : `版本 ${versionNumber} 的描述信息`
     };
   },
   
@@ -121,12 +119,10 @@ const mockVersionApi = {
       id: `version-${params.queryId}-${newVersionNumber}`,
       queryId: params.queryId,
       versionNumber: newVersionNumber,
-      versionStatus: 'DRAFT',
-      sqlContent: params.sqlContent,
-      dataSourceId: params.dataSourceId,
-      parameters: params.parameters,
-      description: params.description,
-      createdAt: new Date().toISOString()
+      status: 'DRAFT',
+      queryText: params.sqlContent,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
   },
   
@@ -141,16 +137,15 @@ const mockVersionApi = {
     const currentVersion = await this.getVersion(params.id);
     
     // 检查版本状态
-    if (currentVersion.versionStatus !== 'DRAFT') {
+    if (currentVersion.status !== 'DRAFT') {
       throw new Error('只能更新草稿状态的版本');
     }
     
     // 返回更新后的版本
     return {
       ...currentVersion,
-      sqlContent: params.sqlContent || currentVersion.sqlContent,
-      parameters: params.parameters || currentVersion.parameters,
-      description: params.description || currentVersion.description
+      queryText: params.sqlContent || currentVersion.queryText,
+      updatedAt: new Date().toISOString()
     };
   },
   
@@ -165,15 +160,16 @@ const mockVersionApi = {
     const currentVersion = await this.getVersion(versionId);
     
     // 检查版本状态
-    if (currentVersion.versionStatus !== 'DRAFT') {
+    if (currentVersion.status !== 'DRAFT') {
       throw new Error('只能发布草稿状态的版本');
     }
     
     // 返回发布后的版本
     return {
       ...currentVersion,
-      versionStatus: 'PUBLISHED',
-      publishedAt: new Date().toISOString()
+      status: 'PUBLISHED',
+      publishedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
   },
   
@@ -188,15 +184,16 @@ const mockVersionApi = {
     const currentVersion = await this.getVersion(versionId);
     
     // 检查版本状态
-    if (currentVersion.versionStatus !== 'PUBLISHED') {
+    if (currentVersion.status !== 'PUBLISHED') {
       throw new Error('只能废弃已发布状态的版本');
     }
     
     // 返回废弃后的版本
     return {
       ...currentVersion,
-      versionStatus: 'DEPRECATED',
-      deprecatedAt: new Date().toISOString()
+      status: 'DEPRECATED',
+      deprecatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
   },
   
@@ -211,7 +208,7 @@ const mockVersionApi = {
     const currentVersion = await this.getVersion(versionId);
     
     // 检查版本状态
-    if (currentVersion.versionStatus !== 'PUBLISHED') {
+    if (currentVersion.status !== 'PUBLISHED') {
       throw new Error('只能将已发布状态的版本设为活跃版本');
     }
     
@@ -280,13 +277,10 @@ export const versionService = {
         id: item.id,
         queryId: item.queryId,
         versionNumber: item.versionNumber || item.version_number,
-        versionStatus: item.versionStatus || item.version_status || 'DRAFT',
-        versionName: item.versionName || item.version_name,
-        sqlContent: item.sqlContent || item.sql_content,
-        dataSourceId: item.dataSourceId || item.data_source_id,
-        parameters: item.parameters,
-        description: item.description,
+        status: item.status || item.version_status || 'DRAFT',
+        queryText: item.queryText || item.sql_content,
         createdAt: item.createdAt || item.created_at,
+        updatedAt: item.updatedAt || item.updated_at,
         publishedAt: item.publishedAt || item.published_at,
         deprecatedAt: item.deprecatedAt || item.deprecated_at,
         createdBy: item.createdBy || item.created_by,
@@ -333,13 +327,10 @@ export const versionService = {
         id: result.id,
         queryId: result.queryId || result.query_id,
         versionNumber: result.versionNumber || result.version_number,
-        versionStatus: result.versionStatus || result.version_status || 'DRAFT',
-        versionName: result.versionName || result.version_name,
-        sqlContent: result.sqlContent || result.sql_content,
-        dataSourceId: result.dataSourceId || result.data_source_id,
-        parameters: result.parameters,
-        description: result.description,
+        status: result.status || result.version_status || 'DRAFT',
+        queryText: result.queryText || result.sql_content,
         createdAt: result.createdAt || result.created_at,
+        updatedAt: result.updatedAt || result.updated_at,
         publishedAt: result.publishedAt || result.published_at,
         deprecatedAt: result.deprecatedAt || result.deprecated_at,
         createdBy: result.createdBy || result.created_by,
@@ -361,10 +352,9 @@ export const versionService = {
     try {
       // 构建请求体
       const requestBody = {
-        sqlContent: params.sqlContent,
-        dataSourceId: params.dataSourceId,
-        parameters: params.parameters,
-        description: params.description
+        queryText: params.sqlContent,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${params.queryId}/versions`, {
@@ -388,13 +378,10 @@ export const versionService = {
         id: result.id,
         queryId: result.queryId || result.query_id,
         versionNumber: result.versionNumber || result.version_number,
-        versionStatus: result.versionStatus || result.version_status || 'DRAFT',
-        versionName: result.versionName || result.version_name,
-        sqlContent: result.sqlContent || result.sql_content,
-        dataSourceId: result.dataSourceId || result.data_source_id,
-        parameters: result.parameters,
-        description: result.description,
+        status: result.status || result.version_status || 'DRAFT',
+        queryText: result.queryText || result.sql_content,
         createdAt: result.createdAt || result.created_at,
+        updatedAt: result.updatedAt || result.updated_at,
         publishedAt: result.publishedAt || result.published_at,
         deprecatedAt: result.deprecatedAt || result.deprecated_at,
         createdBy: result.createdBy || result.created_by,
@@ -416,9 +403,8 @@ export const versionService = {
     try {
       // 构建请求体
       const requestBody = {
-        sqlContent: params.sqlContent,
-        parameters: params.parameters,
-        description: params.description
+        queryText: params.sqlContent,
+        updatedAt: new Date().toISOString()
       };
       
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${params.queryId}/versions/${params.id}`, {
@@ -442,13 +428,10 @@ export const versionService = {
         id: result.id,
         queryId: result.queryId || result.query_id,
         versionNumber: result.versionNumber || result.version_number,
-        versionStatus: result.versionStatus || result.version_status || 'DRAFT',
-        versionName: result.versionName || result.version_name,
-        sqlContent: result.sqlContent || result.sql_content,
-        dataSourceId: result.dataSourceId || result.data_source_id,
-        parameters: result.parameters,
-        description: result.description,
+        status: result.status || result.version_status || 'DRAFT',
+        queryText: result.queryText || result.sql_content,
         createdAt: result.createdAt || result.created_at,
+        updatedAt: result.updatedAt || result.updated_at,
         publishedAt: result.publishedAt || result.published_at,
         deprecatedAt: result.deprecatedAt || result.deprecated_at,
         createdBy: result.createdBy || result.created_by,
@@ -487,13 +470,10 @@ export const versionService = {
         id: result.id,
         queryId: result.queryId || result.query_id,
         versionNumber: result.versionNumber || result.version_number,
-        versionStatus: result.versionStatus || result.version_status || 'PUBLISHED',
-        versionName: result.versionName || result.version_name,
-        sqlContent: result.sqlContent || result.sql_content,
-        dataSourceId: result.dataSourceId || result.data_source_id,
-        parameters: result.parameters,
-        description: result.description,
+        status: result.status || result.version_status || 'PUBLISHED',
+        queryText: result.queryText || result.sql_content,
         createdAt: result.createdAt || result.created_at,
+        updatedAt: result.updatedAt || result.updated_at,
         publishedAt: result.publishedAt || result.published_at || new Date().toISOString(),
         deprecatedAt: result.deprecatedAt || result.deprecated_at,
         createdBy: result.createdBy || result.created_by,
@@ -532,13 +512,10 @@ export const versionService = {
         id: result.id,
         queryId: result.queryId || result.query_id,
         versionNumber: result.versionNumber || result.version_number,
-        versionStatus: result.versionStatus || result.version_status || 'DEPRECATED',
-        versionName: result.versionName || result.version_name,
-        sqlContent: result.sqlContent || result.sql_content,
-        dataSourceId: result.dataSourceId || result.data_source_id,
-        parameters: result.parameters,
-        description: result.description,
+        status: result.status || result.version_status || 'DEPRECATED',
+        queryText: result.queryText || result.sql_content,
         createdAt: result.createdAt || result.created_at,
+        updatedAt: result.updatedAt || result.updated_at,
         publishedAt: result.publishedAt || result.published_at,
         deprecatedAt: result.deprecatedAt || result.deprecated_at || new Date().toISOString(),
         createdBy: result.createdBy || result.created_by,
@@ -621,5 +598,21 @@ export const versionService = {
     }
   }
 };
+
+// 将API返回的版本对象映射为本地类型
+function mapVersionFromApi(result: any): QueryVersion {
+  return {
+    id: result.id,
+    queryId: result.queryId || result.query_id,
+    versionNumber: result.versionNumber || result.version_number,
+    status: result.status || result.version_status || 'DRAFT',
+    queryText: result.queryText || result.sql_content,
+    createdAt: result.createdAt || result.created_at,
+    updatedAt: result.updatedAt || result.updated_at,
+    publishedAt: result.publishedAt || result.published_at,
+    deprecatedAt: result.deprecatedAt || result.deprecated_at,
+    isActive: result.isActive || result.is_active
+  };
+}
 
 export default versionService;

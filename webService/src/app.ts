@@ -23,6 +23,7 @@ import planVisualizationRouter from './api/routes/plan-visualization.routes';
 import mockPlanRouter from './api/routes/mock-plan.routes';
 import { registerDirectRoutes } from './api/direct-routes';
 import dataSourcesMockRoutes from './api/routes/data-sources.mock';
+import { dataSourceRoutes, queryRoutes, queryVersionRoutes } from './routes';
 
 // 初始化服务
 const dataSourceService = new DataSourceService();
@@ -155,9 +156,17 @@ if (useMockData) {
 // 注册额外的开发测试路由
 app.use('/api/mock-plan', mockPlanRouter);
 
+// 直接注册查询版本路由，确保前端访问路径正确
+app.use('/api', queryVersionRoutes);
+app.use('', queryVersionRoutes);
+console.log('主应用：查询版本路由已加载：/api 和 根路径');
+
 // 注册API路由
 app.use('/api', apiRoutes);
-console.log('主应用：API路由已加载：/api');
+
+// 注册数据源和查询路由
+app.use('/api', dataSourceRoutes);
+app.use('/api', queryRoutes);
 
 // 注册直接路由(用于测试)
 registerDirectRoutes(app);

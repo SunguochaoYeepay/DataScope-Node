@@ -250,6 +250,11 @@
           </div>
         </div>
         
+        <!-- 版本标签页 -->
+        <div v-if="activeTab === 'versions'" class="bg-white shadow rounded-lg">
+          <QueryVersionsTab :queryId="query.id" />
+        </div>
+        
         <!-- 可视化标签页 -->
         <div v-if="activeTab === 'visualization'" class="bg-white shadow rounded-lg p-6">
           <div v-if="isLoadingVisualization" class="py-12 flex justify-center">
@@ -478,6 +483,7 @@ import type { Query, QueryStatus, QueryVisualization, QueryExecutionPlan, QueryS
 import QueryDetailHeader from '@/components/query/detail/QueryDetailHeader.vue'
 import QueryDetailTabs from '@/components/query/detail/QueryDetailTabs.vue'
 import QueryResults from '@/components/query/QueryResults.vue'
+import QueryVersionsTab from '@/components/query/detail/QueryVersionsTab.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -732,6 +738,9 @@ const loadTabData = async (tabId: string) => {
   } else if (tabId === 'results') {
     // 加载查询结果
     await loadResultsData()
+  } else if (tabId === 'versions') {
+    // 加载版本信息
+    await loadVersionsData()
   }
 }
 
@@ -800,6 +809,12 @@ const loadResultsData = async () => {
   } finally {
     isLoadingResults.value = false
   }
+}
+
+// 加载版本信息
+const loadVersionsData = async () => {
+  // 这里不需要特殊实现，因为QueryVersionsTab组件内部已经包含了加载逻辑
+  console.log('加载版本数据'); 
 }
 
 // 编辑查询

@@ -1014,6 +1014,44 @@ export const dataSourceService = {
       console.error('高级搜索失败:', error);
       throw error;
     }
+  },
+
+  // 根据ID获取数据源名称
+  async getDataSourceName(id: string): Promise<string> {
+    if (!id) return '未指定';
+    
+    try {
+      const dataSource = await this.getDataSource(id);
+      return dataSource?.name || '未指定';
+    } catch (error) {
+      console.error(`获取数据源${id}名称失败:`, error);
+      return '未指定';
+    }
+  },
+  
+  // 批量获取数据源名称
+  async getDataSourceNames(ids: string[]): Promise<Record<string, string>> {
+    if (!ids || ids.length === 0) return {};
+    
+    try {
+      // 获取所有数据源
+      const response = await this.getDataSources({ page: 1, size: 100 });
+      const dataSources = response.items || [];
+      
+      // 创建ID到名称的映射
+      const nameMap: Record<string, string> = {};
+      dataSources.forEach(ds => {
+        if (ds.id && ids.includes(ds.id)) {
+          nameMap[ds.id] = ds.name || '未指定';
+        }
+      });
+      
+      return nameMap;
+    } catch (error) {
+      console.error('批量获取数据源名称失败:', error);
+      // 返回默认值映射
+      return ids.reduce((map, id) => ({ ...map, [id]: '未指定' }), {});
+    }
   }
 }
 
