@@ -55,7 +55,7 @@
           返回列表
         </button>
         <button
-          v-if="queryId"
+          v-if="currentQueryId"
           @click="viewVersions"
           class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
@@ -260,17 +260,23 @@
                 />
               </div>
 
-              <!-- 操作按钮区域 -->
+              <!-- 显示最后保存草稿时间和操作按钮区域 -->
               <div class="mt-4 flex justify-between">
-                <div>
+                <div class="flex items-center">
                   <button
-                    @click="executeQuery"
+                    @click="() => executeQuery()"
                     class="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     :disabled="isExecuting || !selectedDataSourceId || !sqlQuery.trim()"
                   >
                     <i class="fas fa-play mr-1.5"></i>
                     执行查询
                   </button>
+                  
+                  <!-- 显示最后保存时间 -->
+                  <span v-if="lastDraftSaveAt" class="ml-3 text-xs text-gray-500">
+                    <i class="fas fa-history mr-1"></i>
+                    草稿保存于: {{ lastDraftSaveTime }}
+                  </span>
                 </div>
                 
                 <div class="flex space-x-3">
@@ -284,15 +290,6 @@
                   
                   <!-- 版本操作按钮区域 -->
                   <div v-if="currentQueryId" class="flex space-x-3">
-                    <button
-                      v-if="versionStatus === 'DRAFT'"
-                      @click="saveDraft"
-                      class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                      :disabled="!hasUnsavedChanges"
-                    >
-                      <i class="fas fa-bookmark mr-1.5"></i>
-                      保存草稿
-                    </button>
                     <button
                       v-if="versionStatus === 'DRAFT'"
                       @click="publishVersion"
@@ -324,31 +321,37 @@
               />
               
               <!-- 版本操作按钮区域 -->
-              <div v-if="currentQueryId" class="mt-4 flex justify-end space-x-3">
-                <button
-                  v-if="versionStatus === 'DRAFT'"
-                  @click="saveDraft"
-                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <i class="fas fa-save mr-1.5"></i>
-                  保存草稿
-                </button>
-                <button
-                  v-if="versionStatus === 'DRAFT'"
-                  @click="publishVersion"
-                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                >
-                  <i class="fas fa-check-circle mr-1.5"></i>
-                  发布
-                </button>
-                <button
-                  v-if="versionStatus === 'DRAFT'"
-                  @click="createNewVersion"
-                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <i class="fas fa-code-branch mr-1.5"></i>
-                  新建版本
-                </button>
+              <div class="mt-4 flex justify-between">
+                <span v-if="lastDraftSaveAt" class="text-xs text-gray-500 self-center">
+                  <i class="fas fa-history mr-1"></i>
+                  草稿保存于: {{ lastDraftSaveTime }}
+                </span>
+                
+                <div class="flex space-x-3">
+                  <button
+                    @click="showSaveModal()"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <i class="fas fa-save mr-1.5"></i>
+                    {{ currentQueryId ? '保存更改' : '保存查询' }}
+                  </button>
+                  <button
+                    v-if="versionStatus === 'DRAFT'"
+                    @click="publishVersion"
+                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                  >
+                    <i class="fas fa-check-circle mr-1.5"></i>
+                    发布
+                  </button>
+                  <button
+                    v-if="versionStatus === 'DRAFT'"
+                    @click="createNewVersion"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <i class="fas fa-code-branch mr-1.5"></i>
+                    新建版本
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -520,6 +523,7 @@ const leftPanel = ref<'metadata' | 'saved'>('metadata')
 const savedQuerySearch = ref('')
 const executionTime = ref(0)
 const executionTimer = ref<number | null>(null)
+const lastDraftSaveAt = ref<string | null>(null)
 const builderState = ref<QueryBuilderState>({
   selectedDataSourceId: '',
   tables: [],
@@ -538,7 +542,7 @@ const builderState = ref<QueryBuilderState>({
 const queryBuilderRef = ref(null)
 const queryManagerRef = ref(null)
 
-// 版本相关状态
+// 查询版本状态
 const versionStatus = ref<'DRAFT' | 'PUBLISHED' | 'DEPRECATED'>('DRAFT')
 const isActiveVersion = ref(false)
 const publishedAt = ref<string | null>(null)
@@ -574,6 +578,34 @@ onMounted(async () => {
   const queryId = route.query.id as string
   if (queryId) {
     await loadQueryById(queryId)
+  } else {
+    // 如果没有查询ID，尝试从localStorage加载临时草稿
+    const draftText = localStorage.getItem('query_draft_text')
+    const draftType = localStorage.getItem('query_draft_type')
+    const draftTimestamp = localStorage.getItem('query_draft_timestamp')
+    
+    if (draftText && draftType) {
+      // 加载草稿内容
+      if (draftType === 'SQL') {
+        activeTab.value = 'editor'
+        sqlQuery.value = draftText
+      } else if (draftType === 'NATURAL_LANGUAGE') {
+        activeTab.value = 'nlq'
+        naturalLanguageQuery.value = draftText
+      }
+      
+      // 设置最后保存草稿时间
+      if (draftTimestamp) {
+        lastDraftSaveAt.value = draftTimestamp
+      }
+      
+      console.log(`已加载临时草稿，保存时间: ${draftTimestamp || '未知'}`)
+      
+      // 提示用户
+      setTimeout(() => {
+        message.info('已加载上次未保存的草稿')
+      }, 1000)
+    }
   }
   
   // 加载查询历史和收藏
@@ -592,6 +624,9 @@ onMounted(async () => {
   
   // 添加页面离开提示
   window.addEventListener('beforeunload', handleBeforeUnload)
+  
+  // 添加全局键盘事件监听，防止浏览器拦截快捷键
+  document.addEventListener('keydown', handleGlobalKeyDown)
 })
 
 // 页面离开处理
@@ -601,6 +636,24 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
     const message = '查询正在执行中，确定要离开吗？'
     event.returnValue = message
     return message
+  }
+}
+
+// 全局键盘事件处理
+const handleGlobalKeyDown = (event: KeyboardEvent) => {
+  // Ctrl+S 保存草稿
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault() // 阻止浏览器默认的保存页面行为
+    
+    // 无论是否有ID都保存草稿
+    saveDraft()
+    return
+  }
+  
+  // Ctrl+Enter 执行查询
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault()
+    executeQuery()
   }
 }
 
@@ -621,6 +674,7 @@ onUnmounted(() => {
   
   // 删除可能的DOM事件监听器
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  document.removeEventListener('keydown', handleGlobalKeyDown)
   
   // 重置可能的状态
   lastPanelSwitchTime = 0
@@ -726,6 +780,8 @@ const loadQueryById = async (queryId: string) => {
     // 检查组件是否已卸载
     if (!isComponentMounted) return
     
+    console.log(`开始从ID加载查询: ${queryId}`)
+    
     // 尝试直接获取查询详情
     let query = await queryStore.getQuery(queryId)
     
@@ -767,19 +823,69 @@ const loadQueryById = async (queryId: string) => {
     
     // 设置查询详情
     currentQueryId.value = query.id
-    selectedDataSourceId.value = query.dataSourceId
+    selectedDataSourceId.value = query.dataSourceId || ''
     queryName.value = query.name || '未命名查询'
+    
+    // 设置版本状态
+    versionStatus.value = query.status === 'PUBLISHED' ? 'PUBLISHED' : 
+                          query.status === 'DEPRECATED' ? 'DEPRECATED' : 'DRAFT'
+    
+    // 设置是否为活跃版本
+    isActiveVersion.value = query.isActive || false
+    
+    // 设置最后编辑和发布时间
+    lastEditedAt.value = query.updatedAt || new Date().toISOString()
+    
+    // 设置版本号
+    if (query.currentVersion?.versionNumber) {
+      queryVersion.value = `v${query.currentVersion.versionNumber}`
+    } else {
+      queryVersion.value = 'v1.0'
+    }
     
     // 检查是否是收藏的查询
     isFavorite.value = queryStore.favorites.some(fav => fav.queryId === queryId)
     
+    // 提取查询SQL内容 - 优先使用queryText，兼容多种返回格式
+    let sqlContent = ''
+    if (query.queryText) {
+      sqlContent = query.queryText
+      console.log('从query.queryText获取SQL内容')
+    } else if (query.currentVersion?.sql) {
+      sqlContent = query.currentVersion.sql
+      console.log('从query.currentVersion.sql获取SQL内容')
+    } else {
+      // 尝试其他可能的字段名
+      const possibleFields = ['sql', 'queryContent', 'sqlContent']
+      for (const field of possibleFields) {
+        if ((query as any)[field]) {
+          sqlContent = (query as any)[field]
+          console.log(`从query.${field}获取SQL内容`)
+          break
+        }
+      }
+    }
+    
+    console.log(`SQL内容: ${sqlContent ? `获取到内容，长度 ${sqlContent.length}` : '未找到内容'}`)
+    
     // 根据查询类型设置对应的查询内容
     if (query.queryType === 'SQL' || !query.queryType) {
       activeTab.value = 'editor'
-      sqlQuery.value = query.queryText
+      sqlQuery.value = sqlContent
+      console.log('设置SQL查询内容:', sqlContent.substring(0, 100) + (sqlContent.length > 100 ? '...' : ''))
     } else if (query.queryType === 'NATURAL_LANGUAGE') {
       activeTab.value = 'nlq'
-      naturalLanguageQuery.value = query.queryText
+      naturalLanguageQuery.value = sqlContent
+      console.log('设置自然语言查询内容:', sqlContent.substring(0, 100) + (sqlContent.length > 100 ? '...' : ''))
+    }
+    
+    // 保存到本地存储以便于恢复
+    try {
+      localStorage.setItem('last_loaded_query_id', query.id);
+      localStorage.setItem('last_loaded_query_text', sqlContent || '');
+      localStorage.setItem('last_loaded_query_timestamp', new Date().toISOString());
+    } catch (storageError) {
+      console.warn('无法保存查询到本地存储:', storageError);
     }
     
     statusMessage.value = '查询加载成功'
@@ -816,10 +922,13 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   
   // 清除之前的错误信息
   queryError.value = null
+  statusMessage.value = null
   
+  // 基本验证
   if (!selectedDataSourceId.value) {
     message.error('请先选择数据源')
     queryError.value = '未选择数据源'
+    statusMessage.value = '执行失败：未选择数据源'
     return
   }
   
@@ -829,12 +938,19 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   if (!queryText || !queryText.trim()) {
     message.error('请输入查询语句')
     queryError.value = '查询语句为空'
+    statusMessage.value = '执行失败：查询语句为空'
     return
   }
   
-  // 验证SQL语句（仅SQL类型需要验证）
-  if (queryType === 'SQL' && !validateSqlQuery(queryText)) {
-    return
+  // SQL特有的验证逻辑
+  if (queryType === 'SQL') {
+    const validationError = validateSqlQuery(queryText)
+    if (validationError) {
+      message.warning(validationError)
+      queryError.value = validationError
+      statusMessage.value = `查询警告：${validationError}`
+      // 警告级别的错误，不阻止执行，仅提示用户
+    }
   }
   
   if (isExecuting.value) {
@@ -876,6 +992,16 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
       return
     }
     
+    // 检查查询结果状态
+    if (result) {
+      // 使用类型断言安全地访问结果对象
+      const resultObj: any = ('query' in result && 'result' in result) ? result.result : result;
+      if (resultObj.status === 'ERROR' || resultObj.error) {
+        const errorMessage = resultObj.errorMessage || resultObj.error || '查询执行失败';
+        throw new Error(errorMessage);
+      }
+    }
+    
     // 更新查询ID
     currentQueryId.value = queryStore.currentQueryResult?.id || null
     
@@ -885,18 +1011,13 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
     statusMessage.value = `查询执行成功，返回 ${rowCount} 条记录，耗时 ${execTime}ms`
     message.success(statusMessage.value)
     
-    // 在查询执行完成后自动获取执行计划
+    // 在查询执行完成后尝试获取执行计划，但不阻断正常流程
     if (currentQueryId.value) {
       console.log(`查询执行完成，尝试获取执行计划，查询ID: ${currentQueryId.value}`)
-      try {
-        // 检查组件是否已卸载
-        if (!isComponentMounted) return
-        
-        await queryStore.getQueryExecutionPlan(currentQueryId.value)
-        console.log('执行计划加载完成')
-      } catch (planError) {
-        console.error('获取执行计划失败，但不影响查询结果显示:', planError)
-      }
+      tryGetExecutionPlan(currentQueryId.value).catch(error => {
+        // 仅记录错误，不影响主流程
+        console.warn('获取执行计划失败，但不影响查询结果显示:', error)
+      });
     }
     
     // 检查组件是否已卸载
@@ -924,37 +1045,79 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   }
 }
 
+// 尝试获取执行计划，但允许失败
+const tryGetExecutionPlan = async (queryId: string) => {
+  // 检查组件是否已卸载
+  if (!isComponentMounted) return
+  
+  try {
+    // 等待一小段时间，确保后端有足够时间生成执行计划
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // 尝试获取执行计划，最多重试2次
+    let retries = 0;
+    const maxRetries = 1;
+    
+    while (retries <= maxRetries) {
+      try {
+        await queryStore.getQueryExecutionPlan(queryId)
+        console.log('执行计划加载完成')
+        return
+      } catch (error: any) {
+        // 检查错误是否是"执行计划不存在"
+        const isNotFoundError = 
+          (error.message && error.message.includes('计划不存在')) || 
+          (error.details && error.details.includes('计划不存在'));
+        
+        if (isNotFoundError && retries < maxRetries) {
+          console.log(`执行计划暂不可用，等待后重试 (${retries + 1}/${maxRetries})`)
+          // 等待一段时间再重试
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          retries++;
+        } else {
+          // 其他错误或已重试最大次数，停止尝试
+          throw error;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('获取执行计划失败:', error)
+    // 不阻断主流程，仅记录错误
+  }
+}
+
 // 验证SQL查询
-const validateSqlQuery = (queryText: string): boolean => {
+const validateSqlQuery = (queryText: string): string | null => {
   const trimmedSQL = queryText.trim().toLowerCase()
   
   // 检查是否是简单的SELECT *
   if (trimmedSQL === 'select *') {
-    message.error('不完整的SQL语句，请指定表名')
-    queryError.value = '不完整的SQL语句，请指定表名'
-    return false
+    return '不完整的SQL语句，请指定表名'
   }
   
   // 检查SELECT * FROM 后是否有表名
   if (trimmedSQL.startsWith('select * from') && trimmedSQL.split(' ').length <= 3) {
-    message.error('请在FROM子句后指定表名')
-    queryError.value = '请在FROM子句后指定表名'
-    return false
+    return '请在FROM子句后指定表名'
   }
   
   // 检查SQL语句是否有基本语法要素
   if (!trimmedSQL.includes('select')) {
-    message.warning('SQL语句需要包含SELECT关键字')
-    queryError.value = 'SQL语句需要包含SELECT关键字'
-    // 仍然允许执行，不返回false
+    return 'SQL语句需要包含SELECT关键字'
   }
   
   if (!trimmedSQL.includes('from') && trimmedSQL.includes('select')) {
-    message.warning('SQL语句可能缺少FROM子句')
-    // 但不阻止执行
+    return 'SQL语句可能缺少FROM子句'
   }
   
-  return true
+  // 括号匹配检查
+  const openCount = (trimmedSQL.match(/\(/g) || []).length
+  const closeCount = (trimmedSQL.match(/\)/g) || []).length
+  if (openCount !== closeCount) {
+    return '括号不匹配，请检查SQL语法'
+  }
+  
+  // 没有错误
+  return null
 }
 
 // 处理查询错误
@@ -1167,128 +1330,67 @@ const executeBuilderQuery = () => {
 }
 
 // 处理保存查询
-const handleSaveQuery = async (saveData: Partial<Query>) => {
-  // 检查组件是否已卸载
-  if (!isComponentMounted) {
-    console.log('组件已卸载，取消保存查询')
-    return
-  }
-  
+const handleSaveQuery = async (saveData: any) => {
   try {
+    isSaveModalVisible.value = false
     statusMessage.value = '正在保存查询...'
     
-    // 确保必要的字段存在
-    if (!saveData.name || !saveData.dataSourceId || (!saveData.queryText && !sqlQuery.value && !naturalLanguageQuery.value) || !saveData.queryType) {
-      statusMessage.value = '保存查询失败：缺少必要信息'
-      setTimeout(() => {
-        if (!isComponentMounted) return
-        statusMessage.value = null
-      }, 5000)
-      return
-    }
-    
     // 构造符合SaveQueryParams的对象
-    const queryData: SaveQueryParams = {
+    const queryData: any = {
       id: saveData.id || (currentQueryId.value || undefined),
       name: saveData.name,
       dataSourceId: saveData.dataSourceId,
       queryText: saveData.queryText || (activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value),
       queryType: saveData.queryType || (activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
       description: saveData.description,
-      tags: saveData.tags
+      tags: saveData.tags ? saveData.tags.map((tag: any) => typeof tag === 'string' ? tag : (tag.name || tag.toString())) : undefined
     }
     
-    console.log('保存查询数据:', queryData);
+    console.log('保存查询:', queryData)
     
-    // 检查组件是否已卸载
-    if (!isComponentMounted) return
+    // 调用保存查询接口
+    const result = await queryStore.saveQuery(queryData)
     
-    // 使用传入的保存数据
-    const savedQuery = await queryStore.saveQuery(queryData)
-    
-    // 检查组件是否已卸载
-    if (!isComponentMounted) return
-    
-    // 更新查询名称和ID
-    if (savedQuery) {
-      queryName.value = savedQuery.name || ''
-      currentQueryId.value = savedQuery.id
+    if (result && result.id) {
+      message.success('查询保存成功')
       statusMessage.value = '查询保存成功'
       
-      // 保存成功后，将ID存入localStorage以便恢复
-      try {
-        localStorage.setItem('last_saved_query_id', savedQuery.id);
-      } catch (e) {
-        // 增强错误处理，提供更详细的错误分类
-        console.warn('无法将查询ID存入localStorage:', e);
-        
-        let errorReason: string;
-        
-        if (e instanceof DOMException && (
-          // 检测配额超出异常
-          e.name === 'QuotaExceededError' || 
-          e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
-          errorReason = 'localStorage空间已满';
-        } else if (e instanceof DOMException && e.name === 'SecurityError') {
-          errorReason = '浏览器安全设置限制';
-        } else if (typeof window.localStorage === 'undefined') {
-          errorReason = 'localStorage不可用';
-        } else {
-          errorReason = '未知错误';
-        }
-        
-        // 只在开发环境中显示错误提示
-        if (import.meta.env.DEV) {
-          message.warning(`无法保存查询状态: ${errorReason}`);
-        }
+      // 更新当前查询ID
+      currentQueryId.value = result.id
+      
+      // 更新查询名称和数据源ID
+      queryName.value = saveData.name || '未命名查询'
+      selectedDataSourceId.value = saveData.dataSourceId || ''
+      
+      // 根据查询类型更新查询内容
+      if (saveData.queryType === 'SQL' || !saveData.queryType) {
+        sqlQuery.value = saveData.queryText || sqlQuery.value
+      } else if (saveData.queryType === 'NATURAL_LANGUAGE') {
+        naturalLanguageQuery.value = saveData.queryText || naturalLanguageQuery.value
       }
       
-      // 检查组件是否已卸载
-      if (!isComponentMounted) return
+      // 设置版本状态为草稿
+      versionStatus.value = 'DRAFT'
       
-      // 更新路由参数，但不重新加载页面
-      router.replace({
-        query: { ...route.query, id: savedQuery.id }
-      }).catch(err => {
-        console.error('更新路由参数失败:', err);
-      });
+      // 更新最后编辑时间
+      lastEditedAt.value = new Date().toISOString()
+      
+      // 如果是新建查询，更新URL并添加到历史记录
+      if (!route.query.id) {
+        const newQuery = { ...route.query, id: result.id }
+        router.replace({ query: newQuery })
+      }
+      
+      setTimeout(() => {
+        statusMessage.value = null
+      }, 3000)
+    } else {
+      throw new Error('保存查询失败')
     }
-    
-    setTimeout(() => {
-      if (!isComponentMounted) return
-      statusMessage.value = null
-    }, 3000)
   } catch (error) {
-    // 增强错误处理逻辑
-    console.error('保存查询失败:', error);
-    
-    // 获取详细的错误信息
-    let errorMessage = '未知错误';
-    
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === 'object' && error !== null) {
-      // 处理API返回的错误对象
-      if ('message' in error) {
-        errorMessage = String(error.message);
-      } else if ('error' in error) {
-        errorMessage = typeof error.error === 'string' ? error.error : '服务器错误';
-      } else if ('statusText' in error) {
-        errorMessage = `服务器返回: ${error.statusText}`;
-      }
-    } else if (typeof error === 'string') {
-      errorMessage = error;
-    }
-    
-    // 显示友好的错误消息
-    statusMessage.value = `保存查询失败: ${errorMessage}`;
-    
-    // 向用户显示错误消息
-    message.error({
-      content: `保存查询失败: ${errorMessage}`,
-      duration: 5
-    });
-    
+    console.error('保存查询失败:', error)
+    message.error('保存查询失败')
+    statusMessage.value = '保存查询失败'
     setTimeout(() => {
       statusMessage.value = null
     }, 5000)
@@ -1334,13 +1436,13 @@ const insertColumnName = (columnName: string) => {
 // 过滤保存的查询
 const filteredSavedQueries = computed(() => {
   const search = savedQuerySearch.value.toLowerCase()
-  return queryStore.queries.filter(query => 
+  return queryStore.queryHistory.filter(query => 
     !search || (query.name && query.name.toLowerCase().includes(search))
   )
 })
 
 // 格式化日期
-const formatDate = (dateString: string | number | Date | undefined) => {
+const formatDate = (dateString: string | number | Date | undefined | null) => {
   if (!dateString) return '未知时间'
   const date = new Date(dateString)
   return date.toLocaleDateString()
@@ -1456,31 +1558,60 @@ const viewVersions = () => {
 
 // 保存草稿
 const saveDraft = async () => {
-  if (!currentQueryId.value || versionStatus.value !== 'DRAFT') return;
-  
   try {
     statusMessage.value = '正在保存草稿...';
     
-    // 构造保存草稿的请求数据
-    const draftData = {
-      id: currentQueryId.value,
-      queryText: getQueryTextByType(activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
-      queryType: activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'
-    };
+    // 获取当前查询文本
+    const queryText = getQueryTextByType(activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE');
     
-    // 调用API保存草稿
-    // TODO: 替换为实际的API调用
-    await simulateDelay(500, 1000);
+    // 验证是否有内容
+    if (!queryText.trim()) {
+      statusMessage.value = '无内容可保存';
+      setTimeout(() => {
+        statusMessage.value = null;
+      }, 3000);
+      return;
+    }
     
-    // 更新最后编辑时间
-    lastEditedAt.value = new Date().toISOString();
+    // 更新最后保存草稿时间
+    const now = new Date().toISOString();
+    lastDraftSaveAt.value = now;
     
-    statusMessage.value = '草稿已保存';
+    // 根据是否有查询ID决定操作
+    if (currentQueryId.value) {
+      // 已有查询，更新草稿
+      // 构造保存草稿的请求数据
+      const draftData = {
+        id: currentQueryId.value,
+        queryText: queryText,
+        queryType: activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'
+      };
+      
+      // 调用API保存草稿
+      // TODO: 替换为实际的API调用
+      await simulateDelay(500, 1000);
+      
+      // 更新最后编辑时间
+      lastEditedAt.value = now;
+      
+      message.success('草稿已保存');
+      statusMessage.value = '草稿已保存';
+    } else {
+      // 新查询，首次保存草稿，静默存储到本地
+      localStorage.setItem('query_draft_text', queryText);
+      localStorage.setItem('query_draft_type', activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE');
+      localStorage.setItem('query_draft_timestamp', now);
+      
+      message.success('草稿已临时保存');
+      statusMessage.value = '草稿已临时保存';
+    }
+    
     setTimeout(() => {
       statusMessage.value = null;
     }, 3000);
   } catch (error) {
     console.error('保存草稿失败:', error);
+    message.error('保存草稿失败');
     statusMessage.value = '保存草稿失败';
     setTimeout(() => {
       statusMessage.value = null;
@@ -1592,7 +1723,7 @@ const hasUnsavedChanges = computed(() => {
 });
 
 // 处理SQL编辑器执行按钮逻辑
-const handleExecuteQuery = (errorMsg: string) => {
+const handleExecuteQuery = (errorMsg?: string) => {
   if (errorMsg) {
     showError(errorMsg);
   } else {
@@ -1617,6 +1748,27 @@ onBeforeRouteLeave((to, from, next) => {
     }
   } else {
     next();
+  }
+});
+
+// 计算属性：上次草稿保存时间的格式化显示
+const lastDraftSaveTime = computed(() => {
+  if (!lastDraftSaveAt.value) return '';
+  
+  const now = new Date();
+  const saveTime = new Date(lastDraftSaveAt.value);
+  const diffMinutes = Math.floor((now.getTime() - saveTime.getTime()) / (1000 * 60));
+  
+  if (diffMinutes < 1) {
+    return '刚刚';
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes}分钟前`;
+  } else if (diffMinutes < 24 * 60) {
+    const hours = Math.floor(diffMinutes / 60);
+    return `${hours}小时前`;
+  } else {
+    const days = Math.floor(diffMinutes / (60 * 24));
+    return `${days}天前`;
   }
 });
 </script>

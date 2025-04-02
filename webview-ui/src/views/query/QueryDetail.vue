@@ -39,7 +39,52 @@
         <!-- 标题和返回按钮 -->
         <div class="flex justify-between items-center mb-6">
           <h1 class="text-2xl font-medium text-gray-800">{{ query.name || '未命名查询' }} - 详情</h1>
-          <div class="flex space-x-3">
+          <div class="flex items-center space-x-4">
+            <!-- 收藏和分享按钮组 -->
+            <div class="flex space-x-2">
+              <button
+                @click="handleFavorite(query?.id || '')"
+                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm"
+                :class="query?.isFavorite ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100' : 'bg-white text-gray-700 hover:bg-gray-50'"
+              >
+                <i :class="[query?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star', 'mr-1.5']"></i>
+                {{ query?.isFavorite ? '已收藏' : '收藏' }}
+              </button>
+              
+              <button
+                @click="handleShare(query?.id || '')"
+                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <i class="fas fa-share-alt mr-1.5"></i>
+                分享
+              </button>
+            </div>
+            
+            <!-- 编辑和执行按钮组 -->
+            <div class="flex space-x-2">
+              <button
+                @click="editQuery"
+                class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <i class="fas fa-edit mr-1.5"></i>
+                编辑查询
+              </button>
+              
+              <button
+                @click="executeCurrentQuery"
+                :class="[
+                  'inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white',
+                  canExecuteQuery ? 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500' : 
+                              'bg-green-300 opacity-60 cursor-not-allowed'
+                ]"
+                :title="!canExecuteQuery ? '查询内容为空或未选择数据源' : '执行查询'"
+              >
+                <i class="fas fa-play mr-1.5"></i>
+                执行
+              </button>
+            </div>
+            
+            <!-- 返回按钮 -->
             <router-link
               to="/query/history"
               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -51,13 +96,75 @@
         </div>
         
         <!-- 查询基本信息 -->
-        <QueryDetailHeader 
-          :query="query" 
-          @favorite="handleFavorite"
-          @share="handleShare"
-          @edit="editQuery"
-          @execute="executeCurrentQuery"
-        />
+        <div class="mb-6">
+          <!-- 基本信息面板，占满整行宽度 -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <!-- 查询基本信息内容 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">查询名称</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ query.name || '未命名查询' }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">查询类型</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ query.queryType === 'SQL' ? 'SQL' : '自然语言' }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">数据源</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ getDataSourceName(query.dataSourceId) }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">状态</h3>
+                <div class="mt-1">
+                  <span
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                    :class="getStatusClass(query.status)"
+                  >
+                    {{ getStatusDisplay(query.status) }}
+                  </span>
+                </div>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">创建时间</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ formatDateTime(query.createdAt) }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">执行时间</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ formatExecutionTime(query.executionTime) }}</p>
+              </div>
+            </div>
+            
+            <div class="mt-4">
+              <h3 class="text-sm font-medium text-gray-500">查询内容</h3>
+              <div class="mt-1 p-3 bg-gray-50 rounded border border-gray-200 overflow-auto max-h-32">
+                <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ query.queryText }}</pre>
+              </div>
+            </div>
+
+            <div v-if="query.description" class="mt-4">
+              <h3 class="text-sm font-medium text-gray-500">描述</h3>
+              <p class="mt-1 text-sm text-gray-900">{{ query.description }}</p>
+            </div>
+
+            <div v-if="query.tags && query.tags.length > 0" class="mt-4">
+              <h3 class="text-sm font-medium text-gray-500">标签</h3>
+              <div class="mt-1">
+                <span 
+                  v-for="(tag, index) in query.tags" 
+                  :key="index"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
         
         <!-- 标签页导航 -->
         <QueryDetailTabs
@@ -65,11 +172,18 @@
           @tab-change="handleTabChange"
         />
         
-        <!-- 执行历史区域 -->
-        <div class="bg-white shadow rounded-lg mb-6 p-6">
+        <!-- 各个标签页内容 -->
+        <!-- 执行历史标签页 -->
+        <div v-if="activeTab === 'history'" class="bg-white shadow rounded-lg p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-medium text-gray-900">执行历史</h2>
-            <span class="text-sm text-gray-500">显示最近5次执行记录</span>
+            <button 
+              @click="loadExecutionHistory" 
+              class="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              title="刷新执行历史"
+            >
+              <i class="fas fa-sync-alt"></i>
+            </button>
           </div>
           
           <div v-if="isLoadingHistory" class="py-6 flex justify-center">
@@ -89,19 +203,16 @@
             <table class="min-w-full divide-y divide-gray-300">
               <thead class="bg-gray-50">
                 <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">执行时间</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">耗时</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结果</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">耗时</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
                 <tr v-for="(history, index) in executionHistory" :key="index">
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ history.id.substring(0, 8) }}...</td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDateTime(history.executedAt) }}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatExecutionTime(history.executionTime) }}</td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="getStatusClass(history.status)">
                       {{ getStatusDisplay(history.status) }}
@@ -116,6 +227,7 @@
                     </span>
                     <span v-else>-</span>
                   </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatExecutionTime(history.executionTime) }}</td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">
                     <button
                       v-if="history.status === 'COMPLETED'"
@@ -138,7 +250,6 @@
           </div>
         </div>
         
-        <!-- 各个标签页内容 -->
         <!-- 可视化标签页 -->
         <div v-if="activeTab === 'visualization'" class="bg-white shadow rounded-lg p-6">
           <div v-if="isLoadingVisualization" class="py-12 flex justify-center">
@@ -194,7 +305,7 @@
             </div>
           </div>
           
-          <div v-else-if="!executionPlan && !isLoadingExecutionPlan" class="py-12 text-center">
+          <div v-else-if="!executionPlan || !hasValidExecutionPlan" class="py-12 text-center">
             <i class="fas fa-sitemap text-3xl text-gray-400 mb-3"></i>
             <h3 class="text-lg font-medium text-gray-900 mb-2">执行计划不可用</h3>
             <p class="text-gray-500 mb-4">
@@ -214,7 +325,7 @@
             </button>
           </div>
           
-          <div v-else-if="executionPlan" class="execution-plan-container">
+          <div v-else-if="executionPlan && hasValidExecutionPlan" class="execution-plan-container">
             <h3 class="text-lg font-medium text-gray-900 mb-4">查询执行计划</h3>
             
             <!-- 执行计划内容 -->
@@ -222,34 +333,37 @@
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div class="bg-gray-100 rounded-lg p-4">
                   <h4 class="text-sm font-medium text-gray-500 mb-1">总成本</h4>
-                  <p class="text-lg font-semibold text-gray-900">{{ executionPlan.planDetails.totalCost.toFixed(2) }}</p>
+                  <p class="text-lg font-semibold text-gray-900">{{ planTotalCost.toFixed(2) }}</p>
                 </div>
                 <div class="bg-gray-100 rounded-lg p-4">
                   <h4 class="text-sm font-medium text-gray-500 mb-1">估计行数</h4>
-                  <p class="text-lg font-semibold text-gray-900">{{ executionPlan.planDetails.estimatedRows }}</p>
+                  <p class="text-lg font-semibold text-gray-900">{{ executionPlan.estimatedRows || 0 }}</p>
                 </div>
                 <div class="bg-gray-100 rounded-lg p-4">
                   <h4 class="text-sm font-medium text-gray-500 mb-1">步骤数</h4>
-                  <p class="text-lg font-semibold text-gray-900">{{ executionPlan.planDetails.steps.length }}</p>
+                  <p class="text-lg font-semibold text-gray-900">{{ planSteps.length }}</p>
                 </div>
               </div>
             </div>
             
             <div class="bg-gray-50 p-4 rounded border border-gray-200 overflow-auto max-h-96">
-              <div v-for="(step, index) in executionPlan.planDetails.steps" :key="index" class="mb-4 p-4 bg-white border border-gray-200 rounded-md">
+              <div v-if="planSteps.length === 0" class="p-4 text-center">
+                <p class="text-gray-500">执行计划没有详细步骤信息</p>
+              </div>
+              <div v-else v-for="(step, index) in planSteps" :key="index" class="mb-4 p-4 bg-white border border-gray-200 rounded-md">
                 <div class="flex items-start">
                   <div class="mr-3 mt-1">
                     <i class="fas fa-cog text-gray-500"></i>
                   </div>
                   <div class="flex-1">
                     <div class="flex justify-between">
-                      <h5 class="text-sm font-medium text-gray-900">{{ step.type }}</h5>
-                      <span class="text-xs bg-blue-100 text-blue-800 py-0.5 px-2 rounded-full">成本: {{ step.cost.toFixed(2) }}</span>
+                      <h5 class="text-sm font-medium text-gray-900">{{ step.type || '未知步骤类型' }}</h5>
+                      <span class="text-xs bg-blue-100 text-blue-800 py-0.5 px-2 rounded-full">成本: {{ (step.cost || 0).toFixed(2) }}</span>
                     </div>
                     <div class="mt-1">
                       <p class="text-sm text-gray-600">{{ step.table ? `表: ${step.table}` : '' }}</p>
                       <p v-if="step.condition" class="text-sm text-gray-600">条件: {{ step.condition }}</p>
-                      <p class="text-sm text-gray-600">估计行数: {{ step.rows }}</p>
+                      <p class="text-sm text-gray-600">估计行数: {{ step.rows || 0 }}</p>
                     </div>
                   </div>
                 </div>
@@ -358,7 +472,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
-import type { Query, QueryStatus, QueryVisualization } from '@/types/query'
+import type { Query, QueryStatus, QueryVisualization, QueryExecutionPlan, QuerySuggestion } from '@/types/query'
 
 // 导入组件
 import QueryDetailHeader from '@/components/query/detail/QueryDetailHeader.vue'
@@ -424,6 +538,116 @@ const queryResults = computed(() => {
   return queryStore.currentQueryResult
 })
 
+// 扩展QueryExecutionPlan接口以支持旧版本格式
+interface ExtendedExecutionPlan extends QueryExecutionPlan {
+  planDetails?: {
+    totalCost: number;
+    estimatedRows: number;
+    steps: Array<{
+      type: string;
+      table?: string;
+      condition?: string;
+      cost: number;
+      rows: number;
+    }>;
+  };
+}
+
+// 检查执行计划是否有效
+const hasValidExecutionPlan = computed(() => {
+  if (!executionPlan.value) return false;
+  
+  const plan = executionPlan.value as ExtendedExecutionPlan;
+  
+  // 兼容两种可能的执行计划格式
+  return (
+    // 检查是否有planDetails结构（旧格式）
+    (plan.planDetails && 
+     typeof plan.planDetails === 'object' && 
+     plan.planDetails.steps && 
+     Array.isArray(plan.planDetails.steps)) ||
+    // 或者检查是否有plan结构（新格式）
+    (plan.plan && 
+     typeof plan.plan === 'object')
+  );
+})
+
+// 获取计划步骤数组，兼容不同格式
+const planSteps = computed(() => {
+  if (!executionPlan.value) return [];
+  
+  const plan = executionPlan.value as ExtendedExecutionPlan;
+  
+  // 如果有planDetails格式（旧格式）
+  if (plan.planDetails && 
+      typeof plan.planDetails === 'object' &&
+      plan.planDetails.steps && 
+      Array.isArray(plan.planDetails.steps)) {
+    return plan.planDetails.steps;
+  }
+  
+  // 如果有plan格式（标准格式）
+  if (plan.plan) {
+    const planData = plan.plan;
+    
+    // 提取steps（根据API返回的实际数据结构调整）
+    if (planData.steps && Array.isArray(planData.steps)) {
+      return planData.steps;
+    }
+    
+    // 如果没有明确的steps字段，尝试将plan自身转换为步骤数组
+    if (typeof planData === 'object' && !Array.isArray(planData)) {
+      // 将plan对象转换为步骤数组
+      const steps = [];
+      for (const key in planData) {
+        if (typeof planData[key] === 'object') {
+          steps.push({
+            type: key,
+            ...planData[key],
+            cost: planData[key].cost || 0,
+            rows: planData[key].rows || 0
+          });
+        }
+      }
+      return steps;
+    }
+  }
+  
+  return []; // 默认返回空数组
+})
+
+// 获取计划总成本，兼容不同格式
+const planTotalCost = computed(() => {
+  if (!executionPlan.value) return 0;
+  
+  const plan = executionPlan.value as ExtendedExecutionPlan;
+  
+  // 如果有planDetails格式（旧格式）
+  if (plan.planDetails && 
+      typeof plan.planDetails === 'object' &&
+      plan.planDetails.totalCost !== undefined) {
+    return plan.planDetails.totalCost;
+  }
+  
+  // 如果有estimatedCost字段（标准字段）
+  if (plan.estimatedCost !== undefined) {
+    return plan.estimatedCost;
+  }
+  
+  // 如果有plan格式，尝试从中提取总成本
+  if (plan.plan) {
+    // 如果plan对象有totalCost字段
+    if (plan.plan.totalCost !== undefined) {
+      return plan.plan.totalCost;
+    }
+    
+    // 如果没有totalCost字段，尝试累加所有步骤的成本
+    return planSteps.value.reduce((total: number, step: any) => total + (step.cost || 0), 0);
+  }
+  
+  return 0; // 默认返回0
+})
+
 // 初始化加载
 onMounted(() => {
   // 如果数据源列表为空，加载数据源
@@ -472,6 +696,15 @@ const loadQueryData = async () => {
     
     // 根据选中的标签页加载其他数据
     await loadTabData(activeTab.value)
+    
+    // 确保查询内容被正确加载
+    if (query.value && !query.value.queryText && result.queryText) {
+      // 如果查询结果中有查询文本但store中没有，手动设置
+      console.log('设置查询文本:', result.queryText)
+      if (queryStore.currentQuery) {
+        queryStore.currentQuery.queryText = result.queryText
+      }
+    }
     
     isLoading.value = false
   } catch (error) {
@@ -640,6 +873,11 @@ const loadExecutionHistory = async () => {
   isLoadingHistory.value = true
   
   try {
+    console.log('正在加载查询执行历史...');
+    
+    // 实现尚未提供API接口，仅使用模拟数据
+    // 在真实环境中，这里应该调用查询服务的API
+    
     // 使用模拟数据
     const now = Date.now()
     if (query.value) {
@@ -733,7 +971,9 @@ const loadExecutionResults = async (executionId: string) => {
 }
 
 // 获取查询状态样式类
-const getStatusClass = (status: QueryStatus) => {
+const getStatusClass = (status: QueryStatus | undefined) => {
+  if (!status) return 'bg-gray-100 text-gray-800'
+  
   switch (status) {
     case 'COMPLETED':
       return 'bg-green-100 text-green-800'
@@ -749,7 +989,9 @@ const getStatusClass = (status: QueryStatus) => {
 }
 
 // 获取查询状态显示文本
-const getStatusDisplay = (status: QueryStatus) => {
+const getStatusDisplay = (status: QueryStatus | undefined) => {
+  if (!status) return '未知'
+  
   switch (status) {
     case 'COMPLETED':
       return '完成'
@@ -870,6 +1112,14 @@ const handleCancelQuery = async (execId: string) => {
     console.error('取消查询失败:', error);
     errorMessage.value = error instanceof Error ? error.message : '取消查询时出错';
   }
+}
+
+// 添加获取数据源名称的方法
+const getDataSourceName = (dataSourceId?: string): string => {
+  if (!dataSourceId) return '未指定数据源'
+  
+  const dataSource = dataSourceStore.dataSources.find(ds => ds.id === dataSourceId)
+  return dataSource ? dataSource.name : dataSourceId
 }
 </script>
 

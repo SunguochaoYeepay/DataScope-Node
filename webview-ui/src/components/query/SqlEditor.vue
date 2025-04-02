@@ -103,13 +103,52 @@ const execute = () => {
     return
   }
   
-  // 简单验证SQL语法
+  // 增强的SQL语法验证
   const sql = content.value.trim().toUpperCase();
+  
+  // 检查是否包含基本SQL关键字
   if (!sql.includes('SELECT') && !sql.includes('INSERT') && 
       !sql.includes('UPDATE') && !sql.includes('DELETE') &&
       !sql.includes('CREATE') && !sql.includes('ALTER') &&
       !sql.includes('DROP')) {
     emit('execute', '无效的SQL语句，请检查语法')
+    return
+  }
+  
+  // 检查SELECT语句结构
+  if (sql.includes('SELECT')) {
+    // 检查是否有FROM关键字
+    if (!sql.includes('FROM')) {
+      emit('execute', 'SELECT语句缺少FROM子句')
+      return
+    }
+    
+    // 检查只有SELECT *的简单情况
+    if (sql.match(/^\s*SELECT\s+\*\s*$/i)) {
+      emit('execute', '不完整的SQL语句，请指定表名')
+      return
+    }
+    
+    // 检查SELECT * FROM没有表名的情况
+    const selectFromMatch = sql.match(/^\s*SELECT\s+\*\s+FROM\s+$/i);
+    if (selectFromMatch) {
+      emit('execute', '请在FROM子句后指定表名')
+      return
+    }
+  }
+  
+  // 括号匹配检查
+  const openCount = (sql.match(/\(/g) || []).length;
+  const closeCount = (sql.match(/\)/g) || []).length;
+  if (openCount !== closeCount) {
+    emit('execute', '括号不匹配，请检查SQL语法')
+    return
+  }
+  
+  // 引号匹配检查
+  const singleQuoteCount = (sql.match(/'/g) || []).length;
+  if (singleQuoteCount % 2 !== 0) {
+    emit('execute', '单引号不匹配，请检查SQL语法')
     return
   }
   
@@ -152,8 +191,18 @@ onMounted(() => {
 
 // 自动调整高度函数
 const adjustHeight = (element: HTMLTextAreaElement) => {
+  // 存储滚动位置
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  
+  // 重置高度以获取实际内容高度
   element.style.height = 'auto'
-  element.style.height = Math.max(150, element.scrollHeight) + 'px'
+  
+  // 设置最小高度150px，但允许随内容增长
+  const contentHeight = Math.max(150, element.scrollHeight);
+  element.style.height = contentHeight + 'px'
+  
+  // 恢复滚动位置，防止页面跳动
+  window.scrollTo({top: scrollTop});
 }
 
 // 监听内容变化，调整高度

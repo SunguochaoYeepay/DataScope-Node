@@ -16,6 +16,7 @@ import type {
   ChartConfig
 } from '@/types/query'
 import { mockQueryApi } from '@/mocks/query'
+import axios from 'axios'
 
 // 使用环境变量判断是否使用模拟API - 可导出用于测试
 export const isUsingMockApi = () => {
@@ -457,6 +458,7 @@ export const queryService = {
     }
 
     try {
+      console.log(`开始获取查询信息，ID: ${id}`)
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}`, {
         method: 'GET',
         headers: {
@@ -465,6 +467,7 @@ export const queryService = {
       })
 
       if (!response.ok) {
+        console.log(`获取查询失败，状态码: ${response.status}`)
         if (response.status === 404) {
           return null
         }
@@ -472,8 +475,14 @@ export const queryService = {
       }
 
       const responseData = await response.json()
+      console.log('后端返回的原始查询数据:', JSON.stringify(responseData).substring(0, 500))
+      
       // 适配后端响应格式
       const result = responseData.data || responseData
+      
+      // 提取SQL内容，优先从sqlContent获取
+      const sqlContent = result.sqlContent || result.sql || result.queryText || ''
+      console.log(`从响应中提取的SQL内容: ${sqlContent}`)
       
       // 确保返回格式符合前端需要的Query类型
       return {
@@ -481,7 +490,7 @@ export const queryService = {
         name: result.name || `查询 ${result.id.substring(0, 8)}`,
         dataSourceId: result.dataSourceId,
         queryType: result.queryType || 'SQL',
-        queryText: result.sql || result.queryText, // 适配后端可能使用sql字段而非queryText
+        queryText: sqlContent, // 明确使用提取的SQL内容
         status: result.status || 'COMPLETED',
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: result.updatedAt || new Date().toISOString(),
@@ -785,8 +794,12 @@ export const queryService = {
     }
   },
   
-  // 获取查询执行计划
-  async getQueryExecutionPlan(queryId: string): Promise<QueryExecutionPlan> {
+  /**
+   * 获取查询执行计划
+   * @param queryId 查询ID
+   * @returns 查询执行计划
+   */
+  async getQueryExecutionPlan(queryId: string): Promise<QueryExecutionPlan | null> {
     if (isUsingMockApi()) {
       console.log('使用模拟API获取执行计划');
       return mockQueryApi.getQueryExecutionPlan(queryId);
@@ -814,14 +827,13 @@ export const queryService = {
         const errorText = await response.text();
         console.error(`获取查询执行计划失败: ${response.statusText}, 错误内容: ${errorText}`);
         
-        // 如果返回404，尝试获取查询计划
-        if (response.status === 404) {
-          console.log('未找到执行计划，尝试使用plans路径获取');
-          // 尝试使用plans路径获取
-          return this.getQueryPlanById(queryId);
+        // 如果返回404或400，表示计划不存在，返回null
+        if (response.status === 404 || response.status === 400) {
+          console.log('未找到执行计划或请求无效，返回null');
+          return null;
         }
         
-        // 直接抛出错误，不使用模拟数据
+        // 其他错误继续抛出
         throw new Error(`获取查询执行计划失败: ${response.statusText}`);
       }
       
@@ -834,8 +846,8 @@ export const queryService = {
         responseData = JSON.parse(responseText);
       } catch (e) {
         console.error('解析执行计划响应JSON失败:', e);
-        // 直接抛出错误，不使用模拟数据
-        throw new Error('无法解析执行计划响应JSON');
+        // 返回null
+        return null;
       }
       
       // 解析响应数据，支持多种格式
@@ -845,13 +857,11 @@ export const queryService = {
       const plan: QueryExecutionPlan = {
         id: result.id || `plan-${queryId}`,
         queryId: result.queryId || queryId,
-        planDetails: result.planDetails || {
-          steps: [],
-          totalCost: 0,
-          estimatedRows: 0
-        },
-        estimatedCost: result.estimatedCost,
-        estimatedRows: result.estimatedRows,
+        plan: result.plan || {},
+        estimatedCost: result.estimatedCost || 0,
+        estimatedRows: result.estimatedRows || 0,
+        planningTime: result.planningTime,
+        executionTime: result.executionTime,
         createdAt: result.createdAt || new Date().toISOString()
       };
       
@@ -859,8 +869,8 @@ export const queryService = {
       return plan;
     } catch (error) {
       console.error(`获取查询执行计划错误:`, error);
-      // 直接抛出错误，不使用模拟数据
-      throw error;
+      // 返回null，而不是抛出错误
+      return null;
     }
   },
   
@@ -905,7 +915,11 @@ export const queryService = {
     }
   },
   
-  // 获取查询优化建议
+  /**
+   * 获取查询建议
+   * @param queryId 查询ID
+   * @returns 查询建议列表
+   */
   async getQuerySuggestions(queryId: string): Promise<QuerySuggestion[]> {
     if (isUsingMockApi()) {
       return mockQueryApi.getQuerySuggestions(queryId)
@@ -914,7 +928,7 @@ export const queryService = {
     try {
       // 使用正确的API路径获取查询优化建议
       console.log(`获取查询优化建议，queryId: ${queryId}`);
-      const url = `${getApiBaseUrl()}/api/queries/plans/${queryId}/tips`;
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/suggestions`;
       console.log(`优化建议API URL: ${url}`);
       
       const response = await fetch(url, {
@@ -927,9 +941,9 @@ export const queryService = {
       // 输出响应状态用于调试
       console.log(`优化建议API响应状态: ${response.status} ${response.statusText}`);
       
-      // 如果没有优化建议，返回空数组而不是错误
-      if (response.status === 404) {
-        console.log('未找到优化建议，返回空数组');
+      // 如果没有优化建议或请求无效，返回空数组而不是错误
+      if (response.status === 404 || response.status === 400) {
+        console.log('未找到优化建议或请求无效，返回空数组');
         return [];
       }
       
@@ -946,7 +960,7 @@ export const queryService = {
         responseData = JSON.parse(responseText);
       } catch (e) {
         console.error('解析优化建议响应JSON失败:', e);
-        throw new Error('无法解析优化建议响应JSON');
+        return []; // 返回空数组而不是抛出错误
       }
       
       const result = responseData.data || responseData
@@ -968,8 +982,8 @@ export const queryService = {
       return suggestions;
     } catch (error) {
       console.error('获取查询优化建议失败:', error);
-      // 不再静默失败，抛出错误让调用者处理
-      throw error;
+      // 返回空数组而不是抛出错误
+      return [];
     }
   },
   
@@ -995,8 +1009,9 @@ export const queryService = {
       // 输出响应状态用于调试
       console.log(`可视化API响应状态: ${response.status} ${response.statusText}`);
       
-      if (response.status === 404) {
-        console.log('未找到可视化配置，返回null');
+      // 如果请求无效或资源不存在，返回null而不是抛出错误
+      if (response.status === 404 || response.status === 400) {
+        console.log('未找到可视化配置或请求无效，返回null');
         return null // 没有找到可视化配置
       }
       
@@ -1013,7 +1028,7 @@ export const queryService = {
         responseData = JSON.parse(responseText);
       } catch (e) {
         console.error('解析可视化响应JSON失败:', e);
-        throw new Error('无法解析可视化响应JSON');
+        return null; // 返回null而不是抛出错误
       }
       
       const result = responseData.data || responseData
@@ -1150,6 +1165,7 @@ export const queryService = {
     searchTerm?: string;
     sortBy?: string;
     sortDir?: 'asc' | 'desc';
+    includeDrafts?: boolean;
   } = {}): Promise<PageResponse<Query>> {
     if (isUsingMockApi()) {
       return mockQueryApi.getQueries(params)
@@ -1164,7 +1180,8 @@ export const queryService = {
         status, 
         searchTerm,
         sortBy,
-        sortDir = 'desc'
+        sortDir = 'desc',
+        includeDrafts = true // 默认包含草稿状态的查询
       } = params;
       
       const queryParams = new URLSearchParams();
@@ -1187,6 +1204,9 @@ export const queryService = {
         queryParams.append('sortBy', sortBy);
         queryParams.append('sortDir', sortDir);
       }
+      
+      // 添加includeDrafts参数
+      queryParams.append('includeDrafts', includeDrafts.toString());
       
       console.log('获取查询列表参数:', Object.fromEntries(queryParams.entries()));
       

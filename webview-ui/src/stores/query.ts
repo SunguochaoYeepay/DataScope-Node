@@ -90,6 +90,7 @@ export const useQueryStore = defineStore('query', () => {
   const executionPlan = ref<QueryExecutionPlan | null>(null)
   const suggestions = ref<QuerySuggestion[]>([])
   const visualization = ref<QueryVisualization | null>(null)
+  const executionHistory = ref<QueryExecution[]>([])
   const pagination = ref<Pagination>({
     total: 0,
     page: 1,
@@ -636,12 +637,44 @@ export const useQueryStore = defineStore('query', () => {
   // 获取查询执行计划
   const getQueryExecutionPlan = async (queryId: string) => {
     try {
-      const plan = await queryService.getQueryExecutionPlan(queryId)
+      console.log(`开始获取查询执行计划，查询ID: ${queryId}`)
+      
+      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      console.log(`执行计划API响应状态: ${response.status} ${response.statusText}`)
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error?.message || response.statusText
+        console.log(`获取查询执行计划失败: ${response.statusText}, 错误内容:`, JSON.stringify(errorData))
+        
+        // 如果是特定错误（例如计划不存在），则返回null并不抛出错误
+        if (errorData.error?.code === 10006 || errorMessage.includes('不存在')) {
+          console.log('执行计划暂不可用:', errorMessage)
+          return null
+        }
+        
+        throw new Error(`获取查询执行计划失败: ${response.statusText}`)
+      }
+      
+      const plan = await response.json()
+      console.log('成功获取查询执行计划:', plan)
       executionPlan.value = plan
       return plan
     } catch (err) {
-      console.error('获取查询执行计划失败', err)
-      return null
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error('获取查询执行计划错误:', err)
+      
+      // 不显示错误通知，因为这是后台功能，不应该影响用户体验
+      // messageService.error('获取查询执行计划失败')
+      
+      throw new Error(`获取查询执行计划失败: ${errorMsg}`)
     }
   }
   
@@ -733,62 +766,33 @@ export const useQueryStore = defineStore('query', () => {
   }
 
   // 获取查询执行历史
-  async function getQueryExecutionHistory(queryId: string): Promise<QueryExecution[]> {
+  const getQueryExecutionHistory = async (queryId: string) => {
+    if (!queryId) return []
+    
+    isLoadingHistory.value = true
+    error.value = null
+    
     try {
-      if (isUsingMockApi()) {
-        // 生成模拟数据
-        return mockQueryExecutionHistory(queryId)
-      }
-      
-      // 这里应该通过queryService调用，但后端API尚未提供此功能
-      console.error('后端API尚未提供查询执行历史功能')
+      const response = await queryService.getQueryExecutionHistory(queryId)
+      // 更新执行历史状态
+      executionHistory.value = response || []
+      return response
+    } catch (err) {
+      console.error('获取执行历史失败:', err)
+      error.value = err instanceof Error ? err : new Error(String(err))
       return []
-    } catch (error) {
-      console.error('Failed to get query execution history:', error)
-      return []
+    } finally {
+      isLoadingHistory.value = false
     }
   }
   
-  // 获取特定执行记录的结果
-  async function getExecutionResults(executionId: string): Promise<QueryResult | null> {
-    try {
-      if (isUsingMockApi()) {
-        // 使用当前结果作为模拟数据
-        return currentQueryResult.value
-      }
-      
-      // 这里应该通过queryService调用，但后端API尚未提供此功能
-      console.error('后端API尚未提供查询执行结果获取功能')
-      return null
-    } catch (error) {
-      console.error('Failed to get execution results:', error)
-      return null
+  // 手动设置当前查询文本
+  const setCurrentQueryText = (queryText: string) => {
+    if (currentQuery.value) {
+      currentQuery.value.queryText = queryText
     }
   }
   
-  // 获取执行错误信息
-  async function getExecutionError(executionId: string): Promise<QueryExecutionError | null> {
-    try {
-      if (isUsingMockApi()) {
-        // 生成模拟错误数据
-        return {
-          executionId,
-          errorCode: 'SYNTAX_ERROR',
-          errorMessage: '查询语法错误',
-          errorDetails: '在SQL语句中发现未闭合的引号或括号',
-          stackTrace: 'ErrorClass: Syntax error at line 2, position 15...'
-        }
-      }
-      
-      // 这里应该通过queryService调用，但后端API尚未提供此功能
-      console.error('后端API尚未提供查询执行错误获取功能')
-      return null
-    } catch (error) {
-      console.error('Failed to get execution error:', error)
-      return null
-    }
-  }
-
   // 获取查询列表
   const fetchQueries = async (params?: FetchQueryParams) => {
     try {
@@ -802,11 +806,14 @@ export const useQueryStore = defineStore('query', () => {
         status: params?.status,
         searchTerm: params?.search,
         sortBy: params?.sortBy,
-        sortDir: params?.sortDir
+        sortDir: params?.sortDir,
+        includeDrafts: true
       });
       
       // 更新store状态
       queryHistory.value = result.items;
+      // 同时更新queries变量，确保保持同步
+      queries.value = result.items;
       
       // 更新分页信息
       pagination.value = {
@@ -840,6 +847,7 @@ export const useQueryStore = defineStore('query', () => {
     executionPlan,
     suggestions,
     visualization,
+    executionHistory,
     pagination,
     isExecuting,
     isLoadingHistory,
@@ -872,8 +880,7 @@ export const useQueryStore = defineStore('query', () => {
     resetState,
     init,
     getQueryExecutionHistory,
-    getExecutionResults,
-    getExecutionError,
+    setCurrentQueryText,
     fetchQueries,
     deleteQueryHistory
   }

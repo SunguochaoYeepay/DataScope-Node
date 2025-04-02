@@ -37,28 +37,53 @@ const errors = reactive({
   queryText: ''
 })
 
+// 重置表单
+const resetForm = () => {
+  formData.id = ''
+  formData.name = ''
+  formData.dataSourceId = props.dataSources.length > 0 ? props.dataSources[0].id : ''
+  formData.queryType = 'SQL'
+  formData.queryText = ''
+  formData.description = ''
+  formData.tags = []
+}
+
 // 监听 visible 属性变化
 watch(() => props.visible, (visible) => {
-  if (visible && props.query) {
+  if (visible) {
     console.log('SaveQueryModal打开，接收到查询数据:', props.query);
     
-    // 填充表单数据
-    formData.id = props.query.id || ''
-    formData.name = props.query.name || ''
-    formData.dataSourceId = props.query.dataSourceId || (props.dataSources.length > 0 ? props.dataSources[0].id : '')
-    formData.queryType = props.query.queryType || 'SQL'
-    formData.queryText = props.query.queryText || ''
-    formData.description = props.query.description || ''
-    formData.tags = Array.isArray(props.query.tags) ? [...props.query.tags] : []
+    // 清除表单数据，避免旧数据残留
+    resetForm();
     
-    console.log('初始化表单数据完成，queryText:', formData.queryText);
+    if (props.query) {
+      // 填充表单数据
+      formData.id = props.query.id || ''
+      formData.name = props.query.name || ''
+      formData.dataSourceId = props.query.dataSourceId || (props.dataSources.length > 0 ? props.dataSources[0].id : '')
+      formData.queryType = props.query.queryType || 'SQL'
+      formData.queryText = props.query.queryText || ''
+      formData.description = props.query.description || ''
+      
+      // 处理标签 - 支持不同类型的标签数据
+      if (props.query.tags) {
+        if (Array.isArray(props.query.tags)) {
+          formData.tags = props.query.tags.map(tag => {
+            if (typeof tag === 'string') return tag;
+            return tag.name || String(tag);
+          });
+        }
+      }
+    }
+    
+    console.log('初始化表单数据完成:', formData);
     
     // 清除验证错误
     Object.keys(errors).forEach(key => {
       errors[key as keyof typeof errors] = ''
     })
   }
-})
+}, { immediate: true })
 
 // 关闭对话框
 const handleClose = () => {
@@ -83,7 +108,7 @@ const validateForm = () => {
   let isValid = true
   
   // 验证名称
-  if (!formData.name) {
+  if (!formData.name.trim()) {
     errors.name = '请输入查询名称'
     isValid = false
   } else {
@@ -98,14 +123,6 @@ const validateForm = () => {
     errors.dataSourceId = ''
   }
   
-  // 验证查询文本
-  if (!formData.queryText) {
-    errors.queryText = '查询内容不能为空'
-    isValid = false
-  } else {
-    errors.queryText = ''
-  }
-  
   return isValid
 }
 
@@ -113,7 +130,26 @@ const validateForm = () => {
 const handleSave = () => {
   if (!validateForm()) return
   
-  emit('save', { ...formData })
+  // 提交前的数据检查和记录
+  console.log('准备保存查询:', { ...formData });
+  
+  // 创建一个与Partial<Query>类型兼容的对象
+  const queryData: Partial<Query> = {
+    id: formData.id,
+    name: formData.name,
+    dataSourceId: formData.dataSourceId,
+    queryType: formData.queryType,
+    queryText: formData.queryText,
+    description: formData.description,
+    // 转换标签为QueryTag格式
+    tags: formData.tags.length > 0 ? formData.tags.map(tagName => ({ 
+      id: `tag-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      name: tagName
+    })) : undefined
+  };
+  
+  // 发出保存事件
+  emit('save', queryData)
   handleClose()
 }
 </script>
@@ -133,24 +169,6 @@ const handleSave = () => {
       <!-- 表单内容 -->
       <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
         <!-- 新建查询说明或更新现有查询说明 -->
-        <div class="mb-4 p-3 rounded-md" :class="formData.id ? 'bg-blue-50 border border-blue-200' : 'bg-green-50 border border-green-200'">
-          <div class="flex items-start">
-            <div class="flex-shrink-0">
-              <i class="fas" :class="formData.id ? 'fa-info-circle text-blue-500' : 'fa-plus-circle text-green-500'"></i>
-            </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium" :class="formData.id ? 'text-blue-800' : 'text-green-800'">
-                {{ formData.id ? '更新现有查询' : '创建新查询' }}
-              </h3>
-              <div class="mt-2 text-sm" :class="formData.id ? 'text-blue-700' : 'text-green-700'">
-                <p>
-                  {{ formData.id ? '您正在更新现有查询。保存后，查询将立即可用。' : '创建新查询后，它将显示在您的查询列表中。' }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="space-y-4">
           <!-- 第一行: 查询名称和数据源 -->
           <div class="grid grid-cols-2 gap-4">
