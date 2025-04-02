@@ -283,9 +283,10 @@ export interface Integration {
   id: string;
   name: string;
   description?: string;
-  type: 'SIMPLE_TABLE' | 'TABLE' | 'CHART';
+  type: 'SIMPLE_TABLE' | 'TABLE' | 'CHART' | 'FORM';
   status: 'DRAFT' | 'ACTIVE' | 'INACTIVE';
   queryId: string;
+  dataSourceId?: string; // 数据源ID
   formConfig?: FormConfig;
   tableConfig?: TableConfig;
   chartConfig?: ChartConfig; // 图表配置

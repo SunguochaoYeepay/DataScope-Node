@@ -68,7 +68,7 @@
               <select 
                 v-model="selectedVersion"
                 disabled
-                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 text-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm pr-20 cursor-not-allowed force-border"
+                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 text-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm pr-20 cursor-not-allowed force-border"
               >
                 <option 
                   v-for="version in availableVersions" 
@@ -89,11 +89,6 @@
                 <i class="fas fa-plus mr-1"></i>
                 新建版本
               </button>
-              
-              <!-- 添加静态版本显示，解决初始版本信息不显示问题 -->
-              <div v-if="availableVersions.length === 0 || (availableVersions.length === 1 && !availableVersions[0])" class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-700">
-                V1
-              </div>
             </div>
           </div>
           
@@ -127,13 +122,6 @@
             </span>
             <span v-if="versionStatus === 'DEPRECATED'" class="ml-2 text-xs text-gray-500">
               废弃于 {{ formatDate(deprecatedAt) }}
-            </span>
-          </div>
-          <!-- 新增查询时的版本状态显示 -->
-          <div v-else class="flex items-center h-8">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              <span class="w-2 h-2 rounded-full mr-1.5 bg-blue-400"></span>
-              草稿
             </span>
           </div>
         </div>
@@ -625,9 +613,6 @@ onMounted(async () => {
     queryVersion.value = 'V1';
     availableVersions.value = ['V1'];
     currentMaxVersionNumber.value = 1;
-    
-    // 添加版本状态初始化
-    versionStatus.value = 'DRAFT';
   }
   
   // 检查URL参数是否包含查询ID
@@ -1026,9 +1011,11 @@ const loadQueryById = async (queryId: string) => {
           // 更新最高版本号
           highestVersionNumber = 1;
           
+          // 添加估计的版本列表
           // 只添加默认V1版本
-          if (!availableVersions.value.includes('V1')) {
-            availableVersions.value.push('V1');
+            if (!availableVersions.value.includes(`V${i}`)) {
+              availableVersions.value.push(`V${i}`);
+            }
           }
         }
         
@@ -1069,13 +1056,6 @@ const loadQueryById = async (queryId: string) => {
       const numB = parseInt(b.slice(1));
       return numB - numA; // 降序排列
     });
-    
-    // 确保可用版本列表有值
-    if (availableVersions.value.length === 0) {
-      console.log('可用版本列表为空，添加默认版本V1');
-      availableVersions.value = ['V1'];
-      currentMaxVersionNumber.value = Math.max(currentMaxVersionNumber.value, 1);
-    }
     
     // 设置当前选中的版本
     if (window.location.href.includes('/edit') && availableVersions.value.length > 0) {
@@ -2060,13 +2040,6 @@ const createNewVersion = async () => {
         });
       }
       
-      // 确保显示最新的版本状态
-      nextTick(() => {
-        // 强制更新版本相关的UI
-        console.log('版本已更新为:', selectedVersion.value);
-        console.log('可用版本列表:', availableVersions.value);
-      });
-      
       statusMessage.value = '已创建新版本';
       message.success(`已成功创建新版本 V${newVersionNumber}`);
       
@@ -2081,6 +2054,10 @@ const createNewVersion = async () => {
     } else {
       throw new Error('创建新版本失败');
     }
+    
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 3000);
   } catch (error) {
     console.error('创建新版本失败:', error);
     statusMessage.value = '创建新版本失败';

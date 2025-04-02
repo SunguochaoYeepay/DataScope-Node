@@ -34,8 +34,9 @@ export enum QueryExecutionStatus {
  */
 export interface CreateVersionParams {
   queryId: string;                // 查询ID
-  sqlContent: string;             // SQL内容
-  dataSourceId: string;           // 数据源ID
+  sqlContent?: string;            // SQL内容（兼容旧API）
+  queryText?: string;             // 查询文本（标准API）
+  dataSourceId?: string;          // 数据源ID
   description?: string;           // 描述
   parameters?: Record<string, any>; // 参数定义
   createdBy?: string;             // 创建者

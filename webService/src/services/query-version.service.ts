@@ -27,7 +27,29 @@ class QueryVersionService {
    */
   async createVersion(params: CreateVersionParams) {
     try {
-      const { queryId, sqlContent, dataSourceId, description, createdBy, parameters } = params;
+      const { queryId, sqlContent, queryText, dataSourceId, description, createdBy, parameters } = params;
+      
+      // 优先使用queryText，其次使用sqlContent
+      const finalQueryText = queryText || sqlContent || '';
+      
+      // 如果没有提供dataSourceId，尝试从查询获取
+      let finalDataSourceId = dataSourceId;
+      if (!finalDataSourceId) {
+        try {
+          const query = await this.prisma.query.findUnique({
+            where: { id: queryId },
+            select: { dataSourceId: true }
+          });
+          if (query && query.dataSourceId) {
+            finalDataSourceId = query.dataSourceId;
+          }
+        } catch (e) {
+          logger.warn('获取查询数据源ID失败', { error: e, queryId });
+        }
+      }
+      
+      // 如果仍然没有dataSourceId，使用默认值
+      finalDataSourceId = finalDataSourceId || 'default';
 
       // 获取当前最大版本号
       const versionsCount = await this.prisma.queryVersion.count({
@@ -46,8 +68,8 @@ class QueryVersionService {
             queryId,
             versionNumber: newVersionNumber,
             versionStatus: QueryVersionStatus.DRAFT,
-            sqlContent,
-            dataSourceId,
+            sqlContent: finalQueryText,
+            dataSourceId: finalDataSourceId,
             description,
             parameters: parameters ? JSON.stringify(parameters) : null,
             createdBy: createdBy || 'system'
@@ -263,79 +285,64 @@ class QueryVersionService {
   }
 
   /**
-   * 获取所有版本
+   * 获取查询的所有版本
    * @param queryId 查询ID
+   * @param page 页码（可选，默认1）
+   * @param size 每页大小（可选，默认10）
+   * @param status 版本状态过滤（可选）
    * @returns 版本列表
    */
-  async getVersions(queryId: string) {
+  async getVersions(queryId: string, page: number = 1, size: number = 10, status?: string) {
     try {
-      logger.debug(`开始获取查询 ${queryId} 的版本列表`);
+      // 构建查询条件
+      const where: any = { queryId };
       
-      // 检查查询是否存在
-      const query = await this.prisma.query.findUnique({
-        where: { id: queryId }
-      });
-      
-      if (!query) {
-        logger.error(`查询 ${queryId} 不存在`);
-        throw new ApiError(ERROR_CODES.QUERY_NOT_FOUND, '查询不存在');
+      // 如果有状态过滤
+      if (status) {
+        where.versionStatus = status;
       }
       
-      // 获取所有版本
+      // 计算分页参数
+      const skip = (page - 1) * size;
+      
+      // 查询版本列表
       const versions = await this.prisma.queryVersion.findMany({
-        where: { queryId },
-        orderBy: { versionNumber: 'desc' }
+        where,
+        orderBy: { versionNumber: 'desc' },
+        skip,
+        take: size
       });
-      
-      // 记录找到的版本数量
-      logger.info(`查询 ${queryId} 找到 ${versions.length} 个版本`);
-      
-      // 如果没有版本，创建一个初始版本用于演示
-      if (versions.length === 0) {
-        logger.info(`查询 ${queryId} 没有版本，尝试创建初始版本`);
-        
-        try {
-          // 创建一个初始版本
-          const initialVersion = await this.prisma.queryVersion.create({
-            data: {
-              id: uuidv4(),
-              queryId: queryId,
-              versionNumber: 1,
-              versionStatus: QueryVersionStatus.PUBLISHED,
-              sqlContent: query.sqlContent || 'SELECT * FROM customers LIMIT 10',
-              dataSourceId: query.dataSourceId,
-              description: '初始版本',
-              publishedAt: new Date(),
-              createdBy: 'system'
-            }
-          });
-          
-          // 更新查询记录，将此版本设为当前版本
-          await this.prisma.query.update({
-            where: { id: queryId },
-            data: {
-              currentVersionId: initialVersion.id
-            }
-          });
-          
-          logger.info(`成功为查询 ${queryId} 创建初始版本 ${initialVersion.id}`);
-          
-          // 返回包含新创建版本的数组
-          return [initialVersion];
-        } catch (createError) {
-          logger.error(`为查询 ${queryId} 创建初始版本失败`, { error: createError });
-          // 创建失败时仍返回空数组，不中断流程
-          return [];
-        }
-      }
       
       return versions;
     } catch (error: any) {
       logger.error('获取版本列表失败', { error, queryId });
-      if (error instanceof ApiError) {
-        throw error;
-      }
       throw new ApiError(VERSION_ERROR.VERSION_LIST_FAILED, '获取版本列表失败', error);
+    }
+  }
+  
+  /**
+   * 获取查询的版本总数
+   * @param queryId 查询ID
+   * @param status 版本状态过滤（可选）
+   * @returns 版本总数
+   */
+  async getVersionsCount(queryId: string, status?: string) {
+    try {
+      // 构建查询条件
+      const where: any = { queryId };
+      
+      // 如果有状态过滤
+      if (status) {
+        where.versionStatus = status;
+      }
+      
+      // 查询版本总数
+      const count = await this.prisma.queryVersion.count({ where });
+      
+      return count;
+    } catch (error: any) {
+      logger.error('获取版本总数失败', { error, queryId });
+      throw new ApiError(VERSION_ERROR.VERSION_COUNT_FAILED, '获取版本总数失败', error);
     }
   }
 
