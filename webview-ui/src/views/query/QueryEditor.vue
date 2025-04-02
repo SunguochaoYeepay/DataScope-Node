@@ -12,6 +12,39 @@
           />
           <span class="ml-2 text-gray-500">{{ queryVersion }}</span>
         </div>
+        
+        <!-- 版本状态显示区域 -->
+        <div v-if="currentQueryId" class="mt-2 flex items-center">
+          <span 
+            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+            :class="{
+              'bg-blue-100 text-blue-800': versionStatus === 'DRAFT',
+              'bg-green-100 text-green-800': versionStatus === 'PUBLISHED' && isActiveVersion,
+              'bg-indigo-100 text-indigo-800': versionStatus === 'PUBLISHED' && !isActiveVersion,
+              'bg-gray-100 text-gray-800': versionStatus === 'DEPRECATED'
+            }"
+          >
+            <span 
+              class="w-2 h-2 rounded-full mr-1.5"
+              :class="{
+                'bg-blue-400': versionStatus === 'DRAFT',
+                'bg-green-400': versionStatus === 'PUBLISHED' && isActiveVersion,
+                'bg-indigo-400': versionStatus === 'PUBLISHED' && !isActiveVersion,
+                'bg-gray-400': versionStatus === 'DEPRECATED'
+              }"
+            ></span>
+            {{ versionStatusText }}
+          </span>
+          <span v-if="versionStatus === 'PUBLISHED'" class="ml-2 text-xs text-gray-500">
+            发布于 {{ formatDate(publishedAt) }}
+          </span>
+          <span v-if="versionStatus === 'DRAFT'" class="ml-2 text-xs text-gray-500">
+            最后编辑于 {{ formatDate(lastEditedAt) }}
+          </span>
+          <span v-if="versionStatus === 'DEPRECATED'" class="ml-2 text-xs text-gray-500">
+            废弃于 {{ formatDate(deprecatedAt) }}
+          </span>
+        </div>
       </div>
       <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
         <button
@@ -20,6 +53,14 @@
         >
           <i class="fas fa-arrow-left mr-2"></i>
           返回列表
+        </button>
+        <button
+          v-if="queryId"
+          @click="viewVersions"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          <i class="fas fa-code-branch mr-2"></i>
+          查看版本
         </button>
         <button
           @click="toggleFavorite"
@@ -211,6 +252,34 @@
                 @execute="(errorMsg) => errorMsg ? showError(errorMsg) : executeQuery()" 
                 @save="saveQuery" 
               />
+              
+              <!-- 版本操作按钮区域 -->
+              <div v-if="currentQueryId" class="mt-4 flex justify-end space-x-3">
+                <button
+                  v-if="versionStatus === 'DRAFT'"
+                  @click="saveDraft"
+                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <i class="fas fa-save mr-1.5"></i>
+                  保存草稿
+                </button>
+                <button
+                  v-if="versionStatus === 'DRAFT'"
+                  @click="publishVersion"
+                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  <i class="fas fa-check-circle mr-1.5"></i>
+                  发布
+                </button>
+                <button
+                  v-if="versionStatus === 'DRAFT'"
+                  @click="createNewVersion"
+                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <i class="fas fa-code-branch mr-1.5"></i>
+                  新建版本
+                </button>
+              </div>
             </div>
             
             <!-- 自然语言查询 -->
@@ -221,6 +290,34 @@
                 @execute="executeQuery"
                 @save="saveQuery"
               />
+              
+              <!-- 版本操作按钮区域 -->
+              <div v-if="currentQueryId" class="mt-4 flex justify-end space-x-3">
+                <button
+                  v-if="versionStatus === 'DRAFT'"
+                  @click="saveDraft"
+                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <i class="fas fa-save mr-1.5"></i>
+                  保存草稿
+                </button>
+                <button
+                  v-if="versionStatus === 'DRAFT'"
+                  @click="publishVersion"
+                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  <i class="fas fa-check-circle mr-1.5"></i>
+                  发布
+                </button>
+                <button
+                  v-if="versionStatus === 'DRAFT'"
+                  @click="createNewVersion"
+                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <i class="fas fa-code-branch mr-1.5"></i>
+                  新建版本
+                </button>
+              </div>
             </div>
             
             <!-- 查询构建器 -->
@@ -408,6 +505,25 @@ const builderState = ref<QueryBuilderState>({
 })
 const queryBuilderRef = ref(null)
 const queryManagerRef = ref(null)
+
+// 版本相关状态
+const versionStatus = ref<'DRAFT' | 'PUBLISHED' | 'DEPRECATED'>('DRAFT')
+const isActiveVersion = ref(false)
+const publishedAt = ref<string | null>(null)
+const lastEditedAt = ref<string | null>(null)
+const deprecatedAt = ref<string | null>(null)
+
+// 计算属性：版本状态文本
+const versionStatusText = computed(() => {
+  if (versionStatus.value === 'DRAFT') {
+    return '草稿';
+  } else if (versionStatus.value === 'PUBLISHED') {
+    return isActiveVersion.value ? '当前版本' : '已发布';
+  } else if (versionStatus.value === 'DEPRECATED') {
+    return '已废弃';
+  }
+  return versionStatus.value; // 默认返回原始状态值
+})
 
 // 加载状态
 onMounted(async () => {
@@ -1265,6 +1381,128 @@ const checkAndExecuteQuery = () => {
 const returnToList = () => {
   router.push('/query/history');
 }
+
+// 查看版本
+const viewVersions = () => {
+  const id = router.currentRoute.value.query.id;
+  if (!id) return;
+  router.push(`/query/version/management/${id}`);
+}
+
+// 保存草稿
+const saveDraft = async () => {
+  if (!currentQueryId.value || versionStatus.value !== 'DRAFT') return;
+  
+  try {
+    statusMessage.value = '正在保存草稿...';
+    
+    // 构造保存草稿的请求数据
+    const draftData = {
+      id: currentQueryId.value,
+      queryText: getQueryTextByType(activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
+      queryType: activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'
+    };
+    
+    // 调用API保存草稿
+    // TODO: 替换为实际的API调用
+    await simulateDelay(500, 1000);
+    
+    // 更新最后编辑时间
+    lastEditedAt.value = new Date().toISOString();
+    
+    statusMessage.value = '草稿已保存';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 3000);
+  } catch (error) {
+    console.error('保存草稿失败:', error);
+    statusMessage.value = '保存草稿失败';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 5000);
+  }
+};
+
+// 发布版本
+const publishVersion = async () => {
+  if (!currentQueryId.value || versionStatus.value !== 'DRAFT') return;
+  
+  try {
+    statusMessage.value = '正在发布版本...';
+    
+    // 构造发布版本的请求数据
+    const publishData = {
+      id: currentQueryId.value,
+      queryText: getQueryTextByType(activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
+      queryType: activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE',
+      setAsActive: true
+    };
+    
+    // 调用API发布版本
+    // TODO: 替换为实际的API调用
+    await simulateDelay(800, 1500);
+    
+    // 更新版本状态
+    versionStatus.value = 'PUBLISHED';
+    isActiveVersion.value = true;
+    publishedAt.value = new Date().toISOString();
+    
+    statusMessage.value = '版本已发布';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 3000);
+  } catch (error) {
+    console.error('发布版本失败:', error);
+    statusMessage.value = '发布版本失败';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 5000);
+  }
+};
+
+// 创建新版本
+const createNewVersion = async () => {
+  if (!currentQueryId.value) return;
+  
+  try {
+    statusMessage.value = '正在创建新版本...';
+    
+    // 构造创建新版本的请求数据
+    const newVersionData = {
+      queryId: currentQueryId.value,
+      queryText: getQueryTextByType(activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
+      queryType: activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'
+    };
+    
+    // 调用API创建新版本
+    // TODO: 替换为实际的API调用
+    await simulateDelay(800, 1500);
+    
+    // 更新版本状态
+    versionStatus.value = 'DRAFT';
+    isActiveVersion.value = false;
+    lastEditedAt.value = new Date().toISOString();
+    
+    // 更新版本号
+    const versionMatch = queryVersion.value.match(/v(\d+)\.(\d+)/);
+    if (versionMatch) {
+      const major = parseInt(versionMatch[1]);
+      const minor = parseInt(versionMatch[2]);
+      queryVersion.value = `v${major}.${minor + 1}`;
+    }
+    
+    statusMessage.value = '已创建新版本';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 3000);
+  } catch (error) {
+    console.error('创建新版本失败:', error);
+    statusMessage.value = '创建新版本失败';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 5000);
+  }
+};
 </script>
 
 <style scoped>

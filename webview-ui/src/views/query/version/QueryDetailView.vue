@@ -276,7 +276,9 @@ import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
 import { useQueryVersionStore } from '@/stores/queryVersion'
 import { useQueryStatusStore } from '@/stores/queryStatus'
-import { Query, QueryVersion, QueryStatus } from '@/types/query'
+import { message } from '@/services/message'
+import type { Query, QueryVersion, QueryStatus } from '@/types/query'
+import type { QueryVersionStatus } from '@/types/queryVersion'
 
 // 导入组件
 import QueryStatusManager from '@/components/query/status/QueryStatusManager.vue'
@@ -308,6 +310,9 @@ const isLoadingVersions = ref(false)
 const errorMessage = ref('')
 const activeTab = ref('details')
 const historyVersionFilter = ref('all')
+
+// SQL编辑器内容
+const currentSql = ref('')
 
 // 从URL参数获取查询ID
 const queryId = computed(() => {
@@ -591,6 +596,181 @@ const formatDate = (dateString: string | undefined) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// 加载查询版本列表
+const loadVersions = async () => {
+  try {
+    isLoadingVersions.value = true
+    await versionStore.fetchVersions(queryId.value)
+  } catch (err) {
+    console.error('加载版本列表失败:', err)
+    errorMessage.value = '无法加载版本列表，请稍后重试'
+  } finally {
+    isLoadingVersions.value = false
+  }
+}
+
+// 加载指定版本详情
+const loadVersion = async (versionId: string) => {
+  try {
+    isLoading.value = true
+    const version = await versionStore.getVersion(queryId.value, versionId)
+    
+    // 更新当前选中的SQL版本
+    if (version) {
+      currentSql.value = version.queryText || ''
+    }
+  } catch (error) {
+    console.error('加载版本详情失败:', error)
+    errorMessage.value = '无法加载版本详情，请稍后重试'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 切换版本处理函数
+const handleVersionChange = async (versionId: string) => {
+  try {
+    await loadVersion(versionId)
+    
+    // 如果当前是编辑器页面，需要更新编辑器内容
+    if (activeTab.value === 'editor') {
+      // 更新SQL内容和版本状态等信息
+      currentSql.value = versionStore.currentVersion?.queryText || ''
+    }
+    
+    message.success('已切换到版本 ' + (versionStore.currentVersion?.versionNumber || ''))
+  } catch (error) {
+    console.error('版本切换失败:', error)
+    message.error('版本切换失败')
+  }
+}
+
+// 保存草稿版本
+const handleSaveDraft = async () => {
+  try {
+    isLoading.value = true
+    
+    // 保存当前版本
+    await versionStore.saveDraft(queryId.value, {
+      versionId: versionStore.currentVersion?.id,
+      queryText: currentSql.value
+    })
+    
+    message.success('草稿已保存')
+    
+    // 重新加载版本列表
+    await loadVersions()
+  } catch (error) {
+    console.error('保存草稿失败:', error)
+    message.error('保存草稿失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 发布版本
+const handlePublishVersion = async (setActive: boolean = false) => {
+  try {
+    if (!versionStore.currentVersion) {
+      message.error('没有选择要发布的版本')
+      return
+    }
+    
+    isLoading.value = true
+    
+    // 发布当前版本
+    await versionStore.publishVersion(
+      queryId.value, 
+      versionStore.currentVersion.id,
+      setActive
+    )
+    
+    message.success(`版本已发布${setActive ? '并设为当前活跃版本' : ''}`)
+    
+    // 重新加载版本列表
+    await loadVersions()
+  } catch (error) {
+    console.error('发布版本失败:', error)
+    message.error('发布版本失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 设置活跃版本
+const handleSetActiveVersion = async (versionId: string) => {
+  try {
+    isLoading.value = true
+    
+    // 设置为活跃版本
+    await versionStore.setActiveVersion(queryId.value, versionId)
+    
+    message.success('已设为当前活跃版本')
+    
+    // 重新加载版本列表
+    await loadVersions()
+  } catch (error) {
+    console.error('设置活跃版本失败:', error)
+    message.error('设置活跃版本失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 创建新版本
+const handleCreateNewVersion = async () => {
+  try {
+    if (!versionStore.currentVersion) {
+      message.error('无法创建新版本，当前没有选择基础版本')
+      return
+    }
+    
+    isLoading.value = true
+    
+    // 创建新版本
+    const newVersion = await versionStore.createNewVersion(
+      queryId.value,
+      versionStore.currentVersion.id
+    )
+    
+    message.success('新版本已创建')
+    
+    // 加载新创建的版本
+    await loadVersion(newVersion.id)
+    
+    // 重新加载版本列表
+    await loadVersions()
+    
+    // 切换到编辑器标签
+    activeTab.value = 'editor'
+  } catch (error) {
+    console.error('创建新版本失败:', error)
+    message.error('创建新版本失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 废弃版本
+const handleDeprecateVersion = async (versionId: string) => {
+  try {
+    isLoading.value = true
+    
+    // 废弃版本
+    await versionStore.deprecateVersion(queryId.value, versionId)
+    
+    message.success('版本已废弃')
+    
+    // 重新加载版本列表
+    await loadVersions()
+  } catch (error) {
+    console.error('废弃版本失败:', error)
+    message.error('废弃版本失败')
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 

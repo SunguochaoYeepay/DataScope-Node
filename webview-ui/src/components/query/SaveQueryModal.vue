@@ -40,12 +40,18 @@ const errors = reactive({
 // 监听 visible 属性变化
 watch(() => props.visible, (visible) => {
   if (visible && props.query) {
+    console.log('SaveQueryModal打开，接收到查询数据:', props.query);
+    
     // 填充表单数据
     formData.id = props.query.id || ''
     formData.name = props.query.name || ''
     formData.dataSourceId = props.query.dataSourceId || (props.dataSources.length > 0 ? props.dataSources[0].id : '')
     formData.queryType = props.query.queryType || 'SQL'
     formData.queryText = props.query.queryText || ''
+    formData.description = props.query.description || ''
+    formData.tags = Array.isArray(props.query.tags) ? [...props.query.tags] : []
+    
+    console.log('初始化表单数据完成，queryText:', formData.queryText);
     
     // 清除验证错误
     Object.keys(errors).forEach(key => {

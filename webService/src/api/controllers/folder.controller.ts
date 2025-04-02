@@ -137,7 +137,7 @@ export class FolderController {
           return res.status(404).json({
             success: false,
             message: '文件夹不存在',
-            errorCode: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND
+            errorCode: error.errorCode || ERROR_CODES.NOT_FOUND
           });
         }
         
@@ -181,7 +181,7 @@ export class FolderController {
           return res.status(404).json({
             success: false,
             message: '文件夹不存在',
-            errorCode: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND
+            errorCode: error.errorCode || ERROR_CODES.NOT_FOUND
           });
         }
         

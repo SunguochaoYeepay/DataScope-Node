@@ -503,6 +503,27 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
   
+  // 删除查询历史
+  const deleteQueryHistory = async (historyId: string) => {
+    try {
+      loading.show('删除查询历史中...')
+      
+      await queryService.deleteQueryHistory(historyId)
+      
+      // 从历史中移除
+      queryHistory.value = queryHistory.value.filter(q => q.id !== historyId)
+      
+      message.success('查询历史已删除')
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err : new Error(String(err))
+      message.error('删除查询历史失败')
+      return false
+    } finally {
+      loading.hide()
+    }
+  }
+  
   // 收藏查询
   const favoriteQuery = async (id: string) => {
     try {
@@ -854,7 +875,8 @@ export const useQueryStore = defineStore('query', () => {
     getQueryExecutionHistory,
     getExecutionResults,
     getExecutionError,
-    fetchQueries
+    fetchQueries,
+    deleteQueryHistory
   }
 })
 

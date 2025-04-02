@@ -8,13 +8,6 @@
         </h2>
       </div>
       <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
-        <router-link 
-          to="/query/editor"
-          class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-        >
-          <i class="fas fa-plus mr-2"></i>
-          新建查询
-        </router-link>
         <button
           @click="exportHistoryData"
           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -150,13 +143,6 @@
         </div>
         <h3 class="text-lg font-medium mb-2">没有查询历史</h3>
         <p class="text-sm">尝试修改筛选条件或创建新查询</p>
-        
-        <!-- 调试信息 -->
-        <div class="mt-8 p-4 border border-gray-300 rounded-md bg-gray-50 w-full max-w-xl text-xs text-left">
-          <h4 class="font-bold mb-2">调试信息</h4>
-          <p>查询历史数量: {{ queries.length }}</p>
-          <p>分页信息: {{ totalPages > 0 ? `第 ${currentPage}/${totalPages} 页，共 ${totalItems} 条记录` : '无分页数据' }}</p>
-        </div>
       </div>
       
       <!-- 查询列表 -->
@@ -203,9 +189,29 @@
                     <i class="fas fa-clock mr-1"></i>
                     {{ formatDateTime(query.createdAt) }}
                   </div>
-                  <div v-if="query.executionTime">
+                  <div v-if="query.executionTime" class="mr-4">
                     <i class="fas fa-stopwatch mr-1"></i>
                     {{ formatExecutionTime(query.executionTime) }}
+                  </div>
+                  <div v-if="query.resultCount" class="mr-4">
+                    <i class="fas fa-table mr-1"></i>
+                    {{ query.resultCount }} 条结果
+                  </div>
+                  <div v-if="query.versionNumber" class="mr-4">
+                    <i class="fas fa-code-branch mr-1"></i>
+                    版本 {{ query.versionNumber }}
+                    <span 
+                      v-if="query.versionStatus" 
+                      class="ml-1 px-1.5 py-0.5 rounded-full text-xs"
+                      :class="{
+                        'bg-blue-100 text-blue-800': query.versionStatus === 'DRAFT',
+                        'bg-green-100 text-green-800': query.versionStatus === 'PUBLISHED' && query.isActiveVersion,
+                        'bg-indigo-100 text-indigo-800': query.versionStatus === 'PUBLISHED' && !query.isActiveVersion,
+                        'bg-gray-100 text-gray-800': query.versionStatus === 'DEPRECATED'
+                      }"
+                    >
+                      {{ getVersionStatusText(query.versionStatus, query.isActiveVersion) }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -630,7 +636,7 @@ export default defineComponent({
     
     // 查看查询版本历史
     const viewQueryVersions = (query: Query) => {
-      router.push(`/query/version/${query.id}`)
+      router.push(`/query/version/management/${query.id}`)
     }
 
     // 查看查询分析
@@ -797,6 +803,20 @@ export default defineComponent({
       return Math.ceil(filteredTotalItems.value / pageSize.value) || 1;
     })
 
+    // 获取版本状态显示文本
+    const getVersionStatusText = (status: string, isActive: boolean = false) => {
+      switch (status) {
+        case 'DRAFT':
+          return '草稿';
+        case 'PUBLISHED':
+          return isActive ? '当前版本' : '已发布';
+        case 'DEPRECATED':
+          return '已废弃';
+        default:
+          return status;
+      }
+    }
+
     return {
       isLoading,
       showDeleteConfirm,
@@ -835,7 +855,8 @@ export default defineComponent({
       debounceSearch,
       message,
       filteredTotalItems,
-      filteredTotalPages
+      filteredTotalPages,
+      getVersionStatusText
     }
   }
 })

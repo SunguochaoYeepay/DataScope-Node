@@ -14,8 +14,12 @@ import apiRoutes from './api/routes';
 import { DataSourceService } from './services/datasource.service';
 import { DataSourceMonitorService } from './services/datasource-monitor.service';
 import metadataController from './api/controllers/metadata.controller';
+import visualizationRouter from './api/routes/visualization.routes';
+import queryPlanRouter from './api/routes/query-plan.routes';
+import planVisualizationRouter from './api/routes/plan-visualization.routes';
 import mockPlanRouter from './api/routes/mock-plan.routes';
 import { registerDirectRoutes } from './api/direct-routes';
+import dataSourcesMockRoutes from './api/routes/data-sources.mock';
 
 // 初始化服务
 const dataSourceService = new DataSourceService();
@@ -72,20 +76,14 @@ const requestLogger = (req: Request, res: Response, next: NextFunction) => {
 
 // 错误处理中间件
 const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  // 确保状态码是有效的 HTTP 状态码
-  const statusCode = (err.statusCode && err.statusCode >= 100 && err.statusCode < 600) ? err.statusCode : 500;
+  const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
   
   logger.error(`错误: ${message}`, { error: err, path: req.originalUrl });
   
-  // 统一错误响应格式
   res.status(statusCode).json({
     success: false,
-    error: {
-      code: err.code || 'INTERNAL_ERROR',
-      message: message,
-      details: err.details || null
-    },
+    message,
     stack: config.server.nodeEnv === 'development' ? err.stack : undefined
   });
 };
@@ -132,6 +130,11 @@ console.log('主应用：API路由已加载：/api');
 // 注册额外的开发测试路由
 app.use('/api/mock-plan', mockPlanRouter);
 
+// 注册数据源模拟路由（确保数据源功能正常工作）
+app.use('/api/data-sources', dataSourcesMockRoutes);
+app.use('/api/datasources', dataSourcesMockRoutes); // 兼容旧路径
+console.log('主应用：数据源模拟路由已加载：/api/datasources');
+
 // 注册API路由
 app.use('/api', apiRoutes);
 console.log('主应用：API路由已加载：/api');
@@ -150,13 +153,10 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-// 确保使用5000端口
-const PORT = 5000;
-app.listen(PORT, () => {
-  logger.info(`服务器已启动，监听端口: ${PORT}`);
-  logger.info(`API文档地址: http://localhost:${PORT}/api-docs`);
-  
-  // 启动数据源监控服务
-  dataSourceMonitorService.start();
-  logger.info('数据源监控服务已启动');
-});
+// 启动数据源监控服务
+dataSourceMonitorService.start();
+logger.info('数据源监控服务已启动');
+
+// 导出Express应用
+export { app };
+export default app;

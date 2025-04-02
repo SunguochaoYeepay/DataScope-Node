@@ -1,387 +1,118 @@
-# DataScope-Node Web Service
+# DataScope Node 查询服务
 
-DataScope是一个数据库查询分析和优化工具，帮助开发人员和数据库管理员提高SQL查询性能。
+DataScope Node 是一个强大的数据查询和管理平台，允许用户创建、管理和执行数据库查询，同时提供丰富的版本控制和状态管理功能。
 
-## 功能特点
+## 主要功能
 
-- 支持多种数据库连接（MySQL, PostgreSQL）
-- SQL查询执行与历史记录
-- 查询计划分析和可视化
-- 性能优化建议
-- 查询保存和分享
-- 数据库结构分析
+- **数据源管理**：连接和管理各种数据库数据源
+- **查询服务**：创建和执行SQL查询
+- **版本控制**：支持查询的版本管理，包括草稿、发布和废弃流程
+- **状态管理**：控制查询服务的运行状态
+- **历史记录**：追踪和分析查询执行历史
+- **用户管理**：用户认证和权限控制
 
-## 安装与设置
+## 新增功能: 查询服务版本控制与状态管理
 
-### 环境要求
+最新版本增加了强大的查询服务版本控制和状态管理功能：
 
-- Node.js v16+
-- npm 或 yarn
-- TypeScript v4.5+
-- 支持的数据库: MySQL 5.7+, PostgreSQL 12+
+### 版本控制特性
+- **版本生命周期管理**：支持草稿、发布和废弃等版本状态
+- **版本历史记录**：完整追踪每个查询的所有历史版本
+- **活跃版本控制**：可以指定特定版本为活跃版本
+- **草稿编辑功能**：支持草稿版本的编辑和更新
 
-### 安装依赖
+### 状态管理特性
+- **服务状态控制**：支持启用和禁用查询服务
+- **状态追踪**：记录状态变更的原因和时间
+- **执行控制**：根据服务状态控制查询执行权限
 
+### 执行和历史特性
+- **版本化执行**：支持执行特定版本的查询
+- **执行历史**：按版本追踪查询执行历史
+- **性能分析**：记录和分析查询执行时间和资源使用
+
+### 最近更新
+
+最近对代码库进行了重构和优化：
+
+- **错误处理优化**：统一使用 ApiError 类和 ErrorCode 枚举处理所有错误
+- **中间件重构**：将认证中间件重构为更清晰的职责分离模式
+- **类型安全增强**：优化 TypeScript 类型定义，提高代码安全性
+- **API路由优化**：规范化API路由的导入和使用方式
+- **模块导出规范**：修复和优化模块导出，确保跨模块一致性
+
+## 技术栈
+
+- **后端**：Node.js, Express, TypeScript
+- **数据库访问**：Prisma ORM
+- **API文档**：OpenAPI (Swagger)
+- **测试**：Mocha, Chai, SuperTest
+- **安全性**：JWT认证，参数化查询
+
+## 安装和运行
+
+1. 克隆仓库
+```bash
+git clone https://github.com/your-org/DataScope-Node.git
+cd DataScope-Node/webService
+```
+
+2. 安装依赖
 ```bash
 npm install
 ```
 
-### 配置
+3. 配置环境变量
+创建`.env`文件，设置必要的环境变量:
+```
+DATABASE_URL="mysql://user:password@localhost:3306/datascope"
+JWT_SECRET="your-jwt-secret"
+PORT=3000
+```
 
-1. 复制 `.env.example` 到 `.env`
-2. 根据环境需求修改相关配置
+4. 运行数据库迁移
+```bash
+npx prisma migrate dev
+```
 
-### 开发
-
+5. 启动服务
 ```bash
 npm run dev
 ```
 
-### 构建
+## API 文档
+
+启动服务后，API文档可在以下地址访问:
+```
+http://localhost:5000/api-docs
+```
+
+## 开发
+
+### 数据库迁移
+
+创建新的数据库迁移:
+```bash
+npx prisma migrate dev --name migration-name
+```
+
+应用迁移到数据库:
+```bash
+npx prisma migrate deploy
+```
+
+### 构建项目
 
 ```bash
 npm run build
 ```
 
-### 生产环境运行
+### 运行测试
 
 ```bash
-npm start
-```
-
-## 项目结构
-
-```
-src/
-├── api/              # API路由和控制器
-├── config/           # 配置文件
-├── db/               # 数据库连接和模型
-├── services/         # 业务逻辑服务
-├── types/            # TypeScript类型定义
-├── utils/            # 工具函数
-├── app.ts            # Express应用
-└── index.ts          # 入口文件
-```
-
-## 设计文档
-
-项目的设计规范和开发指南文档位于 `design-docs` 目录中：
-
-- [API响应格式规范](./design-docs/api-response-format.md) - 定义了统一的API响应格式标准
-
-## 测试
-
-本项目包含全面的测试套件，以确保代码质量和功能正确性：
-
-### 单元测试
-
-```bash
-# 运行所有测试
 npm test
-
-# 运行特定测试文件
-npm test -- tests/unit/services/metadata.service.test.js
-
-# 运行带有特定名称的测试
-npm test -- --testNamePattern="应当同步元数据并返回结果"
-
-# 生成测试覆盖率报告
-npm test -- --coverage
-
-# 仅运行控制器测试
-npm test -- --testPathPattern='controllers'
-
-# 指定运行某几个控制器测试
-npm test -- --testPathPattern='(datasource|query|query-plan)\.controller\.test\.js'
 ```
-
-### 接口测试状态
-
-已完成的接口测试：
-
-- 控制器测试（所有核心控制器测试已修复并通过）
-  - datasource.controller.test.js - 数据源控制器测试 (17个测试用例)
-  - query.controller.test.js - 查询控制器测试 (16个测试用例)
-  - query-plan.controller.test.js - 查询计划控制器测试 (10个测试用例)
-
-- 服务测试
-  - metadata.service.test.js - 元数据服务测试（syncMetadata, getMetadataStructure等）
-  - metadata/relationship-detector.test.ts - 关系检测器测试
-  - metadata/column-analyzer.test.ts - 列分析器测试
-
-测试中的注意事项：
-- 所有测试需要正确引用错误类型，例如从`../../../src/utils/errors/types/api-error`导入`ApiError`
-- 为避免TypeScript类型冲突，核心控制器测试已使用JavaScript重写
-- 测试中使用mock代替实际数据库连接，确保单元测试独立性
-- 每个测试函数需要独立设置mock和断言，避免测试间相互影响
-
-### 数据库测试环境
-
-针对集成测试和手动测试，推荐使用Docker环境：
-
-```bash
-# 启动MySQL测试容器
-docker run -d \
-  --name datascope-mysql \
-  -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=datascope \
-  -e MYSQL_DATABASE=datascope \
-  mysql:8
-
-# 配置环境变量
-DATABASE_URL="mysql://root:datascope@localhost:3306/datascope"
-
-# 运行Prisma迁移
-npx prisma migrate dev
-```
-
-## API文档
-
-### 数据源管理
-
-- `GET /api/datasources`: 获取数据源列表
-- `GET /api/datasources/:id`: 获取单个数据源信息
-- `POST /api/datasources`: 创建新数据源
-- `PUT /api/datasources/:id`: 更新数据源
-- `DELETE /api/datasources/:id`: 删除数据源
-- `POST /api/datasources/test-connection`: 测试数据源连接
-- `GET /api/datasources/:id/stats`: 获取数据源统计信息（表数量、行数等）
-
-### 元数据管理
-
-- `GET /api/metadata/datasources/:dataSourceId/tables`: 获取数据源的表列表
-- `GET /api/metadata/datasources/:dataSourceId/tables/:tableName/columns`: 获取表的列信息
-- `GET /api/metadata/datasources/:dataSourceId/structure`: 获取数据源的元数据结构
-- `POST /api/metadata/datasources/:dataSourceId/sync`: 同步数据源的元数据
-
-### 查询管理
-
-- `POST /api/queries/execute`: 执行SQL查询，支持参数：
-  - `dataSourceId`: 数据源ID
-  - `sql`: 查询语句
-  - `params`: 查询参数(可选)
-  - `createHistory=true`: 是否创建查询历史记录(默认false)
-  - `explainQuery=true`: 获取查询执行计划而非执行实际查询(默认false)
-  - `id` 或 `queryId`: 要执行的已保存查询的ID，提供此参数会自动记录查询历史
-
-**注意**: 执行已保存的查询时，需要提供查询ID才能生成查询历史记录。有两种方式：
-1. 在请求体中包含`id`参数 (推荐方式)
-```json
-{
-  "dataSourceId": "123",
-  "sql": "SELECT * FROM users",
-  "id": "c6uh7gw8yd5" 
-}
-```
-2. 通过`createHistory=true`参数显式创建历史记录
-```json
-{
-  "dataSourceId": "123",
-  "sql": "SELECT * FROM users",
-  "createHistory": true
-}
-```
-
-#### 测试环境支持
-对于测试/开发环境，可以使用特殊数据源ID `test-ds` 来执行查询或获取执行计划，无需配置真实数据库连接：
-
-```javascript
-// 示例：在测试环境获取执行计划
-const response = await fetch('/api/queries/execute', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    dataSourceId: 'test-ds',
-    sql: 'SELECT * FROM users',
-    explainQuery: true
-  })
-});
-const result = await response.json();
-// result包含模拟的执行计划
-```
-
-### 查询执行计划
-- `GET /api/queries/{id}/execution-plan`: 获取已执行的查询的执行计划
-- `POST /api/queries/explain`: 直接获取SQL查询的执行计划，无需执行查询
-
-### 查询历史
-- `GET /api/queries/history`: 获取查询历史记录，支持分页和筛选
-- `GET /api/queries/history/:id`: 获取单个查询历史记录详情
-- `GET /api/queries/saved`: 获取已保存的查询
-- `POST /api/queries`: 保存查询
-  - 支持传入自定义`id`参数，允许创建使用非UUID格式的查询ID
-  - 如果不提供`id`，系统将自动生成UUID格式的ID
-  - 自定义ID必须是有效的字符串，不能包含特殊字符
-- `PUT /api/queries/:id`: 更新查询
-  - 支持使用自定义ID格式的查询
-  - ID可以是UUID格式或任何其他自定义格式
-  - 支持upsert操作：如果查询不存在且提供了必要参数(dataSourceId, name)，会自动创建查询
-  - 保留原始ID作为新创建查询的ID
-  - 极大简化了前端操作流程，无需区分创建/更新操作
-- `GET /api/queries/favorites`: 获取收藏的查询
-- `POST /api/queries/:id/favorite`: 收藏查询
-- `DELETE /api/queries/:id/favorite`: 取消收藏查询
-
-### 查询文件夹管理
-
-- `GET /api/query-folders`: 获取查询文件夹列表
-  - 支持分页参数`page`和`size`以及备用分页参数`offset`和`limit`
-  - 支持通过`parentId`参数筛选特定父文件夹下的子文件夹
-  - 返回标准化的分页格式：`{success: true, data: {items: [], pagination: {}}}`
-- `GET /api/query-folders/:id`: 获取文件夹详情
-  - 返回文件夹的详细信息，包括父文件夹、子文件夹和包含的查询
-- `POST /api/query-folders`: 创建新文件夹
-  - 必须参数：`name`（文件夹名称）
-  - 可选参数：`description`（文件夹描述）、`parentId`（父文件夹ID）
-- `PUT /api/query-folders/:id`: 更新文件夹
-  - 可更新文件夹的名称、描述和父文件夹
-  - 自动检测并防止形成循环引用
-- `DELETE /api/query-folders/:id`: 删除文件夹
-  - 仅当文件夹为空（不包含子文件夹和查询）时才能删除
-  - 防止意外删除包含内容的文件夹
-
-### 系统管理
-
-- `GET /api/system/logs`: 获取系统日志
-  - 支持标准分页参数`page`和`size`以及备用参数`offset`和`limit`
-  - 支持过滤参数：`level`（日志级别）、`search`（关键词搜索）、`startDate`和`endDate`（日期范围）
-  - 返回标准化的分页格式，日志按时间倒序排列（最新的在前）
-  - 每条日志包含时间戳、级别、消息和相关数据
-- `GET /api/system/health`: 获取系统健康状态
-  - 返回详细的系统状态信息，包括：
-    - 系统信息（平台、架构、Node.js版本、运行时间）
-    - 内存使用情况（总内存、空闲内存、使用率）
-    - CPU信息（型号、核心数、负载）
-    - 进程信息（PID、运行时间、内存使用）
-    - 数据库连接状态
-  - 可用于监控系统运行状况和排查性能问题
-
-## API标准化响应格式
-
-为提高系统一致性和开发效率，所有分页API均采用统一的响应格式：
-
-### 标准分页响应格式
-
-```json
-{
-  "success": true,
-  "data": {
-    "items": [
-      // 数据项数组
-    ],
-    "pagination": {
-      "page": 1,          // 当前页码
-      "pageSize": 10,     // 每页大小
-      "total": 100,       // 总记录数
-      "totalPages": 10,   // 总页数
-      "hasMore": true     // 是否有更多数据
-    }
-  }
-}
-```
-
-### 分页参数支持
-
-所有分页API支持以下两套参数系统，系统会自动进行适配转换：
-
-1. **主要参数系统** (`page`/`size`)
-   - `page`: 页码，从1开始计数
-   - `size`: 每页记录数
-
-2. **备选参数系统** (`offset`/`limit`)
-   - `offset`: 从第几条记录开始
-   - `limit`: 返回多少条记录
-
-系统优先使用`offset`/`limit`参数，如未提供则使用`page`/`size`参数。
-
-### 已标准化的API
-
-以下API已采用标准响应格式：
-
-1. `GET /api/queries/history` - 查询历史列表
-2. `GET /api/queries/plans` - 查询计划历史
-3. `GET /api/metadata/:dataSourceId/tables/:tableName/data` - 表数据预览
-4. `GET /api/queries` - 查询列表
-5. `GET /api/datasources` - 数据源列表
-6. `GET /api/queries/favorites` - 收藏查询列表
-7. `GET /api/metadata/:dataSourceId/tables` - 表列表
-8. `GET /api/metadata/:dataSourceId/sync-history` - 元数据同步历史
-9. `GET /api/query-folders` - 查询文件夹列表
-10. `GET /api/system/logs` - 系统日志
-
-### 使用示例
-
-客户端请求示例：
-
-```javascript
-// 使用page/size参数系统
-fetch('/api/queries?page=2&size=15')
-
-// 使用offset/limit参数系统
-fetch('/api/queries?offset=15&limit=15')
-```
-
-两种参数系统对应同样的数据范围，系统会自动进行换算：
-- `page=2, size=15` 等同于 `offset=15, limit=15`
-
-## 特殊命令支持
-
-系统支持执行多种特殊的SQL命令，这些命令在处理时不会追加LIMIT子句：
-
-- `SHOW` 类命令（如 `SHOW DATABASES`、`SHOW TABLES`、`SHOW COLUMNS` 等）
-- `DESCRIBE`/`DESC` 命令
-- `SET` 类命令
-- `USE` 命令
-
-这些特殊命令可以带或不带分号结尾，系统均可正确识别并处理。
-
-## 连接机制
-
-系统采用增强的数据库连接机制：
-
-- 智能主机名解析：自动将容器名称转换为正确的主机地址
-  - 支持的容器名称：`datascope-mysql`, `mysql`, `mariadb`, `database`, `db`
-  - 在非容器环境中自动映射到 `localhost`
-  - 自动处理空主机名，转换为 `127.0.0.1`
-- 连接重试机制：
-  - 默认重试次数：3次
-  - 退避策略：首次失败后等待500ms，后续每次失败等待时间翻倍，最太等待时间为5000ms
-  - 详细日志记录每次连接尝试
-  
-## 数据源ID允许格式
-
-系统对数据源ID格式采用灵活的验证标准：
-
-- 创建数据源时自动生成UUID格式的ID
-- 查询、更新、删除等操作支持任意非空字符串作为ID
-- 所有API接口都使用统一的ID验证机制
-
-## 错误处理
-
-系统采用统一的错误处理机制：
-
-- 所有错误通过 `ApiError` 类处理
-- 错误代码定义在 `errors.ts` 文件中
-- API响应包含状态码、错误消息和详细信息
 
 ## 许可证
 
-MIT
-
-## 容器环境配置
-
-项目支持在容器环境和本地环境中运行，通过环境变量 `CONTAINER_ENV` 来区分:
-
-- `CONTAINER_ENV=true`: 表示服务运行在容器环境中，使用容器名称（如 `datascope-mysql`）连接数据库
-- `CONTAINER_ENV=false`: 表示服务运行在本地环境中，会自动将容器名称解析为 `localhost`
-
-示例启动命令:
-```bash
-# 本地环境启动
-export CONTAINER_ENV=false && node dist/app.js
-
-# 容器环境启动
-export CONTAINER_ENV=true && node dist/app.js
-```
-
-## 环境要求
+本项目采用 MIT 许可证

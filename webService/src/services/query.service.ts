@@ -1,6 +1,6 @@
 import { PrismaClient, Query, QueryHistory, QueryPlanHistory, Prisma } from '@prisma/client';
 import { ApiError } from '../utils/errors/types/api-error';
-import { ERROR_CODES } from '../utils/errors/error-codes';
+import { ERROR_CODES, GENERAL_ERROR } from '../utils/errors/error-codes';
 import dataSourceService from './datasource.service';
 import logger from '../utils/logger';
 import { QueryPlanService } from '../database-core/query-plan/query-plan-service';
@@ -578,7 +578,7 @@ export class QueryService {
       
       if (!query) {
         const error = new ApiError('查询不存在', 404);
-        error.errorCode = ERROR_CODES.RESOURCE_NOT_FOUND;
+        error.errorCode = GENERAL_ERROR.NOT_FOUND;
         throw error;
       }
       
@@ -685,25 +685,38 @@ export class QueryService {
    */
   async deleteQuery(id: string): Promise<void> {
     try {
+      logger.debug('尝试删除查询', { id });
+      
       // 检查查询是否存在
       const existingQuery = await prisma.query.findUnique({
         where: { id }
       });
       
       if (!existingQuery) {
-        throw new ApiError('查询不存在', 404);
+        logger.info('查询不存在，无法删除', { id });
+        const error = new ApiError('查询不存在', 404);
+        error.errorCode = GENERAL_ERROR.NOT_FOUND;
+        throw error;
       }
       
       // 删除查询
       await prisma.query.delete({
         where: { id }
       });
+      
+      logger.info('查询删除成功', { id });
     } catch (error: any) {
       logger.error('删除查询失败', { error, id });
+      
+      // 如果是已知的API错误，直接抛出
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError('删除查询失败', 500, error.message);
+      
+      // 包装其他错误
+      const apiError = new ApiError('删除查询失败', 500);
+      apiError.errorCode = ERROR_CODES.INTERNAL_SERVER_ERROR;
+      throw apiError;
     }
   }
 
@@ -895,7 +908,7 @@ export class QueryService {
         
         if (!query) {
           logger.warn(`要收藏的查询不存在: ${queryId}`);
-          throw new ApiError('查询不存在', ERROR_CODES.RESOURCE_NOT_FOUND);
+          throw new ApiError('查询不存在', GENERAL_ERROR.NOT_FOUND);
         }
       } catch (err: any) {
         if (err instanceof ApiError) {
@@ -995,7 +1008,7 @@ export class QueryService {
       
       if (!history) {
         const error = new ApiError('查询历史记录不存在', 404);
-        error.errorCode = ERROR_CODES.RESOURCE_NOT_FOUND;
+        error.errorCode = GENERAL_ERROR.NOT_FOUND;
         throw error;
       }
       
@@ -1046,6 +1059,49 @@ export class QueryService {
         throw error;
       }
       throw new ApiError('清空临时查询历史记录失败', 500, error.message);
+    }
+  }
+
+  /**
+   * 根据ID删除查询历史记录
+   * @param id 查询历史记录ID
+   * @returns 删除状态
+   */
+  async deleteQueryHistory(id: string): Promise<boolean> {
+    try {
+      logger.debug('尝试删除查询历史记录', { id });
+      
+      // 检查历史记录是否存在
+      const existingHistory = await prisma.queryHistory.findUnique({
+        where: { id }
+      });
+      
+      if (!existingHistory) {
+        logger.info('查询历史记录不存在，无法删除', { id });
+        const error = new ApiError('查询历史记录不存在', 404);
+        error.errorCode = GENERAL_ERROR.NOT_FOUND;
+        throw error;
+      }
+      
+      // 删除历史记录
+      await prisma.queryHistory.delete({
+        where: { id }
+      });
+      
+      logger.info('查询历史记录删除成功', { id });
+      return true;
+    } catch (error: any) {
+      logger.error('删除查询历史记录失败', { error, id });
+      
+      // 如果是已知的API错误，直接抛出
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      // 包装其他错误
+      const apiError = new ApiError('删除查询历史记录失败', 500);
+      apiError.errorCode = ERROR_CODES.INTERNAL_SERVER_ERROR;
+      throw apiError;
     }
   }
 }

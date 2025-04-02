@@ -24,10 +24,10 @@ export const isUsingMockApi = () => {
 
 // API 基础路径
 export const getApiBaseUrl = () => {
-  // 使用环境变量中配置的API基础URL
+  // 始终使用环境变量中配置的API基础URL，不使用任何代理
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
-  console.log('【API基础URL】:', baseUrl);
-  return baseUrl;
+  // 确保URL正确格式化（无斜杠结尾）
+  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 }
 
 export const getQueryPlansApiUrl = () => {
@@ -770,17 +770,17 @@ export const queryService = {
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/display-config`)
       
-      if (response.status === 404) {
-        return null
-      }
-      
       if (!response.ok) {
-        throw new Error(`Failed to fetch display config: ${response.statusText}`)
+        if (response.status === 404) {
+          // 无配置是正常的情况，返回null而不是抛出错误
+          return null
+        }
+        throw new Error(`获取展示配置失败: ${response.statusText}`)
       }
       
       return await response.json()
     } catch (error) {
-      console.error(`Error fetching display config for query ${queryId}:`, error)
+      console.error('获取展示配置错误:', error)
       throw error
     }
   },
@@ -1288,6 +1288,41 @@ export const queryService = {
       return pageResponse;
     } catch (error) {
       console.error('获取查询列表错误:', error);
+      throw error;
+    }
+  },
+
+  // 删除查询历史记录
+  async deleteQueryHistory(historyId: string): Promise<boolean> {
+    if (isUsingMockApi()) {
+      // 如果使用模拟API，可以复用删除查询的方法或创建新的模拟方法
+      return mockQueryApi.deleteQuery(historyId)
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/queries/history/${historyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`删除查询历史失败: ${response.statusText}`)
+      }
+      
+      // 尝试解析响应体
+      try {
+        const result = await response.json();
+        console.log('删除查询历史成功:', result.message);
+      } catch (e) {
+        // 某些API会返回空响应体，这是正常情况
+        console.log('删除查询历史成功');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('删除查询历史错误:', error)
       throw error;
     }
   },

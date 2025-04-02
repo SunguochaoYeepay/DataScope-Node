@@ -1,0 +1,849 @@
+openapi: 3.0.0
+info:
+  title: DataScope查询服务API
+  description: 提供查询编辑、执行、版本控制及收藏功能的API接口
+  version: 1.0.0
+servers:
+  - url: /api
+    description: 默认API路径
+tags:
+  - name: 查询基础
+    description: 查询创建和管理基础接口
+  - name: 查询版本
+    description: 查询版本控制相关接口
+  - name: 查询状态
+    description: 查询服务状态管理接口
+  - name: 查询收藏
+    description: 查询收藏管理接口
+  - name: 测试接口
+    description: 系统测试用接口
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Query:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        dataSourceId:
+          type: string
+          format: uuid
+        sqlContent:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
+        queryType:
+          type: string
+          enum: [SQL, NATURAL_LANGUAGE]
+        isFavorite:
+          type: boolean
+        executionCount:
+          type: integer
+        lastExecutedAt:
+          type: string
+          format: date-time
+        tags:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+    QueryVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        queryId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        sqlContent:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED, DEPRECATED, ARCHIVED]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+    QueryHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        queryId:
+          type: string
+          format: uuid
+        versionId:
+          type: string
+          format: uuid
+        dataSourceId:
+          type: string
+          format: uuid
+        sqlContent:
+          type: string
+        status:
+          type: string
+          enum: [RUNNING, COMPLETED, FAILED, CANCELLED]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+        rowCount:
+          type: integer
+        errorMessage:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+paths:
+  /queries:
+    post:
+      tags:
+        - 查询基础
+      summary: 创建查询草稿
+      description: 创建一个新的查询草稿
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - dataSourceId
+                - sqlContent
+              properties:
+                name:
+                  type: string
+                  description: 查询名称
+                description:
+                  type: string
+                  description: 查询描述
+                dataSourceId:
+                  type: string
+                  description: 数据源ID
+                sqlContent:
+                  type: string
+                  description: SQL内容
+                queryType:
+                  type: string
+                  enum: [SQL, NATURAL_LANGUAGE]
+                  default: SQL
+                  description: 查询类型
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Query'
+                  message:
+                    type: string
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '500':
+          description: 服务器错误
+
+  /queries/{id}:
+    put:
+      tags:
+        - 查询基础
+      summary: 更新查询
+      description: 更新现有查询并创建新的草稿版本
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 查询名称
+                description:
+                  type: string
+                  description: 查询描述
+                sqlContent:
+                  type: string
+                  description: SQL内容
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Query'
+                  message:
+                    type: string
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/versions:
+    get:
+      tags:
+        - 查询版本
+      summary: 获取查询版本列表
+      description: 获取指定查询的所有版本
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueryVersion'
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/versions/{versionId}/publish:
+    post:
+      tags:
+        - 查询版本
+      summary: 发布查询版本
+      description: 将指定的查询草稿版本发布为正式版本
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+        - in: path
+          name: versionId
+          required: true
+          schema:
+            type: string
+          description: 版本ID
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/QueryVersion'
+                  message:
+                    type: string
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '404':
+          description: 查询或版本不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/versions/{versionId}/deprecate:
+    post:
+      tags:
+        - 查询版本
+      summary: 废弃查询版本
+      description: 将指定的查询版本标记为已废弃
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+        - in: path
+          name: versionId
+          required: true
+          schema:
+            type: string
+          description: 版本ID
+      responses:
+        '200':
+          description: 废弃成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/QueryVersion'
+                  message:
+                    type: string
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '404':
+          description: 查询或版本不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/versions/{versionId}/activate:
+    post:
+      tags:
+        - 查询版本
+      summary: 激活查询版本
+      description: 将指定的查询版本设置为活动版本
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+        - in: path
+          name: versionId
+          required: true
+          schema:
+            type: string
+          description: 版本ID
+      responses:
+        '200':
+          description: 激活成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/QueryVersion'
+                  message:
+                    type: string
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '404':
+          description: 查询或版本不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/status:
+    get:
+      tags:
+        - 查询状态
+      summary: 获取查询服务状态
+      description: 获取指定查询服务的启用/禁用状态
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/enable:
+    post:
+      tags:
+        - 查询状态
+      summary: 启用查询服务
+      description: 启用指定的查询服务
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 启用成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/disable:
+    post:
+      tags:
+        - 查询状态
+      summary: 禁用查询服务
+      description: 禁用指定的查询服务
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 禁用成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/execute:
+    post:
+      tags:
+        - 查询版本
+      summary: 执行查询
+      description: 执行指定查询的指定版本
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+        - in: query
+          name: versionId
+          required: false
+          schema:
+            type: string
+          description: 版本ID(可选，默认执行活动版本)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                params:
+                  type: object
+                  description: 查询参数
+                timeout:
+                  type: integer
+                  description: 查询超时时间(毫秒)
+      responses:
+        '200':
+          description: 执行成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      results:
+                        type: array
+                      columns:
+                        type: array
+                      executionTime:
+                        type: integer
+                      rowCount:
+                        type: integer
+                  message:
+                    type: string
+        '400':
+          description: 请求参数错误
+        '401':
+          description: 未授权
+        '404':
+          description: 查询或版本不存在
+        '500':
+          description: 服务器错误
+
+  /queries/history:
+    get:
+      tags:
+        - 查询版本
+      summary: 获取查询执行历史
+      description: 获取查询执行历史记录
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: queryId
+          required: false
+          schema:
+            type: string
+          description: 查询ID(可选)
+        - in: query
+          name: versionId
+          required: false
+          schema:
+            type: string
+          description: 版本ID(可选)
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: 页码
+        - in: query
+          name: size
+          required: false
+          schema:
+            type: integer
+            default: 10
+          description: 每页数量
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueryHistory'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      totalPages:
+                        type: integer
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '500':
+          description: 服务器错误
+
+  /queries/favorites:
+    get:
+      tags:
+        - 查询收藏
+      summary: 获取用户收藏的查询列表
+      description: 分页获取当前用户收藏的所有查询
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: 页码
+        - in: query
+          name: size
+          required: false
+          schema:
+            type: integer
+            default: 10
+          description: 每页数量
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Query'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      totalPages:
+                        type: integer
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/favorite:
+    post:
+      tags:
+        - 查询收藏
+      summary: 添加查询到收藏
+      description: 将指定查询添加到用户的收藏列表
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+    delete:
+      tags:
+        - 查询收藏
+      summary: 从收藏中移除查询
+      description: 将指定查询从用户的收藏列表中移除
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 移除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      success:
+                        type: boolean
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /queries/{queryId}/favorite/status:
+    get:
+      tags:
+        - 查询收藏
+      summary: 检查查询是否被收藏
+      description: 检查当前用户是否已收藏指定查询
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queryId
+          required: true
+          schema:
+            type: string
+          description: 查询ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      isFavorite:
+                        type: boolean
+                  message:
+                    type: string
+        '401':
+          description: 未授权
+        '404':
+          description: 查询不存在
+        '500':
+          description: 服务器错误
+
+  /test/health:
+    get:
+      tags:
+        - 测试接口
+      summary: 健康检查接口
+      description: 用于验证API服务是否可用
+      responses:
+        '200':
+          description: 服务正常运行
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time

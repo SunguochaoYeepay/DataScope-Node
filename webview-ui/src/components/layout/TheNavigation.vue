@@ -41,7 +41,7 @@ const baseUrl = import.meta.env.BASE_URL || '/'
 const navItems = [
   { name: '首页', path: baseUrl === '/' ? '/' : baseUrl },
   { name: '数据源', path: `${baseUrl}datasource`.replace('//', '/') },
-  { name: '查询', path: `${baseUrl}query/history`.replace('//', '/') },
+  { name: '查询', path: `${baseUrl}query`.replace('//', '/') },
   { name: '系统集成', path: `${baseUrl}integration`.replace('//', '/') },
   { name: '设置', path: `${baseUrl}settings`.replace('//', '/') }
 ]

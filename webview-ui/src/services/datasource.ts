@@ -16,15 +16,16 @@ import type {
 } from '@/types/datasource'
 import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/metadata'
 import { mockDataSourceApi } from '@/mocks/datasource'
+import { getApiBaseUrl } from './query'
 
 // 使用环境变量判断是否使用模拟API
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
 
 // API 基础路径
-const API_BASE_URL = '/api/datasources'
+const API_BASE_URL = `${getApiBaseUrl()}/api/datasources`
 
 // 元数据API基础路径 - 已更新为标准API路径
-const METADATA_API_BASE_URL = '/api/metadata'
+const METADATA_API_BASE_URL = `${getApiBaseUrl()}/api/metadata`
 
 // 定义mock API接口
 interface MockDataSourceApi {

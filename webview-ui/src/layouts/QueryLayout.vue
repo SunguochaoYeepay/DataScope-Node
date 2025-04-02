@@ -1,6 +1,5 @@
 <template>
   <div class="query-layout">
-    <QuerySubNavigation />
     <main class="container mx-auto px-4 py-6">
       <router-view />
     </main>
@@ -8,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import QuerySubNavigation from '@/components/query/QuerySubNavigation.vue';
+// 完全移除子导航
 </script>
 
 <style scoped>

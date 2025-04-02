@@ -63,6 +63,27 @@ router.get('/history/:id', queryController.getQueryHistoryById);
 
 /**
  * @swagger
+ * /queries/history/{id}:
+ *   delete:
+ *     summary: 删除单个查询历史记录
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: 查询历史记录ID
+ *     responses:
+ *       200:
+ *         description: 查询历史记录删除成功
+ *       404:
+ *         description: 查询历史记录不存在
+ */
+router.delete('/history/:id', queryController.deleteQueryHistory);
+
+/**
+ * @swagger
  * /queries/history/clear-temporary:
  *   delete:
  *     summary: 清空临时查询历史记录

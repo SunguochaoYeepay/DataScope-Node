@@ -1,279 +1,199 @@
-// 查询类型
-export type QueryType = 'SQL' | 'NATURAL_LANGUAGE' | 'DATA'
-
-// 查询状态
-export type QueryStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
-
-// 列数据类型
-export type ColumnType = 
-  'STRING' | 
-  'INTEGER' | 
-  'DECIMAL' | 
-  'BOOLEAN' | 
-  'DATE' | 
-  'DATETIME' | 
-  'TIMESTAMP' | 
-  'JSON' | 
-  'ARRAY' | 
-  'BINARY' | 
-  'UNKNOWN'
-
-// 查询模型
-export interface Query {
-  id: string
-  name?: string
-  dataSourceId: string
-  queryType: QueryType
-  queryText: string
-  status: QueryStatus
-  createdAt: string
-  updatedAt: string
-  executionTime?: number  // 毫秒
-  resultCount?: number
-  error?: string
-  isFavorite?: boolean
-  description?: string
-  tags?: string[]
+/**
+ * 用户信息
+ */
+export interface User {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
 }
 
-// 列定义
-export interface ColumnDefinition {
-  name: string
-  type: ColumnType
-  label?: string
-  isPrimaryKey?: boolean
-  isForeignKey?: boolean
-  isNullable?: boolean
+/**
+ * 数据源信息
+ */
+export interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+  icon?: string;
 }
 
-// 查询结果
-export interface QueryResult {
-  id: string
-  columns: string[]
-  columnTypes?: ColumnType[]
-  rows: Record<string, any>[]
-  rowCount: number
-  executionTime?: number
-  hasMore?: boolean
-  status?: QueryStatus
-  error?: string
-  createdAt?: string
-  // 字段定义，用于渲染表头和处理数据类型
-  fields?: Array<{name: string; type: string; table?: string; schema?: string} | string>
-  // 添加对 API 返回的包裹数据结构的支持
-  data?: {
-    fields?: Array<{name: string; type: string; table?: string; schema?: string} | string>
-    rows?: Record<string, any>[]
-    rowCount?: number
-    page?: number
-    pageSize?: number
-    totalCount?: number
-    totalPages?: number
-  }
-  // 添加success字段，用于判断 API 调用是否成功
-  success?: boolean
+/**
+ * 查询参数
+ */
+export interface QueryParameter {
+  id: string;
+  name: string;
+  type: string;
+  label?: string;
+  defaultValue?: any;
+  required?: boolean;
+  options?: any[];
 }
 
-// 执行查询参数
-export interface ExecuteQueryParams {
-  dataSourceId: string
-  queryType: QueryType
-  queryText: string
-  limit?: number
-  offset?: number
-  parameters?: Record<string, any>
+/**
+ * 查询标签
+ */
+export interface QueryTag {
+  id: string;
+  name: string;
+  color?: string;
 }
 
-// 自然语言查询参数
-export interface NaturalLanguageQueryParams {
-  dataSourceId: string
-  question: string
-  context?: string
-}
-
-// 保存查询参数
-export interface SaveQueryParams {
-  id?: string
-  name: string
-  dataSourceId: string
-  queryType: QueryType
-  queryText: string
-  description?: string
-  tags?: string[]
-}
-
-// 查询历史参数
-export interface QueryHistoryParams {
-  dataSourceId?: string
-  queryType?: QueryType
-  startDate?: string
-  endDate?: string
-  status?: QueryStatus
-  page?: number
-  size?: number
-  searchTerm?: string
-}
-
-// 查询展示配置
-export interface QueryDisplayConfig {
-  id: string
-  queryId: string
-  displayType: 'TABLE' | 'CHART'
-  chartType?: 'BAR' | 'LINE' | 'PIE' | 'SCATTER' | 'AREA'
-  title?: string
-  description?: string
-  config: any  // 配置对象，根据展示类型不同而不同
-  createdAt: string
-  updatedAt: string
-}
-
-// 查询收藏夹
-export interface QueryFavorite {
-  id: string
-  queryId: string
-  name: string
-  description?: string
-  createdAt: string
-  updatedAt: string
-}
-
-// 分页响应
-export interface PageResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  size: number
-  totalPages?: number
-  hasMore?: boolean
-}
-
-// 分页信息
-export interface Pagination {
-  total: number
-  page: number
-  size: number
-  totalPages: number
-  hasMore: boolean
-}
-
-// SQL执行计划
-export interface QueryExecutionPlan {
-  id: string
-  queryId: string
-  planDetails: {
-    steps: Array<{
-      type: string
-      table?: string
-      condition?: string
-      columns?: string[]
-      cost: number
-      rows: number
-    }>
-    totalCost: number
-    estimatedRows: number
-  }
-  estimatedCost?: number
-  estimatedRows?: number
-  createdAt: string
-}
-
-// 查询节点类型
-export interface QueryNode {
-  id: string
-  type: 'TABLE' | 'JOIN' | 'FILTER' | 'SORT' | 'GROUP' | 'AGGREGATE' | 'UNION' | 'SUBQUERY'
-  label: string
-  details: any
-  children?: QueryNode[]
-}
-
-// 图表类型
-export type ChartType = 'bar' | 'line' | 'pie' | 'scatter'
-
-// 图表配置
-export interface ChartConfig {
-  chartType: ChartType
-  title?: string
-  xAxis: string  // X轴数据字段
-  yAxis: string  // Y轴数据字段
-  groupBy?: string  // 分组字段
-  aggregateFunction?: 'sum' | 'avg' | 'count' | 'max' | 'min'  // 聚合函数
-  colorField?: string  // 颜色映射字段（用于散点图）
-  enableDataZoom?: boolean  // 是否启用缩放功能
-  showLegend?: boolean  // 是否显示图例
-}
-
-// 查询可视化表示
-export interface QueryVisualization {
-  id: string
-  queryId: string
-  nodes?: QueryNode[]
-  displayType?: 'TABLE' | 'CHART'
-  chartType?: ChartType
-  title?: string
-  description?: string
-  config?: ChartConfig
-  createdAt: string
-}
-
-// 查询相关建议
-export interface QuerySuggestion {
-  id: string
-  queryId: string
-  type: 'OPTIMIZATION' | 'SECURITY' | 'READABILITY' | 'ALTERNATIVE'
-  title: string
-  description: string
-  suggestedQuery?: string
-  impact?: 'HIGH' | 'MEDIUM' | 'LOW'
-  createdAt: string
-}
-
-// 查询构建器状态
-export interface QueryBuilderState {
-  selectedTables: Array<{
+/**
+ * 执行结果
+ */
+export interface ExecutionResult {
+  id: string;
+  status: 'success' | 'error' | 'running' | 'cancelled';
+  startTime: string;
+  endTime?: string;
+  duration?: number;
+  rowCount?: number;
+  message?: string;
+  columns?: {
     name: string;
-    schema?: string;
-    alias?: string;
-  }>;
-  joins?: Array<{
-    leftTable: string;
-    leftColumn: string;
-    rightTable: string;
-    rightColumn: string;
-    type: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
-  }>;
-  selectedColumns?: Array<{
-    name: string;
-    table: string;
-    alias?: string;
-    aggregate?: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT';
-  }>;
-  filters?: Array<{
-    column: string;
-    table: string;
-    operator: string;
-    value: any;
-    logicalOperator?: 'AND' | 'OR';
-  }>;
-  groupBy?: Array<{
-    column: string;
-    table: string;
-  }>;
-  orderBy?: Array<{
-    column: string;
-    table: string;
-    direction: 'ASC' | 'DESC';
-  }>;
-  limit?: number;
-  offset?: number;
+    type: string;
+    displayName?: string;
+  }[];
+  data?: any[];
+  error?: {
+    code: string;
+    message: string;
+    details?: string;
+  };
 }
 
-// 查询执行记录
-export interface QueryExecution {
+/**
+ * 执行历史记录
+ */
+export interface ExecutionHistory {
   id: string;
   queryId: string;
+  versionId: string;
+  executedBy?: User;
   executedAt: string;
-  executionTime?: number;
-  status: QueryStatus;
+  status: 'success' | 'error' | 'running' | 'cancelled';
+  duration?: number;
   rowCount?: number;
-  errorMessage?: string;
+  parameters?: Record<string, any>;
+  resultId?: string;
+}
+
+/**
+ * 查询版本
+ */
+export interface QueryVersion {
+  id: string;
+  queryId: string;
+  versionNumber: number;
+  name?: string;
+  description?: string;
+  sql: string;
+  dataSourceId: string;
+  dataSource?: DataSource;
+  parameters?: QueryParameter[];
+  status: string;
+  isLatest: boolean;
+  createdBy?: User;
+  createdAt: string;
+  updatedBy?: User;
+  updatedAt?: string;
+  comment?: string;
+  changes?: string[];
+  tags?: VersionTag[];
+  executionHistory?: ExecutionHistory[];
+  lastExecution?: ExecutionHistory;
+}
+
+/**
+ * 查询信息
+ */
+export interface Query {
+  id: string;
+  name: string;
+  description?: string;
+  folderId?: string;
+  currentVersion?: QueryVersion;
+  versions?: QueryVersion[];
+  tags?: QueryTag[];
+  isFavorite: boolean;
+  createdBy?: User;
+  createdAt: string;
+  updatedBy?: User;
+  updatedAt?: string;
+  executionCount: number;
+  lastExecutedAt?: string;
+}
+
+/**
+ * 版本标签
+ */
+export interface VersionTag {
+  id: string;
+  queryId: string;
+  versionId: string;
+  name: string;
+  type: string;
+  color?: string;
+  comment?: string;
+  createdBy?: User;
+  createdAt: string;
+}
+
+/**
+ * 状态历史记录
+ */
+export interface StatusHistory {
+  id: string;
+  queryId: string;
+  versionId: string;
+  fromStatus: string;
+  toStatus: string;
+  timestamp: string;
+  user?: User;
+  comment?: string;
+}
+
+/**
+ * 查询文件夹
+ */
+export interface QueryFolder {
+  id: string;
+  name: string;
+  parentId?: string;
+  createdBy?: User;
+  createdAt: string;
+  updatedAt?: string;
+  queryCount?: number;
+}
+
+/**
+ * 分页数据响应格式
+ */
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * 查询类型
+ */
+export type QueryType = 'SQL' | 'NATURAL_LANGUAGE';
+
+/**
+ * 保存查询的参数
+ */
+export interface SaveQueryParams {
+  id?: string;
+  name: string;
+  description?: string;
+  dataSourceId: string;
+  queryText: string;
+  queryType: QueryType;
+  tags?: string[];
+  folderId?: string;
 }

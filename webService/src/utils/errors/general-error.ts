@@ -1,0 +1,63 @@
+/**
+ * 通用错误类型定义
+ * 将常用的错误类型归类，方便在系统中统一使用
+ */
+import { ErrorCode } from './error-codes';
+
+/**
+ * 资源错误 - 处理通用的资源不存在情况
+ */
+export const RESOURCE_ERROR = {
+  NOT_FOUND: ErrorCode.NOT_FOUND
+};
+
+/**
+ * 查询相关错误
+ */
+export const QUERY_ERROR = {
+  EXECUTION_FAILED: ErrorCode.QUERY_EXECUTION_ERROR,
+  NOT_FOUND: ErrorCode.QUERY_NOT_FOUND,
+  SYNTAX_ERROR: ErrorCode.QUERY_SYNTAX_ERROR,
+  TIMEOUT: ErrorCode.QUERY_TIMEOUT,
+  PERMISSION_DENIED: ErrorCode.QUERY_PERMISSION_ERROR
+};
+
+/**
+ * 数据源相关错误
+ */
+export const DATASOURCE_ERROR = {
+  NOT_FOUND: ErrorCode.DATASOURCE_NOT_FOUND,
+  CONNECTION_ERROR: ErrorCode.DATASOURCE_CONNECTION_ERROR,
+  QUERY_ERROR: ErrorCode.DATASOURCE_QUERY_ERROR
+};
+
+/**
+ * 验证错误
+ */
+export const VALIDATION_ERROR = {
+  INVALID_REQUEST: ErrorCode.BAD_REQUEST,
+  VALIDATION_FAILED: ErrorCode.VALIDATION_ERROR,
+  INVALID_PARAMETER: ErrorCode.INVALID_PARAMETER,
+  MISSING_PARAMETER: ErrorCode.MISSING_PARAMETER
+};
+
+/**
+ * 数据库错误
+ */
+export const DATABASE_ERROR = {
+  CONNECTION_ERROR: ErrorCode.DATABASE_CONNECTION_ERROR,
+  QUERY_ERROR: ErrorCode.DATABASE_QUERY_ERROR,
+  CONSTRAINT_ERROR: ErrorCode.DATABASE_CONSTRAINT_ERROR,
+  TRANSACTION_ERROR: ErrorCode.DATABASE_TRANSACTION_ERROR
+};
+
+/**
+ * 认证错误
+ */
+export const AUTH_ERROR = {
+  UNAUTHORIZED: ErrorCode.UNAUTHORIZED,
+  FORBIDDEN: ErrorCode.FORBIDDEN,
+  TOKEN_EXPIRED: ErrorCode.TOKEN_EXPIRED,
+  TOKEN_INVALID: ErrorCode.TOKEN_INVALID,
+  TOKEN_REQUIRED: ErrorCode.TOKEN_REQUIRED
+};

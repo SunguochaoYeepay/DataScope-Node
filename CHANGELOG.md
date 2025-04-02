@@ -2,6 +2,23 @@
 
 ## [未发布]
 
+### 新增功能
+- **查询版本控制与状态管理**: 实现全新的查询版本控制和状态管理前端组件
+  - 新增 `VersionCompare.vue` 组件，支持不同版本的SQL、元数据和参数比较
+  - 新增 `VersionHistory.vue` 组件，展示查询的版本历史和变更记录
+  - 新增 `VersionTagging.vue` 组件，支持为查询版本添加标签和备注
+  - 新增 `VersionStatusManager.vue` 组件，管理查询版本的工作流状态
+  - 新增 `CreateVersionDialog.vue` 组件，提供版本创建和参数配置界面
+  - 新增 `QueryDetailView.vue` 和 `VersionManagementView.vue` 视图组件
+  - 添加 `queryVersionService.ts` 服务，提供与版本管理相关的API交互
+  - 丰富 `query.ts` 类型定义，支持版本管理相关的数据结构
+
+### 改进
+- 优化查询详情页面，集成版本控制和状态管理功能
+- 增强查询工作流，支持草稿、审核、批准、发布状态转换
+- 添加版本比较功能，使用Monaco编辑器实现SQL差异对比
+- 支持版本标记和分类管理，提高查询组织效率
+
 ### 更改
 
 - 保留了前端集成组件中的模拟数据功能，确保前端开发体验

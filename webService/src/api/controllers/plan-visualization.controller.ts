@@ -106,7 +106,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw new ApiError('验证错误', ERROR_CODES.BAD_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId } = req.params;
@@ -161,7 +161,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw new ApiError('验证错误', ERROR_CODES.BAD_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId1, planId2 } = req.params;
@@ -202,7 +202,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw new ApiError('验证错误', ERROR_CODES.BAD_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId } = req.params;
@@ -254,7 +254,7 @@ export class PlanVisualizationController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw new ApiError('验证错误', ERROR_CODES.BAD_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { planId } = req.params;

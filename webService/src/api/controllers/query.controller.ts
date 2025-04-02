@@ -55,7 +55,7 @@ export class QueryController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw new ApiError('验证错误', ERROR_CODES.BAD_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { dataSourceId, sql, params, includeAnalysis = true } = req.body;
@@ -180,7 +180,7 @@ export class QueryController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw new ApiError('验证错误', ERROR_CODES.BAD_REQUEST, 400, 'BAD_REQUEST', errors.array());
       }
 
       const { dataSourceId, sql, params, page, pageSize, offset, limit, sort, order, createHistory, explainQuery } = req.body;
@@ -400,11 +400,11 @@ export class QueryController {
       // 处理特定类型的错误
       if (error instanceof ApiError) {
         // 处理资源不存在的情况
-        if (error.statusCode === 404 || error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
+        if (error.statusCode === 404 || error.errorCode === GENERAL_ERROR.NOT_FOUND) {
           return res.status(404).json({
             success: false,
             message: '查询不存在',
-            errorCode: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND
+            errorCode: error.errorCode || GENERAL_ERROR.NOT_FOUND
           });
         }
         
@@ -504,23 +504,29 @@ export class QueryController {
   async deleteQuery(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
+      logger.debug('收到删除查询请求', { id });
+      
       await queryService.deleteQuery(id);
       
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: '查询已成功删除'
       });
     } catch (error: any) {
-      logger.error('删除查询失败', { error, id: req.params.id });
+      logger.error('删除查询失败', { 
+        error: error.message || '未知错误', 
+        stack: error.stack,
+        id: req.params.id 
+      });
       
       // 处理特定类型的错误
       if (error instanceof ApiError) {
         // 处理资源不存在的情况
-        if (error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
+        if (error.statusCode === 404 || error.errorCode === GENERAL_ERROR.NOT_FOUND) {
           return res.status(404).json({
             success: false,
             error: {
-              code: error.errorCode,
+              code: GENERAL_ERROR.NOT_FOUND,
               message: '删除失败：查询不存在',
               details: null
             }
@@ -531,7 +537,7 @@ export class QueryController {
         return res.status(error.statusCode || 500).json({
           success: false,
           error: {
-            code: error.errorCode,
+            code: error.errorCode || GENERAL_ERROR.INTERNAL_SERVER_ERROR,
             message: `删除失败：${error.message}`,
             details: null
           }
@@ -654,11 +660,11 @@ export class QueryController {
       try {
         await queryService.getQueryById(id);
       } catch (error) {
-        if (error instanceof ApiError && error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
+        if (error instanceof ApiError && error.errorCode === GENERAL_ERROR.NOT_FOUND) {
           return res.status(404).json({
             success: false,
             error: {
-              code: ERROR_CODES.RESOURCE_NOT_FOUND,
+              code: GENERAL_ERROR.NOT_FOUND,
               message: '添加收藏失败：查询不存在',
               details: null
             }
@@ -758,11 +764,11 @@ export class QueryController {
       // 处理特定类型的错误
       if (error instanceof ApiError) {
         // 处理资源不存在的情况
-        if (error.statusCode === 404 || error.errorCode === ERROR_CODES.RESOURCE_NOT_FOUND) {
+        if (error.statusCode === 404 || error.errorCode === GENERAL_ERROR.NOT_FOUND) {
           return res.status(404).json({
             success: false,
             error: {
-              code: error.errorCode || ERROR_CODES.RESOURCE_NOT_FOUND,
+              code: GENERAL_ERROR.NOT_FOUND,
               message: '查询历史记录不存在',
               details: null
             }
@@ -856,6 +862,64 @@ export class QueryController {
         error: {
           code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
           message: `清空临时查询历史记录失败: ${error.message || '未知错误'}`,
+          details: null
+        }
+      });
+    }
+  }
+
+  /**
+   * 删除单条查询历史记录
+   */
+  async deleteQueryHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      logger.debug('收到删除查询历史记录请求', { id });
+      
+      await queryService.deleteQueryHistory(id);
+      
+      return res.status(200).json({
+        success: true,
+        message: '查询历史记录已成功删除'
+      });
+    } catch (error: any) {
+      logger.error('删除查询历史记录失败', { 
+        error: error.message || '未知错误', 
+        stack: error.stack,
+        id: req.params.id 
+      });
+      
+      // 处理特定类型的错误
+      if (error instanceof ApiError) {
+        // 处理资源不存在的情况
+        if (error.statusCode === 404 || error.errorCode === GENERAL_ERROR.NOT_FOUND) {
+          return res.status(404).json({
+            success: false,
+            error: {
+              code: GENERAL_ERROR.NOT_FOUND,
+              message: '删除失败：查询历史记录不存在',
+              details: null
+            }
+          });
+        }
+        
+        // 其他API错误
+        return res.status(error.statusCode || 500).json({
+          success: false,
+          error: {
+            code: error.errorCode || GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+            message: `删除失败：${error.message}`,
+            details: null
+          }
+        });
+      }
+      
+      // 未知错误处理
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: GENERAL_ERROR.INTERNAL_SERVER_ERROR,
+          message: `删除失败：${error.message || '未知错误'}`,
           details: null
         }
       });

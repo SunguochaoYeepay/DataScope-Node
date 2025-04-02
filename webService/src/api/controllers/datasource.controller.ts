@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { check, validationResult } from 'express-validator';
 import dataSourceService from '../../services/datasource.service';
 import { ApiError } from '../../utils/errors/types/api-error';
-import { ERROR_CODES } from '../../utils/errors/error-codes';
+import { ErrorCode } from '../../utils/errors/error-codes';
 import logger from '../../utils/logger';
 import { getPaginationParams, createSuccessResponse } from '../../utils/api.utils';
 
@@ -50,7 +50,7 @@ export class DataSourceController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw ApiError.badRequest('验证错误：' + JSON.stringify(errors.array()));
       }
 
       const dataSourceData = {
@@ -84,7 +84,7 @@ export class DataSourceController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw ApiError.badRequest('验证错误：' + JSON.stringify(errors.array()));
       }
 
       const { id } = req.params;
@@ -135,7 +135,7 @@ export class DataSourceController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ApiError('验证错误', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', errors.array());
+        throw ApiError.badRequest('验证错误：' + JSON.stringify(errors.array()));
       }
 
       const connectionData = {
@@ -166,14 +166,14 @@ export class DataSourceController {
       const { id } = req.params;
       
       if (!id) {
-        throw new ApiError('数据源ID不能为空', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST');
+        throw ApiError.badRequest('数据源ID不能为空');
       }
       
       // 获取数据源信息
       const dataSource = await dataSourceService.getDataSourceById(id);
       
       if (!dataSource) {
-        throw new ApiError('数据源不存在', ERROR_CODES.NOT_FOUND, 404, 'NOT_FOUND');
+        throw ApiError.notFound('数据源不存在');
       }
       
       // 测试连接
@@ -217,14 +217,14 @@ export class DataSourceController {
       const { id } = req.params;
       
       if (!id) {
-        throw new ApiError('数据源ID不能为空', ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST');
+        throw ApiError.badRequest('数据源ID不能为空');
       }
       
       // 获取数据源信息
       const dataSource = await dataSourceService.getDataSourceById(id);
       
       if (!dataSource) {
-        throw new ApiError('数据源不存在', ERROR_CODES.NOT_FOUND, 404, 'NOT_FOUND');
+        throw ApiError.notFound('数据源不存在');
       }
       
       // 导入数据源监控服务

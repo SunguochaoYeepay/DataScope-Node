@@ -65,7 +65,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        redirect: { name: 'QueryHistory' }
+        redirect: { name: 'QueryList' }
       },
       {
         path: 'editor',
@@ -78,6 +78,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/query/QueryHistory.vue')
       },
       {
+        path: 'list',
+        name: 'QueryList',
+        component: () => import('../views/query/QueryListView.vue'),
+        meta: {
+          title: '查询服务列表'
+        }
+      },
+      {
         path: 'analytics/:id',
         name: 'QueryAnalytics',
         component: () => import('../views/query/QueryAnalytics.vue')
@@ -86,6 +94,14 @@ const routes: RouteRecordRaw[] = [
         path: 'detail/:id',
         name: 'QueryDetail',
         component: () => import('../views/query/QueryDetail.vue')
+      },
+      {
+        path: 'version/management/:id',
+        name: 'VersionManagement',
+        component: () => import('../views/query/version/VersionManagementView.vue'),
+        meta: {
+          title: '版本管理'
+        }
       },
       {
         path: 'version/:id',

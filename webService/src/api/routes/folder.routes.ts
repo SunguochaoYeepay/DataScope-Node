@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import folderController from '../controllers/folder.controller';
-import authMiddleware from '../../middlewares/auth.middleware';
+import { authenticate } from '../../middlewares/auth';
 
 const router = Router();
 
@@ -51,7 +51,7 @@ const router = Router();
  *   }
  * }
  */
-router.get('/', authMiddleware.authenticate, folderController.getFolders.bind(folderController));
+router.get('/', authenticate, folderController.getFolders.bind(folderController));
 
 /**
  * @api {get} /api/query-folders/:id 获取文件夹详情
@@ -106,7 +106,7 @@ router.get('/', authMiddleware.authenticate, folderController.getFolders.bind(fo
  *   "errorCode": "RESOURCE_NOT_FOUND"
  * }
  */
-router.get('/:id', authMiddleware.authenticate, folderController.getFolderById.bind(folderController));
+router.get('/:id', authenticate, folderController.getFolderById.bind(folderController));
 
 /**
  * @api {post} /api/query-folders 创建文件夹
@@ -154,7 +154,7 @@ router.get('/:id', authMiddleware.authenticate, folderController.getFolderById.b
  *   ]
  * }
  */
-router.post('/', authMiddleware.authenticate, folderController.validateCreateFolder(), folderController.createFolder.bind(folderController));
+router.post('/', authenticate, folderController.validateCreateFolder(), folderController.createFolder.bind(folderController));
 
 /**
  * @api {put} /api/query-folders/:id 更新文件夹
@@ -198,7 +198,7 @@ router.post('/', authMiddleware.authenticate, folderController.validateCreateFol
  *   "errorCode": "RESOURCE_NOT_FOUND"
  * }
  */
-router.put('/:id', authMiddleware.authenticate, folderController.validateUpdateFolder(), folderController.updateFolder.bind(folderController));
+router.put('/:id', authenticate, folderController.validateUpdateFolder(), folderController.updateFolder.bind(folderController));
 
 /**
  * @api {delete} /api/query-folders/:id 删除文件夹
@@ -230,6 +230,6 @@ router.put('/:id', authMiddleware.authenticate, folderController.validateUpdateF
  *   "errorCode": "FOLDER_NOT_EMPTY"
  * }
  */
-router.delete('/:id', authMiddleware.authenticate, folderController.deleteFolder.bind(folderController));
+router.delete('/:id', authenticate, folderController.deleteFolder.bind(folderController));
 
 export default router; 

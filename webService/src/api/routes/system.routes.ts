@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import systemController from '../controllers/system.controller';
-import authMiddleware from '../../middlewares/auth.middleware';
+import { authenticate } from '../../middlewares/auth';
 
 const router = Router();
 
@@ -54,7 +54,7 @@ const router = Router();
  *   }
  * }
  */
-router.get('/logs', authMiddleware.authenticate, systemController.validateGetLogs(), systemController.getLogs);
+router.get('/logs', authenticate, systemController.validateGetLogs(), systemController.getLogs);
 
 /**
  * @api {get} /api/system/health 获取系统健康状态
@@ -103,6 +103,6 @@ router.get('/logs', authMiddleware.authenticate, systemController.validateGetLog
  *   }
  * }
  */
-router.get('/health', authMiddleware.authenticate, systemController.getHealthStatus);
+router.get('/health', authenticate, systemController.getHealthStatus);
 
 export default router; 
