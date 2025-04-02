@@ -23,12 +23,8 @@ const formData = reactive({
   dataSourceId: '',
   queryType: 'SQL' as QueryType,
   queryText: '',
-  description: '',
-  tags: [] as string[]
+  description: ''
 })
-
-// 新标签输入
-const newTag = ref('')
 
 // 表单验证错误
 const errors = reactive({
@@ -45,7 +41,6 @@ const resetForm = () => {
   formData.queryType = 'SQL'
   formData.queryText = ''
   formData.description = ''
-  formData.tags = []
 }
 
 // 监听 visible 属性变化
@@ -64,16 +59,6 @@ watch(() => props.visible, (visible) => {
       formData.queryType = props.query.queryType || 'SQL'
       formData.queryText = props.query.queryText || ''
       formData.description = props.query.description || ''
-      
-      // 处理标签 - 支持不同类型的标签数据
-      if (props.query.tags) {
-        if (Array.isArray(props.query.tags)) {
-          formData.tags = props.query.tags.map(tag => {
-            if (typeof tag === 'string') return tag;
-            return tag.name || String(tag);
-          });
-        }
-      }
     }
     
     console.log('初始化表单数据完成:', formData);
@@ -88,19 +73,6 @@ watch(() => props.visible, (visible) => {
 // 关闭对话框
 const handleClose = () => {
   emit('update:visible', false)
-}
-
-// 添加标签
-const addTag = () => {
-  if (newTag.value && !formData.tags.includes(newTag.value)) {
-    formData.tags.push(newTag.value)
-    newTag.value = ''
-  }
-}
-
-// 移除标签
-const removeTag = (tag: string) => {
-  formData.tags = formData.tags.filter(t => t !== tag)
 }
 
 // 验证表单
@@ -140,12 +112,7 @@ const handleSave = () => {
     dataSourceId: formData.dataSourceId,
     queryType: formData.queryType,
     queryText: formData.queryText,
-    description: formData.description,
-    // 转换标签为QueryTag格式
-    tags: formData.tags.length > 0 ? formData.tags.map(tagName => ({ 
-      id: `tag-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      name: tagName
-    })) : undefined
+    description: formData.description
   };
   
   // 发出保存事件
@@ -204,60 +171,22 @@ const handleSave = () => {
             </div>
           </div>
           
-          <!-- 第二行: 标签和查询类型 -->
-          <div class="grid grid-cols-2 gap-4">
-            <!-- 标签 -->
-            <div class="space-y-1">
-              <label class="block text-sm font-medium text-gray-700">标签</label>
-              <div class="flex flex-wrap gap-2 mb-2">
-                <span
-                  v-for="tag in formData.tags"
-                  :key="tag"
-                  class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center"
-                >
-                  {{ tag }}
-                  <button
-                    class="ml-1 text-blue-600 hover:text-blue-800"
-                    @click="removeTag(tag)"
-                  >
-                    &times;
-                  </button>
-                </span>
-              </div>
-              <div class="flex">
-                <input
-                  v-model="newTag"
-                  type="text"
-                  class="flex-grow p-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="添加标签"
-                  @keyup.enter="addTag"
-                />
-                <button
-                  class="px-3 py-2 bg-blue-500 text-white rounded-r hover:bg-blue-600"
-                  @click="addTag"
-                >
-                  添加
-                </button>
-              </div>
-            </div>
-            
-            <!-- 查询类型 -->
-            <div class="space-y-1 flex flex-col">
-              <label class="block text-sm font-medium text-gray-700">查询类型</label>
-              <div class="flex space-x-4 mt-2">
-                <label class="inline-flex items-center">
-                  <input type="radio" v-model="formData.queryType" value="SQL" class="form-radio" />
-                  <span class="ml-2">SQL</span>
-                </label>
-                <label class="inline-flex items-center">
-                  <input type="radio" v-model="formData.queryType" value="NATURAL_LANGUAGE" class="form-radio" />
-                  <span class="ml-2">自然语言</span>
-                </label>
-              </div>
+          <!-- 查询类型 -->
+          <div class="space-y-1">
+            <label class="block text-sm font-medium text-gray-700">查询类型</label>
+            <div class="flex space-x-4 mt-2">
+              <label class="inline-flex items-center">
+                <input type="radio" v-model="formData.queryType" value="SQL" class="form-radio" />
+                <span class="ml-2">SQL</span>
+              </label>
+              <label class="inline-flex items-center">
+                <input type="radio" v-model="formData.queryType" value="NATURAL_LANGUAGE" class="form-radio" />
+                <span class="ml-2">自然语言</span>
+              </label>
             </div>
           </div>
           
-          <!-- 第三行: 查询内容 -->
+          <!-- 查询内容 -->
           <div class="space-y-1">
             <label class="block text-sm font-medium text-gray-700">
               查询内容 <span class="text-red-500">*</span>
@@ -271,7 +200,7 @@ const handleSave = () => {
             <p v-if="errors.queryText" class="text-red-500 text-xs">{{ errors.queryText }}</p>
           </div>
           
-          <!-- 第四行: 描述/备注 -->
+          <!-- 描述/备注 -->
           <div class="space-y-1">
             <label class="block text-sm font-medium text-gray-700">描述</label>
             <textarea

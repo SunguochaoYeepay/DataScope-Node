@@ -126,7 +126,6 @@ export interface Query {
   isActive?: boolean;
   currentVersion?: QueryVersion;
   versions?: QueryVersion[];
-  tags?: QueryTag[];
   isFavorite: boolean;
   createdBy?: User;
   createdAt: string;
@@ -204,7 +203,6 @@ export interface SaveQueryParams {
   dataSourceId: string;
   queryText: string;
   queryType: QueryType;
-  tags?: string[];
   folderId?: string;
 }
 

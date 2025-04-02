@@ -163,8 +163,13 @@
                   v-model="selectedDataSourceId"
                   class="appearance-none bg-white block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
-                  <option v-for="ds in dataSourceStore.dataSources" :key="ds.id" :value="ds.id">
-                    {{ ds.name }}
+                  <option 
+                    v-for="ds in dataSourceStore.dataSources" 
+                    :key="ds.id" 
+                    :value="ds.id"
+                    :class="{ 'text-red-500': ds.status !== 'ACTIVE' }"
+                  >
+                    {{ ds.name }} {{ ds.status !== 'ACTIVE' ? (ds.status === 'ERROR' ? '(错误)' : '(不可用)') : '' }}
                   </option>
                 </select>
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
@@ -198,19 +203,34 @@
           
           <!-- 元数据浏览面板 -->
           <div v-if="leftPanel === 'metadata'" class="h-[calc(100vh-24rem)] overflow-y-auto">
-            <div class="p-2">
-              <!-- 元数据浏览器 -->
-              <MetadataExplorer
-                v-if="selectedDataSourceId"
-                :data-source-id="selectedDataSourceId"
-                @table-select="handleTableSelect"
-                @column-select="handleColumnSelect"
-                @insert-table="insertTableName"
-                @insert-column="insertColumnName"
-              />
-              <div v-else class="p-4 text-center text-gray-500">
-                请选择数据源以查看表和字段
+            <!-- 判断是否选择了数据源 -->
+            <div v-if="selectedDataSourceId">
+              <!-- 判断所选数据源是否可用 -->
+              <div v-if="selectedDataSource && selectedDataSource.status === 'ACTIVE'">
+                <MetadataExplorer
+                  :dataSourceId="selectedDataSourceId"
+                  @table-select="handleTableSelect"
+                  @column-select="handleColumnSelect"
+                  @insert-table="insertTableName"
+                  @insert-column="insertColumnName"
+                />
               </div>
+              <!-- 数据源不可用时显示提示 -->
+              <div v-else class="p-4 text-center">
+                <div class="text-yellow-600 mb-2">
+                  <i class="fas fa-exclamation-triangle mr-2"></i>
+                  选中的数据源当前不可用
+                </div>
+                <p class="text-gray-500 text-sm">
+                  该数据源状态为: {{ selectedDataSource ? selectedDataSource.status : '未知' }}
+                  <br>
+                  请选择一个可用的数据源或联系管理员解决问题
+                </p>
+              </div>
+            </div>
+            <!-- 未选择数据源时显示提示 -->
+            <div v-else class="p-4 text-center text-gray-500">
+              请先选择一个数据源
             </div>
           </div>
           
@@ -604,14 +624,22 @@ const versionStatusText = computed(() => {
 // 加载状态
 onMounted(async () => {
   isComponentMounted = true
-  // 加载数据源
-  if (dataSourceStore.dataSources.length === 0) {
-    await dataSourceStore.fetchDataSources()
-  }
+  // 初始化数据源列表
+  await dataSourceStore.fetchDataSources()
   
-  // 设置默认数据源
-  if (dataSourceStore.dataSources.length > 0 && !selectedDataSourceId.value) {
-    selectedDataSourceId.value = dataSourceStore.dataSources[0].id
+  // 获取当前URL中的查询ID参数，判断是新增还是编辑
+  const queryId = route.query.id as string
+  const isNewQuery = !queryId || queryId === 'new'
+  
+  // 只有在新增查询时，才默认选择一个活跃的数据源
+  if (isNewQuery && dataSourceStore.activeDataSources.length > 0 && !selectedDataSourceId.value) {
+    // 选择最新添加的活跃数据源（通常是数组中的第一个）
+    selectedDataSourceId.value = dataSourceStore.activeDataSources[0].id
+  }
+
+  // 加载当前查询（如果有ID）
+  if (currentQueryId.value && currentQueryId.value !== 'new') {
+    await loadQueryById(currentQueryId.value)
   }
   
   // 在页面初始化时，确保版本号正确
@@ -625,66 +653,8 @@ onMounted(async () => {
     queryVersion.value = 'V1';
     availableVersions.value = ['V1'];
     currentMaxVersionNumber.value = 1;
-    
-    // 添加版本状态初始化
     versionStatus.value = 'DRAFT';
   }
-  
-  // 检查URL参数是否包含查询ID
-  const queryId = route.query.id as string
-  if (queryId) {
-    await loadQueryById(queryId)
-    
-    // 不再在这里重置版本号，由loadQueryById负责设置正确的版本号
-  } else {
-    // 如果没有查询ID，尝试从localStorage加载临时草稿
-    const draftText = localStorage.getItem('query_draft_text')
-    const draftType = localStorage.getItem('query_draft_type')
-    const draftTimestamp = localStorage.getItem('query_draft_timestamp')
-    
-    if (draftText && draftType) {
-      // 加载草稿内容
-      if (draftType === 'SQL') {
-        activeTab.value = 'editor'
-        sqlQuery.value = draftText
-      } else if (draftType === 'NATURAL_LANGUAGE') {
-        activeTab.value = 'nlq'
-        naturalLanguageQuery.value = draftText
-      }
-      
-      // 设置最后保存草稿时间
-      if (draftTimestamp) {
-        lastDraftSaveAt.value = draftTimestamp
-      }
-      
-      console.log(`已加载临时草稿，保存时间: ${draftTimestamp || '未知'}`)
-      
-      // 提示用户
-      setTimeout(() => {
-        message.info('已加载上次未保存的草稿')
-      }, 1000)
-    }
-  }
-  
-  // 加载查询历史和收藏
-  await queryStore.fetchQueryHistory()
-  await queryStore.getFavorites()
-  
-  // 预加载保存的查询列表，用于左侧面板的"保存的查询"标签页
-  if (leftPanel.value === 'saved') {
-    await queryStore.fetchQueries({
-      page: 1,
-      size: 20,
-      sortBy: 'updatedAt',
-      sortDir: 'desc'
-    })
-  }
-  
-  // 添加页面离开提示
-  window.addEventListener('beforeunload', handleBeforeUnload)
-  
-  // 添加全局键盘事件监听，防止浏览器拦截快捷键
-  document.addEventListener('keydown', handleGlobalKeyDown)
 })
 
 // 页面离开处理
@@ -1609,8 +1579,7 @@ const handleSaveQuery = async (saveData: any) => {
       dataSourceId: saveData.dataSourceId,
       queryText: saveData.queryText || (activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value),
       queryType: saveData.queryType || (activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
-      description: saveData.description,
-      tags: saveData.tags ? saveData.tags.map((tag: any) => typeof tag === 'string' ? tag : (tag.name || tag.toString())) : undefined
+      description: saveData.description
     }
     
     console.log('保存查询:', queryData)
