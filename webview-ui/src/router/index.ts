@@ -61,6 +61,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/query',
     name: 'QueryModule',
+    component: () => import('@/layouts/QueryLayout.vue'),
     children: [
       {
         path: '',
@@ -85,6 +86,22 @@ const routes: RouteRecordRaw[] = [
         path: 'detail/:id',
         name: 'QueryDetail',
         component: () => import('../views/query/QueryDetail.vue')
+      },
+      {
+        path: 'version/:id',
+        name: 'QueryVersionDetail',
+        component: () => import('../views/query/version/QueryDetailView.vue'),
+        meta: {
+          title: '查询版本详情'
+        }
+      },
+      {
+        path: 'versions',
+        name: 'QueryVersionList',
+        component: () => import('../views/query/version/QueryListView.vue'),
+        meta: {
+          title: '查询版本列表'
+        }
       }
     ]
   },
