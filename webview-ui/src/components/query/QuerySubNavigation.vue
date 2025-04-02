@@ -38,11 +38,6 @@ const navItems = [
     name: '查询编辑器', 
     path: `${baseUrl}query/editor`.replace('//', '/'),
     icon: 'PencilIcon'
-  },
-  { 
-    name: '版本管理', 
-    path: `${baseUrl}query/versions`.replace('//', '/'),
-    icon: 'DocumentDuplicateIcon'
   }
 ];
 

@@ -9,7 +9,7 @@
 - 添加基础页面框架（DataSourceView、QueryView、SettingsView）
 - 创建开发计划文档
 - 添加查询版本管理功能（QueryDetailView、VersionStatusManager、StatusHelpTips）
-- 添加查询子导航组件，支持切换查询历史、编辑器和版本管理
+- 添加查询子导航组件，支持切换查询历史和编辑器
 - 添加查询布局组件，统一查询模块的布局结构
 
 ### Changed
@@ -18,6 +18,8 @@
 - 配置 TypeScript
 - 更新路由配置，添加查询版本管理相关路由
 - 优化版本状态管理组件，支持更丰富的状态过渡
+- 优化导航体验，将版本管理功能调整为查询记录相关操作
+- 调整查询历史界面，新增版本管理入口
 
 ### Fixed
 - 修复开发服务器启动问题

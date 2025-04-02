@@ -173,9 +173,9 @@
                   <h3 class="text-base font-medium text-gray-900">{{ query.name || '未命名查询' }}</h3>
                   <span
                     class="ml-2 px-2 py-0.5 rounded-full text-xs font-medium"
-                    :class="getStatusClass(query.status)"
+                    :class="getStatusClass(query.status as QueryStatus)"
                   >
-                    {{ getStatusDisplay(query.status) }}
+                    {{ getStatusDisplay(query.status as QueryStatus) }}
                   </span>
                   <span
                     v-if="query.isFavorite"
@@ -234,6 +234,14 @@
                   title="查看详情"
                 >
                   <i class="fas fa-eye"></i>
+                </button>
+                
+                <button
+                  @click="viewQueryVersions(query)"
+                  class="p-2 text-gray-500 hover:text-blue-600 rounded"
+                  title="查看版本历史"
+                >
+                  <i class="fas fa-code-branch"></i>
                 </button>
                 
                 <button
@@ -344,8 +352,22 @@ import Button from '@/components/common/Button.vue'
 import Modal from '@/components/common/Modal.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import type { Query, QueryHistoryParams, QueryStatus } from '@/types/query'
+import type { Query } from '@/types/query'
 import message from '@/types/message/index'
+
+// 定义查询状态类型
+type QueryStatus = 'COMPLETED' | 'RUNNING' | 'FAILED' | 'CANCELLED';
+
+// 定义查询历史参数接口
+interface QueryHistoryParams {
+  page?: number;
+  size?: number;
+  queryType?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  searchTerm?: string;
+}
 
 // 内联定义DateRange接口，避免类型冲突
 interface DateRange {
@@ -475,11 +497,11 @@ export default defineComponent({
         isLoading.value = true
         
         // 构建查询参数对象
-        const params = {
+        const params: QueryHistoryParams = {
           page: currentPage.value,
           size: 10,
-          queryType: filters.queryType ? (filters.queryType as any) : undefined,
-          status: filters.status ? (filters.status as any) : undefined,
+          queryType: filters.queryType || undefined,
+          status: filters.status || undefined,
           startDate: filters.startDate,
           endDate: filters.endDate,
           searchTerm: filters.searchTerm
@@ -556,11 +578,11 @@ export default defineComponent({
         ...queries.value.map(query => [
           (query.name || '未命名查询').replace(/,/g, ' '), // 避免逗号干扰CSV
           query.queryType === 'SQL' ? 'SQL' : '自然语言',
-          getStatusDisplay(query.status),
+          getStatusDisplay(query.status as QueryStatus),
           formatDateTime(query.createdAt),
           query.executionTime || 0,
           query.dataSourceId,
-          `"${query.queryText.replace(/"/g, '""')}"` // 避免引号干扰，并用双引号包围
+          `"${query.queryText?.replace(/"/g, '""') || ''}"` // 避免引号干扰，并用双引号包围
         ].join(','))
       ].join('\n')
       
@@ -605,6 +627,11 @@ export default defineComponent({
     const viewQueryDetail = (query: Query) => {
       router.push(`/query/detail/${query.id}`)
     }
+    
+    // 查看查询版本历史
+    const viewQueryVersions = (query: Query) => {
+      router.push(`/query/version/${query.id}`)
+    }
 
     // 查看查询分析
     const viewQueryAnalytics = (query: Query) => {
@@ -622,14 +649,14 @@ export default defineComponent({
       if (!queryToDelete.value) return
       
       try {
-        await queryStore.deleteQuery(queryToDelete.value.id)
+        await queryStore.deleteQueryHistory(queryToDelete.value.id)
         showDeleteConfirm.value = false
         queryToDelete.value = null
         
         // 刷新列表
         await refreshHistory()
       } catch (error) {
-        console.error('删除查询失败:', error)
+        console.error('删除查询历史失败:', error)
       }
     }
 
@@ -794,6 +821,7 @@ export default defineComponent({
       editQuery,
       toggleFavorite,
       viewQueryDetail,
+      viewQueryVersions,
       viewQueryAnalytics,
       confirmDelete,
       deleteQuery,

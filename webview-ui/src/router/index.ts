@@ -94,14 +94,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '查询版本详情'
         }
-      },
-      {
-        path: 'versions',
-        name: 'QueryVersionList',
-        component: () => import('../views/query/version/QueryListView.vue'),
-        meta: {
-          title: '查询版本列表'
-        }
       }
     ]
   },
