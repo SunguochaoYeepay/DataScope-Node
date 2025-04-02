@@ -514,19 +514,20 @@ export const queryService = {
     try {
       // 构建请求体，适配后端API格式
       const requestBody = {
-        id: params.id,
         name: params.name || `未命名查询 ${new Date().toLocaleString('zh-CN')}`,
-        dataSourceId: params.dataSourceId,
-        queryType: params.queryType,
-        sql: params.queryText,  // 后端可能使用sql字段而非queryText
-        description: params.description,
-        tags: params.tags
+        sql: params.sql,
+        description: params.description || '',
+        dataSourceId: params.dataSourceId
       }
 
       console.log('保存查询，请求数据:', requestBody);
 
-      const method = params.id ? 'PUT' : 'POST'
-      const url = params.id ? `${getApiBaseUrl()}/api/queries/${params.id}` : `${getApiBaseUrl()}/api/queries`
+      // 根据是否有id判断是更新还是新增
+      const isUpdate = params.id && params.id.trim() !== '';
+      const method = isUpdate ? 'PUT' : 'POST';
+      const url = isUpdate ? `${getApiBaseUrl()}/api/queries/${params.id}` : `${getApiBaseUrl()}/api/queries`;
+
+      console.log(`保存查询，使用 ${method} 方法:`, url);
 
       const response = await fetch(url, {
         method,
@@ -539,7 +540,19 @@ export const queryService = {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('保存查询响应错误:', response.status, errorText);
-        throw new Error(`保存查询失败: ${response.statusText}`)
+        
+        // 尝试解析错误响应
+        try {
+          const errorResponse = JSON.parse(errorText);
+          if (errorResponse.error && errorResponse.error.code === 10006) {
+            throw new Error('查询不存在，可能已被删除');
+          }
+        } catch (e) {
+          // JSON解析失败，使用原始错误消息
+          console.warn('无法解析错误响应:', e);
+        }
+        
+        throw new Error(`保存查询失败: ${response.statusText}`);
       }
 
       const responseData = await response.json()
@@ -557,15 +570,15 @@ export const queryService = {
       const savedQuery: Query = {
         id: result.id,
         name: result.name || requestBody.name,
-        dataSourceId: result.dataSourceId || requestBody.dataSourceId,
+        dataSourceId: result.dataSourceId,
         queryType: result.queryType || params.queryType || 'SQL',
-        queryText: result.sql || result.queryText || params.queryText,
+        queryText: result.sql || result.queryText || params.sql,
         status: 'COMPLETED', // 新保存的查询默认为已完成状态
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: result.updatedAt || new Date().toISOString(),
         description: result.description || params.description,
-        tags: result.tags || params.tags || [],
-        isFavorite: result.isFavorite || false
+        isFavorite: result.isFavorite || false,
+        executionCount: result.executionCount || 0
       }
       
       console.log('转换后的查询对象:', savedQuery);

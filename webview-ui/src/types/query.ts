@@ -199,11 +199,9 @@ export type QueryType = 'SQL' | 'NATURAL_LANGUAGE';
 export interface SaveQueryParams {
   id?: string;
   name: string;
-  description?: string;
   dataSourceId: string;
-  queryText: string;
-  queryType: QueryType;
-  folderId?: string;
+  sql: string;
+  description?: string;
 }
 
 /**

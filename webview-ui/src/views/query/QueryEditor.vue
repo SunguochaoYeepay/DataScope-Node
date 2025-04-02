@@ -1569,69 +1569,74 @@ const executeBuilderQuery = () => {
 // 处理保存查询
 const handleSaveQuery = async (saveData: any) => {
   try {
-    isSaveModalVisible.value = false
-    statusMessage.value = '正在保存查询...'
+    isSaveModalVisible.value = false;
+    statusMessage.value = '正在保存查询...';
     
-    // 构造符合SaveQueryParams的对象
-    const queryData: any = {
-      id: saveData.id || (currentQueryId.value || undefined),
-      name: saveData.name,
-      dataSourceId: saveData.dataSourceId,
-      queryText: saveData.queryText || (activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value),
-      queryType: saveData.queryType || (activeTab.value === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'),
-      description: saveData.description
+    console.log('准备保存的数据:', saveData);
+    console.log('当前选择的数据源:', selectedDataSourceId.value);
+    console.log('当前活动标签页:', activeTab.value);
+    
+    // 获取当前查询文本
+    const queryText = activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value;
+    
+    // 验证必填字段
+    if (!selectedDataSourceId.value) {
+      throw new Error('请选择数据源');
+    }
+    if (!queryText || queryText.trim() === '') {
+      throw new Error('查询内容不能为空');
     }
     
-    console.log('保存查询:', queryData)
+    // 构造符合接口要求的对象
+    const queryData: Record<string, any> = {
+      name: saveData.name,
+      dataSourceId: selectedDataSourceId.value,
+      sql: queryText,
+      description: saveData.description || ''
+    };
+    
+    // 如果是更新场景，添加id
+    const queryId = route.query.id;
+    if (queryId && typeof queryId === 'string') {
+      queryData.id = queryId;
+    }
+    
+    console.log('最终保存查询对象:', queryData);
     
     // 调用保存查询接口
-    const result = await queryStore.saveQuery(queryData)
+    const result = await queryStore.saveQuery(queryData);
     
     if (result && result.id) {
-      message.success('查询保存成功')
-      statusMessage.value = '查询保存成功'
+      message.success('查询保存成功');
+      statusMessage.value = '查询保存成功';
       
       // 更新当前查询ID
-      currentQueryId.value = result.id
+      currentQueryId.value = result.id;
       
-      // 更新查询名称和数据源ID
-      queryName.value = saveData.name || '未命名查询'
-      selectedDataSourceId.value = saveData.dataSourceId || ''
-      
-      // 根据查询类型更新查询内容
-      if (saveData.queryType === 'SQL' || !saveData.queryType) {
-        sqlQuery.value = saveData.queryText || sqlQuery.value
-      } else if (saveData.queryType === 'NATURAL_LANGUAGE') {
-        naturalLanguageQuery.value = saveData.queryText || naturalLanguageQuery.value
-      }
-      
-      // 设置版本状态为草稿
-      versionStatus.value = 'DRAFT'
-      
-      // 更新最后编辑时间
-      lastEditedAt.value = new Date().toISOString()
+      // 更新查询名称
+      queryName.value = saveData.name || '未命名查询';
       
       // 如果是新建查询，更新URL并添加到历史记录
       if (!route.query.id) {
-        const newQuery = { ...route.query, id: result.id }
-        router.replace({ query: newQuery })
+        const newQuery = { ...route.query, id: result.id };
+        router.replace({ query: newQuery });
       }
       
       setTimeout(() => {
-        statusMessage.value = null
-      }, 3000)
+        statusMessage.value = null;
+      }, 3000);
     } else {
-      throw new Error('保存查询失败')
+      throw new Error('保存查询失败');
     }
   } catch (error) {
-    console.error('保存查询失败:', error)
-    message.error('保存查询失败')
-    statusMessage.value = '保存查询失败'
+    console.error('保存查询失败:', error);
+    message.error(error instanceof Error ? error.message : '保存查询失败');
+    statusMessage.value = error instanceof Error ? error.message : '保存查询失败';
     setTimeout(() => {
-      statusMessage.value = null
-    }, 5000)
+      statusMessage.value = null;
+    }, 5000);
   }
-}
+};
 
 // 导出查询结果
 const exportResults = (format: 'csv' | 'excel' | 'json') => {

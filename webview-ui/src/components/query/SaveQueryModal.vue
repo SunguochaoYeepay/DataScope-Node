@@ -95,6 +95,14 @@ const validateForm = () => {
     errors.dataSourceId = ''
   }
   
+  // 验证查询内容
+  if (!formData.queryText.trim()) {
+    errors.queryText = 'SQL语句不能为空'
+    isValid = false
+  } else {
+    errors.queryText = ''
+  }
+  
   return isValid
 }
 
@@ -105,13 +113,12 @@ const handleSave = () => {
   // 提交前的数据检查和记录
   console.log('准备保存查询:', { ...formData });
   
-  // 创建一个与Partial<Query>类型兼容的对象
-  const queryData: Partial<Query> = {
+  // 创建一个适合接口要求的对象
+  const queryData = {
     id: formData.id,
     name: formData.name,
     dataSourceId: formData.dataSourceId,
-    queryType: formData.queryType,
-    queryText: formData.queryText,
+    sql: formData.queryText,
     description: formData.description
   };
   
