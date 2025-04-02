@@ -1,3 +1,6 @@
+/**
+ * 应用入口文件
+ */
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -91,6 +94,23 @@ const errorHandler = (err: any, req: Request, res: Response, next: NextFunction)
 // 创建Express应用实例
 const app: Application = express();
 
+// 检查是否使用模拟数据
+const useMockData = process.env.USE_MOCK_DATA === 'true';
+
+// 在启动时明确记录使用模式
+console.log('==============================================');
+console.log(`DataScope API服务启动`);
+console.log(`环境: ${process.env.NODE_ENV || 'development'}`);
+console.log(`模式: ${useMockData ? '模拟数据 (USE_MOCK_DATA=true)' : '真实数据库连接'}`);
+if (useMockData) {
+  console.log('警告: 当前使用模拟数据模式，不会连接真实数据库');
+  console.log('      数据源列表将来自模拟数据，不代表实际数据库连接');
+} else {
+  console.log('提示: 当前使用真实数据库连接模式');
+  console.log(`      连接地址: ${process.env.DATABASE_URL || '未指定'}`);
+}
+console.log('==============================================');
+
 // 应用中间件
 app.use(cors());
 app.use(helmet());
@@ -123,17 +143,17 @@ app.get('/api/metadata/:dataSourceId/tables/:tableName/data', (req: Request, res
   return metadataController.getTableData(req, res);
 });
 
-// 注册API路由
-app.use('/api', apiRoutes);
-console.log('主应用：API路由已加载：/api');
+// 注册数据源模拟路由（确保数据源功能正常工作）- 将模拟路由移动到API路由前面，确保优先级
+if (useMockData) {
+  app.use('/api/data-sources', dataSourcesMockRoutes);
+  app.use('/api/datasources', dataSourcesMockRoutes); // 兼容旧路径
+  console.log('主应用：数据源模拟路由已加载：/api/datasources');
+} else {
+  console.log('主应用：使用真实数据库连接，未加载模拟路由');
+}
 
 // 注册额外的开发测试路由
 app.use('/api/mock-plan', mockPlanRouter);
-
-// 注册数据源模拟路由（确保数据源功能正常工作）
-app.use('/api/data-sources', dataSourcesMockRoutes);
-app.use('/api/datasources', dataSourcesMockRoutes); // 兼容旧路径
-console.log('主应用：数据源模拟路由已加载：/api/datasources');
 
 // 注册API路由
 app.use('/api', apiRoutes);

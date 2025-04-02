@@ -114,6 +114,16 @@ export interface Query {
   name: string;
   description?: string;
   folderId?: string;
+  status?: QueryStatus;
+  dataSourceId?: string;
+  dataSourceName?: string;
+  queryType?: QueryType;
+  queryText?: string;
+  resultCount?: number;
+  executionTime?: number;
+  error?: string;
+  versionStatus?: string;
+  isActive?: boolean;
   currentVersion?: QueryVersion;
   versions?: QueryVersion[];
   tags?: QueryTag[];
@@ -196,4 +206,173 @@ export interface SaveQueryParams {
   queryType: QueryType;
   tags?: string[];
   folderId?: string;
+}
+
+/**
+ * 查询状态类型
+ */
+export type QueryStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'DEPRECATED' | 'DRAFT' | 'PUBLISHED';
+
+/**
+ * 查询结果
+ */
+export interface QueryResult {
+  id: string;
+  queryId?: string;
+  status?: string;
+  createdAt?: string;
+  executionTime?: number;
+  rowCount?: number;
+  rows: any[];
+  columns: string[];
+  fields?: any[];
+  error?: string;
+  warnings?: string[];
+  metadata?: Record<string, any>;
+}
+
+/**
+ * 执行查询的参数
+ */
+export interface ExecuteQueryParams {
+  dataSourceId: string;
+  queryText: string;
+  queryType: QueryType;
+  parameters?: Record<string, any>;
+  maxRows?: number;
+  timeout?: number;
+}
+
+/**
+ * 自然语言查询参数
+ */
+export interface NaturalLanguageQueryParams {
+  dataSourceId: string;
+  question: string;
+  contextTables?: string[];
+  maxRows?: number;
+  timeout?: number;
+}
+
+/**
+ * 查询历史查询参数
+ */
+export interface QueryHistoryParams {
+  page: number;
+  size: number;
+  search?: string;
+  queryType?: QueryType;
+  status?: QueryStatus;
+  from?: string;
+  to?: string;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+}
+
+/**
+ * 查询显示配置
+ */
+export interface QueryDisplayConfig {
+  id: string;
+  queryId: string;
+  visibleColumns?: string[];
+  columnWidths?: Record<string, number>;
+  sortColumn?: string;
+  sortDirection?: 'asc' | 'desc';
+  pageSize?: number;
+  visualizationType?: string;
+  chartConfig?: ChartConfig;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * 查询收藏信息
+ */
+export interface QueryFavorite {
+  id: string;
+  queryId: string;
+  userId: string;
+  createdAt: string;
+  query?: Query;
+}
+
+/**
+ * 查询优化建议
+ */
+export interface QuerySuggestion {
+  id: string;
+  queryId: string;
+  type: string;
+  title: string;
+  description: string;
+  suggestion: string;
+  impact: 'high' | 'medium' | 'low';
+  createdAt: string;
+}
+
+/**
+ * 查询执行计划
+ */
+export interface QueryExecutionPlan {
+  id: string;
+  queryId: string;
+  plan: any;
+  estimatedCost: number;
+  estimatedRows: number;
+  planningTime?: number;
+  executionTime?: number;
+  createdAt: string;
+}
+
+/**
+ * 查询可视化
+ */
+export interface QueryVisualization {
+  id: string;
+  queryId: string;
+  name: string;
+  type: string;
+  config: ChartConfig;
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: User;
+}
+
+/**
+ * 图表配置
+ */
+export interface ChartConfig {
+  type: string;
+  title?: string;
+  xAxis?: string;
+  yAxis?: string | string[];
+  series?: {
+    name: string;
+    dataKey: string;
+    color?: string;
+  }[];
+  options?: Record<string, any>;
+}
+
+/**
+ * 分页信息
+ */
+export interface Pagination {
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+/**
+ * 分页响应
+ */
+export interface PageResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
 }

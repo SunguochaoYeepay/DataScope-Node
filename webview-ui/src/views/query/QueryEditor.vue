@@ -246,39 +246,71 @@
           <div class="p-4">
             <!-- SQL编辑器 -->
             <div v-if="activeTab === 'editor'" class="h-64">
-              <SqlEditor 
-                v-model="sqlQuery" 
-                :data-source-id="selectedDataSourceId" 
-                @execute="(errorMsg) => errorMsg ? showError(errorMsg) : executeQuery()" 
-                @save="saveQuery" 
-              />
+              <div class="relative">
+                <!-- 未保存更改提示 -->
+                <div v-if="hasUnsavedChanges" class="absolute right-2 top-2 p-1 rounded-md bg-yellow-50 border border-yellow-300 text-yellow-800 text-xs flex items-center">
+                  <i class="fas fa-exclamation-circle mr-1"></i>
+                  未保存更改
+                </div>
               
-              <!-- 版本操作按钮区域 -->
-              <div v-if="currentQueryId" class="mt-4 flex justify-end space-x-3">
-                <button
-                  v-if="versionStatus === 'DRAFT'"
-                  @click="saveDraft"
-                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <i class="fas fa-save mr-1.5"></i>
-                  保存草稿
-                </button>
-                <button
-                  v-if="versionStatus === 'DRAFT'"
-                  @click="publishVersion"
-                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                >
-                  <i class="fas fa-check-circle mr-1.5"></i>
-                  发布
-                </button>
-                <button
-                  v-if="versionStatus === 'DRAFT'"
-                  @click="createNewVersion"
-                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <i class="fas fa-code-branch mr-1.5"></i>
-                  新建版本
-                </button>
+                <SqlEditor 
+                  v-model="sqlQuery" 
+                  :data-source-id="selectedDataSourceId" 
+                  @execute="handleExecuteQuery" 
+                />
+              </div>
+
+              <!-- 操作按钮区域 -->
+              <div class="mt-4 flex justify-between">
+                <div>
+                  <button
+                    @click="executeQuery"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    :disabled="isExecuting || !selectedDataSourceId || !sqlQuery.trim()"
+                  >
+                    <i class="fas fa-play mr-1.5"></i>
+                    执行查询
+                  </button>
+                </div>
+                
+                <div class="flex space-x-3">
+                  <button
+                    @click="showSaveModal()"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <i class="fas fa-save mr-1.5"></i>
+                    {{ currentQueryId ? '保存更改' : '保存查询' }}
+                  </button>
+                  
+                  <!-- 版本操作按钮区域 -->
+                  <div v-if="currentQueryId" class="flex space-x-3">
+                    <button
+                      v-if="versionStatus === 'DRAFT'"
+                      @click="saveDraft"
+                      class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      :disabled="!hasUnsavedChanges"
+                    >
+                      <i class="fas fa-bookmark mr-1.5"></i>
+                      保存草稿
+                    </button>
+                    <button
+                      v-if="versionStatus === 'DRAFT'"
+                      @click="publishVersion"
+                      class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                    >
+                      <i class="fas fa-check-circle mr-1.5"></i>
+                      发布
+                    </button>
+                    <button
+                      v-if="versionStatus === 'DRAFT'"
+                      @click="createNewVersion"
+                      class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <i class="fas fa-code-branch mr-1.5"></i>
+                      新建版本
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -432,7 +464,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
 import { useDark, useToggle } from '@vueuse/core'
@@ -1379,7 +1411,7 @@ const checkAndExecuteQuery = () => {
 
 // 返回列表
 const returnToList = () => {
-  router.push('/query/history');
+  router.push('/query/list');
 }
 
 // 查看版本
@@ -1503,6 +1535,57 @@ const createNewVersion = async () => {
     }, 5000);
   }
 };
+
+// 计算属性：是否有未保存的更改
+const hasUnsavedChanges = computed(() => {
+  if (!currentQueryId.value) {
+    // 新建查询，检查是否填写了内容
+    return !!sqlQuery.value.trim() || !!naturalLanguageQuery.value.trim() || !!builderQuery.value.trim();
+  }
+  
+  // 已有查询，检查内容是否有变化
+  const originalQuery = queryStore.currentQuery;
+  if (!originalQuery) return false;
+  
+  if (activeTab.value === 'editor') {
+    return sqlQuery.value !== originalQuery.queryText;
+  } else if (activeTab.value === 'nlq') {
+    return naturalLanguageQuery.value !== originalQuery.queryText;
+  } else if (activeTab.value === 'builder') {
+    return builderQuery.value !== originalQuery.queryText;
+  }
+  
+  return false;
+});
+
+// 处理SQL编辑器执行按钮逻辑
+const handleExecuteQuery = (errorMsg: string) => {
+  if (errorMsg) {
+    showError(errorMsg);
+  } else {
+    // 只验证SQL语法，不直接执行
+  }
+};
+
+// 分离保存和执行逻辑
+const showSaveModal = () => {
+  isSaveModalVisible.value = true;
+};
+
+// 离开编辑页面前提醒用户保存更改
+onBeforeRouteLeave((to, from, next) => {
+  if (hasUnsavedChanges.value) {
+    // 显示确认对话框
+    const confirmResult = window.confirm("你有未保存的更改，确定要离开吗？");
+    if (confirmResult) {
+      next();
+    } else {
+      next(false);
+    }
+  } else {
+    next();
+  }
+});
 </script>
 
 <style scoped>

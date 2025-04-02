@@ -11,7 +11,14 @@ import { DatabaseConnectorFactory } from '../types/database-factory';
 import crypto from 'crypto';
 import { createPaginatedResponse } from '../utils/api.utils';
 
-const prisma = new PrismaClient();
+// 使用环境变量中的数据库URL创建Prisma客户端
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL || "mysql://root:datascope@localhost:3306/datascope"
+    }
+  }
+});
 
 // 每当用户发送请求更新DataSource时，但是省略某些字段，这些缺省值应该是什么
 interface DataSourceDefaults {
@@ -166,7 +173,7 @@ export class DataSourceService {
       });
       
       // 移除敏感信息
-      const items = dataSources.map(ds => {
+      const items = dataSources.map((ds: DataSource) => {
         const { passwordEncrypted, passwordSalt, ...rest } = ds;
         return rest;
       });

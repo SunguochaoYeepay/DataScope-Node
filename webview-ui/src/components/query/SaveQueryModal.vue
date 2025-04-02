@@ -127,11 +127,30 @@ const handleSave = () => {
     <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl overflow-hidden relative z-10">
       <!-- 头部 -->
       <div class="px-6 py-4 border-b">
-        <h3 class="text-lg font-medium text-gray-900">保存查询</h3>
+        <h3 class="text-lg font-medium text-gray-900">{{ formData.id ? '保存查询更改' : '保存新查询' }}</h3>
       </div>
       
       <!-- 表单内容 -->
       <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
+        <!-- 新建查询说明或更新现有查询说明 -->
+        <div class="mb-4 p-3 rounded-md" :class="formData.id ? 'bg-blue-50 border border-blue-200' : 'bg-green-50 border border-green-200'">
+          <div class="flex items-start">
+            <div class="flex-shrink-0">
+              <i class="fas" :class="formData.id ? 'fa-info-circle text-blue-500' : 'fa-plus-circle text-green-500'"></i>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium" :class="formData.id ? 'text-blue-800' : 'text-green-800'">
+                {{ formData.id ? '更新现有查询' : '创建新查询' }}
+              </h3>
+              <div class="mt-2 text-sm" :class="formData.id ? 'text-blue-700' : 'text-green-700'">
+                <p>
+                  {{ formData.id ? '您正在更新现有查询。保存后，查询将立即可用。' : '创建新查询后，它将显示在您的查询列表中。' }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-4">
           <!-- 第一行: 查询名称和数据源 -->
           <div class="grid grid-cols-2 gap-4">
@@ -158,6 +177,7 @@ const handleSave = () => {
                 v-model="formData.dataSourceId"
                 class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="" disabled>请选择数据源</option>
                 <option v-for="ds in dataSources" :key="ds.id" :value="ds.id">
                   {{ ds.name }}
                 </option>
@@ -249,16 +269,16 @@ const handleSave = () => {
       <!-- 底部按钮 -->
       <div class="px-6 py-4 bg-gray-50 border-t flex justify-end space-x-3">
         <button
-          class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
           @click="handleClose"
+          class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
           取消
         </button>
         <button
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           @click="handleSave"
+          class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
-          保存
+          {{ formData.id ? '保存更改' : '保存新查询' }}
         </button>
       </div>
     </div>

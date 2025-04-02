@@ -78,6 +78,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/query/QueryHistory.vue')
       },
       {
+        path: 'favorites',
+        name: 'QueryFavorites',
+        component: () => import('../views/query/QueryFavoriteView.vue'),
+        meta: {
+          title: '收藏的查询'
+        }
+      },
+      {
         path: 'list',
         name: 'QueryList',
         component: () => import('../views/query/QueryListView.vue'),

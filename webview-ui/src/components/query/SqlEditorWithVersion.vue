@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-full">
-    <!-- 版本状态显示区域 -->
+    <!-- 整合版本状态和操作区域 -->
     <div class="bg-gray-100 border-b border-gray-200 p-2">
       <div class="flex items-center justify-between">
         <div class="flex items-center">
@@ -16,37 +16,119 @@
             {{ getVersionStatusText(versionStatus) }}
           </span>
           
-          <!-- 版本号 -->
+          <!-- 版本号和活跃标记 -->
           <span class="text-sm text-gray-700">
             版本 {{ versionNumber }}
             <span v-if="isActiveVersion" class="ml-1 text-green-600" title="当前活跃版本">
               <i class="fas fa-check-circle"></i>
             </span>
           </span>
+          
+          <!-- 版本时间信息 -->
+          <span v-if="publishedAt" class="ml-3 text-xs text-gray-500">
+            发布: {{ formatDateTime(publishedAt) }}
+          </span>
+          <span v-if="deprecatedAt" class="ml-3 text-xs text-gray-500">
+            废弃: {{ formatDateTime(deprecatedAt) }}
+          </span>
         </div>
         
-        <!-- 版本操作区 -->
+        <!-- 操作按钮区域 - 整合所有按钮到顶部 -->
         <div class="flex items-center space-x-2">
-          <span v-if="publishedAt" class="text-xs text-gray-500 mr-2">
-            发布于: {{ formatDateTime(publishedAt) }}
-          </span>
-          <span v-if="deprecatedAt" class="text-xs text-gray-500 mr-2">
-            废弃于: {{ formatDateTime(deprecatedAt) }}
-          </span>
+          <!-- 草稿模式下的按钮 -->
+          <template v-if="versionStatus === 'DRAFT'">
+            <button
+              @click="handleSaveDraft"
+              :disabled="isLoading || !hasChanges"
+              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading || !hasChanges }"
+            >
+              <i class="far fa-save mr-1"></i>
+              保存草稿
+            </button>
+            
+            <button
+              @click="handlePublish"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-check-circle mr-1"></i>
+              发布
+            </button>
+            
+            <button
+              @click="handleExecute"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-play mr-1"></i>
+              执行
+            </button>
+          </template>
+          
+          <!-- 已发布但非活跃模式下的按钮 -->
+          <template v-else-if="versionStatus === 'PUBLISHED' && !isActiveVersion">
+            <button
+              @click="handleSetActive"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-play mr-1"></i>
+              设为当前版本
+            </button>
+            
+            <button
+              @click="handleExecute"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-play-circle mr-1"></i>
+              执行
+            </button>
+          </template>
+          
+          <!-- 已发布且当前活跃的版本 -->
+          <template v-else-if="versionStatus === 'PUBLISHED' && isActiveVersion">
+            <button
+              @click="handleCreateNewVersion"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-code-branch mr-1"></i>
+              创建新版本
+            </button>
+            
+            <button
+              @click="handleExecute"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-play-circle mr-1"></i>
+              执行
+            </button>
+          </template>
+          
+          <!-- 已废弃版本 -->
+          <template v-else-if="versionStatus === 'DEPRECATED'">
+            <button
+              @click="handleExecute"
+              :disabled="isLoading"
+              class="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center"
+              :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
+            >
+              <i class="fas fa-play-circle mr-1"></i>
+              执行
+            </button>
+          </template>
         </div>
       </div>
     </div>
-    
-    <!-- 版本状态栏 -->
-    <VersionStatusBar
-      :version-status="versionStatus"
-      :version-number="versionNumber"
-      :is-active="isActiveVersion"
-      :is-loading="isLoading"
-      :published-at="publishedAt"
-      :deprecated-at="deprecatedAt"
-      @publish="handlePublish"
-    />
     
     <!-- SQL编辑器 -->
     <div class="flex-grow overflow-hidden relative">
@@ -55,6 +137,7 @@
         :data-source-id="dataSourceId"
         :read-only="isReadOnly"
         @execute="handleExecute"
+        @save="handleSaveDraft"
       />
       
       <!-- 只读模式覆盖层 -->
@@ -71,65 +154,22 @@
       </div>
     </div>
     
-    <!-- 编辑器底部工具栏 -->
-    <div class="h-12 bg-white border-t border-gray-200 flex items-center justify-between px-4">
-      <div class="flex items-center space-x-3 text-sm">
-        <span class="text-gray-500">
-          <i class="fas fa-database mr-1"></i>
-          数据源: {{ dataSourceName }}
-        </span>
-        
-        <span v-if="lastSavedTime" class="text-gray-500">
-          <i class="far fa-save mr-1"></i>
-          {{ lastSavedTimeText }}
-        </span>
-      </div>
+    <!-- 版本信息底部提示，简化保留必要信息 -->
+    <div class="py-2 px-4 bg-white border-t border-gray-200 text-sm text-gray-500 flex items-center">
+      <span class="mr-4">
+        <i class="fas fa-database mr-1"></i>
+        数据源: {{ dataSourceName }}
+      </span>
       
-      <div v-if="versionStatus === 'DRAFT'" class="flex items-center space-x-2">
-        <button
-          @click="handleSaveDraft"
-          :disabled="isLoading || !hasChanges"
-          class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          :class="{ 'opacity-50 cursor-not-allowed': isLoading || !hasChanges }"
-        >
-          <i class="far fa-save mr-1"></i>
-          保存草稿
-        </button>
-        
-        <button
-          @click="handlePublish"
-          :disabled="isLoading"
-          class="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-          :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
-        >
-          <i class="fas fa-check-circle mr-1"></i>
-          发布
-        </button>
-      </div>
+      <span v-if="lastSavedTime" class="mr-4">
+        <i class="far fa-save mr-1"></i>
+        {{ lastSavedTimeText }}
+      </span>
       
-      <div v-else-if="versionStatus === 'PUBLISHED' && !isActiveVersion" class="flex items-center space-x-2">
-        <button
-          @click="handleSetActive"
-          :disabled="isLoading"
-          class="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
-        >
-          <i class="fas fa-play mr-1"></i>
-          设为当前版本
-        </button>
-      </div>
-      
-      <div v-else-if="versionStatus === 'PUBLISHED' && isActiveVersion" class="flex items-center space-x-2">
-        <button
-          @click="handleCreateNewVersion"
-          :disabled="isLoading"
-          class="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          :class="{ 'opacity-50 cursor-not-allowed': isLoading }"
-        >
-          <i class="fas fa-code-branch mr-1"></i>
-          创建新版本
-        </button>
-      </div>
+      <span v-if="hasChanges && versionStatus === 'DRAFT'" class="text-yellow-600">
+        <i class="fas fa-exclamation-circle mr-1"></i>
+        有未保存的更改
+      </span>
     </div>
     
     <!-- 发布确认对话框 -->
@@ -175,7 +215,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import SqlEditor from './SqlEditor.vue';
-import VersionStatusBar from './version/VersionStatusBar.vue';
 import type { QueryVersionStatus } from '@/types/queryVersion';
 import { formatDateTime } from '@/utils/formatters';
 import { useQueryVersionStore } from '@/stores/queryVersion';
@@ -248,16 +287,25 @@ const lastSavedTimeText = computed(() => {
   if (!props.lastSavedTime) return '';
   
   try {
-    const date = new Date(props.lastSavedTime);
-    return `上次保存: ${date.toLocaleString('zh-CN')}`;
-  } catch (error) {
-    console.error('日期格式化错误:', error);
-    return `上次保存: ${props.lastSavedTime}`;
+    const lastSavedDate = new Date(props.lastSavedTime);
+    const now = new Date();
+    const diffMs = now.getTime() - lastSavedDate.getTime();
+    
+    // 如果是30分钟内保存的，显示"几分钟前"
+    if (diffMs < 30 * 60 * 1000) {
+      const minutes = Math.floor(diffMs / (60 * 1000));
+      return minutes <= 0 ? '刚刚保存' : `${minutes}分钟前保存`;
+    }
+    
+    // 否则显示完整时间
+    return `保存于 ${formatDateTime(props.lastSavedTime)}`;
+  } catch (e) {
+    return `保存于 ${props.lastSavedTime}`;
   }
 });
 
 // 获取版本状态文本
-const getVersionStatusText = (status: QueryVersionStatus): string => {
+const getVersionStatusText = (status: QueryVersionStatus) => {
   switch (status) {
     case 'DRAFT':
       return '草稿';
@@ -270,36 +318,16 @@ const getVersionStatusText = (status: QueryVersionStatus): string => {
   }
 };
 
-// 处理保存草稿
-const handleSaveDraft = async () => {
-  if (isReadOnly.value || props.isLoading || !hasChanges.value) return;
-  
-  try {
-    // 保存草稿版本
-    await versionStore.saveDraft(props.queryId, {
-      versionId: props.versionId,
-      queryText: sqlContent.value
-    });
-    
-    // 更新本地状态，记录保存后的内容
-    originalSqlContent.value = sqlContent.value;
-    
-    // 通知父组件
-    emit('save-draft');
-  } catch (error) {
-    console.error('保存草稿失败:', error);
-  }
-};
-
-// 处理发布操作
-const handlePublish = () => {
+// 保存草稿
+const handleSaveDraft = () => {
   if (props.isLoading) return;
   
-  // 如果有未保存的更改，先保存
-  if (hasChanges.value) {
-    handleSaveDraft();
-  }
-  
+  originalSqlContent.value = sqlContent.value;
+  emit('save-draft');
+};
+
+// 准备发布
+const handlePublish = () => {
   showPublishDialog.value = true;
 };
 
@@ -309,59 +337,23 @@ const cancelPublish = () => {
 };
 
 // 确认发布
-const confirmPublish = async () => {
-  try {
-    // 执行发布操作
-    await versionStore.publishVersion(props.queryId, props.versionId, setAsActive.value);
-    
-    // 隐藏对话框
-    showPublishDialog.value = false;
-    
-    // 通知父组件
-    emit('publish', setAsActive.value);
-  } catch (error) {
-    console.error('发布版本失败:', error);
-  }
-};
-
-// 处理查询执行
-const handleExecute = (errorMessage?: string) => {
-  if (errorMessage) {
-    // 有错误信息，不执行查询
-    return;
-  }
-  
-  // 没有错误信息，正常执行
-  emit('execute', sqlContent.value);
+const confirmPublish = () => {
+  showPublishDialog.value = false;
+  emit('publish', setAsActive.value);
 };
 
 // 设为当前版本
-const handleSetActive = async () => {
-  if (props.isLoading) return;
-  
-  try {
-    // 设置为活跃版本
-    await versionStore.setActiveVersion(props.queryId, props.versionId);
-    
-    // 通知父组件
-    emit('set-active');
-  } catch (error) {
-    console.error('设置活跃版本失败:', error);
-  }
+const handleSetActive = () => {
+  emit('set-active');
 };
 
 // 创建新版本
-const handleCreateNewVersion = async () => {
-  if (props.isLoading) return;
-  
-  try {
-    // 创建新版本
-    const newVersion = await versionStore.createNewVersion(props.queryId, props.versionId);
-    
-    // 通知父组件
-    emit('create-new-version');
-  } catch (error) {
-    console.error('创建新版本失败:', error);
-  }
+const handleCreateNewVersion = () => {
+  emit('create-new-version');
+};
+
+// 执行查询
+const handleExecute = () => {
+  emit('execute', sqlContent.value);
 };
 </script>

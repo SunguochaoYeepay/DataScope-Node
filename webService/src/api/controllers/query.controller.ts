@@ -232,49 +232,39 @@ export class QueryController {
         logger.debug('执行普通查询', { dataSourceId, sql, createHistory });
         
         // 获取查询ID - 从请求中获取
-        const queryId = req.body.id || req.params.id;
+        const queryId = req.body.queryId || req.params.id;
         
-        // 直接传递分页参数，让查询服务决定是否应用
+        // 判断是否需要创建历史记录
+        const shouldCreateHistory = (createHistory === true) || (queryId && queryId.length > 0);
+        
+        // 如果提供了queryId，验证该查询是否存在
+        if (queryId) {
+          try {
+            // 只检查ID是否存在，不加载完整查询
+            const queryExists = await prisma.query.findUnique({
+              where: { id: queryId },
+              select: { id: true }
+            });
+            
+            if (!queryExists) {
+              logger.warn('请求执行的查询ID不存在', { queryId });
+              // 不返回错误，仍然执行查询，但记录警告
+            }
+          } catch (error) {
+            logger.error('验证查询ID时出错', { error, queryId });
+            // 不中断执行流程
+          }
+        }
+        
+        // 直接传递分页参数和历史记录选项
         const queryOptions = {
-          page, pageSize, offset, limit, sort, order, createHistory
+          page, pageSize, offset, limit, sort, order, 
+          queryId,  // 传递queryId而不是从req.body.id获取
+          createHistory: shouldCreateHistory
         };
         
         // 执行查询
-        const startTime = new Date();
         const result = await queryService.executeQuery(dataSourceId, sql, params, queryOptions);
-        const endTime = new Date();
-        const duration = endTime.getTime() - startTime.getTime();
-        
-        // 如果用户要求创建历史记录或者提供了queryId，直接创建
-        if (createHistory || queryId) {
-          console.log('执行成功，尝试创建查询历史记录', { queryId, dataSourceId });
-          
-          try {
-            // 使用原生MySQL直接插入记录
-            const mysql = require('mysql2/promise');
-            const pool = mysql.createPool({
-              host: process.env.DATABASE_HOST || 'localhost',
-              user: process.env.DATABASE_USER || 'root',
-              password: process.env.DATABASE_PASSWORD || 'datascope',
-              database: process.env.DATABASE_NAME || 'datascope'
-            });
-            
-            // 插入历史记录
-            const [insertResult] = await pool.query(
-              `INSERT INTO tbl_query_history 
-                (id, queryId, dataSourceId, sqlContent, status, startTime, endTime, duration, rowCount, createdAt, createdBy) 
-               VALUES (UUID(), ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, NOW(), 'system')`,
-              [queryId || null, dataSourceId, sql, startTime, endTime, duration, result.rows?.length || 0]
-            );
-            
-            console.log('历史记录创建成功', insertResult);
-            
-            // 关闭连接池
-            await pool.end();
-          } catch (historyError) {
-            console.error('创建历史记录失败', historyError);
-          }
-        }
         
         return res.status(200).json({
           success: true,
@@ -361,7 +351,7 @@ export class QueryController {
    */
   async getQueries(req: Request, res: Response, next: NextFunction) {
     try {
-      const { dataSourceId, tag, isPublic, search } = req.query;
+      const { dataSourceId, tag, isPublic, search, includeDrafts } = req.query;
       const pagination = getPaginationParams(req);
       
       const result = await queryService.getQueries({
@@ -370,7 +360,8 @@ export class QueryController {
         isPublic: isPublic === 'true',
         search: search as string,
         page: pagination.page,
-        size: pagination.size
+        size: pagination.size,
+        includeDrafts: includeDrafts === 'true'
       });
       
       res.status(200).json({

@@ -109,7 +109,6 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const totalPages = Math.ceil(total / size);
   
   logger.info(`获取数据源列表，页码=${page}，每页数量=${size}`);
-  logger.info(`使用模拟数据返回结果，共${total}条记录`);
   
   // 模拟分页，实际项目中应当使用数据库分页查询
   const skip = (page - 1) * size;
@@ -124,9 +123,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       size,
       totalPages
     },
-    message: '获取数据源列表成功',
-    mock: true, // 标记这是模拟数据
-    _notice: '当前使用模拟数据模式 (USE_MOCK_DATA=true)'
+    message: '获取数据源列表成功'
   });
 }));
 
@@ -165,25 +162,20 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   
   logger.info(`获取数据源详情，ID=${id}`);
-  logger.info(`使用模拟数据返回结果`);
   
   const dataSource = mockDataSources.find(ds => ds.id === id);
   
   if (!dataSource) {
     return res.status(404).json({
       success: false,
-      message: '数据源不存在',
-      mock: true,
-      _notice: '当前使用模拟数据模式 (USE_MOCK_DATA=true)'
+      message: '数据源不存在'
     });
   }
   
   res.status(200).json({
     success: true,
     data: dataSource,
-    message: '获取数据源详情成功',
-    mock: true,
-    _notice: '当前使用模拟数据模式 (USE_MOCK_DATA=true)'
+    message: '获取数据源详情成功'
   });
 }));
 
@@ -255,15 +247,12 @@ router.post('/test', asyncHandler(async (req: Request, res: Response) => {
   // 记录不包含密码的连接信息
   const { password, ...logSafeConnection } = connection;
   logger.info(`测试数据源连接: ${JSON.stringify(logSafeConnection)}`);
-  logger.info(`使用模拟数据模式，返回模拟连接结果`);
   
   // 验证必要参数
   if (!connection.type || !connection.host || !connection.port || !connection.database || !connection.username) {
     return res.status(400).json({
       success: false,
-      message: '连接参数不完整',
-      mock: true,
-      _notice: '当前使用模拟数据模式 (USE_MOCK_DATA=true)'
+      message: '连接参数不完整'
     });
   }
   
@@ -286,9 +275,7 @@ router.post('/test', asyncHandler(async (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
     data: testResult,
-    message: testResult.connected ? '数据源连接测试成功' : '数据源连接测试失败',
-    mock: true,
-    _notice: '当前使用模拟数据模式 (USE_MOCK_DATA=true)'
+    message: testResult.connected ? '数据源连接测试成功' : '数据源连接测试失败'
   });
 }));
 

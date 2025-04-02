@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -8,7 +8,7 @@ export default defineConfig({
   base: '/',  // 这里定义应用的基础路径
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': path.resolve(__dirname, './src'),
     },
   },
   server: {
@@ -18,7 +18,8 @@ export default defineConfig({
     headers: {
       // 更新CSP策略，确保允许本地样式加载
       'Content-Security-Policy': "default-src 'self' http://localhost:5000; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:5000 ws://localhost:5000 http://localhost:8080 ws://localhost:8080"
-    }
+    },
+    strictPort: true // 如果端口已被占用，则退出而不是尝试下一个可用端口
   },
   build: {
     outDir: 'dist',

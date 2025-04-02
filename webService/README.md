@@ -10,6 +10,22 @@ DataScope Node 是一个强大的数据查询和管理平台，允许用户创�
 - **状态管理**：控制查询服务的运行状态
 - **历史记录**：追踪和分析查询执行历史
 - **用户管理**：用户认证和权限控制
+- **模拟数据模式**：支持无需数据库即可进行开发和测试
+
+## 新增功能: 模拟数据模式
+
+最新版本增加了模拟数据模式，使开发和测试更加便捷：
+
+### 模拟数据特性
+- **无需真实数据库**：通过`USE_MOCK_DATA=true`环境变量启用模拟数据模式
+- **内置数据源**：提供预定义的模拟数据源信息
+- **开发便利性**：快速启动和测试，无需配置实际数据库连接
+- **专用启动脚本**：使用`./start-with-mock.sh`轻松以模拟数据模式启动服务
+
+### 使用模拟数据模式
+1. 设置环境变量：在`.env`文件中设置`USE_MOCK_DATA=true`
+2. 或使用提供的启动脚本：`./start-with-mock.sh`
+3. 访问API后，会看到返回数据中包含`"mock": true`标记
 
 ## 新增功能: 查询服务版本控制与状态管理
 
@@ -68,17 +84,23 @@ npm install
 DATABASE_URL="mysql://user:password@localhost:3306/datascope"
 JWT_SECRET="your-jwt-secret"
 PORT=3000
+# 开发模式可启用模拟数据
+USE_MOCK_DATA=true
 ```
 
-4. 运行数据库迁移
-```bash
-npx prisma migrate dev
-```
-
-5. 启动服务
-```bash
-npm run dev
-```
+4. 启动服务
+   - 标准启动（需要数据库连接）：
+   ```bash
+   npm run dev
+   ```
+   - 使用模拟数据启动（无需数据库）：
+   ```bash
+   ./start-with-mock.sh
+   ```
+   或
+   ```bash
+   USE_MOCK_DATA=true npm run dev
+   ```
 
 ## API 文档
 

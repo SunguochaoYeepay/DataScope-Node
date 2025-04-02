@@ -27,7 +27,6 @@ export class QueryService {
     try {
       logger.debug('执行查询', { dataSourceId, sql, params, options });
       
-      let queryHistoryId: string | undefined;
       const startTime = new Date();
       
       // 获取数据源连接器
@@ -48,15 +47,30 @@ export class QueryService {
         options: queryOptionsToUse 
       });
       
-      const result = await connector.executeQuery(sql, params, queryHistoryId, queryOptionsToUse);
+      // 查询ID用于关联历史记录，但不传递给连接器
+      const queryId = options?.queryId;
+      const result = await connector.executeQuery(sql, params, undefined, queryOptionsToUse);
       logger.debug('数据库查询执行成功', { rowCount: result.rows.length });
       
-      // 手动创建历史记录
-      if (options?.createHistory || options?.queryId) {
-        const endTime = new Date();
-        const duration = endTime.getTime() - startTime.getTime();
-        
+      const endTime = new Date();
+      const duration = endTime.getTime() - startTime.getTime();
+      
+      // 只有在明确请求时才创建历史记录
+      if (options?.createHistory === true || queryId) {
         try {
+          // 如果提供了queryId，验证查询是否存在
+          if (queryId) {
+            const queryExists = await prisma.query.findUnique({
+              where: { id: queryId },
+              select: { id: true }
+            });
+            
+            if (!queryExists) {
+              logger.warn('尝试为不存在的查询创建历史记录', { queryId });
+              // 继续创建历史记录，但不关联到查询
+            }
+          }
+          
           // 使用原生MySQL连接创建历史记录
           const mysql = require('mysql2/promise');
           const pool = mysql.createPool({
@@ -67,9 +81,9 @@ export class QueryService {
           });
           
           // 插入历史记录
-          console.log('手动创建查询历史记录', { 
+          logger.info('创建查询历史记录', { 
             dataSourceId, 
-            queryId: options?.queryId, 
+            queryId: queryId || null, 
             rowCount: result.rows.length 
           });
           
@@ -77,15 +91,15 @@ export class QueryService {
             `INSERT INTO tbl_query_history 
               (id, queryId, dataSourceId, sqlContent, status, startTime, endTime, duration, rowCount, createdAt, createdBy) 
              VALUES (UUID(), ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, NOW(), 'system')`,
-            [options?.queryId || null, dataSourceId, sql, startTime, endTime, duration, result.rows.length]
+            [queryId || null, dataSourceId, sql, startTime, endTime, duration, result.rows.length]
           );
           
-          console.log('历史记录创建成功', insertResult);
+          logger.debug('历史记录创建成功', { insertId: insertResult.insertId });
           
           // 释放连接池
           await pool.end();
         } catch (historyError) {
-          console.error('创建历史记录失败', historyError);
+          // 记录错误但不影响查询结果返回
           logger.error('创建查询历史记录失败', { historyError });
         }
       }
@@ -502,6 +516,7 @@ export class QueryService {
     size?: number;
     offset?: number;
     limit?: number;
+    includeDrafts?: boolean;
   } = {}): Promise<{
     items: Query[];
     pagination: {
@@ -521,10 +536,13 @@ export class QueryService {
         where.dataSourceId = options.dataSourceId;
       }
       
-      // 添加公开状态过滤 - 注释掉此逻辑，以便返回所有状态的查询
-      // if (options.isPublic !== undefined) {
-      //   where.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
-      // }
+      // 添加公开状态过滤
+      // 默认只返回已发布的查询，除非明确要求包含草稿
+      if (!options.includeDrafts) {
+        where.status = 'PUBLISHED';
+      } else if (options.isPublic !== undefined) {
+        where.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
+      }
       
       // 添加标签过滤
       if (options.tag) {
@@ -603,7 +621,7 @@ export class QueryService {
       description?: string;
       tags?: string[];
       isPublic?: boolean;
-      dataSourceId?: string; // 添加dataSourceId参数，用于创建不存在的查询
+      dataSourceId?: string; 
     }
   ): Promise<Query> {
     try {
@@ -615,42 +633,12 @@ export class QueryService {
         where: { id }
       });
       
-      // 如果查询不存在且提供了必要的数据，则创建新查询
+      // 如果查询不存在，返回错误，不再自动创建
       if (!existingQuery) {
-        logger.info('查询不存在，尝试创建新查询', { id, data });
-        
-        // 检查创建查询所需的必要字段
-        if (!data.dataSourceId || !data.name) {
-          logger.warn('缺少创建查询所需的必要字段', { id, data });
-          throw new ApiError('查询不存在，且缺少创建所需的必要字段 (dataSourceId, name)', 404);
-        }
-        
-        // 创建新查询
-        const createData: any = {
-          id: id, // 使用传入的ID
-          name: data.name,
-          dataSourceId: data.dataSourceId,
-          sqlContent: data.sql || '', 
-          description: data.description || '',
-          tags: data.tags?.join(',') || '',
-          status: data.isPublic ? 'PUBLISHED' : 'DRAFT',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        
-        logger.debug('创建新查询', { id, createData });
-        
-        try {
-          const newQuery = await prisma.query.create({
-            data: createData
-          });
-          
-          logger.info('已创建新查询', { id: newQuery.id });
-          return newQuery;
-        } catch (createError: any) {
-          logger.error('创建新查询失败', { error: createError, id, data });
-          throw new ApiError(`创建新查询失败: ${createError.message}`, 500);
-        }
+        logger.warn('尝试更新不存在的查询', { id });
+        const error = new ApiError('查询不存在', 404);
+        error.errorCode = GENERAL_ERROR.NOT_FOUND;
+        throw error;
       }
       
       // 准备更新数据
@@ -664,6 +652,8 @@ export class QueryService {
       if (data.tags !== undefined) updateData.tags = data.tags.join(',');
       
       // 更新时间
+      updateData.updatedAt = new Date();
+      
       const updatedQuery = await prisma.query.update({
         where: { id },
         data: updateData

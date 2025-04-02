@@ -18,7 +18,7 @@ import type {
   PageResponse
 } from '@/types/query'
 import { queryService, isUsingMockApi, getApiBaseUrl } from '@/services/query'
-import { message } from '@/services/message'
+import { useMessageService } from '@/services/message'
 import { loading } from '@/services/loading'
 import { getErrorMessage } from '@/utils/error'
 
@@ -77,6 +77,9 @@ export interface QueryExecutionError {
 }
 
 export const useQueryStore = defineStore('query', () => {
+  // 获取消息服务
+  const messageService = useMessageService()
+  
   // 状态
   const queries = ref<Query[]>([])
   const currentQuery = ref<Query | null>(null)
@@ -143,12 +146,12 @@ export const useQueryStore = defineStore('query', () => {
       // 处理数据格式，确保在前端一致展示
       const processedResult = processQueryResult(result);
       
-      message.success('查询执行成功')
+      messageService.success('查询执行成功')
       return processedResult
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('执行查询失败:', errorMessage)
-      message.error('执行查询失败: ' + errorMessage)
+      messageService.error('执行查询失败: ' + errorMessage)
       throw error
     } finally {
       isExecuting.value = false
@@ -236,7 +239,7 @@ export const useQueryStore = defineStore('query', () => {
         resultCount: response.result.rowCount
       }
       
-      message.success(`查询成功，返回 ${response.result.rowCount} 条记录${response.result.executionTime ? `，执行时间 ${response.result.executionTime}ms` : ''}`)
+      messageService.success(`查询成功，返回 ${response.result.rowCount} 条记录${response.result.executionTime ? `，执行时间 ${response.result.executionTime}ms` : ''}`)
       fetchQueryHistory()
       return response
     } catch (err) {
@@ -252,7 +255,7 @@ export const useQueryStore = defineStore('query', () => {
         }
       }
       
-      message.error(`查询失败: ${error.value.message}`)
+      messageService.error(`查询失败: ${error.value.message}`)
       throw error.value
     } finally {
       isExecuting.value = false
@@ -286,12 +289,12 @@ export const useQueryStore = defineStore('query', () => {
         currentQueryResult.value.status = 'CANCELLED'
       }
       
-      message.success('查询已取消')
+      messageService.success('查询已取消')
       return true
     } catch (err) {
       console.error('取消查询错误:', err)
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('取消查询失败')
+      messageService.error('取消查询失败')
       
       // 即使API调用失败，也要强制停止执行状态
       isExecuting.value = false
@@ -423,7 +426,7 @@ export const useQueryStore = defineStore('query', () => {
       return currentQuery.value
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error(error.value.message)
+      messageService.error(error.value.message)
       return null
     } finally {
       loading.hide()
@@ -442,7 +445,7 @@ export const useQueryStore = defineStore('query', () => {
         currentQuery.value = savedQuery
       }
       
-      message.success('查询保存成功')
+      messageService.success('查询保存成功')
       
       // 检查查询历史中是否存在该ID
       const existsInHistory = queryHistory.value.some(q => q.id === savedQuery.id)
@@ -466,7 +469,7 @@ export const useQueryStore = defineStore('query', () => {
       return savedQuery
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('保存查询失败')
+      messageService.error('保存查询失败')
       throw error.value
     } finally {
       loading.hide()
@@ -474,32 +477,28 @@ export const useQueryStore = defineStore('query', () => {
   }
   
   // 删除查询
-  const deleteQuery = async (id: string) => {
+  const deleteQuery = async (id: string): Promise<boolean> => {
     try {
-      loading.show('删除查询中...')
+      // 开始加载
+      isExecuting.value = true;
       
-      await queryService.deleteQuery(id)
+      // 调用接口删除
+      await queryService.deleteQuery(id);
       
-      // 如果当前查询是被删除的查询，清空当前查询
-      if (currentQuery.value && currentQuery.value.id === id) {
-        currentQuery.value = null
-        currentQueryResult.value = null
-      }
+      // 从数据中移除
+      queries.value = queries.value.filter(query => query.id !== id);
       
-      // 从历史中移除
-      queryHistory.value = queryHistory.value.filter(q => q.id !== id)
+      // 显示成功消息
+      messageService.success('查询已成功删除');
       
-      // 从保存的查询列表中移除
-      queries.value = queries.value.filter(q => q.id !== id)
-      
-      message.success('查询已删除')
-      return true
-    } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('删除查询失败')
-      return false
+      return true;
+    } catch (error) {
+      console.error('删除查询失败:', error);
+      const errorMessage = getErrorMessage(error);
+      messageService.error(`删除查询失败: ${errorMessage}`);
+      return false;
     } finally {
-      loading.hide()
+      isExecuting.value = false;
     }
   }
   
@@ -513,11 +512,11 @@ export const useQueryStore = defineStore('query', () => {
       // 从历史中移除
       queryHistory.value = queryHistory.value.filter(q => q.id !== historyId)
       
-      message.success('查询历史已删除')
+      messageService.success('查询历史已删除')
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('删除查询历史失败')
+      messageService.error('删除查询历史失败')
       return false
     } finally {
       loading.hide()
@@ -539,12 +538,12 @@ export const useQueryStore = defineStore('query', () => {
         currentQuery.value.isFavorite = true
       }
       
-      message.success('已添加到收藏夹')
+      messageService.success('已添加到收藏夹')
       getFavorites()
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('收藏查询失败')
+      messageService.error('收藏查询失败')
       return false
     }
   }
@@ -567,11 +566,11 @@ export const useQueryStore = defineStore('query', () => {
       // 从收藏夹中移除
       favorites.value = favorites.value.filter(f => f.queryId !== id)
       
-      message.success('已从收藏夹中移除')
+      messageService.success('已从收藏夹中移除')
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('取消收藏失败')
+      messageService.error('取消收藏失败')
       return false
     }
   }
@@ -597,11 +596,11 @@ export const useQueryStore = defineStore('query', () => {
       const result = await queryService.saveDisplayConfig(queryId, config)
       displayConfig.value = result
       
-      message.success('显示配置已保存')
+      messageService.success('显示配置已保存')
       return result
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('保存显示配置失败')
+      messageService.error('保存显示配置失败')
       return null
     } finally {
       loading.hide()
@@ -703,11 +702,11 @@ export const useQueryStore = defineStore('query', () => {
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
       
-      message.success(`查询结果已导出为 ${format.toUpperCase()} 格式`)
+      messageService.success(`查询结果已导出为 ${format.toUpperCase()} 格式`)
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error(`导出为 ${format.toUpperCase()} 格式失败`)
+      messageService.error(`导出为 ${format.toUpperCase()} 格式失败`)
       return false
     } finally {
       loading.hide()
@@ -818,11 +817,11 @@ export const useQueryStore = defineStore('query', () => {
         hasMore: (result.page || 1) < (result.totalPages || 1)
       };
       
-      message.success(`已加载 ${result.items.length} 个查询`);
+      messageService.success(`已加载 ${result.items.length} 个查询`);
       return result.items;
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('加载查询列表失败')
+      messageService.error('加载查询列表失败')
       console.error('加载查询列表失败:', err)
       return []
     } finally {

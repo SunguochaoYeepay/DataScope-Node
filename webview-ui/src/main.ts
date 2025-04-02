@@ -24,6 +24,9 @@ import zhCN from './plugins/antd-locale'
 // 引入ECharts配置
 import './plugins/echarts'
 
+// 引入消息服务插件
+import { installMessageService } from './services/message'
+
 // 初始化查询模板
 initQueryTemplates()
 
@@ -34,4 +37,5 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.use(Antd)
+installMessageService.install(app)  // 正确调用消息服务插件
 app.mount('#app')
