@@ -12,7 +12,7 @@ import {
 } from '@/services/mockData';
 
 // 是否使用模拟数据
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 // 集成状态类型
 type IntegrationStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
@@ -37,7 +37,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口获取集成列表
-        const result = await api.get('/api/integrations');
+        const result = await api.get('/api/low-code/apis');
         
         if (result && result.data) {
           integrations.value = result.data;
@@ -69,7 +69,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口获取单个集成
-        const result = await api.get(`/api/integrations/${id}`);
+        const result = await api.get(`/api/low-code/apis/${id}`);
         
         if (result && result.data) {
           currentIntegration.value = result.data;
@@ -101,7 +101,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口创建集成
-        const result = await api.post('/api/integrations', integration);
+        const result = await api.post('/api/low-code/apis', integration);
         
         if (result && result.data) {
           // 更新本地数据
@@ -143,7 +143,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口更新集成
-        const result = await api.put(`/api/integrations/${id}`, integration);
+        const result = await api.put(`/api/low-code/apis/${id}`, integration);
         
         if (result && result.data) {
           // 更新本地数据
@@ -173,7 +173,7 @@ export const useIntegrationStore = defineStore('integration', () => {
     
     try {
       // 调用接口更新集成状态
-      const result = await api.patch(`/api/integrations/${id}/status`, { status });
+      const result = await api.patch(`/api/low-code/apis/${id}/status`, { status });
       
       if (result && result.data) {
         // 更新本地数据
@@ -219,7 +219,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口删除集成
-        await api.delete(`/api/integrations/${id}`);
+        await api.delete(`/api/low-code/apis/${id}`);
         
         // 更新本地数据
         integrations.value = integrations.value.filter(item => item.id !== id);
@@ -266,7 +266,10 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口执行查询
-        const result = await api.post(`/api/queries/${queryId}/execute`, params);
+        const result = await api.post(`/api/data-service/query`, {
+          integrationId: queryId,
+          params: params
+        });
         return result.data;
       }
     } catch (err: any) {
@@ -285,7 +288,7 @@ export const useIntegrationStore = defineStore('integration', () => {
     
     try {
       // 调用外部URL集成点
-      const result = await api.post('/api/integrations/call-url', {
+      const result = await api.post('/api/v1/low-code/apis/call-url', {
         url,
         method,
         data,
@@ -309,7 +312,7 @@ export const useIntegrationStore = defineStore('integration', () => {
     
     try {
       // 调用表单提交集成点
-      const result = await api.post('/api/integrations/call-form', {
+      const result = await api.post('/api/v1/low-code/apis/call-form', {
         formId,
         action,
         data

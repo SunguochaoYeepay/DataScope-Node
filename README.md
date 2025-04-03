@@ -1093,3 +1093,34 @@ GET /api/metadata/5da82d17-7b65-4a1f-a009-6e14a751bfc6/tables/tbl_saved_query/da
 ## 许可证
 
 [MIT](LICENSE)
+
+## 系统集成API功能
+
+DataScope-Node现在支持系统集成API功能，允许将查询作为数据服务对外提供。
+
+### 主要功能
+
+- **低代码API集成**: 将查询转化为可重用的API端点
+- **多种集成类型**: 支持表格、表单和图表三种集成类型
+- **参数配置**: 支持动态参数传递和验证
+- **权限控制**: 基于API密钥的访问控制
+- **测试与调试**: 内置测试工具和调试功能
+
+### API端点
+
+- `GET /api/low-code/apis` - 获取所有集成配置
+- `GET /api/low-code/apis/:id` - 获取指定集成配置
+- `POST /api/low-code/apis` - 创建新的集成配置
+- `PUT /api/low-code/apis/:id` - 更新集成配置
+- `DELETE /api/low-code/apis/:id` - 删除集成配置
+- `GET /api/low-code/apis/:id/config` - 获取集成API配置
+- `POST /api/low-code/apis/:id/test` - 测试集成配置
+- `POST /api/data-service/query` - 执行集成查询
+
+### 使用方法
+
+1. 在集成管理页面创建新的集成配置
+2. 选择要转化为API的查询
+3. 配置参数、输出字段和权限
+4. 发布集成
+5. 使用生成的API文档集成到外部系统

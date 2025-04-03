@@ -19,7 +19,7 @@ export const integrationService = {
    * 获取所有集成配置
    */
   getIntegrations: async (): Promise<IntegrationConfig[]> => {
-    const response = await http.get('/api/v1/low-code/apis');
+    const response = await http.get('/api/low-code/apis');
     return response.data || [];
   },
   
@@ -28,7 +28,7 @@ export const integrationService = {
    * @param id 集成配置ID
    */
   getIntegrationById: async (id: string): Promise<IntegrationConfig> => {
-    const response = await http.get(`/api/v1/low-code/apis/${id}`);
+    const response = await http.get(`/api/low-code/apis/${id}`);
     return response.data;
   },
   
@@ -37,7 +37,7 @@ export const integrationService = {
    * @param data 集成配置数据
    */
   createIntegration: async (data: Partial<IntegrationConfig>): Promise<IntegrationConfig> => {
-    const response = await http.post('/api/v1/low-code/apis', data);
+    const response = await http.post('/api/low-code/apis', data);
     return response.data;
   },
   
@@ -47,7 +47,7 @@ export const integrationService = {
    * @param data 更新数据
    */
   updateIntegration: async (id: string, data: Partial<IntegrationConfig>): Promise<IntegrationConfig> => {
-    const response = await http.put(`/api/v1/low-code/apis/${id}`, data);
+    const response = await http.put(`/api/low-code/apis/${id}`, data);
     return response.data;
   },
   
@@ -56,7 +56,7 @@ export const integrationService = {
    * @param id 集成配置ID
    */
   deleteIntegration: async (id: string): Promise<void> => {
-    await http.delete(`/api/v1/low-code/apis/${id}`);
+    await http.delete(`/api/low-code/apis/${id}`);
   },
   
   /**
@@ -64,7 +64,7 @@ export const integrationService = {
    * @param id 集成配置ID
    */
   getIntegrationConfig: async (id: string): Promise<ApiConfig> => {
-    const response = await http.get(`/api/v1/low-code/apis/${id}/config`);
+    const response = await http.get(`/api/low-code/apis/${id}/config`);
     return response.data;
   },
   
@@ -74,7 +74,7 @@ export const integrationService = {
    * @param params 测试参数
    */
   testIntegration: async (id: string, params: TestIntegrationParams): Promise<ExecuteQueryResult> => {
-    const response = await http.post(`/api/v1/low-code/apis/${id}/test`, params);
+    const response = await http.post(`/api/low-code/apis/${id}/test`, params);
     return response.data;
   },
 

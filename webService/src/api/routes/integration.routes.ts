@@ -10,14 +10,14 @@ const controller = new IntegrationController();
 // 集成管理路由
 // 获取集成列表
 router.get(
-  '/v1/low-code/apis',
+  '/low-code/apis',
   authMiddleware.authenticate,
   controller.getIntegrations
 );
 
 // 获取单个集成
 router.get(
-  '/v1/low-code/apis/:id',
+  '/low-code/apis/:id',
   authMiddleware.authenticate,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID')
@@ -27,7 +27,7 @@ router.get(
 
 // 创建集成
 router.post(
-  '/v1/low-code/apis',
+  '/low-code/apis',
   authMiddleware.authenticate,
   validate([
     body('name').notEmpty().withMessage('集成名称不能为空'),
@@ -40,7 +40,7 @@ router.post(
 
 // 更新集成
 router.put(
-  '/v1/low-code/apis/:id',
+  '/low-code/apis/:id',
   authMiddleware.authenticate,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID'),
@@ -54,7 +54,7 @@ router.put(
 
 // 删除集成
 router.delete(
-  '/v1/low-code/apis/:id',
+  '/low-code/apis/:id',
   authMiddleware.authenticate,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID')
@@ -64,7 +64,7 @@ router.delete(
 
 // 获取API配置
 router.get(
-  '/v1/low-code/apis/:id/config',
+  '/low-code/apis/:id/config',
   authMiddleware.authenticate,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID')
@@ -74,7 +74,7 @@ router.get(
 
 // 测试集成
 router.post(
-  '/v1/low-code/apis/:id/test',
+  '/low-code/apis/:id/test',
   authMiddleware.authenticate,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID'),

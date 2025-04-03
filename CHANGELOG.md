@@ -5,14 +5,18 @@
 ### 新增功能
 
 - **系统集成API**: 实现低代码集成API功能，支持将查询作为数据服务对外提供
-  - 新增 `/api/v1/low-code/apis` 接口获取、创建、更新和删除集成配置
-  - 新增 `/api/v1/low-code/apis/:id/config` 接口获取集成API配置
-  - 新增 `/api/v1/low-code/apis/:id/test` 接口测试集成配置
+  - 新增 `/api/low-code/apis` 接口获取、创建、更新和删除集成配置
+  - 新增 `/api/low-code/apis/:id/config` 接口获取集成API配置
+  - 新增 `/api/low-code/apis/:id/test` 接口测试集成配置
   - 新增 `/api/data-service/query` 接口执行集成查询
   - 支持表格、表单和图表三种集成类型
   - 支持参数配置和自定义字段映射
   - 集成现有查询执行引擎，复用数据源连接能力
   - 提供前端集成服务层与类型定义，支持与后端API交互
+- **API文档更新**: 为系统集成API添加Swagger文档
+  - 为所有集成接口添加Swagger注解，提供完整的API文档
+  - 定义 Integration 模型的Swagger Schema，以便文档引用
+  - 文档可在 `/api-docs` 页面查看
 
 ### 更改
 
@@ -20,6 +24,11 @@
 - 删除了所有与后端 `USE_MOCK_DATA` 环境变量相关的代码
 - 移除了后端模拟数据层和 `mocks` 目录
 - 删除了webService配置中的 `mockDataPath` 配置项
+- 集成管理页面连接到实际后端API：
+  - 将前端集成Store中USE_MOCK设置为false，启用真实API调用
+  - 更新API路径以匹配后端实现的端点（/api/low-code/apis/）
+  - 优化查询执行数据结构，确保前后端数据一致性
+  - 实现集成状态管理、URL集成点调用和表单提交功能
 
 ### 架构变更
 
@@ -52,6 +61,10 @@
   - 修复了query-plan.controller.test.js中的期望状态码问题
   - 修复了demonstrateValidationError方法中的错误响应格式
   - 确保所有控制器测试用例使用正确的错误处理方式
+- 修复了API路径不一致问题
+  - 移除了所有集成API路径中的v1前缀，保持与项目其他API风格一致
+  - 修正了前端与后端API路径不匹配问题，确保现有功能正常工作
+  - 更新了API文档和路由配置，反映正确的API路径
 
 ## [1.0.1] - 2023-07-07
 

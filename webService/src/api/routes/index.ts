@@ -35,6 +35,6 @@ console.log('加载API路由...');
 console.log('- 已加载数据源路由: /api/datasources');
 console.log('- 已加载查询路由: /api/queries');
 console.log('- 已加载元数据路由: /api/metadata');
-console.log('- 已加载系统集成路由: /api/v1/low-code/apis');
+console.log('- 已加载系统集成路由: /api/low-code/apis');
 
 export default router;

@@ -15,6 +15,10 @@ interface Request extends ExpressRequest {
 /**
  * 集成控制器类
  * 处理所有与系统集成相关的API请求
+ * @swagger
+ * tags:
+ *   name: Integrations
+ *   description: 系统集成管理API
  */
 export class IntegrationController {
   private integrationService: IntegrationService;
@@ -26,6 +30,32 @@ export class IntegrationController {
 
   /**
    * 获取所有集成
+   * @swagger
+   * /low-code/apis:
+   *   get:
+   *     summary: 获取所有集成配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: 成功获取集成列表
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/Integration'
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   getIntegrations = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -41,6 +71,40 @@ export class IntegrationController {
 
   /**
    * 获取单个集成
+   * @swagger
+   * /low-code/apis/{id}:
+   *   get:
+   *     summary: 获取单个集成配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: 集成ID
+   *     responses:
+   *       200:
+   *         description: 成功获取集成
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   $ref: '#/components/schemas/Integration'
+   *       404:
+   *         description: 集成不存在
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   getIntegrationById = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -59,6 +123,66 @@ export class IntegrationController {
 
   /**
    * 创建集成
+   * @swagger
+   * /low-code/apis:
+   *   post:
+   *     summary: 创建集成配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - name
+   *               - queryId
+   *               - type
+   *               - config
+   *             properties:
+   *               name:
+   *                 type: string
+   *                 description: 集成名称
+   *               description:
+   *                 type: string
+   *                 description: 集成描述
+   *               queryId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: 关联的查询ID
+   *               type:
+   *                 type: string
+   *                 enum: [FORM, TABLE, CHART]
+   *                 description: 集成类型
+   *               config:
+   *                 type: object
+   *                 description: 集成配置
+   *               status:
+   *                 type: string
+   *                 enum: [DRAFT, ACTIVE, INACTIVE]
+   *                 default: DRAFT
+   *                 description: 集成状态
+   *     responses:
+   *       201:
+   *         description: 成功创建集成
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   $ref: '#/components/schemas/Integration'
+   *       400:
+   *         description: 请求参数错误
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   createIntegration = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -86,6 +210,70 @@ export class IntegrationController {
 
   /**
    * 更新集成
+   * @swagger
+   * /low-code/apis/{id}:
+   *   put:
+   *     summary: 更新集成配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: 集成ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               name:
+   *                 type: string
+   *                 description: 集成名称
+   *               description:
+   *                 type: string
+   *                 description: 集成描述
+   *               queryId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: 关联的查询ID
+   *               type:
+   *                 type: string
+   *                 enum: [FORM, TABLE, CHART]
+   *                 description: 集成类型
+   *               config:
+   *                 type: object
+   *                 description: 集成配置
+   *               status:
+   *                 type: string
+   *                 enum: [DRAFT, ACTIVE, INACTIVE]
+   *                 description: 集成状态
+   *     responses:
+   *       200:
+   *         description: 成功更新集成
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   $ref: '#/components/schemas/Integration'
+   *       400:
+   *         description: 请求参数错误
+   *       404:
+   *         description: 集成不存在
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   updateIntegration = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -113,6 +301,30 @@ export class IntegrationController {
 
   /**
    * 删除集成
+   * @swagger
+   * /low-code/apis/{id}:
+   *   delete:
+   *     summary: 删除集成配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: 集成ID
+   *     responses:
+   *       204:
+   *         description: 成功删除集成
+   *       404:
+   *         description: 集成不存在
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   deleteIntegration = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -129,6 +341,51 @@ export class IntegrationController {
 
   /**
    * 获取API配置
+   * @swagger
+   * /low-code/apis/{id}/config:
+   *   get:
+   *     summary: 获取集成API配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: 集成ID
+   *     responses:
+   *       200:
+   *         description: 成功获取API配置
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     apiEndpoint:
+   *                       type: string
+   *                     method:
+   *                       type: string
+   *                     requestFormat:
+   *                       type: object
+   *                     responseFormat:
+   *                       type: object
+   *                     parameterDocs:
+   *                       type: array
+   *       404:
+   *         description: 集成不存在
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   getIntegrationConfig = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -148,6 +405,66 @@ export class IntegrationController {
 
   /**
    * 测试集成
+   * @swagger
+   * /low-code/apis/{id}/test:
+   *   post:
+   *     summary: 测试集成配置
+   *     tags: [Integrations]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: 集成ID
+   *     requestBody:
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               params:
+   *                 type: object
+   *                 description: 测试参数
+   *               pagination:
+   *                 type: object
+   *                 properties:
+   *                   page:
+   *                     type: number
+   *                   pageSize:
+   *                     type: number
+   *               sorting:
+   *                 type: object
+   *                 properties:
+   *                   field:
+   *                     type: string
+   *                   order:
+   *                     type: string
+   *                     enum: [asc, desc]
+   *     responses:
+   *       200:
+   *         description: 测试成功
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *       400:
+   *         description: 请求参数错误
+   *       404:
+   *         description: 集成不存在
+   *       401:
+   *         description: 未授权
+   *       500:
+   *         description: 服务器错误
    */
   testIntegration = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -169,6 +486,76 @@ export class IntegrationController {
 
   /**
    * 执行查询
+   * @swagger
+   * /data-service/query:
+   *   post:
+   *     summary: 执行集成查询
+   *     tags: [Integrations]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - integrationId
+   *             properties:
+   *               integrationId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: 集成ID
+   *               params:
+   *                 type: object
+   *                 description: 查询参数
+   *               pagination:
+   *                 type: object
+   *                 properties:
+   *                   page:
+   *                     type: number
+   *                     description: 页码
+   *                   pageSize:
+   *                     type: number
+   *                     description: 每页大小
+   *               sorting:
+   *                 type: object
+   *                 properties:
+   *                   field:
+   *                     type: string
+   *                     description: 排序字段
+   *                   order:
+   *                     type: string
+   *                     enum: [asc, desc]
+   *                     description: 排序方向
+   *     responses:
+   *       200:
+   *         description: 查询成功
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     records:
+   *                       type: array
+   *                     total:
+   *                       type: number
+   *                     page:
+   *                       type: number
+   *                     pageSize:
+   *                       type: number
+   *                     totalPages:
+   *                       type: number
+   *       400:
+   *         description: 请求参数错误
+   *       404:
+   *         description: 集成不存在
+   *       500:
+   *         description: 服务器错误
    */
   executeQuery = async (req: Request, res: Response, next: NextFunction) => {
     try {
