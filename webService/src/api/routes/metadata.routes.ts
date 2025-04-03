@@ -9,7 +9,7 @@ const router = Router();
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/sync:
+ * /api/metadata/datasources/{dataSourceId}/sync:
  *   post:
  *     summary: 同步数据源元数据
  *     tags: [Metadata]
@@ -115,7 +115,7 @@ router.post(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/structure:
+ * /api/metadata/datasources/{dataSourceId}/structure:
  *   get:
  *     summary: 获取数据源的元数据结构
  *     tags: [Metadata]
@@ -291,9 +291,9 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/sync-history:
+ * /api/metadata/datasources/{dataSourceId}/sync-history:
  *   get:
- *     summary: 获取同步历史记录
+ *     summary: 获取数据源同步历史记录
  *     tags: [Metadata]
  *     parameters:
  *       - in: path
@@ -397,9 +397,9 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/preview:
+ * /api/metadata/datasources/{dataSourceId}/preview:
  *   get:
- *     summary: 获取表数据预览
+ *     summary: 获取数据源预览数据
  *     tags: [Metadata]
  *     parameters:
  *       - in: path
@@ -524,7 +524,7 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/columns/analyze:
+ * /api/metadata/datasources/{dataSourceId}/columns/analyze:
  *   get:
  *     summary: 分析表列的详细信息
  *     tags: [Metadata]
@@ -657,7 +657,7 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/tables:
+ * /api/metadata/datasources/{dataSourceId}/tables:
  *   get:
  *     summary: 获取数据源的表列表
  *     tags: [Metadata]
@@ -707,7 +707,7 @@ router.get('/datasources/:dataSourceId/tables', metadataController.getTables);
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/tables/{tableName}:
+ * /api/metadata/datasources/{dataSourceId}/tables/{tableName}:
  *   get:
  *     summary: 获取表结构
  *     tags: [Metadata]
@@ -746,7 +746,7 @@ router.get('/datasources/:dataSourceId/tables/:tableName', metadataController.ge
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/stats:
+ * /api/metadata/datasources/{dataSourceId}/stats:
  *   get:
  *     summary: 获取数据源的统计信息
  *     tags: [Metadata]
@@ -822,7 +822,7 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/tables/{tableName}/data:
+ * /api/metadata/datasources/{dataSourceId}/tables/{tableName}/data:
  *   get:
  *     summary: 获取表数据预览
  *     description: 返回指定数据源中特定表的数据，支持分页、排序和过滤

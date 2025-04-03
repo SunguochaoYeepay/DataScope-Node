@@ -4,7 +4,7 @@ const router = Router();
 
 /**
  * @swagger
- * /visualizations:
+ * /api/visualizations:
  *   get:
  *     summary: 获取所有可视化配置
  *     description: 返回系统中所有可用的可视化配置

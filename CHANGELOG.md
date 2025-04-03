@@ -2,6 +2,32 @@
 
 ## [未发布]
 
+### 优化
+- 统一Swagger API文档中的路径格式和分组标签
+  - 修改API路径，确保所有Swagger路径都带有`/api`前缀
+  - 修正了`datasource.routes.ts`中`/datasources/{id}/stats`路径为`/api/datasources/{id}/stats`
+  - 修正了`datasource.routes.ts`中`/datasources/test`路径为`/api/datasources/test`
+  - 修正了`datasource.routes.ts`中`/datasources/{id}/test`路径为`/api/datasources/{id}/test`
+  - 修正了`datasource.routes.ts`中`/datasources/{id}/check-status`路径为`/api/datasources/{id}/check-status`
+  - 修正了`query.routes.ts`中`/queries`路径为`/api/queries`
+  - 统一了API文档中的标签分组，将单数形式的`DataSource`改为复数形式`DataSources`，确保所有数据源相关API端点都在同一分组下
+  - 保持了所有API文档中路径格式一致性
+  - 提高了API文档的可读性和一致性，确保文档与实际请求路径保持一致
+
+- 统一了数据源API路径格式
+  - 移除了带连字符的`/api/data-sources`路径，只保留标准格式`/api/datasources`
+  - 更新了相关文档和测试脚本，确保使用统一的路径格式
+  - 保持与其他API路径命名风格一致
+  - 减少了冗余和混淆，提高了API路径的一致性
+
+### 安全优化
+- 移除了示例错误路由
+  - 删除了`/api/examples/errors`系列路由，包括各种错误类型演示端点
+  - 从路由注册文件中移除了`examplesRouter`的引用和注册
+  - 保留了示例代码文件供开发者参考，但不再对外暴露API端点
+  - 修改了示例路由文件，移除了Swagger注释，并将文件重命名为`.bak`后缀，确保不会出现在API文档中
+  - 提高了系统安全性，避免暴露内部错误处理机制
+
 ### 修复
 - 彻底修复了启用/禁用查询的问题
   - 前端修改：

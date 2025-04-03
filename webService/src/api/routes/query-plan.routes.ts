@@ -11,7 +11,7 @@ const queryPlanController = new QueryPlanController();
 
 /**
  * @swagger
- * /query-plans/analyze:
+ * /api/query-plans/analyze:
  *   post:
  *     summary: 分析SQL查询执行计划
  *     description: 分析SQL查询的执行计划并提供优化建议
@@ -96,7 +96,7 @@ router.post('/analyze',
 
 /**
  * @swagger
- * /query-plans/{planId}/optimize:
+ * /api/query-plans/{planId}/optimize:
  *   get:
  *     summary: 获取查询执行计划的优化建议
  *     description: 根据查询计划ID获取SQL优化建议和优化后的SQL语句
@@ -148,7 +148,7 @@ router.get('/:planId/optimize',
 
 /**
  * @swagger
- * /query-plans/compare:
+ * /api/query-plans/compare:
  *   post:
  *     summary: 比较两个查询执行计划
  *     description: 比较两个执行计划的差异和性能改进
@@ -211,7 +211,7 @@ router.post('/compare',
 
 /**
  * @swagger
- * /query-plans/history:
+ * /api/query-plans/history:
  *   get:
  *     summary: 获取查询计划历史记录
  *     description: 获取查询计划历史记录列表
@@ -281,10 +281,10 @@ router.get('/history',
 
 /**
  * @swagger
- * /query-plans/{planId}:
+ * /api/query-plans/{planId}:
  *   get:
  *     summary: 获取特定查询计划
- *     description: 根据ID获取查询计划详情
+ *     description: 根据ID获取查询计划的详细信息
  *     tags: [QueryPlans]
  *     security:
  *       - bearerAuth: []

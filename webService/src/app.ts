@@ -44,7 +44,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: '/api',
+        url: '/',
         description: 'API服务端点'
       }
     ],
@@ -147,8 +147,7 @@ app.get('/api/metadata/:dataSourceId/tables/:tableName/data', (req: Request, res
 
 // 注册数据源模拟路由（确保数据源功能正常工作）- 将模拟路由移动到API路由前面，确保优先级
 if (useMockData) {
-  app.use('/api/data-sources', dataSourcesMockRoutes);
-  app.use('/api/datasources', dataSourcesMockRoutes); // 兼容旧路径
+  app.use('/api/datasources', dataSourcesMockRoutes); // 使用标准路径
   console.log('主应用：数据源模拟路由已加载：/api/datasources');
 } else {
   console.log('主应用：使用真实数据库连接，未加载模拟路由');

@@ -64,7 +64,7 @@ async function testOtherEndpoints() {
   const endpoints: TestEndpoint[] = [
     { name: '认证接口', path: '/api/auth/test' },
     { name: '用户接口', path: '/api/users/test' },
-    { name: '数据源接口', path: '/api/data-sources/test' },
+    { name: '数据源接口', path: '/api/datasources/test' },
     { name: '查询接口', path: '/api/queries/test' }
   ];
   

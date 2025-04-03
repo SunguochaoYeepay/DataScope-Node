@@ -4,7 +4,6 @@ import queryRouter from './query.routes';
 import metadataRouter from './metadata.routes';
 import planVisualizationRouter from './plan-visualization.routes';
 import queryPlanRouter from './query-plan.routes';
-import examplesRouter from './examples.routes';
 import folderRouter from './folder.routes';
 import systemRouter from './system.routes';
 import metadataController from '../controllers/metadata.controller';
@@ -27,7 +26,6 @@ router.get('/', (req: Request, res: Response) => {
       '/api/metadata',
       '/api/plan-visualization',
       '/api/query-plans',
-      '/api/examples',
       '/api/query-folders',
       '/api/system',
     ]
@@ -40,7 +38,6 @@ router.use('/queries', queryRouter);
 router.use('/metadata', metadataRouter);
 router.use('/plan-visualization', planVisualizationRouter);
 router.use('/query-plans', queryPlanRouter);
-router.use('/examples', examplesRouter);
 router.use('/query-folders', folderRouter);
 router.use('/system', systemRouter);
 

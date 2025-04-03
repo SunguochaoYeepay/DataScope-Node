@@ -12,7 +12,7 @@ const queryPlanController = new QueryPlanController();
 
 /**
  * @swagger
- * /queries/history:
+ * /api/queries/history:
  *   get:
  *     summary: 获取查询历史
  *     tags: [Queries]
@@ -42,7 +42,7 @@ router.get('/history', queryController.getQueryHistory);
 
 /**
  * @swagger
- * /queries/history/{id}:
+ * /api/queries/history/{id}:
  *   get:
  *     summary: 获取单个查询历史记录
  *     tags: [Queries]
@@ -63,7 +63,7 @@ router.get('/history/:id', queryController.getQueryHistoryById);
 
 /**
  * @swagger
- * /queries/history/{id}:
+ * /api/queries/history/{id}:
  *   delete:
  *     summary: 删除单个查询历史记录
  *     tags: [Queries]
@@ -84,7 +84,7 @@ router.delete('/history/:id', queryController.deleteQueryHistory);
 
 /**
  * @swagger
- * /queries/history/clear-temporary:
+ * /api/queries/history/clear-temporary:
  *   delete:
  *     summary: 清空临时查询历史记录
  *     description: 清空所有未关联到保存查询的临时历史记录(queryId为null的记录)
@@ -123,7 +123,7 @@ router.delete('/history/clear-temporary', queryController.clearTemporaryQueryHis
 
 /**
  * @swagger
- * /queries/execute:
+ * /api/queries/execute:
  *   post:
  *     summary: 执行SQL查询
  *     tags: [Queries]
@@ -280,7 +280,7 @@ router.post(
 
 /**
  * @swagger
- * /queries:
+ * /api/queries:
  *   post:
  *     summary: 保存查询
  *     description: 创建新查询，同时创建初始版本
@@ -328,10 +328,10 @@ router.post('/', queryController.validateSaveQuery(), queryController.saveQuery)
 
 /**
  * @swagger
- * /queries/publish:
+ * /api/queries/publish:
  *   post:
- *     summary: 一键保存并发布查询
- *     description: 创建查询，同时创建初始版本并发布激活该版本
+ *     summary: 发布查询
+ *     description: 将查询保存并标记为已发布
  *     tags: [Queries]
  *     requestBody:
  *       required: true
@@ -373,7 +373,7 @@ router.post('/publish', queryController.validateSaveQuery(), queryController.pub
 
 /**
  * @swagger
- * /queries:
+ * /api/queries:
  *   get:
  *     summary: 获取查询列表
  *     tags: [Queries]
@@ -416,9 +416,10 @@ router.get('/', queryController.getQueries);
 
 /**
  * @swagger
- * /queries/favorites:
+ * /api/queries/favorites:
  *   get:
  *     summary: 获取收藏的查询列表
+ *     description: 获取当前用户收藏的查询列表
  *     tags: [Queries]
  *     responses:
  *       200:
@@ -485,7 +486,7 @@ router.get('/history/:queryId/plans', async (req: Request, res: Response, next: 
 
 /**
  * @swagger
- * /queries/explain:
+ * /api/queries/explain:
  *   post:
  *     summary: 获取查询执行计划
  *     tags: [Queries]
@@ -528,9 +529,9 @@ router.post(
 
 /**
  * @swagger
- * /queries/{id}:
+ * /api/queries/{id}:
  *   get:
- *     summary: 获取指定ID的查询
+ *     summary: 获取查询详情
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -548,9 +549,10 @@ router.get('/:id', queryController.getQueryById);
 
 /**
  * @swagger
- * /queries/{id}/cancel:
+ * /api/queries/{id}/cancel:
  *   post:
  *     summary: 取消正在执行的查询
+ *     description: 取消指定ID的正在执行的查询
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -574,9 +576,10 @@ router.post(
 
 /**
  * @swagger
- * /queries/{id}:
+ * /api/queries/{id}:
  *   put:
- *     summary: 更新指定ID的查询
+ *     summary: 更新查询
+ *     description: 更新现有查询的内容和配置
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -630,9 +633,10 @@ router.put(
 
 /**
  * @swagger
- * /queries/{id}:
+ * /api/queries/{id}:
  *   delete:
- *     summary: 删除指定ID的查询
+ *     summary: 删除查询
+ *     description: 删除指定ID的查询及其所有相关数据
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -656,10 +660,10 @@ router.delete(
 
 /**
  * @swagger
- * /queries/{queryId}/execution-plan:
+ * /api/queries/{queryId}/execution-plan:
  *   get:
- *     summary: 获取查询执行计划 [兼容路由]
- *     description: 获取指定查询的执行计划数据，用于前端兼容
+ *     summary: 获取查询执行计划
+ *     description: 获取指定查询的执行计划详情
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -692,10 +696,10 @@ router.get(
 
 /**
  * @swagger
- * /queries/{queryId}/visualization:
+ * /api/queries/{queryId}/visualization:
  *   get:
- *     summary: 获取查询执行计划可视化数据 [兼容路由]
- *     description: 获取指定查询的执行计划可视化数据，用于前端兼容
+ *     summary: 获取查询可视化配置
+ *     description: 获取指定查询的可视化展示配置
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -728,9 +732,10 @@ router.get(
 
 /**
  * @swagger
- * /queries/{id}/favorite:
+ * /api/queries/{id}/favorite:
  *   post:
- *     summary: 添加查询到收藏夹
+ *     summary: 收藏查询
+ *     description: 将指定查询添加到收藏夹
  *     tags: [Queries]
  *     parameters:
  *       - in: path
@@ -749,9 +754,10 @@ router.post('/:id/favorite', queryController.favoriteQuery);
 
 /**
  * @swagger
- * /queries/{id}/favorite:
+ * /api/queries/{id}/favorite:
  *   delete:
- *     summary: 从收藏夹中移除查询
+ *     summary: 取消收藏查询
+ *     description: 将指定查询从收藏夹中移除
  *     tags: [Queries]
  *     parameters:
  *       - in: path

@@ -54,7 +54,7 @@ const mockDataSources = [
 
 /**
  * @swagger
- * /api/data-sources:
+ * /api/datasources:
  *   get:
  *     tags: [数据源]
  *     summary: 获取数据源列表
@@ -132,7 +132,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /api/data-sources/{id}:
+ * /api/datasources/{id}:
  *   get:
  *     tags: [数据源]
  *     summary: 获取数据源详情
@@ -189,7 +189,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /api/data-sources/test:
+ * /api/datasources/test:
  *   post:
  *     tags: [数据源]
  *     summary: 测试数据源连接

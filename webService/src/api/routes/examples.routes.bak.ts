@@ -1,5 +1,6 @@
 /**
- * 示例路由
+ * 示例路由（已弃用，不再暴露API端点）
+ * 仅作为开发参考保留
  */
 import { Router } from 'express';
 import {
@@ -14,15 +15,13 @@ import {
 
 const router = Router();
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * tags:
  *  name: 示例
  *  description: 功能示例API
  */
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/errors:
  *   get:
  *     summary: 错误演示API
@@ -54,8 +53,7 @@ const router = Router();
  */
 router.get('/errors', errorExamplesIndex);
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/errors/validation:
  *   get:
  *     summary: 验证错误示例
@@ -67,8 +65,7 @@ router.get('/errors', errorExamplesIndex);
  */
 router.get('/errors/validation', demonstrateValidationError);
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/errors/database:
  *   get:
  *     summary: 数据库错误示例
@@ -86,8 +83,7 @@ router.get('/errors/validation', demonstrateValidationError);
  */
 router.get('/errors/database', demonstrateDatabaseError);
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/errors/authentication:
  *   get:
  *     summary: 认证错误示例
@@ -99,8 +95,7 @@ router.get('/errors/database', demonstrateDatabaseError);
  */
 router.get('/errors/authentication', demonstrateAuthenticationError);
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/errors/authorization:
  *   get:
  *     summary: 授权错误示例
@@ -112,8 +107,7 @@ router.get('/errors/authentication', demonstrateAuthenticationError);
  */
 router.get('/errors/authorization', demonstrateAuthorizationError);
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/errors/application:
  *   get:
  *     summary: 应用错误示例
@@ -125,8 +119,7 @@ router.get('/errors/authorization', demonstrateAuthorizationError);
  */
 router.get('/errors/application', demonstrateAppError);
 
-/**
- * @swagger
+/* 已移除Swagger注释
  * /examples/success:
  *   get:
  *     summary: 成功响应示例

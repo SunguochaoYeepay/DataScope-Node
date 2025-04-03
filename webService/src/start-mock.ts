@@ -23,8 +23,7 @@ app.listen(PORT, () => {
   logger.info(`服务已启动（模拟数据模式），端口: ${PORT}`);
   logger.info(`API文档地址: http://localhost:${PORT}/api-docs`);
   logger.info(`健康检查: http://localhost:${PORT}/health`);
-  logger.info(`模拟数据源API: http://localhost:${PORT}/api/data-sources`);
-  logger.info(`模拟数据源API (兼容旧路径): http://localhost:${PORT}/api/datasources`);
+  logger.info(`模拟数据源API: http://localhost:${PORT}/api/datasources`);
 });
 
 // 处理未捕获的异常
