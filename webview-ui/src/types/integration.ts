@@ -312,3 +312,13 @@ export interface QueryResult {
   page?: number;
   pageSize?: number;
 }
+
+// 集成查询请求
+export interface IntegrationQuery {
+  sql?: string;
+  params?: Record<string, any>;
+  format?: string;
+  maxRows?: number;
+  timeout?: number;
+  options?: Record<string, any>;
+}
