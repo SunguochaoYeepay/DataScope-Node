@@ -516,7 +516,10 @@ export class QueryService {
     size?: number;
     offset?: number;
     limit?: number;
-    includeDrafts?: boolean;
+    includeDrafts?: boolean | string;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+    status?: string;
   } = {}): Promise<{
     items: Query[];
     pagination: {
@@ -528,6 +531,9 @@ export class QueryService {
     };
   }> {
     try {
+      // 记录完整的请求参数
+      logger.debug('getQueries方法收到的完整参数', { options });
+      
       // 构建查询条件
       const where: any = {};
       
@@ -536,12 +542,35 @@ export class QueryService {
         where.dataSourceId = options.dataSourceId;
       }
       
-      // 添加公开状态过滤
-      // 默认只返回已发布的查询，除非明确要求包含草稿
-      if (!options.includeDrafts) {
+      // 检查includeDrafts参数值 - 处理不同类型情况
+      let includeDrafts = false;
+      if (typeof options.includeDrafts === 'boolean') {
+        includeDrafts = options.includeDrafts;
+      } else if (typeof options.includeDrafts === 'string') {
+        includeDrafts = options.includeDrafts.toLowerCase() === 'true';
+      }
+      
+      logger.debug('处理includeDrafts参数', { 
+        originalValue: options.includeDrafts,
+        processedValue: includeDrafts,
+        type: typeof options.includeDrafts
+      });
+      
+      // 重写状态过滤逻辑
+      // 当includeDrafts=true时，不添加status过滤条件，查询所有状态
+      if (includeDrafts) {
+        // 不添加status过滤条件，返回所有状态的查询
+        console.log('包含所有状态，不添加status过滤条件:', { includeDrafts });
+      } else {
+        // 否则只返回PUBLISHED状态的查询
         where.status = 'PUBLISHED';
-      } else if (options.isPublic !== undefined) {
-        where.status = options.isPublic ? 'PUBLISHED' : 'DRAFT';
+        console.log('只包含PUBLISHED状态:', { includeDrafts });
+      }
+      
+      // 优先使用明确指定的status参数
+      if (options.status) {
+        where.status = options.status;
+        console.log('使用指定的status参数覆盖:', { status: options.status });
       }
       
       // 添加标签过滤
@@ -566,16 +595,49 @@ export class QueryService {
                      (options.page ? (options.page - 1) * limit : 0);
       const page = options.page || Math.floor(offset / limit) + 1;
       
+      // 处理排序参数
+      let sortBy = options.sortBy || 'createdAt'; 
+      let sortDir = options.sortDir || 'desc';
+      
+      // 检查排序字段
+      const validSortFields = ['createdAt', 'updatedAt', 'name'];
+      if (!validSortFields.includes(sortBy)) {
+        logger.warn('收到无效的排序字段，回退到默认值', { receivedSortBy: sortBy, defaultTo: 'createdAt' });
+        sortBy = 'createdAt';
+      }
+      
+      // 检查排序方向
+      if (sortDir !== 'asc' && sortDir !== 'desc') {
+        logger.warn('收到无效的排序方向，回退到默认值', { receivedSortDir: sortDir, defaultTo: 'desc' });
+        sortDir = 'desc';
+      }
+      
+      // 构建排序对象
+      const orderBy: any = {};
+      orderBy[sortBy] = sortDir;
+      
+      // 记录最终的查询参数
+      logger.debug('最终查询参数', { 
+        where, 
+        orderBy, 
+        offset, 
+        limit, 
+        page 
+      });
+      
       // 查询数据库获取总数
       const total = await prisma.query.count({ where });
+      logger.debug(`数据库中共有 ${total} 条符合条件的记录`);
       
       // 查询数据库获取分页数据
       const queries = await prisma.query.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: offset,
         take: limit
       });
+      
+      logger.debug(`成功获取 ${queries.length} 条查询记录`);
       
       // 获取所有查询的当前版本ID
       const versionIds = queries
@@ -585,7 +647,7 @@ export class QueryService {
       // 批量获取版本信息
       const versions = await prisma.queryVersion.findMany({
         where: {
-          id: { in: versionIds }
+          id: { in: versionIds.length > 0 ? versionIds : ['dummy-id'] }
         }
       });
       
@@ -650,7 +712,9 @@ export class QueryService {
       description?: string;
       tags?: string[];
       isPublic?: boolean;
-      dataSourceId?: string; 
+      dataSourceId?: string;
+      status?: string;
+      serviceStatus?: string;
     }
   ): Promise<Query> {
     try {
@@ -680,6 +744,42 @@ export class QueryService {
       if (data.isPublic !== undefined) updateData.status = data.isPublic ? 'PUBLISHED' : 'DRAFT';
       if (data.tags !== undefined) updateData.tags = data.tags.join(',');
       
+      // 处理状态字段 - 优先使用明确传入的status
+      if (data.status !== undefined) {
+        updateData.status = data.status;
+        // 记录状态变更
+        logger.info('更新查询状态', { id, oldStatus: existingQuery.status, newStatus: data.status });
+      }
+      
+      // 处理服务状态字段
+      if (data.serviceStatus !== undefined) {
+        updateData.serviceStatus = data.serviceStatus;
+        logger.info('更新查询服务状态', { 
+          id, 
+          oldServiceStatus: existingQuery.serviceStatus, 
+          newServiceStatus: data.serviceStatus
+        });
+        
+        // 如果只更新serviceStatus而没有明确更新status，则保持状态一致性
+        if (data.status === undefined) {
+          if (data.serviceStatus === 'DISABLED' && existingQuery.status === 'PUBLISHED') {
+            updateData.status = 'DEPRECATED';
+            logger.info('自动更新查询状态以保持一致性', { 
+              id, 
+              serviceStatus: data.serviceStatus, 
+              newStatus: 'DEPRECATED' 
+            });
+          } else if (data.serviceStatus === 'ENABLED' && existingQuery.status === 'DEPRECATED') {
+            updateData.status = 'PUBLISHED';
+            logger.info('自动更新查询状态以保持一致性', { 
+              id, 
+              serviceStatus: data.serviceStatus, 
+              newStatus: 'PUBLISHED' 
+            });
+          }
+        }
+      }
+      
       // 更新时间
       updateData.updatedAt = new Date();
       
@@ -688,7 +788,7 @@ export class QueryService {
         data: updateData
       });
       
-      logger.debug('查询更新成功', { id });
+      logger.debug('查询更新成功', { id, updatedData: updateData });
       return updatedQuery;
     } catch (error: any) {
       logger.error('更新查询失败', { error, id, data });

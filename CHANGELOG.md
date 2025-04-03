@@ -3,12 +3,46 @@
 ## [未发布]
 
 ### 修复
+- 彻底修复了启用/禁用查询的问题
+  - 前端修改：
+    - 修改`QueryListView.vue`中的`toggleQueryStatus`方法，直接操作`serviceStatus`而非间接设置`status`
+    - 更新了`updateQueryStatus`方法，现在直接接收和处理`serviceStatus`参数
+    - 优化了查询状态更新流程，确保前端与后端状态字段匹配
+    - 增加了`QueryServiceStatus`类型定义，明确区分查询状态和服务状态两个概念
+  - 后端修改：
+    - 修复`updateQuery`方法，增加对`status`和`serviceStatus`参数的支持
+    - 完善状态一致性处理逻辑，确保状态变更时两个字段保持同步
+    - 增强日志记录，详细跟踪状态变更过程
+    - 添加参数验证，确保状态字段值符合预期
+
+- 清理前端mock数据，确保使用真实的后端API调用
+  - 修复各函数，使用后端真实数据而不是mock数据
+  - 修复查询状态更新请求缺少状态参数的问题，添加status字段到请求体
+  - 修复在saveQuery方法中处理serviceStatus字段，确保正确记录用于调试
+  - 更新savedQuery对象创建逻辑，正确处理后端status和serviceStatus字段
+
 - 彻底清理前端模拟数据，确保使用真实的后端API调用
 - 替换 `QueryVersionDetail.vue` 中使用的模拟数据，包括版本信息、执行历史和版本激活功能
 - 修复 `loadVersionData` 函数，使用 `versionService.getVersion` 获取真实数据
 - 修复 `loadExecutionHistory` 函数，使用 `queryService.getQueryExecutionHistory` 获取真实数据
 - 修复 `handleActivate` 函数，使用 `versionService.activateVersion` 执行真实API调用
 - 修复查询列表页面的启用/禁用功能，使其调用真实的后端API而不是只修改前端状态
+- 修复查询列表状态更新问题
+  - 更正 `updateQueryStatus` 方法，使用 `saveQuery` 接口正确更新查询状态
+  - 修复 `confirmStatusChange` 函数中对返回结果的处理逻辑，不再检查返回是否为空
+  - 增强状态更新日志记录，便于调试
+- 修复 `queryService.updateQuery is not a function` 错误
+  - 添加 `updateQuery` 方法作为 `saveQuery` 的别名，确保 API 兼容性
+  - 保证查询启用/禁用功能可以正常工作
+- 修复查询状态更新请求丢失状态参数问题
+  - 在 `saveQuery` 方法中添加 `status` 字段到请求体中
+  - 修复 `savedQuery` 对象的创建，正确处理后端返回的 `status` 和 `serviceStatus` 字段
+  - 确保禁用查询时正确传递 `DEPRECATED` 状态
+- 修复查询启用/禁用功能不生效问题
+  - 发现前端和后端概念不匹配：`status`(DRAFT/PUBLISHED/DEPRECATED)控制生命周期，`serviceStatus`(ENABLED/DISABLED)控制可用性
+  - 修改 `saveQuery` 方法，同时设置 `serviceStatus` 参数
+  - 更新 `updateQueryStatus` 方法，直接发送明确的服务状态
+  - 修正 `SaveQueryParams` 接口，添加 `serviceStatus` 字段
 
 ## 2024-03-26
 

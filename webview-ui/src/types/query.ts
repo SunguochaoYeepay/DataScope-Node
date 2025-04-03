@@ -205,6 +205,7 @@ export interface SaveQueryParams {
   sql: string;
   description?: string;
   status?: QueryStatus;
+  serviceStatus?: string;
   tags?: string[];
   isPublic?: boolean;
   queryType?: QueryType;
@@ -214,6 +215,11 @@ export interface SaveQueryParams {
  * 查询状态类型
  */
 export type QueryStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'DEPRECATED' | 'DRAFT' | 'PUBLISHED';
+
+/**
+ * 查询服务状态类型
+ */
+export type QueryServiceStatus = 'ENABLED' | 'DISABLED';
 
 /**
  * 查询结果
@@ -286,6 +292,7 @@ export interface QueryHistoryParams {
   startDate?: string;
   endDate?: string;
   searchTerm?: string;
+  includeDrafts?: boolean;
 }
 
 /**
@@ -424,4 +431,5 @@ export interface FetchQueryParams {
   search?: string;
   sortBy?: string;
   sortDir?: string;
+  includeDrafts?: boolean;
 }

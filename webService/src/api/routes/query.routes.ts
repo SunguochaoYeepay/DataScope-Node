@@ -589,17 +589,41 @@ router.post(
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/QueryUpdate'
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               sql:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               isPublic:
+ *                 type: boolean
+ *               dataSourceId:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [DRAFT, PUBLISHED, DEPRECATED]
+ *               serviceStatus:
+ *                 type: string
+ *                 enum: [ENABLED, DISABLED]
  *     responses:
  *       200:
  *         description: 查询更新成功
  *       404:
  *         description: 查询不存在
+ *       400:
+ *         description: 输入验证错误
  */
 router.put(
   '/:id',
   [
     check('id').not().isEmpty().withMessage('查询ID不能为空'),
+    ...queryController.validateUpdateQuery()
   ],
   queryController.updateQuery
 );

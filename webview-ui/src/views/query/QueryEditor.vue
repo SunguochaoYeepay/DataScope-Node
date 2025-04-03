@@ -17,15 +17,6 @@
           </button>
 
           <button
-            v-if="currentQueryId"
-            class="px-4 py-2 rounded-md flex items-center text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors"
-            @click="viewVersions"
-          >
-            <i class="fas fa-code-branch mr-2"></i>
-            查看版本
-          </button>
-
-          <button
             class="px-4 py-2 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors"
             @click="saveQuery"
           >
@@ -371,13 +362,6 @@
                 </div>
                 
                 <div class="flex space-x-3">
-                  <button
-                    @click="showSaveModal()"
-                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    <i class="fas fa-save mr-1.5"></i>
-                    {{ currentQueryId ? '保存更改' : '保存查询' }}
-                  </button>
                 </div>
               </div>
             </div>
@@ -399,13 +383,6 @@
                 </span>
                 
                 <div class="flex space-x-3">
-                  <button
-                    @click="showSaveModal()"
-                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    <i class="fas fa-save mr-1.5"></i>
-                    {{ currentQueryId ? '保存更改' : '保存查询' }}
-                  </button>
                 </div>
               </div>
             </div>
@@ -907,8 +884,7 @@ const loadQueryById = async (queryId: string) => {
     let versionList: QueryVersionType[] = [];
     try {
       // 导入版本服务获取版本列表
-      const module = await import('@/services/queryVersion');
-      const versionService = module.default;
+      const { versionService } = await import('@/services/queryVersion');
       
       if (versionService && versionService.getVersions) {
         const versionsResponse = await versionService.getVersions({ queryId: query.id, page: 1, size: 50 });
@@ -1973,8 +1949,8 @@ const createNewVersion = async () => {
       // 调用版本服务的创建版本API
       let versionService;
       try {
-        const module = await import('@/services/queryVersion');
-        versionService = module.default;
+        const { versionService: importedService } = await import('@/services/queryVersion');
+        versionService = importedService;
       } catch (importError) {
         console.warn('无法导入queryVersion服务:', importError);
         

@@ -408,7 +408,7 @@ import { useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { formatRelativeTime } from '@/utils/formatters'
 import { useMessageService } from '@/services/message'
-import type { QueryStatus } from '@/types/query'
+import type { Query, QueryStatus, QueryServiceStatus } from '@/types/query'
 import { dataSourceService } from '@/services/datasource'
 import type { DataSource } from '@/types/datasource'
 
@@ -440,7 +440,7 @@ const serviceStatusFilter = ref('')
 // 添加状态对话框相关状态
 const showStatusConfirm = ref(false)
 const queryToToggle = ref<any>(null)
-const newStatus = ref<QueryStatus>('PUBLISHED')
+const newStatus = ref<QueryServiceStatus>('DISABLED')
 
 // 删除查询对话框相关状态
 const showDeleteConfirm = ref(false)
@@ -532,7 +532,8 @@ const fetchQueries = async () => {
       page: currentPage.value,
       size: pageSize.value,
       sortBy: 'updatedAt',
-      sortDir: 'desc'
+      sortDir: 'desc',
+      includeDrafts: true
     });
     
     // 检查API返回结果
@@ -702,8 +703,8 @@ const toggleQueryStatus = async (query: any) => {
     // 设置要更新的查询
     queryToToggle.value = query;
     
-    // 根据当前状态设置新状态
-    newStatus.value = query.serviceStatus === 'ENABLED' ? 'DEPRECATED' : 'PUBLISHED';
+    // 直接基于当前服务状态切换服务状态
+    newStatus.value = query.serviceStatus === 'ENABLED' ? 'DISABLED' : 'ENABLED';
     
     // 显示确认对话框
     showStatusConfirm.value = true;
@@ -720,45 +721,34 @@ const confirmStatusChange = async () => {
   try {
     console.log('开始更新查询状态:', {
       queryId: queryToToggle.value.id,
-      newStatus: newStatus.value
+      serviceStatus: newStatus.value
     });
     
-    // 调用store中的updateQueryStatus方法
-    const result = await queryStore.updateQueryStatus(queryToToggle.value.id, newStatus.value);
+    // 直接传递serviceStatus参数给updateQueryStatus方法
+    await queryStore.updateQueryStatus(queryToToggle.value.id, newStatus.value);
     
-    if (result) {
-      console.log('查询状态更新成功:', result);
-      
-      // 更新本地状态
-      queryToToggle.value.status = newStatus.value;
-      
-      // 更新serviceStatus，根据newStatus的值确定
-      if (newStatus.value === 'PUBLISHED') {
-        queryToToggle.value.serviceStatus = 'ENABLED';
-      } else {
-        queryToToggle.value.serviceStatus = 'DISABLED';
-      }
-      
-      console.log('本地状态已更新:', {
-        status: queryToToggle.value.status,
-        serviceStatus: queryToToggle.value.serviceStatus
-      });
-      
-      // 立即刷新查询列表，确保显示最新状态
-      await fetchQueries();
-      
-      messageService.success(`查询状态已${newStatus.value === 'PUBLISHED' ? '启用' : '禁用'}`);
-    } else {
-      console.error('查询状态更新返回空结果');
-      messageService.error('更新查询状态失败：服务器返回空结果');
-    }
+    console.log('查询状态更新完成');
+    
+    // 更新本地状态
+    // status会在store中自动设置
+    queryToToggle.value.serviceStatus = newStatus.value;
+    
+    console.log('本地状态已更新:', {
+      serviceStatus: queryToToggle.value.serviceStatus
+    });
+    
+    // 立即刷新查询列表，确保显示最新状态
+    await fetchQueries();
+    
+    // 使用字符串比较而不是类型比较
+    messageService.success(`查询状态已${newStatus.value == 'ENABLED' ? '启用' : '禁用'}`);
     
     // 关闭确认对话框
     showStatusConfirm.value = false;
     queryToToggle.value = null;
   } catch (error) {
     console.error('更新查询状态失败:', error);
-    messageService.error('更新查询状态失败');
+    messageService.error('更新查询状态失败: ' + (error instanceof Error ? error.message : String(error)));
   }
 };
 

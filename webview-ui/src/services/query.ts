@@ -534,7 +534,9 @@ export const queryService = {
         name: params.name || `未命名查询 ${new Date().toLocaleString('zh-CN')}`,
         sql: params.sql,
         description: params.description || '',
-        dataSourceId: params.dataSourceId
+        dataSourceId: params.dataSourceId,
+        status: params.status, // 添加状态字段，确保传递到后端
+        serviceStatus: params.status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED' // 根据status设置serviceStatus
       }
 
       console.log('保存查询，请求数据:', requestBody);
@@ -589,8 +591,9 @@ export const queryService = {
         name: result.name || requestBody.name,
         dataSourceId: result.dataSourceId,
         queryType: result.queryType || params.queryType || 'SQL',
-        queryText: result.sql || result.queryText || params.sql,
-        status: 'COMPLETED', // 新保存的查询默认为已完成状态
+        queryText: result.sql || result.sqlContent || result.queryText || params.sql,
+        status: result.status || params.status || 'COMPLETED', // 优先使用服务器返回的状态
+        serviceStatus: result.serviceStatus || null, // 添加服务状态
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: result.updatedAt || new Date().toISOString(),
         description: result.description || params.description,
@@ -639,6 +642,12 @@ export const queryService = {
       console.error('删除查询错误:', error)
       throw error
     }
+  },
+  
+  // 更新查询 - 作为 saveQuery 的别名，确保兼容性
+  async updateQuery(id: string, params: SaveQueryParams): Promise<Query> {
+    console.log(`updateQuery 被调用，ID: ${id}，参数:`, params);
+    return this.saveQuery({ ...params, id });
   },
   
   // 收藏查询
@@ -961,6 +970,10 @@ export const queryService = {
       }
       if (params.sortDir) {
         queryParams.append('sortDir', params.sortDir);
+      }
+      // 添加includeDrafts参数
+      if (params.includeDrafts !== undefined) {
+        queryParams.append('includeDrafts', params.includeDrafts.toString());
       }
 
       console.log('获取查询列表，参数:', Object.fromEntries(queryParams.entries()));

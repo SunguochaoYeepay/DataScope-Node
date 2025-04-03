@@ -23,6 +23,7 @@ import planVisualizationRouter from './api/routes/plan-visualization.routes';
 import mockPlanRouter from './api/routes/mock-plan.routes';
 import { registerDirectRoutes } from './api/direct-routes';
 import dataSourcesMockRoutes from './api/routes/data-sources.mock';
+// 导入queryRoutes和queryVersionRoutes
 import { dataSourceRoutes, queryRoutes, queryVersionRoutes } from './routes';
 
 // 初始化服务

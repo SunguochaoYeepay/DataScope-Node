@@ -17,7 +17,8 @@ import type {
   QueryVisualization,
   ChartConfig,
   FetchQueryParams,
-  PaginatedResponse
+  PaginatedResponse,
+  QueryServiceStatus
 } from '@/types/query'
 import type {
   PaginationParams,
@@ -864,9 +865,9 @@ export const useQueryStore = defineStore('query', () => {
   }
   
   // 更新查询状态
-  const updateQueryStatus = async (id: string, status: QueryStatus) => {
+  const updateQueryStatus = async (id: string, serviceStatus: QueryServiceStatus) => {
     try {
-      loading.show(`正在${status === 'PUBLISHED' ? '启用' : '禁用'}查询...`)
+      loading.show(`正在${serviceStatus === 'ENABLED' ? '启用' : '禁用'}查询...`)
       
       // 从当前数据中获取查询详情
       const query = queries.value.find(q => q.id === id)
@@ -874,15 +875,24 @@ export const useQueryStore = defineStore('query', () => {
         throw new Error('找不到要更新的查询')
       }
       
-      // 调用updateQuery接口更新状态
-      const updatedQuery = await queryService.updateQuery(id, {
+      // 映射服务状态到查询状态
+      const status: QueryStatus = serviceStatus === 'ENABLED' ? 'PUBLISHED' : 'DEPRECATED';
+      
+      console.log('更新查询状态，当前查询数据:', query);
+      console.log('将设置新状态:', { status, serviceStatus });
+      
+      // 调用 saveQuery 接口更新状态
+      const updatedQuery = await queryService.saveQuery({
         id,
         name: query.name,
         description: query.description,
         dataSourceId: query.dataSourceId || '',
         sql: query.queryText || '',
-        status: status
+        status: status,
+        serviceStatus: serviceStatus // 明确设置服务状态
       })
+      
+      console.log('查询状态更新成功，返回数据:', updatedQuery);
       
       // 更新本地状态
       if (updatedQuery) {
@@ -892,23 +902,23 @@ export const useQueryStore = defineStore('query', () => {
           queries.value[index] = {
             ...queries.value[index],
             status: status,
-            serviceStatus: updatedQuery.serviceStatus || (status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED')
+            serviceStatus: serviceStatus
           }
         }
         
         // 如果当前查询是被更新的查询，也更新当前查询
         if (currentQuery.value && currentQuery.value.id === id) {
           currentQuery.value.status = status
-          currentQuery.value.serviceStatus = updatedQuery.serviceStatus || (status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED')
+          currentQuery.value.serviceStatus = serviceStatus
         }
         
-        messageService.success(`查询已${status === 'PUBLISHED' ? '启用' : '禁用'}`)
+        messageService.success(`查询已${serviceStatus === 'ENABLED' ? '启用' : '禁用'}`)
       }
       
       return updatedQuery
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      messageService.error(`${status === 'PUBLISHED' ? '启用' : '禁用'}查询失败: ${error.value.message}`)
+      messageService.error(`${serviceStatus === 'ENABLED' ? '启用' : '禁用'}查询失败: ${error.value.message}`)
       return null
     } finally {
       loading.hide()

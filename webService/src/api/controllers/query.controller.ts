@@ -9,6 +9,7 @@ import { StatusCodes } from 'http-status-codes';
 import { getPaginationParams, createSuccessResponse } from '../../utils/api.utils';
 import { PrismaClient } from '@prisma/client';
 import queryVersionService from '../../services/query-version.service';
+import { body } from 'express-validator';
 
 const prisma = new PrismaClient();
 
@@ -387,8 +388,43 @@ export class QueryController {
    */
   async getQueries(req: Request, res: Response, next: NextFunction) {
     try {
-      const { dataSourceId, tag, isPublic, search, includeDrafts } = req.query;
+      const { dataSourceId, tag, isPublic, search, includeDrafts, sortBy, sortDir } = req.query;
       const pagination = getPaginationParams(req);
+      
+      // 详细记录原始请求参数
+      console.log('原始请求参数', JSON.stringify({
+        dataSourceId, 
+        tag, 
+        isPublic, 
+        search, 
+        includeDrafts, 
+        sortBy, 
+        sortDir,
+        pagination,
+        originalQuery: req.query,
+        headers: req.headers
+      }, null, 2));
+      
+      // 检查includeDrafts参数，确保它被正确处理
+      const includeAllDrafts = 
+        includeDrafts === 'true' || 
+        (typeof includeDrafts === 'boolean' && includeDrafts === true) || 
+        String(includeDrafts || '').toLowerCase() === 'true';
+      
+      console.log('处理后的includeDrafts:', includeAllDrafts, '类型:', typeof includeDrafts);
+      
+      logger.debug('获取查询列表接收到的参数', { 
+        dataSourceId, 
+        tag, 
+        isPublic, 
+        search, 
+        includeDrafts, 
+        includeDraftsProcessed: includeAllDrafts,
+        sortBy, 
+        sortDir,
+        pagination,
+        originalQuery: req.query
+      });
       
       const result = await queryService.getQueries({
         dataSourceId: dataSourceId as string,
@@ -397,8 +433,16 @@ export class QueryController {
         search: search as string,
         page: pagination.page,
         size: pagination.size,
-        includeDrafts: includeDrafts === 'true'
+        includeDrafts: includeAllDrafts,
+        sortBy: sortBy as string,
+        sortDir: (sortDir as 'asc' | 'desc') || 'desc'
       });
+      
+      console.log('查询结果', JSON.stringify({
+        itemCount: result.items.length,
+        pagination: result.pagination,
+        firstItemId: result.items[0]?.id
+      }, null, 2));
       
       res.status(200).json({
         success: true,
@@ -475,11 +519,20 @@ export class QueryController {
         description,
         tags,
         isPublic,
-        dataSourceId
+        dataSourceId,
+        status,
+        serviceStatus
       } = req.body;
 
       // 记录更详细的操作信息
-      logger.debug('尝试更新查询', { id, requestBody: req.body });
+      logger.debug('尝试更新查询', { 
+        id, 
+        requestBody: { 
+          ...req.body, 
+          status, 
+          serviceStatus 
+        } 
+      });
 
       try {
         const updatedQuery = await queryService.updateQuery(id, {
@@ -488,7 +541,9 @@ export class QueryController {
           description,
           tags,
           isPublic,
-          dataSourceId // 传递dataSourceId给服务
+          dataSourceId,
+          status,
+          serviceStatus
         });
 
         return res.status(200).json({
@@ -846,7 +901,14 @@ export class QueryController {
    */
   validateUpdateQuery() {
     return [
-      check('id').not().isEmpty().withMessage('查询ID不能为空'),
+      body('name').optional().isString().withMessage('查询名称必须是字符串'),
+      body('sql').optional().isString().withMessage('SQL语句必须是字符串'),
+      body('description').optional().isString().withMessage('描述必须是字符串'),
+      body('tags').optional().isArray().withMessage('标签必须是数组'),
+      body('isPublic').optional().isBoolean().withMessage('发布状态必须是布尔值'),
+      body('dataSourceId').optional().isString().withMessage('数据源ID必须是字符串'),
+      body('status').optional().isString().isIn(['DRAFT', 'PUBLISHED', 'DEPRECATED']).withMessage('状态必须是有效的查询状态'),
+      body('serviceStatus').optional().isString().isIn(['ENABLED', 'DISABLED']).withMessage('服务状态必须是ENABLED或DISABLED')
     ];
   }
 
