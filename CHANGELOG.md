@@ -1,4 +1,4 @@
-# DataScope-Node 变更日志
+# 更新日志
 
 ## [未发布]
 
@@ -18,6 +18,24 @@
   - 定义 Integration 模型的Swagger Schema，以便文档引用
   - 文档可在 `/api-docs` 页面查看
 
+### 优化
+- 统一Swagger API文档中的路径格式和分组标签
+  - 修改API路径，确保所有Swagger路径都带有`/api`前缀
+  - 修正了`datasource.routes.ts`中`/datasources/{id}/stats`路径为`/api/datasources/{id}/stats`
+  - 修正了`datasource.routes.ts`中`/datasources/test`路径为`/api/datasources/test`
+  - 修正了`datasource.routes.ts`中`/datasources/{id}/test`路径为`/api/datasources/{id}/test`
+  - 修正了`datasource.routes.ts`中`/datasources/{id}/check-status`路径为`/api/datasources/{id}/check-status`
+  - 修正了`query.routes.ts`中`/queries`路径为`/api/queries`
+  - 统一了API文档中的标签分组，将单数形式的`DataSource`改为复数形式`DataSources`，确保所有数据源相关API端点都在同一分组下
+  - 保持了所有API文档中路径格式一致性
+  - 提高了API文档的可读性和一致性，确保文档与实际请求路径保持一致
+
+- 统一了数据源API路径格式
+  - 移除了带连字符的`/api/data-sources`路径，只保留标准格式`/api/datasources`
+  - 更新了相关文档和测试脚本，确保使用统一的路径格式
+  - 保持与其他API路径命名风格一致
+  - 减少了冗余和混淆，提高了API路径的一致性
+
 ### 更改
 
 - 保留了前端集成组件中的模拟数据功能，确保前端开发体验
@@ -29,25 +47,27 @@
   - 更新API路径以匹配后端实现的端点（/api/low-code/apis/）
   - 优化查询执行数据结构，确保前后端数据一致性
   - 实现集成状态管理、URL集成点调用和表单提交功能
-
-### 架构变更
-
 - 所有API接口现在直接与真实数据库交互
 - 前端仍保留其独立的模拟API功能
 - 增加系统集成模型，实现查询结果的低代码集成能力
 - 优化了API响应格式，提供统一的成功/错误响应结构
+- 进一步优化了查询版本详情页面的设计和交互
+  - 参考数据源详情页面风格，统一了设计风格，提高产品设计一致性
+  - 改进了页面头部和卡片设计，使用渐变背景和更精细的边框样式
+  - 优化了版本状态和信息展示方式，提高可读性
+  - 为执行历史标签页添加了刷新按钮，便于用户获取最新数据
+  - 统一了所有卡片、边框、阴影和圆角样式，与系统其他页面保持视觉一致
+  - 提高了状态指示器的视觉清晰度，更好地区分不同状态
+  - 改进了空状态提示的设计，使其与数据源页面风格一致
+  - 优化了组件间距和布局，提高视觉层次感
 
-### 改进
-
-- 简化了代码库，消除了多余的条件判断
-- 增强了代码一致性和可维护性
-- 明确了后端和前端的职责边界
-- 添加了针对服务和控制器的单元测试
-  - 为 `query.service.ts` 添加了完整测试
-  - 为 `metadata.controller.ts` 添加了测试
-  - 添加了配置文件测试，确保移除了模拟数据相关配置
-- 增强了参数验证，使用express-validator进行请求参数校验
-- 完善了API错误处理机制，提供更友好的错误提示
+### 安全优化
+- 移除了示例错误路由
+  - 删除了`/api/examples/errors`系列路由，包括各种错误类型演示端点
+  - 从路由注册文件中移除了`examplesRouter`的引用和注册
+  - 保留了示例代码文件供开发者参考，但不再对外暴露API端点
+  - 修改了示例路由文件，移除了Swagger注释，并将文件重命名为`.bak`后缀，确保不会出现在API文档中
+  - 提高了系统安全性，避免暴露内部错误处理机制
 
 ### 修复
 
@@ -65,133 +85,119 @@
   - 移除了所有集成API路径中的v1前缀，保持与项目其他API风格一致
   - 修正了前端与后端API路径不匹配问题，确保现有功能正常工作
   - 更新了API文档和路由配置，反映正确的API路径
+- 彻底修复了启用/禁用查询的问题
+  - 前端修改：
+    - 修改`QueryListView.vue`中的`toggleQueryStatus`方法，直接操作`serviceStatus`而非间接设置`status`
+    - 更新了`updateQueryStatus`方法，现在直接接收和处理`serviceStatus`参数
+    - 优化了查询状态更新流程，确保前端与后端状态字段匹配
+    - 增加了`QueryServiceStatus`类型定义，明确区分查询状态和服务状态两个概念
+  - 后端修改：
+    - 修复`updateQuery`方法，增加对`status`和`serviceStatus`参数的支持
+    - 完善状态一致性处理逻辑，确保状态变更时两个字段保持同步
+    - 增强日志记录，详细跟踪状态变更过程
+    - 添加参数验证，确保状态字段值符合预期
 
-## [1.0.1] - 2023-07-07
+- 清理前端mock数据，确保使用真实的后端API调用
+  - 修复各函数，使用后端真实数据而不是mock数据
+  - 修复查询状态更新请求缺少状态参数的问题，添加status字段到请求体
+  - 修复在saveQuery方法中处理serviceStatus字段，确保正确记录用于调试
+  - 更新savedQuery对象创建逻辑，正确处理后端status和serviceStatus字段
 
-### 架构变更
+- 彻底清理前端模拟数据，确保使用真实的后端API调用
+- 替换 `QueryVersionDetail.vue` 中使用的模拟数据，包括版本信息、执行历史和版本激活功能
+- 修复 `loadVersionData` 函数，使用 `versionService.getVersion` 获取真实数据
+- 修复 `loadExecutionHistory` 函数，使用 `queryService.getQueryExecutionHistory` 获取真实数据
+- 修复 `handleActivate` 函数，使用 `versionService.activateVersion` 执行真实API调用
+- 修复查询列表页面的启用/禁用功能，使其调用真实的后端API而不是只修改前端状态
+- 修复查询列表状态更新问题
+  - 更正 `updateQueryStatus` 方法，使用 `saveQuery` 接口正确更新查询状态
+  - 修复 `confirmStatusChange` 函数中对返回结果的处理逻辑，不再检查返回是否为空
+  - 增强状态更新日志记录，便于调试
+- 修复 `queryService.updateQuery is not a function` 错误
+  - 添加 `updateQuery` 方法作为 `saveQuery` 的别名，确保 API 兼容性
+  - 保证查询启用/禁用功能可以正常工作
+- 修复查询状态更新请求丢失状态参数问题
+  - 在 `saveQuery` 方法中添加 `status` 字段到请求体中
+  - 修复 `savedQuery` 对象的创建，正确处理后端返回的 `status` 和 `serviceStatus` 字段
+  - 确保禁用查询时正确传递 `DEPRECATED` 状态
+- 修复查询启用/禁用功能不生效问题
+  - 发现前端和后端概念不匹配：`status`(DRAFT/PUBLISHED/DEPRECATED)控制生命周期，`serviceStatus`(ENABLED/DISABLED)控制可用性
+  - 修改 `saveQuery` 方法，同时设置 `serviceStatus` 参数
+  - 更新 `updateQueryStatus` 方法，直接发送明确的服务状态
+  - 修正 `SaveQueryParams` 接口，添加 `serviceStatus` 字段
 
-- 移除后端模拟数据模式，确保所有API直接使用数据库
-  - 删除了所有与USE_MOCK_DATA环境变量相关的代码
-  - 删除了mock数据层和mocks目录
-  - 前端仍然有独立的模拟API功能，不受影响
-- 修复TypeScript编译错误
-  - 修复了QueryResult接口不兼容的问题
-  - 修复了DatabaseConnector接口方法使用错误
-  - 重构了metadata.controller.ts中的表预览功能
+- 修复了版本详情页处理SQL内容为null的问题
+  - 增强了数据映射函数的健壮性，正确处理API返回中sqlContent为null的情况
+  - 修复了getVersion方法中的数据提取逻辑，不再假设API返回结果包含在data字段中
+  - 改进了版本详情页面展示逻辑，当版本没有查询内容时显示友好提示信息
+  - 添加了缺少SQL内容的错误提示，解释可能的原因并提供解决建议
+  - 完善了执行查询功能，在SQL内容为空时禁用执行按钮并显示提示
 
-## [Unreleased]
+- 简化了代码库，消除了多余的条件判断
+- 增强了代码一致性和可维护性
+- 明确了后端和前端的职责边界
+- 添加了针对服务和控制器的单元测试
+  - 为 `query.service.ts` 添加了完整测试
+  - 为 `metadata.controller.ts` 添加了测试
+  - 添加了配置文件测试，确保移除了模拟数据相关配置
+- 增强了参数验证，使用express-validator进行请求参数校验
+- 完善了API错误处理机制，提供更友好的错误提示
 
-### Fixes
-- 修复数据源状态显示不正确的问题，增加了手动触发检查数据源状态的API接口（`POST /api/datasource/:id/check-status`）
-- 修复数据源同步时间显示"never synced"的问题，确保同步后正确更新lastSyncTime
-- 改进数据源密码解密逻辑，增加对明文密码存储的支持（开发环境），解决连接解密失败问题
-- 修复数据源连接测试API (`POST /api/datasources/:id/test`) 解密失败的问题
-- 修复表数据预览API路由缺失问题，增加了表数据预览功能
+- 修复了新增查询场景的问题
+  - 修正了新增查询时错误使用PUT方法的问题
+  - 确保新增场景不传入id字段
+  - 只在更新场景下使用路由中的queryId
 
-### Added
-- 添加查询计划控制器(QueryPlanController)的单元测试
-- 添加查询控制器(QueryController)的单元测试
-- 新增数据源统计信息API接口 `/api/metadata/datasources/{dataSourceId}/stats` 和 `/api/metadata/{dataSourceId}/stats`，提供表数量、视图数量、数据库大小和最后同步时间等统计数据
-- 为数据库连接器添加 `getDatabaseSize()` 方法，支持MySQL和PostgreSQL数据库大小的获取
-- 添加DataSourceMonitorService服务，用于定期检查所有数据源的连接状态
-- 添加手动触发数据源状态检查的API接口 `/api/datasources/{id}/check-status`
-- 改进元数据同步服务，确保同步后正确更新lastSyncTime字段
-- 添加四个MySQL示例数据源（本地开发、测试环境、生产环境和业务系统），支持开发和测试场景
-- 为所有示例数据源配置了正确的连接信息和同步状态
+- 修复了查询编辑功能问题
+  - 修复了编辑页面无法正确加载已有查询的问题
+  - 确保URL中的查询ID能正确传递到组件中
+  - 优化了查询加载逻辑，改进错误处理和提示
+  - 修复了查询内容无法正确回显的问题
 
-### Fixed
-- 修复API文档无法访问的问题，集成Swagger UI到Express应用中，现在可以通过 `/api-docs` 访问API文档
+- 修复了查询保存界面的问题，调整请求体格式以符合后端API要求
 
-### Changed
+### 功能增强
+- 增强了查询版本详情页的用户体验
+  - 改进了页面整体布局和视觉设计，使用现代化UI元素
+  - 优化了版本信息卡片，增加图标、分组和视觉层次
+  - 增强了空状态显示，提供更友好的引导和错误提示
+  - 添加了查询内容复制功能，便于用户快速使用
+  - 优化了标签页导航，添加过渡动画和明显的选中状态
+  - 改进了交互元素的反馈效果，如按钮悬停和点击状态
+  - 优化了执行历史和执行计划的空状态，添加执行按钮便于用户操作
 
-### Deprecated
+## 2024-03-26
 
-### Removed
+### 修改
 
-### Security
-
-## [1.0.3] - 2025-03-30
-
-### 修复
-
-- 修复了数据源密码加密/解密不一致问题
-- 添加了密码迁移脚本，可将旧的哈希加密密码转换为AES加密
-- 修复了更新数据源API错误
-- 修复了查询执行API无法解密密码的问题
-
-### 新功能
-- 添加了API状态监控报告
-- 添加了自动化测试改进
-
-## [1.0.2] - 2025-03-28
-
-## 更新日志
-
-### 1.0.8 (2023-03-31)
-
-#### 新增特性
-- **元数据API**: 实现元数据管理API，统一了数据源元数据获取接口
-  - 新增 `/api/metadata/datasources/:dataSourceId/tables` 接口获取数据源表列表
-  - 新增 `/api/metadata/datasources/:dataSourceId/tables/:tableName/columns` 接口获取表列信息
-  - 新增 `/api/metadata/datasources/:dataSourceId/structure` 接口获取数据源结构
-  - 新增 `/api/metadata/datasources/:dataSourceId/sync` 接口同步元数据
-  - 新增 `/api/metadata/datasources/:dataSourceId/stats` 接口获取数据源统计信息
-- **数据库连接**: 优化数据库连接器，支持MySQL和PostgreSQL连接测试
-  - 修复了数据库连接测试API中连接参数不一致的问题
-  - 实现了更健壮的数据库连接和错误处理机制
-
-#### 优化
-- 统一了API路径前缀，遵循 `/api/metadata` 格式
-- 改进了返回的错误信息格式和内容
-- 优化了数据库连接的性能和资源利用
-
-#### 修复
-- 修复了数据库连接测试时主机名映射问题
-
-### 1.0.7 (2023-03-30)
-
-#### 新增特性
-- **查询收藏**: 实现查询收藏功能，包括查看、添加和删除收藏
-  - 新增 `/api/queries/favorites` 接口获取用户收藏查询
-  - 新增 `/api/queries/:queryId/favorite` 接口添加查询到收藏
-  - 新增 `/api/queries/:queryId/unfavorite` 接口从收藏中移除查询
-
-#### 优化
-- 增加了前端集成文档和API使用示例
-
-### 1.0.5 (2023-03-27)
-
-#### 新增特性
-- **连接测试**: 修复并优化数据源连接测试功能
-- **元数据API**: 初步实现元数据管理API
-
-#### 优化
-- 统一了API参数命名和规范
-- 改进了错误处理和日志记录
-
-### 新增功能 
-- 添加数据源在线状态监控功能
-- 增加表数据预览功能
-- 添加新的API端点用于数据源状态检查
-
-### 改进
-- 优化密码解密逻辑，支持明文存储方式
-- 改进了数据源连接测试功能
-- 前端显示数据源状态信息
+- 移除了查询相关的标签功能
+  - 从Query类型定义中移除了tags字段
+  - 从SaveQueryParams类型定义中移除了tags字段
+  - 从保存查询对话框中移除了标签输入部分
 
 ### 修复
-- 修复了密码解密问题，支持明文存储密码
-- 修复数据源状态显示不正确的问题
-- 修复MySQL连接权限问题，添加了对远程连接的支持
-- 修复前端无法获取数据源列表的问题
-- 修复API路由匹配问题，支持前端表数据查询请求格式
 
-### 安全性
-- 改进了密码存储方式，支持明文模式（仅用于开发环境）
+- 修复了保存查询接口的问题
+  - 修正了请求体中的字段名（将queryText改为sql）
+  - 确保正确传递dataSourceId
+  - 移除了不必要的字段（queryType）
+  - 优化了类型定义，使其与后端API保持一致
+  - 修复了数据源ID未正确传递的问题
+  - 确保返回的Query对象包含所有必需字段
+  - 优化了错误处理，对查询不存在的情况提供更友好的错误提示
+  - 添加了必填字段的前端验证
+  - 优化了错误消息的显示，提供更具体的错误信息
+  - 修复了服务层saveQuery方法字段名不匹配的问题
 
-## [1.0.0] - 2023-06-01
+- 修复了新增查询场景的问题
+  - 修正了新增查询时错误使用PUT方法的问题
+  - 确保新增场景不传入id字段
+  - 只在更新场景下使用路由中的queryId
 
-### 新增功能
-- 实现基础数据源管理功能
-- 添加元数据浏览功能
-- 支持MySQL和PostgreSQL连接
+- 修复了查询编辑功能问题
+  - 修复了编辑页面无法正确加载已有查询的问题
+  - 确保URL中的查询ID能正确传递到组件中
+  - 优化了查询加载逻辑，改进错误处理和提示
+  - 修复了查询内容无法正确回显的问题
+
+- 修复了查询保存界面的问题，调整请求体格式以符合后端API要求

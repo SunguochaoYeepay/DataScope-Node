@@ -7,7 +7,7 @@ const router = Router();
 
 /**
  * @swagger
- * /datasources:
+ * /api/datasources:
  *   post:
  *     summary: 创建新数据源
  *     tags: [DataSources]
@@ -39,7 +39,7 @@ router.post(
 
 /**
  * @swagger
- * /datasources:
+ * /api/datasources:
  *   get:
  *     summary: 获取所有数据源
  *     tags: [DataSources]
@@ -85,7 +85,7 @@ router.get('/', dataSourceController.getAllDataSources);
 
 /**
  * @swagger
- * /datasources/{id}:
+ * /api/datasources/{id}:
  *   get:
  *     summary: 获取指定ID的数据源
  *     tags: [DataSources]
@@ -146,7 +146,7 @@ router.get('/:id', dataSourceController.getDataSourceById);
 
 /**
  * @swagger
- * /datasources/{id}:
+ * /api/datasources/{id}:
  *   put:
  *     summary: 更新指定ID的数据源
  *     tags: [DataSources]
@@ -178,7 +178,7 @@ router.put(
 
 /**
  * @swagger
- * /datasources/{id}:
+ * /api/datasources/{id}:
  *   delete:
  *     summary: 删除指定ID的数据源
  *     tags: [DataSources]
@@ -204,7 +204,7 @@ router.delete(
 
 /**
  * @swagger
- * /datasources/test-connection:
+ * /api/datasources/test-connection:
  *   post:
  *     summary: 测试数据源连接
  *     tags: [DataSources]
@@ -281,7 +281,7 @@ router.post(
 
 /**
  * @swagger
- * /datasources/test:
+ * /api/datasources/test:
  *   post:
  *     summary: 测试数据源连接（别名）
  *     tags: [DataSources]
@@ -311,10 +311,10 @@ router.post(
 
 /**
  * @swagger
- * /datasources/{id}/stats:
+ * /api/datasources/{id}/stats:
  *   get:
  *     summary: 获取数据源的统计信息
- *     tags: [DataSource]
+ *     tags: [DataSources]
  *     parameters:
  *       - in: path
  *         name: id
@@ -391,7 +391,7 @@ router.get('/:id/stats', metadataController.getStats);
 
 /**
  * @swagger
- * /datasources/{id}/test:
+ * /api/datasources/{id}/test:
  *   post:
  *     summary: 测试特定数据源的连接
  *     tags: [DataSources]
@@ -409,11 +409,11 @@ router.post('/:id/test', dataSourceController.testExistingConnection);
 
 /**
  * @swagger
- * /datasources/{id}/check-status:
+ * /api/datasources/{id}/check-status:
  *   post:
  *     summary: 检查数据源连接状态
  *     description: 触发检查指定数据源的连接状态，并更新状态信息
- *     tags: [DataSource]
+ *     tags: [DataSources]
  *     parameters:
  *       - in: path
  *         name: id

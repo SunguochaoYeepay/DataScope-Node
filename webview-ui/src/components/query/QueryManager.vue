@@ -1,45 +1,5 @@
 <template>
   <div>
-    <!-- 简化的查询管理界面 -->
-    <div class="bg-white p-4 border border-gray-300 rounded-lg mb-4">
-      <!-- 管理界面标题和操作按钮 -->
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-lg font-medium text-gray-900">临时查询</h3>
-        <div class="flex space-x-2">
-          <button
-            @click="saveCurrentQuery"
-            class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            :disabled="!canSave"
-          >
-            <i class="fas fa-save mr-2"></i> 暂存查询
-          </button>
-        </div>
-      </div>
-
-      <!-- 最近查询快捷访问 -->
-      <div v-if="queryHistory.length > 0" class="flex items-center space-x-1 overflow-x-auto py-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-        <span class="text-xs text-gray-500 whitespace-nowrap mr-2">最近查询:</span>
-        <button 
-          v-for="(item, index) in queryHistory.slice(0, 5)" 
-          :key="`history-${index}`"
-          @click="loadQuery(item)"
-          class="px-2 py-1 text-xs rounded border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis max-w-[160px]"
-          :title="item.sql"
-        >
-          {{ shortenSql(item.sql) }}
-        </button>
-        <button 
-          v-if="queryHistory.length > 0"
-          @click="clearHistory" 
-          class="ml-2 px-2 py-1 text-xs rounded border border-gray-200 bg-white hover:bg-gray-100 text-gray-700">
-          <i class="fas fa-trash-alt"></i> 清空
-        </button>
-      </div>
-      <div v-else class="text-sm text-gray-500">
-        暂无查询记录
-      </div>
-    </div>
-
     <!-- 简化的保存查询弹窗 -->
     <div v-if="showSaveDialog" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">

@@ -183,7 +183,7 @@ GET /api/metadata/datasources/:dataSourceId/stats
 ##### 获取集成列表
 
 ```
-GET /api/v1/low-code/apis
+GET /api/low-code/apis
 ```
 
 获取所有已配置的系统集成。
@@ -200,106 +200,49 @@ Authorization: Bearer {token}
   "data": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "用户查询接口",
-      "description": "查询系统用户信息",
-      "queryId": "123e4567-e89b-12d3-a456-426655440000",
+      "name": "用户列表API",
+      "description": "获取系统中所有活跃用户的信息",
       "type": "TABLE",
+      "status": "ACTIVE",
+      "queryId": "123e4567-e89b-12d3-a456-426614174000",
       "config": {
         "params": [
           {
-            "name": "username",
-            "label": "用户名",
-            "type": "string",
-            "required": true
+            "name": "status",
+            "type": "STRING",
+            "required": false,
+            "defaultValue": "active"
           }
         ],
         "tableConfig": {
           "columns": [
             {
-              "key": "id",
-              "dataIndex": "id",
-              "title": "ID"
+              "field": "id",
+              "title": "用户ID",
+              "dataType": "STRING"
             },
             {
-              "key": "username",
-              "dataIndex": "username",
-              "title": "用户名"
+              "field": "name",
+              "title": "用户名",
+              "dataType": "STRING"
             }
           ]
         }
       },
-      "status": "ACTIVE",
-      "createdAt": "2023-01-01T00:00:00.000Z",
-      "updatedAt": "2023-01-01T00:00:00.000Z"
+      "createdAt": "2023-01-15T08:30:00.000Z",
+      "updatedAt": "2023-01-15T08:30:00.000Z"
     }
   ]
-}
-```
-
-##### 获取单个集成
-
-```
-GET /api/v1/low-code/apis/:id
-```
-
-获取特定集成的详细信息。
-
-**请求参数:**
-- `id`: 集成ID (路径参数)
-
-**请求头:**
-```
-Authorization: Bearer {token}
-```
-
-**响应示例:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "用户查询接口",
-    "description": "查询系统用户信息",
-    "queryId": "123e4567-e89b-12d3-a456-426655440000",
-    "type": "TABLE",
-    "config": {
-      "params": [
-        {
-          "name": "username",
-          "label": "用户名",
-          "type": "string",
-          "required": true
-        }
-      ],
-      "tableConfig": {
-        "columns": [
-          {
-            "key": "id",
-            "dataIndex": "id",
-            "title": "ID"
-          },
-          {
-            "key": "username",
-            "dataIndex": "username",
-            "title": "用户名"
-          }
-        ]
-      }
-    },
-    "status": "ACTIVE",
-    "createdAt": "2023-01-01T00:00:00.000Z",
-    "updatedAt": "2023-01-01T00:00:00.000Z"
-  }
 }
 ```
 
 ##### 创建集成
 
 ```
-POST /api/v1/low-code/apis
+POST /api/low-code/apis
 ```
 
-创建新的系统集成配置。
+创建新的系统集成。
 
 **请求头:**
 ```
@@ -307,38 +250,34 @@ Authorization: Bearer {token}
 Content-Type: application/json
 ```
 
-**请求体示例:**
+**请求体:**
 ```json
 {
-  "name": "用户查询接口",
-  "description": "查询系统用户信息",
-  "queryId": "123e4567-e89b-12d3-a456-426655440000",
-  "type": "TABLE",
+  "name": "订单统计API",
+  "description": "获取每日订单统计数据",
+  "type": "CHART",
+  "queryId": "123e4567-e89b-12d3-a456-426614174001",
   "config": {
     "params": [
       {
-        "name": "username",
-        "label": "用户名",
-        "type": "string",
+        "name": "startDate",
+        "type": "DATE",
         "required": true
+      },
+      {
+        "name": "endDate",
+        "type": "DATE",
+        "required": true,
+        "defaultValue": "2023-12-31"
       }
     ],
-    "tableConfig": {
-      "columns": [
-        {
-          "key": "id",
-          "dataIndex": "id",
-          "title": "ID"
-        },
-        {
-          "key": "username",
-          "dataIndex": "username",
-          "title": "用户名"
-        }
-      ]
+    "chartConfig": {
+      "type": "LINE",
+      "xField": "date",
+      "yField": "amount",
+      "seriesField": "category"
     }
-  },
-  "status": "DRAFT"
+  }
 }
 ```
 
@@ -347,38 +286,35 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "用户查询接口",
-    "description": "查询系统用户信息",
-    "queryId": "123e4567-e89b-12d3-a456-426655440000",
-    "type": "TABLE",
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "订单统计API",
+    "description": "获取每日订单统计数据",
+    "type": "CHART",
+    "status": "DRAFT",
+    "queryId": "123e4567-e89b-12d3-a456-426614174001",
     "config": {
       "params": [
         {
-          "name": "username",
-          "label": "用户名",
-          "type": "string",
+          "name": "startDate",
+          "type": "DATE",
           "required": true
+        },
+        {
+          "name": "endDate",
+          "type": "DATE",
+          "required": true,
+          "defaultValue": "2023-12-31"
         }
       ],
-      "tableConfig": {
-        "columns": [
-          {
-            "key": "id",
-            "dataIndex": "id",
-            "title": "ID"
-          },
-          {
-            "key": "username",
-            "dataIndex": "username",
-            "title": "用户名"
-          }
-        ]
+      "chartConfig": {
+        "type": "LINE",
+        "xField": "date",
+        "yField": "amount",
+        "seriesField": "category"
       }
     },
-    "status": "DRAFT",
-    "createdAt": "2023-01-01T00:00:00.000Z",
-    "updatedAt": "2023-01-01T00:00:00.000Z"
+    "createdAt": "2023-01-16T10:45:00.000Z",
+    "updatedAt": "2023-01-16T10:45:00.000Z"
   }
 }
 ```
@@ -386,10 +322,10 @@ Content-Type: application/json
 ##### 更新集成
 
 ```
-PUT /api/v1/low-code/apis/:id
+PUT /api/low-code/apis/:id
 ```
 
-更新现有的系统集成配置。
+更新已有的系统集成。
 
 **请求参数:**
 - `id`: 集成ID (路径参数)
@@ -400,45 +336,31 @@ Authorization: Bearer {token}
 Content-Type: application/json
 ```
 
-**请求体示例:**
+**请求体:**
 ```json
 {
-  "name": "用户查询接口V2",
-  "status": "ACTIVE",
+  "name": "订单统计API (已更新)",
+  "description": "获取每日和每月订单统计数据",
   "config": {
     "params": [
       {
-        "name": "username",
-        "label": "用户名",
-        "type": "string",
+        "name": "startDate",
+        "type": "DATE",
         "required": true
       },
       {
-        "name": "status",
-        "label": "状态",
-        "type": "string",
-        "required": false
+        "name": "endDate",
+        "type": "DATE",
+        "required": true
+      },
+      {
+        "name": "groupBy",
+        "type": "STRING",
+        "required": false,
+        "defaultValue": "day",
+        "options": ["day", "month", "year"]
       }
-    ],
-    "tableConfig": {
-      "columns": [
-        {
-          "key": "id",
-          "dataIndex": "id",
-          "title": "ID"
-        },
-        {
-          "key": "username",
-          "dataIndex": "username",
-          "title": "用户名"
-        },
-        {
-          "key": "status",
-          "dataIndex": "status",
-          "title": "状态"
-        }
-      ]
-    }
+    ]
   }
 }
 ```
@@ -448,49 +370,40 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "用户查询接口V2",
-    "description": "查询系统用户信息",
-    "queryId": "123e4567-e89b-12d3-a456-426655440000",
-    "type": "TABLE",
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "订单统计API (已更新)",
+    "description": "获取每日和每月订单统计数据",
+    "type": "CHART",
+    "status": "DRAFT",
+    "queryId": "123e4567-e89b-12d3-a456-426614174001",
     "config": {
       "params": [
         {
-          "name": "username",
-          "label": "用户名",
-          "type": "string",
+          "name": "startDate",
+          "type": "DATE",
           "required": true
         },
         {
-          "name": "status",
-          "label": "状态",
-          "type": "string",
-          "required": false
+          "name": "endDate",
+          "type": "DATE",
+          "required": true
+        },
+        {
+          "name": "groupBy",
+          "type": "STRING",
+          "required": false,
+          "defaultValue": "day",
+          "options": ["day", "month", "year"]
         }
       ],
-      "tableConfig": {
-        "columns": [
-          {
-            "key": "id",
-            "dataIndex": "id",
-            "title": "ID"
-          },
-          {
-            "key": "username",
-            "dataIndex": "username",
-            "title": "用户名"
-          },
-          {
-            "key": "status",
-            "dataIndex": "status",
-            "title": "状态"
-          }
-        ]
+      "chartConfig": {
+        "type": "LINE",
+        "xField": "date",
+        "yField": "amount",
+        "seriesField": "category"
       }
     },
-    "status": "ACTIVE",
-    "createdAt": "2023-01-01T00:00:00.000Z",
-    "updatedAt": "2023-01-01T01:00:00.000Z"
+    "updatedAt": "2023-01-17T09:20:00.000Z"
   }
 }
 ```
@@ -498,10 +411,10 @@ Content-Type: application/json
 ##### 删除集成
 
 ```
-DELETE /api/v1/low-code/apis/:id
+DELETE /api/low-code/apis/:id
 ```
 
-删除系统集成配置。
+删除系统集成。
 
 **请求参数:**
 - `id`: 集成ID (路径参数)
@@ -511,18 +424,21 @@ DELETE /api/v1/low-code/apis/:id
 Authorization: Bearer {token}
 ```
 
-**响应:**
-```
-HTTP/1.1 204 No Content
-```
-
-##### 获取API配置
-
-```
-GET /api/v1/low-code/apis/:id/config
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "集成已成功删除"
+}
 ```
 
-获取集成API的完整配置信息，包括如何调用。
+##### 获取集成配置
+
+```
+GET /api/low-code/apis/:id/config
+```
+
+获取集成的API配置信息，包括接口路径、参数和示例。
 
 **请求参数:**
 - `id`: 集成ID (路径参数)
@@ -539,39 +455,19 @@ Authorization: Bearer {token}
   "data": {
     "apiEndpoint": "/api/data-service/query",
     "method": "POST",
-    "requestFormat": {
-      "integrationId": "550e8400-e29b-41d4-a716-446655440000",
+    "contentType": "application/json",
+    "params": {
+      "integrationId": "550e8400-e29b-41d4-a716-446655440001",
       "params": {
-        "username": "示例值"
-      },
-      "pagination": {
-        "page": 1,
-        "pageSize": 10
+        "startDate": "2023-01-01",
+        "endDate": "2023-12-31",
+        "groupBy": "month"
       }
     },
-    "responseFormat": {
-      "success": true,
-      "data": {
-        "records": [
-          {
-            "id": 1,
-            "username": "user1"
-          }
-        ],
-        "total": 100,
-        "page": 1,
-        "pageSize": 10,
-        "totalPages": 10
-      }
-    },
-    "parameterDocs": [
-      {
-        "name": "username",
-        "description": "用户名",
-        "type": "string",
-        "required": true
-      }
-    ]
+    "exampleCode": {
+      "curl": "curl -X POST -H \"Content-Type: application/json\" -d '{\"integrationId\":\"550e8400-e29b-41d4-a716-446655440001\",\"params\":{\"startDate\":\"2023-01-01\",\"endDate\":\"2023-12-31\",\"groupBy\":\"month\"}}' http://api.example.com/api/data-service/query",
+      "javascript": "fetch('/api/data-service/query', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    integrationId: '550e8400-e29b-41d4-a716-446655440001',\n    params: {\n      startDate: '2023-01-01',\n      endDate: '2023-12-31',\n      groupBy: 'month'\n    }\n  })\n})\n.then(response => response.json())\n.then(data => console.log(data));"
+    }
   }
 }
 ```
@@ -579,10 +475,10 @@ Authorization: Bearer {token}
 ##### 测试集成
 
 ```
-POST /api/v1/low-code/apis/:id/test
+POST /api/low-code/apis/:id/test
 ```
 
-测试系统集成配置。
+使用测试参数执行集成，用于验证集成配置是否正确。
 
 **请求参数:**
 - `id`: 集成ID (路径参数)
@@ -593,15 +489,13 @@ Authorization: Bearer {token}
 Content-Type: application/json
 ```
 
-**请求体示例:**
+**请求体:**
 ```json
 {
   "params": {
-    "username": "testuser"
-  },
-  "pagination": {
-    "page": 1,
-    "pageSize": 10
+    "startDate": "2023-01-01",
+    "endDate": "2023-01-31",
+    "groupBy": "day"
   }
 }
 ```
@@ -611,48 +505,65 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "records": [
+    "results": [
       {
-        "id": 1,
-        "username": "testuser"
+        "date": "2023-01-01",
+        "amount": 12500,
+        "category": "online"
+      },
+      {
+        "date": "2023-01-01",
+        "amount": 8700,
+        "category": "store"
+      },
+      {
+        "date": "2023-01-02",
+        "amount": 14300,
+        "category": "online"
+      },
+      {
+        "date": "2023-01-02",
+        "amount": 9200,
+        "category": "store"
       }
     ],
-    "total": 1,
-    "page": 1,
-    "pageSize": 10,
-    "totalPages": 1,
-    "executionTime": "120ms"
+    "metadata": {
+      "totalRows": 62,
+      "executionTime": "0.25 seconds",
+      "message": "查询执行成功"
+    }
   }
 }
 ```
 
-##### 执行查询
+##### 执行集成查询
 
 ```
 POST /api/data-service/query
 ```
 
-执行系统集成查询（不需要认证）。
+执行集成查询，获取数据结果。此接口可以公开给外部系统调用，无需认证。
 
 **请求头:**
 ```
 Content-Type: application/json
 ```
 
-**请求体示例:**
+**请求体:**
 ```json
 {
-  "integrationId": "550e8400-e29b-41d4-a716-446655440000",
+  "integrationId": "550e8400-e29b-41d4-a716-446655440001",
   "params": {
-    "username": "searchuser",
-    "status": "active"
+    "startDate": "2023-01-01",
+    "endDate": "2023-03-31",
+    "groupBy": "month"
   },
   "pagination": {
     "page": 1,
     "pageSize": 20
   },
   "sorting": {
-    "field": "createdAt",
+    "field": "amount",
     "order": "desc"
   }
 }
@@ -663,79 +574,44 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "records": [
+    "results": [
       {
-        "id": 1,
-        "username": "searchuser",
-        "email": "user@example.com",
-        "status": "active"
+        "date": "2023-03-01",
+        "amount": 520000,
+        "category": "online"
+      },
+      {
+        "date": "2023-02-01",
+        "amount": 495000,
+        "category": "online"
+      },
+      {
+        "date": "2023-01-01",
+        "amount": 470000,
+        "category": "online"
+      },
+      {
+        "date": "2023-03-01",
+        "amount": 380000,
+        "category": "store"
+      },
+      {
+        "date": "2023-02-01",
+        "amount": 365000,
+        "category": "store"
+      },
+      {
+        "date": "2023-01-01",
+        "amount": 350000,
+        "category": "store"
       }
     ],
-    "total": 42,
-    "page": 1,
-    "pageSize": 20,
-    "totalPages": 3
-  }
-}
-```
-
-#### 数据源管理
-
-数据源API用于创建、更新、删除和查询数据源配置。
-
-##### 测试数据库连接
-
-```
-POST /api/datasources/test-connection
-```
-
-测试数据库连接是否成功。
-
-**请求体示例:**
-```json
-{
-  "type": "mysql",
-  "host": "localhost",
-  "port": 3306,
-  "username": "user",
-  "password": "password",
-  "databaseName": "testdb"
-}
-```
-
-**响应示例:**
-```json
-{
-  "success": true,
-  "message": "连接成功",
-  "data": {
-    "tablesCount": 15,
-    "tables": ["users", "orders", "products", "categories", "customers"]
-  }
-}
-```
-
-##### 检查数据源状态
-
-```
-POST /api/datasources/:id/check-status
-```
-
-检查指定数据源的连接状态并更新状态字段。
-
-**请求参数:**
-- `id`: 数据源ID (路径参数)
-
-**响应示例:**
-```json
-{
-  "success": true,
-  "message": "数据源状态检查完成",
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "测试数据源",
-    "status": "ACTIVE",
-    "lastChecked": "2023-04-01T15:30:00.000Z"
+    "pagination": {
+      "total": 6,
+      "page": 1,
+      "pageSize": 20,
+      "totalPages": 1
+    }
   }
 }
 ```
@@ -747,10 +623,96 @@ POST /api/datasources/:id/check-status
 - **查询历史**：自动保存查询历史记录
 - **元数据浏览**：浏览数据库表结构、关系和字段信息
 - **查询保存**：保存常用查询以便快速访问
+- **查询版本控制**：全面的查询版本管理，支持版本比较、标记和状态管理
+- **版本工作流**：支持草稿、审核、批准、发布的完整工作流
+- **统一消息通知**：使用全局消息服务提供一致的操作反馈体验
+- **精简的用户界面**：优化SQL编辑器和查询列表操作，提升用户体验
 - **数据可视化**：将查询结果转换为直观的图表（待实现）
 - **查询执行计划**：分析和可视化SQL查询执行计划，提供性能优化建议
 - **错误处理**：统一的错误处理机制，提供友好的错误信息
 - **数据源监控**：定期自动检查数据源连接状态，确保状态显示的准确性
+
+## SQL编辑器优化
+
+SQL编辑器是DataScope平台的核心组件，经过优化提供以下用户体验改进：
+
+- **简化的用户界面**：整合操作按钮到顶部工具栏，减少视觉干扰
+- **突出主要功能**：将执行和保存按钮设置为最明显的操作，提高易用性
+- **智能时间显示**：最后保存时间采用相对时间格式（如"几分钟前"），增强用户体验
+- **版本管理优化**：将版本状态和操作集成到顶部区域，简化版本信息显示
+- **状态指示器**：通过颜色和图标直观显示查询和版本状态
+- **键盘快捷键**：支持常用操作的键盘快捷键，提高效率
+- **实时反馈**：操作结果通过统一的消息通知机制即时反馈
+
+## 查询版本控制和状态管理
+
+版本控制和状态管理是DataScope的核心功能，提供以下能力：
+
+- **版本历史**：记录查询的所有历史版本，包括变更时间、作者和变更内容
+- **版本比较**：直观比较不同版本之间的SQL差异、参数变化和元数据变更
+- **版本标记**：为重要版本添加标签和注释，便于后续查找和管理
+- **状态管理**：支持查询版本的完整生命周期管理
+  - 草稿（Draft）：初始创建或修改的版本
+  - 审核中（Review）：已提交等待审核的版本
+  - 已批准（Approved）：通过审核的版本
+  - 已发布（Published）：正式发布到生产环境的版本
+  - 已弃用（Deprecated）：不再推荐使用的版本
+  - 已归档（Archived）：已归档不可修改的版本
+- **历史记录**：完整记录状态变更历史，包括操作人、时间和备注
+- **权限控制**：基于角色的细粒度操作权限控制
+
+### 版本控制组件
+
+系统提供以下版本控制相关组件：
+
+- **VersionCompare**：版本比较组件，支持SQL差异、元数据和参数比较
+- **VersionHistory**：版本历史列表，展示所有历史版本及其详细信息
+- **VersionTagging**：版本标记组件，支持添加、编辑和删除标签
+- **VersionStatusManager**：版本状态管理组件，支持状态转换和历史查看
+- **StatusHelpTips**：状态管理帮助提示组件，提供状态工作流的详细说明和使用指南
+- **CreateVersionDialog**：版本创建对话框，支持版本信息编辑和参数配置
+- **QueryDetailView**：查询详情页，集成版本控制和状态管理功能
+- **QueryListView**：查询版本列表页，提供版本筛选、搜索和管理功能
+
+#### 版本状态流转图
+版本状态管理支持以下流转路径：
+
+- **草稿** → **审核中**：提交查询到审核流程
+- **审核中** → **已批准**：批准通过此查询（需要审核权限）
+- **审核中** → **草稿**：退回查询到草稿状态进行修改
+- **已批准** → **已发布**：将批准的查询发布到生产环境
+- **已批准** → **草稿**：退回已批准的查询到草稿状态
+- **已发布** → **已弃用**：将此查询标记为已弃用
+- **已弃用** → **已发布**：重新激活已弃用的查询
+- **已弃用** → **已归档**：将此查询归档（不可恢复）
+
+### 使用方法
+
+#### 创建新版本
+
+基于现有查询创建新版本：
+
+1. 在查询详情页点击"创建新版本"按钮
+2. 填写版本名称、说明和变更记录
+3. 修改SQL语句和参数配置
+4. 提交创建新版本
+
+#### 比较版本
+
+比较两个版本之间的差异：
+
+1. 在版本历史列表中选择两个要比较的版本
+2. 点击"比较版本"按钮
+3. 在比较界面查看SQL差异、元数据变更和参数变化
+
+#### 管理版本状态
+
+变更版本状态：
+
+1. 在查询详情页打开"状态管理"面板
+2. 选择目标状态（如从"草稿"提交到"审核中"）
+3. 添加状态变更说明（可选）
+4. 确认状态变更
 
 ## 查询执行计划功能
 
@@ -850,14 +812,6 @@ POST /api/query-plans/compare
 }
 ```
 
-### 技术实现
-
-- 模块化的查询计划转换器，支持不同数据库的执行计划格式
-- 专用的MySQL计划分析器，深度解析MySQL执行计划的各个方面
-- 基于多维度的性能评估算法，提供全面的性能分析
-- 直观的可视化界面，突出显示关键性能指标和潜在问题
-- 支持保存和比较不同时间点的执行计划
-
 ## 技术栈
 
 ### 前端
@@ -901,20 +855,25 @@ POST /api/query-plans/compare
 - 测试中使用mock对象替代真实依赖，确保单元测试的隔离性和可靠性
 - 支持测试覆盖率分析，确保代码质量
 
-#### 运行测试
+## 功能说明
 
-##### 单元测试
+### 查询管理
+DataScope提供了强大的SQL查询编辑和执行功能，支持多种数据源的连接和查询。
 
-单元测试不依赖实际数据库连接，可以直接运行：
+### 查询版本管理
+- 支持查询版本的创建、发布和废弃
+- 在查询详情页中通过"版本"标签页查看所有历史版本
+- 可以将已发布的版本设置为活跃版本
+- 支持版本状态管理：草稿、已发布、已废弃
+- 在查询列表中显示当前使用的版本号
+- 编辑查询时自动回显当前活跃版本的内容
+- 当版本为草稿状态时，才可编辑并创建新版本
 
-```bash
-cd webService
-npm test                                    # 运行所有单元测试
-npm test tests/unit/controllers             # 运行所有控制器测试
-npm test tests/unit/controllers/datasource.controller.test.js  # 运行特定控制器测试
-```
+### 收藏功能
+用户可以收藏常用查询，方便快速访问。
 
-##### 集成测试
+### 历史记录
+系统会记录查询的执行历史，便于追踪和复用。
 
 集成测试需要启动一个测试数据库环境：
 
@@ -1124,3 +1083,6 @@ DataScope-Node现在支持系统集成API功能，允许将查询作为数据服
 3. 配置参数、输出字段和权限
 4. 发布集成
 5. 使用生成的API文档集成到外部系统
+
+### 可视化
+支持查询结果的可视化展示，包括图表等多种形式。

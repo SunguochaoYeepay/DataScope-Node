@@ -614,7 +614,7 @@ export class DatabaseConnectorFactory {
           config.options
         );
       default:
-        throw new ApiError(`不支持的数据库类型: ${type}`, ERROR_CODES.INVALID_REQUEST);
+        throw new ApiError(`不支持的数据库类型: ${type}`, ERROR_CODES.BAD_REQUEST);
     }
   }
   

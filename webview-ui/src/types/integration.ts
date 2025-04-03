@@ -283,9 +283,10 @@ export interface Integration {
   id: string;
   name: string;
   description?: string;
-  type: 'SIMPLE_TABLE' | 'TABLE' | 'CHART';
+  type: 'SIMPLE_TABLE' | 'TABLE' | 'CHART' | 'FORM';
   status: 'DRAFT' | 'ACTIVE' | 'INACTIVE';
   queryId: string;
+  dataSourceId?: string; // 数据源ID
   formConfig?: FormConfig;
   tableConfig?: TableConfig;
   chartConfig?: ChartConfig; // 图表配置
@@ -293,4 +294,21 @@ export interface Integration {
   createTime: string;
   updateTime: string;
   queryParams?: QueryParam[]; // 查询参数列表
+}
+
+// 查询结果列定义
+export interface QueryResultColumn {
+  name: string;
+  type: string;
+  label?: string;
+  format?: string;
+}
+
+// 查询结果定义
+export interface QueryResult {
+  columns: QueryResultColumn[];
+  rows: any[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
 }

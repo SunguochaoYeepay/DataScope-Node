@@ -1,3 +1,6 @@
+/**
+ * 应用入口文件
+ */
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -6,7 +9,7 @@ import 'express-async-errors';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
-import swaggerJsDoc from 'swagger-jsdoc';
+import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import config from './config';
 import logger from './utils/logger';
@@ -14,6 +17,14 @@ import apiRoutes from './api/routes';
 import { DataSourceService } from './services/datasource.service';
 import { DataSourceMonitorService } from './services/datasource-monitor.service';
 import metadataController from './api/controllers/metadata.controller';
+import visualizationRouter from './api/routes/visualization.routes';
+import queryPlanRouter from './api/routes/query-plan.routes';
+import planVisualizationRouter from './api/routes/plan-visualization.routes';
+import mockPlanRouter from './api/routes/mock-plan.routes';
+import { registerDirectRoutes } from './api/direct-routes';
+import dataSourcesMockRoutes from './api/routes/data-sources.mock';
+// 导入queryRoutes和queryVersionRoutes
+import { dataSourceRoutes, queryRoutes, queryVersionRoutes } from './routes';
 
 // 初始化服务
 const dataSourceService = new DataSourceService();
@@ -33,7 +44,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: '/api',
+        url: '/',
         description: 'API服务端点'
       }
     ],
@@ -56,7 +67,7 @@ const swaggerOptions = {
 };
 
 // 生成Swagger规范
-const swaggerSpec = swaggerJsDoc(swaggerOptions);
+const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
 // 日志中间件，记录每个请求
 const requestLogger = (req: Request, res: Response, next: NextFunction) => {
@@ -85,6 +96,23 @@ const errorHandler = (err: any, req: Request, res: Response, next: NextFunction)
 // 创建Express应用实例
 const app: Application = express();
 
+// 检查是否使用模拟数据
+const useMockData = process.env.USE_MOCK_DATA === 'true';
+
+// 在启动时明确记录使用模式
+console.log('==============================================');
+console.log(`DataScope API服务启动`);
+console.log(`环境: ${process.env.NODE_ENV || 'development'}`);
+console.log(`模式: ${useMockData ? '模拟数据 (USE_MOCK_DATA=true)' : '真实数据库连接'}`);
+if (useMockData) {
+  console.log('警告: 当前使用模拟数据模式，不会连接真实数据库');
+  console.log('      数据源列表将来自模拟数据，不代表实际数据库连接');
+} else {
+  console.log('提示: 当前使用真实数据库连接模式');
+  console.log(`      连接地址: ${process.env.DATABASE_URL || '未指定'}`);
+}
+console.log('==============================================');
+
 // 应用中间件
 app.use(cors());
 app.use(helmet());
@@ -107,10 +135,7 @@ app.get('/api-docs.json', (req: Request, res: Response) => {
 // 健康检查路由
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    service: 'DataScope API',
-    version: '1.0.5'  // 硬编码版本号
+    status: 'UP'
   });
 });
 
@@ -120,9 +145,31 @@ app.get('/api/metadata/:dataSourceId/tables/:tableName/data', (req: Request, res
   return metadataController.getTableData(req, res);
 });
 
-// 使用API路由
+// 注册数据源模拟路由（确保数据源功能正常工作）- 将模拟路由移动到API路由前面，确保优先级
+if (useMockData) {
+  app.use('/api/datasources', dataSourcesMockRoutes); // 使用标准路径
+  console.log('主应用：数据源模拟路由已加载：/api/datasources');
+} else {
+  console.log('主应用：使用真实数据库连接，未加载模拟路由');
+}
+
+// 注册额外的开发测试路由
+app.use('/api/mock-plan', mockPlanRouter);
+
+// 直接注册查询版本路由，确保前端访问路径正确
+app.use('/api', queryVersionRoutes);
+app.use('', queryVersionRoutes); // 使root路径也能访问
+console.log('主应用：查询版本路由已加载：/api 和 根路径');
+
+// 注册API路由
 app.use('/api', apiRoutes);
-console.log('主应用：API路由已加载：/api');
+
+// 注册数据源和查询路由
+app.use('/api', dataSourceRoutes);
+app.use('/api', queryRoutes);
+
+// 注册直接路由(用于测试)
+registerDirectRoutes(app);
 
 // 错误处理中间件
 app.use(errorHandler);
@@ -135,13 +182,10 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-// 确保使用5000端口
-const PORT = 5000;
-app.listen(PORT, () => {
-  logger.info(`服务器已启动，监听端口: ${PORT}`);
-  logger.info(`API文档地址: http://localhost:${PORT}/api-docs`);
-  
-  // 启动数据源监控服务
-  dataSourceMonitorService.start();
-  logger.info('数据源监控服务已启动');
-});
+// 启动数据源监控服务
+dataSourceMonitorService.start();
+logger.info('数据源监控服务已启动');
+
+// 导出Express应用
+export { app };
+export default app;

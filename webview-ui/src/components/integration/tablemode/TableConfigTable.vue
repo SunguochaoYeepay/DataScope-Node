@@ -710,64 +710,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useMessageStore } from '@/stores/message';
 import draggable from 'vuedraggable';
 import { ColumnDisplayType, ColumnAlign, ChartType, ChartTheme } from '@/types/integration';
-import type { TableColumn, TableConfig, TableAction, BatchAction } from '@/types/integration';
-import { queryService } from '@/services/query';
-import { executeMockQuery } from '@/services/mockData';
+import type { TableColumn, TableConfig, TableAction, BatchAction, QueryResult, QueryResultColumn } from '@/types/integration';
+import { api } from '@/services/api';
 
-const props = defineProps({
-  modelValue: {
-    type: Object as () => TableConfig,
-    required: true
-  },
-  queryId: {
-    type: String,
-    default: ''
-  }
+interface Props {
+  modelValue: TableConfig;
+  queryId?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  queryId: ''
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: TableConfig): void;
+}>();
 
 const messageStore = useMessageStore();
 
+const queryResult = ref<QueryResult | null>(null);
+
 // 表格配置，使用计算属性处理
 const tableConfig = computed({
-  get: () => {
-    console.log('[DEBUG] TableConfigTable 获取表格配置:', props.modelValue);
-    // 确保至少有一个基础配置对象，防止undefined错误
-    return props.modelValue || {
-      columns: [],
-      actions: [],
-      pagination: {
-        enabled: true,
-        pageSize: 10,
-        pageSizeOptions: [10, 20, 50, 100]
-      },
-      export: {
-        enabled: true,
-        formats: ['CSV', 'EXCEL'],
-        maxRows: 1000
-      },
-      batchActions: [],
-      aggregation: {
-        enabled: false,
-        groupByFields: [],
-        aggregationFunctions: []
-      },
-      advancedFilters: {
-        enabled: true,
-        defaultFilters: [],
-        savedFilters: []
-      }
-    };
-  },
-  set: (value) => {
-    console.log('[DEBUG] TableConfigTable 更新表格配置:', value);
-    emit('update:modelValue', value);
-  }
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
 });
 
 // 确保组件挂载时检查配置并初始化默认值
@@ -846,7 +816,7 @@ const enableColumnDrag = ref(false);
 const enableColumnVisibility = ref(false);
 const enableExpandableRows = ref(false);
 const availableFields = ref<string[]>([]);
-const activeFieldDropdown = ref<number | null>(null);
+const activeFieldDropdown = ref<number>(-1);
 const fieldSearchText = ref('');
 const fieldSearchInput = ref<HTMLInputElement | null>(null);
 const showColumnEditModal = ref(false);
@@ -854,7 +824,7 @@ const editingColumn = ref<TableColumn>({
   field: '',
   label: '',
   type: 'string',
-  displayType: 'TEXT',
+  displayType: ColumnDisplayType.TEXT,
   width: '100',
   align: ColumnAlign.LEFT,
   visible: true,
@@ -879,20 +849,100 @@ const columnAlign = {
   RIGHT: ColumnAlign.RIGHT
 };
 
+// 获取默认显示类型
+const getDefaultDisplayType = (type: string): ColumnDisplayType => {
+  switch (type.toLowerCase()) {
+    case 'date':
+    case 'datetime':
+      return ColumnDisplayType.DATE;
+    case 'number':
+    case 'integer':
+    case 'decimal':
+      return ColumnDisplayType.NUMBER;
+    case 'boolean':
+      return ColumnDisplayType.TAG;
+    case 'url':
+    case 'link':
+      return ColumnDisplayType.LINK;
+    case 'image':
+      return ColumnDisplayType.IMAGE;
+    case 'status':
+    case 'state':
+      return ColumnDisplayType.STATUS;
+    case 'sensitive':
+    case 'password':
+      return ColumnDisplayType.SENSITIVE;
+    default:
+      return ColumnDisplayType.TEXT;
+  }
+};
+
+// 字段下拉框相关方法
+const openFieldDropdown = (index: number) => {
+  activeFieldDropdown.value = index;
+  nextTick(() => {
+    if (fieldSearchInput.value) {
+      fieldSearchInput.value.focus();
+    }
+  });
+};
+
+const closeFieldDropdown = () => {
+  activeFieldDropdown.value = -1;
+  fieldSearchText.value = '';
+};
+
+const toggleFieldDropdown = (column: TableColumn, index: number) => {
+  if (!column.isNewColumn) {
+    return;
+  }
+  
+  if (availableFields.value.length === 0) {
+    loadFieldOptions();
+  }
+  
+  if (activeFieldDropdown.value === index) {
+    closeFieldDropdown();
+  } else {
+    openFieldDropdown(index);
+  }
+};
+
+// 列表相关方法
+const sortColumns = (columns: TableColumn[]) => {
+  return [...columns].sort((c1, c2) => c1.displayOrder - c2.displayOrder);
+};
+
+const visibleColumns = computed(() => {
+  return sortColumns(tableConfig.value.columns.filter(c => c.visible));
+});
+
+const hiddenColumns = computed(() => {
+  return sortColumns(tableConfig.value.columns.filter(col => !col.visible));
+});
+
+// 字段选择相关方法
+const selectField = (column: TableColumn, field: string) => {
+  column.field = field;
+  column.label = field;
+  column.displayType = getDefaultDisplayType(column.type);
+  closeFieldDropdown();
+};
+
 // 添加列
 const addColumn = () => {
-  tableConfig.value.columns.push({
+  const newColumn: TableColumn = {
     field: '',
-    label: '新列',
+    label: '',
     type: 'string',
-    displayType: 'TEXT', // 默认为普通文本
-    sortable: true,
-    filterable: true,
+    displayType: ColumnDisplayType.TEXT,
+    width: '100',
     align: ColumnAlign.LEFT,
     visible: true,
     displayOrder: tableConfig.value.columns.length,
-    isNewColumn: true // 标记为新添加的列
-  });
+    isNewColumn: true
+  };
+  tableConfig.value.columns.push(newColumn);
 };
 
 // 移除列
@@ -1000,33 +1050,6 @@ const editAction = (action: TableAction) => {
   alert(`即将编辑操作按钮: ${action.label}`);
 };
 
-// 切换字段下拉框
-const toggleFieldDropdown = (column: TableColumn, index: number) => {
-  // 如果列不是新添加的，则禁止下拉选择
-  if (!column.isNewColumn) {
-    return;
-  }
-  
-  // 如果没有可用字段，则先加载字段选项
-  if (availableFields.value.length === 0) {
-    loadFieldOptions();
-  }
-  
-  // 切换下拉框显示状态
-  if (activeFieldDropdown.value === index) {
-    activeFieldDropdown.value = null;
-  } else {
-    // 设置当前活动的下拉框，并清空搜索文本
-    activeFieldDropdown.value = index;
-    fieldSearchText.value = '';
-    
-    // 在下一个事件循环中聚焦搜索输入框
-    setTimeout(() => {
-      fieldSearchInput.value?.focus?.();
-    }, 0);
-  }
-};
-
 // 过滤可用字段
 const filteredAvailableFields = computed(() => {
   if (!fieldSearchText.value) return availableFields.value;
@@ -1055,349 +1078,29 @@ const showAddColumnButton = computed(() => {
   return hasUnusedFields;
 });
 
-// 选择字段并智能设置其属性
-const selectField = (column: TableColumn, field: string) => {
-  // 如果列不是新添加的，则禁止修改字段
-  if (!column.isNewColumn) {
-    return;
-  }
-  
-  const oldField = column.field;
-  column.field = field;
-  
-  // 优先使用从数据库获取的类型映射
-  if (fieldTypeMap.value[field]) {
-    const mappedType = fieldTypeMap.value[field];
-    column.type = mappedType.type;
-    column.displayType = mappedType.displayType;
-    column.format = mappedType.format;
-    column.align = mappedType.type === 'NUMBER' ? ColumnAlign.RIGHT : ColumnAlign.LEFT;
-  } 
-  // 如果没有类型映射，进行自动推断
-  else if (oldField !== field) {
-    // 获取示例数据中的值
-    const mockData = [
-      {
-        productId: 'P001',
-        productName: '高端笔记本电脑',
-        category: '电子产品',
-        price: 8999,
-        salesQuantity: 120,
-        salesAmount: 1079880,
-        salesDate: '2023-01-15',
-        isActive: true,
-        updateTime: '2023-01-15 08:30:45',
-        details: {
-          color: '银色',
-          weight: '1.5kg'
-        }
-      }
-    ];
-    
-    const value = (mockData[0] as Record<string, any>)[field];
-    
-    let dataType = 'TEXT';
-    let dataFormat = '';
-    let displayType = 'TEXT';
-    
-    // 根据字段值类型推断数据类型
-    if (typeof value === 'number') {
-      if (Number.isInteger(value)) {
-        dataType = 'integer';
-        dataFormat = 'int';
-      } else {
-        dataType = 'number';
-        dataFormat = 'decimal';
-      }
-      displayType = 'NUMBER';
-    } else if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
-      // 检查是否带有时间部分
-      if (typeof value === 'string' && value.includes(':')) {
-        dataType = 'date';
-        dataFormat = 'date-time';
-        displayType = 'DATETIME';
-      } else {
-        dataType = 'date';
-        dataFormat = 'date';
-        displayType = 'DATE';
-      }
-    } else if (typeof value === 'boolean') {
-      dataType = 'boolean';
-      dataFormat = 'boolean';
-      displayType = 'TAG';
-    } else if (typeof value === 'object' && value !== null) {
-      dataType = 'string';
-      dataFormat = 'json';
-      displayType = 'TEXT';
-    } else if (typeof value === 'string') {
-      dataType = 'string';
-      
-      // 智能识别字符串类型
-      if (field.toLowerCase().includes('phone') || field.toLowerCase().includes('mobile')) {
-        dataFormat = 'mobile';
-        displayType = 'TEXT';
-      } else if (field.toLowerCase().includes('email')) {
-        dataFormat = 'email';
-        displayType = 'TEXT';
-      } else if (field.toLowerCase().includes('url') || field.toLowerCase().includes('link')) {
-        dataFormat = 'uri';
-        displayType = 'LINK';
-      } else if (field.toLowerCase().includes('status') || field.toLowerCase().includes('state')) {
-        dataFormat = 'enum';
-        displayType = 'STATUS';
-      } else if (field.toLowerCase().includes('card') || field.toLowerCase().includes('id')) {
-        dataFormat = 'card';
-        displayType = 'TEXT';
-      } else {
-        dataFormat = 'string';
-        displayType = 'TEXT';
-      }
-    }
-    
-    // 中文字段名映射
-    const fieldNameMapping: Record<string, string> = {
-      // ID/编号类
-      'id': '编号',
-      'productId': '产品编号',
-      'userId': '用户编号',
-      'orderId': '订单编号',
-      // 名称类
-      'name': '名称',
-      'productName': '产品名称',
-      'userName': '用户名称',
-      'categoryName': '分类名称',
-      // 时间类
-      'date': '日期',
-      'time': '时间',
-      'createTime': '创建时间',
-      'updateTime': '更新时间',
-      'createDate': '创建日期',
-      'updateDate': '更新日期',
-      'salesDate': '销售日期',
-      // 数量/金额类
-      'price': '价格',
-      'amount': '金额',
-      'quantity': '数量',
-      'salesQuantity': '销售数量',
-      'salesAmount': '销售金额',
-      // 其他
-      'description': '描述',
-      'status': '状态',
-      'type': '类型',
-      'category': '分类',
-      'address': '地址',
-      'phone': '电话',
-      'email': '邮箱',
-      'isActive': '是否激活',
-      'isDeleted': '是否删除',
-      'discountRate': '折扣率',
-      'inStock': '有库存',
-      'sku': 'SKU',
-      'brand': '品牌',
-      'dimensions': '尺寸',
-      'weight': '重量',
-      'warrantyMonths': '保修期(月)',
-      'customerRating': '客户评分'
-    };
-    
-    // 推断中文名称
-    let chineseName = fieldNameMapping[field] || field;
-    
-    // 如果没有找到映射，尝试智能拆分驼峰命名或下划线命名
-    if (chineseName === field) {
-      // 处理驼峰命名
-      if (/[A-Z]/.test(field)) {
-        const words = field.replace(/([A-Z])/g, ' $1').trim().split(' ');
-        chineseName = words.join('');
-      }
-      // 处理下划线命名
-      else if (field.includes('_')) {
-        const words = field.split('_');
-        chineseName = words.join('');
-      }
-    }
-    
-    // 更新列属性
-    column.type = dataType;
-    column.displayType = displayType;
-    column.align = dataType === 'NUMBER' ? ColumnAlign.RIGHT : ColumnAlign.LEFT;
-    column.label = chineseName;
-  }
-  
-  // 关闭下拉框
-  activeFieldDropdown.value = null;
-};
-
 // 从数据配置导入字段
-const importFieldsFromData = async () => {
-  if (!props.queryId) {
-    messageStore.error('请先选择数据源');
-    return;
-  }
-
-  try {
-    // 使用模拟数据演示功能
-    const mockData = [
-      {
-        productId: 'P001',
-        productName: '高端笔记本电脑',
-        category: '电子产品',
-        price: 8999,
-        salesQuantity: 120,
-        salesAmount: 1079880,
-        salesDate: '2023-01-15',
-        isActive: true,
-        updateTime: '2023-01-15 08:30:45',
-        details: {
-          color: '银色',
-          weight: '1.5kg'
-        }
-      }
-    ];
-    
-    // 获取示例数据，使用Record<string, any>类型
-    const sampleRow = mockData[0] as Record<string, any>;
-    
-    // 获取所有字段
-    const fields = Object.keys(sampleRow);
-    
-    // 中文字段名映射
-    const fieldNameMapping: Record<string, string> = {
-      // ID/编号类
-      'id': '编号',
-      'productId': '产品编号',
-      'userId': '用户编号',
-      'orderId': '订单编号',
-      // 名称类
-      'name': '名称',
-      'productName': '产品名称',
-      'userName': '用户名称',
-      'categoryName': '分类名称',
-      // 时间类
-      'date': '日期',
-      'time': '时间',
-      'createTime': '创建时间',
-      'updateTime': '更新时间',
-      'createDate': '创建日期',
-      'updateDate': '更新日期',
-      'salesDate': '销售日期',
-      // 数量/金额类
-      'price': '价格',
-      'amount': '金额',
-      'quantity': '数量',
-      'salesQuantity': '销售数量',
-      'salesAmount': '销售金额',
-      // 其他
-      'description': '描述',
-      'status': '状态',
-      'type': '类型',
-      'category': '分类',
-      'address': '地址',
-      'phone': '电话',
-      'email': '邮箱',
-      'isActive': '是否激活',
-      'isDeleted': '是否删除'
-    };
-    
-    // 遍历字段并添加到表格
-    fields.forEach((field, index) => {
-      const value = sampleRow[field];
-      
-      let dataType = 'TEXT';
-      let dataFormat = '';
-      let displayType = 'TEXT';
-      
-      // 根据字段值类型推断数据类型
-      if (typeof value === 'number') {
-        if (Number.isInteger(value)) {
-          dataType = 'integer';
-          dataFormat = 'int';
-        } else {
-          dataType = 'number';
-          dataFormat = 'decimal';
-        }
-        displayType = 'NUMBER';
-      } else if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
-        // 检查是否带有时间部分
-        if (typeof value === 'string' && value.includes(':')) {
-          dataType = 'date';
-          dataFormat = 'date-time';
-          displayType = 'DATETIME';
-        } else {
-          dataType = 'date';
-          dataFormat = 'date';
-          displayType = 'DATE';
-        }
-      } else if (typeof value === 'boolean') {
-        dataType = 'BOOLEAN';
-        dataFormat = 'boolean';
-        displayType = 'TAG';
-      } else if (typeof value === 'object' && value !== null) {
-        dataType = 'TEXT';
-        dataFormat = 'json';
-        displayType = 'TEXT';
-      } else if (typeof value === 'string') {
-        dataType = 'TEXT';
-        
-        // 智能识别字符串类型
-        if (field.toLowerCase().includes('phone') || field.toLowerCase().includes('mobile')) {
-          dataFormat = 'mobile';
-          displayType = 'TEXT';
-        } else if (field.toLowerCase().includes('email')) {
-          dataFormat = 'email';
-          displayType = 'TEXT';
-        } else if (field.toLowerCase().includes('url') || field.toLowerCase().includes('link')) {
-          dataFormat = 'uri';
-          displayType = 'LINK';
-        } else if (field.toLowerCase().includes('status') || field.toLowerCase().includes('state')) {
-          dataFormat = 'enum';
-          displayType = 'STATUS';
-        } else if (field.toLowerCase().includes('card') || field.toLowerCase().includes('id')) {
-          dataFormat = 'card';
-          displayType = 'TEXT';
-        } else {
-          dataFormat = 'string';
-          displayType = 'TEXT';
-        }
-      }
-      
-      // 推断中文名称
-      let chineseName = fieldNameMapping[field] || field;
-      
-      // 如果没有找到映射，尝试智能拆分驼峰命名或下划线命名
-      if (chineseName === field) {
-        // 处理驼峰命名
-        if (/[A-Z]/.test(field)) {
-          const words = field.replace(/([A-Z])/g, ' $1').trim().split(' ');
-          chineseName = words.join('');
-        }
-        // 处理下划线命名
-        else if (field.includes('_')) {
-          const words = field.split('_');
-          chineseName = words.join('');
-        }
-      }
-      
-      tableConfig.value.columns.push({
-        field: field,
-        label: chineseName, // 使用推断的中文名
-        type: dataType,
-        displayType: displayType, // 使用推断的显示类型
+const importFieldsFromData = () => {
+  if (!queryResult.value || !queryResult.value.columns) return;
+  
+  const existingFields = new Set(tableConfig.value.columns.map(col => col.field));
+  
+  queryResult.value.columns.forEach((col: QueryResultColumn) => {
+    if (!existingFields.has(col.name)) {
+      const newColumn: TableColumn = {
+        field: col.name,
+        label: col.name,
+        type: col.type,
+        displayType: getDefaultDisplayType(col.type),
         sortable: true,
         filterable: true,
-        align: dataType === 'NUMBER' ? ColumnAlign.RIGHT : ColumnAlign.LEFT, // 数字默认右对齐
+        align: ColumnAlign.LEFT,
         visible: true,
-        displayOrder: index,
-        format: dataFormat, // 设置数据格式
-        isNewColumn: false // 从数据导入的字段标记为非新添加
-      });
-    });
-    
-    messageStore.success(`成功导入 ${fields.length} 个字段，并智能设置了字段类型、数据格式和中文名称`);
-  } catch (error) {
-    console.error('导入字段失败', error);
-    messageStore.error('导入字段失败');
-  }
+        displayOrder: tableConfig.value.columns.length
+      };
+      tableConfig.value.columns.push(newColumn);
+      existingFields.add(col.name);
+    }
+  });
 };
 
 // 加载可用字段选项
@@ -1407,49 +1110,16 @@ const loadFieldOptions = async () => {
   }
 
   try {
-    // 模拟数据
-    const mockData = [
-      {
-        productId: 'P001',
-        productName: '高端笔记本电脑',
-        category: '电子产品',
-        price: 8999,
-        salesQuantity: 120,
-        salesAmount: 1079880,
-        salesDate: '2023-01-15',
-        isActive: true,
-        updateTime: '2023-01-15 08:30:45',
-        details: {
-          color: '银色',
-          weight: '1.5kg'
-        }
+    // 调用接口获取查询结果
+    const result = await api.post(`/api/queries/${props.queryId}/execute`, {});
+    if (result?.data) {
+      const data = result.data as QueryResult;
+      queryResult.value = data;
+      // 从查询结果中获取字段
+      if (data.columns) {
+        availableFields.value = data.columns.map(col => col.name);
       }
-    ];
-
-    // 获取所有字段
-    availableFields.value = Object.keys(mockData[0]);
-
-    // 在实际环境中，应该使用以下代码获取数据字段和类型：
-    // const result = await queryStore.executeQuery({
-    //   dataSourceId: "mock-ds",
-    //   queryType: "SQL",
-    //   queryText: `SELECT * FROM ${props.queryId} LIMIT 1`
-    // });
-    // 
-    // // 获取字段名
-    // if (result && result.rows && result.rows.length > 0) {
-    //   availableFields.value = Object.keys(result.rows[0]);
-    // }
-    //
-    // // 获取字段类型信息（如果API支持）
-    // const metaResult = await queryStore.getTableMetadata({
-    //   dataSourceId: "mock-ds",
-    //   tableName: props.queryId
-    // });
-    //
-    // if (metaResult && metaResult.columns) {
-    //   fieldTypeMap.value = mapDatabaseTypes(metaResult.columns);
-    // }
+    }
   } catch (error) {
     console.error('加载字段选项失败', error);
     messageStore.error('加载字段选项失败');
@@ -1565,7 +1235,7 @@ onMounted(() => {
     const isInsideDropdown = target.closest('.relative') !== null;
     
     if (!isInsideDropdown) {
-      activeFieldDropdown.value = null;
+      closeFieldDropdown();
     }
   });
   

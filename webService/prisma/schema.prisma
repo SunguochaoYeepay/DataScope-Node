@@ -1,358 +1,358 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "mysql"
+  url       = env("DATABASE_URL")
   directUrl = env("DATABASE_URL")
 }
 
-// 数据源表
 model DataSource {
+  id                String         @id @default(uuid())
+  name              String
+  description       String?        @db.Text
+  type              String
+  host              String
+  port              Int
+  databaseName      String
+  username          String
+  passwordEncrypted String
+  passwordSalt      String
+  connectionParams  Json?
+  status            String
+  syncFrequency     String?
+  lastSyncTime      DateTime?
+  nonce             Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  createdBy         String         @default("system")
+  updatedBy         String         @default("system")
+  active            Boolean        @default(true)
+  queries           Query[]
+  queryVersions     QueryVersion[]
+  savedQueries      SavedQuery[]
+  schemas           Schema[]
+
+  @@map("tbl_data_source")
+}
+
+model Schema {
+  id           String     @id @default(uuid())
+  dataSourceId String
+  name         String
+  description  String?    @db.Text
+  nonce        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  createdBy    String     @default("system")
+  updatedBy    String     @default("system")
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  tables       Table[]
+
+  @@index([dataSourceId], map: "tbl_schema_dataSourceId_fkey")
+  @@map("tbl_schema")
+}
+
+model Table {
+  id                  String              @id @default(uuid())
+  schemaId            String
+  name                String
+  description         String?             @db.Text
+  type                String              @default("TABLE")
+  nonce               Int                 @default(0)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  createdBy           String              @default("system")
+  updatedBy           String              @default("system")
+  columns             Column[]
+  schema              Schema              @relation(fields: [schemaId], references: [id], onDelete: Cascade)
+  sourceRelationships TableRelationship[] @relation("SourceTable")
+  targetRelationships TableRelationship[] @relation("TargetTable")
+
+  @@index([schemaId], map: "tbl_table_schemaId_fkey")
+  @@map("tbl_table")
+}
+
+model Column {
+  id                  String               @id @default(uuid())
+  tableId             String
+  name                String
+  dataType            String
+  length              Int?
+  precision           Int?
+  scale               Int?
+  nullable            Boolean              @default(true)
+  isPrimaryKey        Boolean              @default(false)
+  isForeignKey        Boolean              @default(false)
+  defaultValue        String?
+  description         String?              @db.Text
+  nonce               Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  createdBy           String               @default("system")
+  updatedBy           String               @default("system")
+  table               Table                @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  sourceRelationships ColumnRelationship[] @relation("SourceColumn")
+  targetRelationships ColumnRelationship[] @relation("TargetColumn")
+
+  @@index([tableId], map: "tbl_column_tableId_fkey")
+  @@map("tbl_column")
+}
+
+model TableRelationship {
+  id                  String               @id @default(uuid())
+  sourceTableId       String
+  targetTableId       String
+  type                String
+  confidence          Float                @default(1)
+  isAutoDetected      Boolean              @default(false)
+  nonce               Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  createdBy           String               @default("system")
+  updatedBy           String               @default("system")
+  columnRelationships ColumnRelationship[]
+  sourceTable         Table                @relation("SourceTable", fields: [sourceTableId], references: [id], onDelete: Cascade)
+  targetTable         Table                @relation("TargetTable", fields: [targetTableId], references: [id], onDelete: Cascade)
+
+  @@index([sourceTableId], map: "tbl_table_relationship_sourceTableId_fkey")
+  @@index([targetTableId], map: "tbl_table_relationship_targetTableId_fkey")
+  @@map("tbl_table_relationship")
+}
+
+model ColumnRelationship {
+  id                  String            @id @default(uuid())
+  tableRelationshipId String
+  sourceColumnId      String
+  targetColumnId      String
+  nonce               Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  createdBy           String            @default("system")
+  updatedBy           String            @default("system")
+  sourceColumn        Column            @relation("SourceColumn", fields: [sourceColumnId], references: [id], onDelete: Cascade)
+  tableRelationship   TableRelationship @relation(fields: [tableRelationshipId], references: [id], onDelete: Cascade)
+  targetColumn        Column            @relation("TargetColumn", fields: [targetColumnId], references: [id], onDelete: Cascade)
+
+  @@index([sourceColumnId], map: "tbl_column_relationship_sourceColumnId_fkey")
+  @@index([tableRelationshipId], map: "tbl_column_relationship_tableRelationshipId_fkey")
+  @@index([targetColumnId], map: "tbl_column_relationship_targetColumnId_fkey")
+  @@map("tbl_column_relationship")
+}
+
+model Query {
   id               String          @id @default(uuid())
   name             String
   description      String?         @db.Text
-  type             String          // MYSQL,POSTGRESQL,ORACLE,SQLSERVER,MONGODB,ELASTICSEARCH
-  host             String
-  port             Int
-  databaseName     String
-  username         String
-  passwordEncrypted String
-  passwordSalt     String
-  connectionParams Json?
-  status           String          // ACTIVE,INACTIVE,ERROR,SYNCING
-  syncFrequency    String?         // MANUAL,HOURLY,DAILY,WEEKLY,MONTHLY
-  lastSyncTime     DateTime?
+  dataSourceId     String
+  sqlContent       String          @db.Text
+  status           String          @default("DRAFT")
+  queryType        String          @default("SQL")
+  isFavorite       Boolean         @default(false)
+  executionCount   Int             @default(0)
+  lastExecutedAt   DateTime?
+  tags             String?
   nonce            Int             @default(0)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   createdBy        String          @default("system")
   updatedBy        String          @default("system")
-  active           Boolean         @default(true) // 添加active字段
-  schemas          Schema[]
-  queries          Query[]
+  serviceStatus    String          @default("ENABLED")
+  usageCount       Int             @default(0)
+  versions         QueryVersion[]
+  executions       QueryHistory[]
+  dataSource       DataSource      @relation(fields: [dataSourceId], references: [id])
+  folders          QueryFolder[]
+  favorites        QueryFavorite[]
   savedQueries     SavedQuery[]
+  queryPlans       QueryPlan[]
+  comparisons      QueryPlanComparison[]
+  planHistories    QueryPlanHistory[]
+  integrations     Integration[]
 
-  @@map("tbl_data_source")
-}
-
-// 数据库模式表
-model Schema {
-  id           String   @id @default(uuid())
-  dataSourceId String
-  name         String
-  description  String?  @db.Text
-  nonce        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String   @default("system")
-  updatedBy    String   @default("system")
-  
-  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
-  tables       Table[]
-
-  @@map("tbl_schema")
-}
-
-// 表元数据
-model Table {
-  id           String   @id @default(uuid())
-  schemaId     String
-  name         String
-  description  String?  @db.Text
-  type         String   @default("TABLE") // TABLE, VIEW
-  nonce        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String   @default("system")
-  updatedBy    String   @default("system")
-  
-  schema       Schema   @relation(fields: [schemaId], references: [id], onDelete: Cascade)
-  columns      Column[]
-  sourceRelationships TableRelationship[] @relation("SourceTable")
-  targetRelationships TableRelationship[] @relation("TargetTable")
-
-  @@map("tbl_table")
-}
-
-// 列元数据
-model Column {
-  id           String   @id @default(uuid())
-  tableId      String
-  name         String
-  dataType     String
-  length       Int?
-  precision    Int?
-  scale        Int?
-  nullable     Boolean  @default(true)
-  isPrimaryKey Boolean  @default(false)
-  isForeignKey Boolean  @default(false)
-  defaultValue String?
-  description  String?  @db.Text
-  nonce        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String   @default("system")
-  updatedBy    String   @default("system")
-
-  table        Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  sourceRelationships ColumnRelationship[] @relation("SourceColumn")
-  targetRelationships ColumnRelationship[] @relation("TargetColumn")
-
-  @@map("tbl_column")
-}
-
-// 表关系
-model TableRelationship {
-  id             String   @id @default(uuid())
-  sourceTableId  String
-  targetTableId  String
-  type           String   // ONE_TO_ONE, ONE_TO_MANY, MANY_TO_ONE, MANY_TO_MANY
-  confidence     Float    @default(1.0)
-  isAutoDetected Boolean  @default(false)
-  nonce          Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdBy      String   @default("system")
-  updatedBy      String   @default("system")
-
-  sourceTable    Table    @relation("SourceTable", fields: [sourceTableId], references: [id], onDelete: Cascade)
-  targetTable    Table    @relation("TargetTable", fields: [targetTableId], references: [id], onDelete: Cascade)
-  columnRelationships ColumnRelationship[]
-
-  @@map("tbl_table_relationship")
-}
-
-// 列关系
-model ColumnRelationship {
-  id                  String   @id @default(uuid())
-  tableRelationshipId String
-  sourceColumnId      String
-  targetColumnId      String
-  nonce               Int      @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  createdBy           String   @default("system")
-  updatedBy           String   @default("system")
-
-  tableRelationship   TableRelationship @relation(fields: [tableRelationshipId], references: [id], onDelete: Cascade)
-  sourceColumn        Column   @relation("SourceColumn", fields: [sourceColumnId], references: [id], onDelete: Cascade)
-  targetColumn        Column   @relation("TargetColumn", fields: [targetColumnId], references: [id], onDelete: Cascade)
-
-  @@map("tbl_column_relationship")
-}
-
-// 查询表
-model Query {
-  id           String   @id @default(uuid())
-  name         String
-  description  String?  @db.Text
-  dataSourceId String
-  sqlContent   String   @db.Text
-  status       String   @default("DRAFT") // DRAFT, PUBLISHED
-  queryType    String   @default("SQL") // SQL, NATURAL_LANGUAGE
-  isFavorite   Boolean  @default(false)
-  executionCount Int    @default(0)
-  lastExecutedAt DateTime?
-  tags         String?  // 逗号分隔的标签
-  nonce        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String   @default("system")
-  updatedBy    String   @default("system")
-
-  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
-  displayConfigs DisplayConfig[]
-  queryHistory QueryHistory[]
-  queryPlans   QueryPlan[]  // 添加与QueryPlan的关系
-  integrations Integration[] // 添加与Integration的关系
-
+  @@index([dataSourceId], map: "tbl_query_dataSourceId_fkey")
   @@map("tbl_query")
 }
 
-// 查询历史
 model QueryHistory {
-  id           String   @id @default(uuid())
-  queryId      String?  // 如果是一次性查询，可能没有保存的查询ID
-  dataSourceId String
-  sqlContent   String   @db.Text
-  status       String   // RUNNING, COMPLETED, FAILED, CANCELLED
-  startTime    DateTime
-  endTime      DateTime?
-  duration     Int?     // 执行时间(毫秒)
-  rowCount     Int?     // 返回的行数
-  errorMessage String?  @db.Text
-  createdAt    DateTime @default(now())
-  createdBy    String   @default("system")
+  id            String   @id @default(uuid())
+  queryId       String
+  executedBy    String
+  executedAt    DateTime @default(now())
+  executionTime Int?     @default(0)
+  status        String
+  error         String?  @db.Text
+  rowCount      Int?     @default(0)
+  nonce         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  parameters    Json?
+  query         Query    @relation(fields: [queryId], references: [id])
 
-  query        Query?   @relation(fields: [queryId], references: [id], onDelete: SetNull)
-
+  @@index([queryId], map: "tbl_query_history_queryId_fkey")
   @@map("tbl_query_history")
 }
 
-// 显示配置
 model DisplayConfig {
-  id           String   @id @default(uuid())
-  queryId      String
-  displayType  String   // TABLE, CHART
-  chartType    String?  // BAR, LINE, PIE, SCATTER
-  title        String?
-  description  String?  @db.Text
-  config       Json     // 配置对象
-  isDefault    Boolean  @default(false)
-  nonce        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String   @default("system")
-  updatedBy    String   @default("system")
+  id          String   @id @default(uuid())
+  resourceId  String
+  resourceType String
+  configType  String
+  config      Json?
+  nonce       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String   @default("system")
+  updatedBy   String   @default("system")
 
-  query        Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
-
+  @@index([resourceId, resourceType], map: "tbl_display_config_resource_fkey")
   @@map("tbl_display_config")
 }
 
-// 元数据同步历史
 model MetadataSyncHistory {
   id           String   @id @default(uuid())
   dataSourceId String
-  status       String   // RUNNING, COMPLETED, FAILED
-  startTime    DateTime
-  endTime      DateTime?
-  duration     Int?     // 执行时间(毫秒)
-  syncType     String   // FULL, INCREMENTAL
-  tablesCount  Int?
-  viewsCount   Int?
-  relationshipsCount Int?
-  errorMessage String?  @db.Text
+  syncTime     DateTime @default(now())
+  status       String
+  error        String?
+  tablesCount  Int?     @default(0)
+  nonce        Int      @default(0)
   createdAt    DateTime @default(now())
-  createdBy    String   @default("system")
+  updatedAt    DateTime @updatedAt
 
   @@map("tbl_metadata_sync_history")
 }
 
-// 查询执行计划
 model QueryPlan {
-  id           String    @id @default(uuid())
-  queryId      String?   // 关联的查询ID
-  dataSourceId String
-  name         String?
-  sql          String    @db.Text
-  planData     String    @db.Text  // JSON字符串格式的执行计划数据
-  estimatedCost Float?   
-  optimizationTips String? @db.Text  // 优化建议
-  isAnalyzed   Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  createdBy    String    @default("system")
-  
-  query        Query?    @relation(fields: [queryId], references: [id], onDelete: SetNull)
-  comparisons  QueryPlanComparison[] @relation("PlanA")
-  comparedWith QueryPlanComparison[] @relation("PlanB")
+  id         String   @id @default(uuid())
+  queryId    String
+  planJson   Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  query      Query    @relation(fields: [queryId], references: [id])
+  planType   String   @default("EXPLAIN")
+  isOptimized Boolean  @default(false)
+  suggestions Json?
 
+  @@index([queryId], map: "tbl_query_plan_queryId_fkey")
   @@map("tbl_query_plan")
 }
 
-// 查询执行计划比较
 model QueryPlanComparison {
-  id           String    @id @default(uuid())
-  planAId      String    // 第一个计划ID
-  planBId      String    // 第二个计划ID
-  comparisonData String   @db.Text  // JSON字符串格式的比较数据
-  improvement  Float?    // 改进百分比
-  createdAt    DateTime  @default(now())
-  createdBy    String    @default("system")
-  
-  planA        QueryPlan @relation("PlanA", fields: [planAId], references: [id], onDelete: Cascade)
-  planB        QueryPlan @relation("PlanB", fields: [planBId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  queryId     String
+  originalPlanJson Json
+  optimizedPlanJson Json
+  improvements Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  query       Query    @relation(fields: [queryId], references: [id])
 
+  @@index([queryId], map: "tbl_query_plan_comparison_queryId_fkey")
   @@map("tbl_query_plan_comparison")
 }
 
-// 查询执行计划历史记录
 model QueryPlanHistory {
-  id           String    @id @default(uuid())
-  dataSourceId String
-  sql          String    @db.Text
-  planData     String    @db.Text  // JSON字符串格式的执行计划数据
-  createdAt    DateTime  @default(now())
+  id          String   @id @default(uuid())
+  queryId     String
+  planJson    Json
+  createdAt   DateTime @default(now())
+  query       Query    @relation(fields: [queryId], references: [id])
 
   @@map("tbl_query_plan_history")
 }
 
-// 保存的查询
 model SavedQuery {
-  id           String   @id @default(uuid())
-  name         String
-  description  String?  @db.Text
-  sql          String   @db.Text
-  dataSourceId String
-  tags         String   // 标签，用逗号分隔
-  folderId     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
-  folder       QueryFolder? @relation(fields: [folderId], references: [id])
+  id            String     @id @default(uuid())
+  name          String
+  description   String?    @db.Text
+  userId        String
+  queryId       String
+  dataSourceId  String
+  sqlContent    String     @db.Text
+  parameters    Json?
+  isFavorite    Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  lastExecutedAt DateTime?
+  executionCount Int       @default(0)
+  query         Query      @relation(fields: [queryId], references: [id])
+  dataSource    DataSource @relation(fields: [dataSourceId], references: [id])
 
+  @@index([queryId], map: "tbl_saved_query_queryId_fkey")
+  @@index([dataSourceId], map: "tbl_saved_query_dataSourceId_fkey")
   @@map("tbl_saved_query")
 }
 
-// 查询文件夹
 model QueryFolder {
-  id           String   @id @default(uuid())
-  name         String
-  description  String?  @db.Text
-  parentId     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  parent       QueryFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
-  children     QueryFolder[] @relation("FolderHierarchy")
-  queries      SavedQuery[]
-
-  @@map("tbl_query_folder")
-}
-
-// 查询收藏
-model QueryFavorite {
-  id           String   @id @default(uuid())
-  queryId      String
-  userId       String   @default("anonymous")
-  createdAt    DateTime @default(now())
-
-  @@map("tbl_query_favorite")
-}
-
-// 系统集成模型
-model Integration {
   id          String    @id @default(uuid())
   name        String
   description String?   @db.Text
-  queryId     String
-  type        String    // FORM, TABLE, CHART
-  config      Json
-  status      String    @default("DRAFT") // DRAFT, ACTIVE, INACTIVE
+  parentId    String?
+  queries     Query[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  createdBy   String?
-  updatedBy   String?
-  
-  // 关联
-  query       Query     @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  parent      QueryFolder? @relation("FolderTree", fields: [parentId], references: [id])
+  children    QueryFolder[] @relation("FolderTree")
 
+  @@index([parentId], map: "tbl_query_folder_parentId_fkey")
+  @@map("tbl_query_folder")
+}
+
+model QueryFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  queryId   String
+  createdAt DateTime @default(now())
+  query     Query    @relation(fields: [queryId], references: [id])
+
+  @@index([queryId], map: "tbl_query_favorite_queryId_fkey")
+  @@map("tbl_query_favorite")
+}
+
+model Integration {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  queryId     String
+  type        String   // TABLE, FORM, CHART
+  status      String   @default("DRAFT")
+  config      Json
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  query       Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  @@index([queryId], map: "tbl_integration_queryId_fkey")
   @@map("tbl_integration")
 }
 
 model Metadata {
-  id              String   @id @default(uuid())
-  dataSourceId    String
-  structure       String   @db.LongText
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id         String   @id @default(uuid())
+  key        String   @unique
+  value      String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("tbl_metadata")
+}
+
+model QueryVersion {
+  id           String     @id @default(uuid())
+  queryId      String
+  dataSourceId String
+  versionNumber Int
+  status       String     @default("DRAFT")
+  sqlContent   String?    @db.Text
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  publishedAt  DateTime?
+  deprecatedAt DateTime?
+  isActive     Boolean    @default(false)
+  query        Query?      @relation(fields: [queryId], references: [id])
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id])
+
+  @@index([queryId], map: "tbl_query_version_queryId_fkey")
+  @@index([dataSourceId], map: "tbl_query_version_dataSourceId_fkey")
+  @@map("tbl_query_version")
 }

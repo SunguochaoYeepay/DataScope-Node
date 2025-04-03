@@ -2,34 +2,20 @@
  * 错误处理模块导出
  */
 
+// 错误类型
+export { AppError } from './app-error';
+export { ApiError } from './types/api-error';
+
 // 错误码定义
-export * from './error-codes';
+export { ErrorCode, ERROR_CODES, ERROR_MESSAGES, GENERAL_ERROR } from './error-codes';
+export { VERSION_ERROR, VERSION_ERROR_MESSAGES, VERSION_ERROR_HTTP_STATUS } from './error-codes-version';
 
-// 基础错误类
-export * from './app-error';
-
-// 具体错误类型
-export * from './types/api-error';
-export * from './types/database-error';
-export * from './types/datasource-error';
-export * from './types/query-error';
-export * from './types/validation-error';
-export * from './types/query-plan-error';
-
-// 导出类型别名方便使用
-import { AppError } from './app-error';
-import { ApiError } from './types/api-error';
-import { DatabaseError } from './types/database-error';
-import { DataSourceError } from './types/datasource-error';
-import { QueryError } from './types/query-error';
-import { ValidationError } from './types/validation-error';
-import { QueryPlanError } from './types/query-plan-error';
-
-export type ErrorTypes = 
-  | AppError
-  | ApiError
-  | DatabaseError
-  | DataSourceError
-  | QueryError
-  | ValidationError
-  | QueryPlanError;
+// 错误类型分组
+export {
+  RESOURCE_ERROR,
+  QUERY_ERROR,
+  DATASOURCE_ERROR,
+  VALIDATION_ERROR,
+  DATABASE_ERROR,
+  AUTH_ERROR
+} from './general-error';

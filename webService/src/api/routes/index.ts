@@ -7,6 +7,7 @@ import planVisualizationRoutes from './plan-visualization.routes';
 import queryPlanRoutes from './query-plan.routes';
 import integrationRoutes from './integration.routes';
 import metadataController from '../controllers/metadata.controller';
+import logger from '../../utils/logger';
 
 const router = Router();
 
@@ -16,14 +17,37 @@ router.get('/metadata/:dataSourceId/tables/:tableName/data', (req: Request, res:
   return metadataController.getTableData(req, res);
 });
 
-// API路由
-router.use('/datasources', dataSourceRoutes);
+// Placeholder route to show available endpoints
+router.get('/', (req, res) => {
+  return res.json({
+    message: 'DataScope API',
+    endpoints: [
+      '/api/data-sources',
+      '/api/queries',
+      '/api/metadata',
+      '/api/low-code/apis'
+    ]
+  });
+});
+
+// Register routes
+logger.info('Loading API routes...');
+
+// Data source routes - /api/data-sources/*
+router.use('/data-sources', dataSourceRoutes);
+logger.info('Loaded data source routes');
+
+// Query routes - /api/queries/*
 router.use('/queries', queryRoutes);
+logger.info('Loaded query routes');
+
+// Metadata routes - /api/metadata/*
 router.use('/metadata', metadataRoutes);
-router.use('/examples', examplesRoutes);
-router.use('/plan-visualization', planVisualizationRoutes);
-router.use('/query-plans', queryPlanRoutes);
-router.use('/', integrationRoutes); // 系统集成路由
+logger.info('Loaded metadata routes');
+
+// Integration APIs - /api/low-code/apis/*
+router.use('/low-code/apis', integrationRoutes);
+logger.info('Loaded integration routes');
 
 // API文档
 router.get('/', (req, res) => {
@@ -32,7 +56,7 @@ router.get('/', (req, res) => {
 
 // 添加开发日志以便调试
 console.log('加载API路由...');
-console.log('- 已加载数据源路由: /api/datasources');
+console.log('- 已加载数据源路由: /api/data-sources');
 console.log('- 已加载查询路由: /api/queries');
 console.log('- 已加载元数据路由: /api/metadata');
 console.log('- 已加载系统集成路由: /api/low-code/apis');

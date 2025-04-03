@@ -1,0 +1,51 @@
+/**
+ * 查询版本控制相关路由
+ */
+import { Router, Request, Response } from 'express';
+import { asyncHandler } from '../middlewares/async-handler';
+import queryVersionService from '../services/query-version.service';
+import { ApiError } from '../utils/errors/types/api-error';
+
+const router = Router();
+
+/**
+ * 测试路由
+ */
+router.get('/query-version/test', asyncHandler(async (req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    message: '查询版本控制接口可用',
+    timestamp: new Date().toISOString()
+  });
+}));
+
+/**
+ * 获取查询的所有版本
+ * 增加额外的路由以匹配前端调用格式
+ */
+router.get('/query/version/management/:queryId', asyncHandler(async (req: Request, res: Response) => {
+  const { queryId } = req.params;
+  
+  try {
+    const versions = await queryVersionService.getVersions(queryId);
+    
+    res.status(200).json({
+      success: true,
+      data: versions
+    });
+  } catch (error: any) {
+    const message = error.message || '获取查询版本失败';
+    const code = error.errorCode || 10006; // 使用默认错误码
+    
+    res.status(error.statusCode || 404).json({
+      success: false,
+      error: {
+        code,
+        message,
+        details: error.details || null
+      }
+    });
+  }
+}));
+
+export default router;

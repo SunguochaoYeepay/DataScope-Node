@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, reactive } from 'vue'
 import type { DataSource } from '@/types/datasource'
 import type { TableMetadata, ColumnMetadata } from '@/types/metadata'
 import { useDataSourceStore } from '@/stores/datasource'
+import { dataSourceService } from '@/services/datasource'
+import { ExclamationCircleOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 
 // 定义组件属性
 const props = defineProps<{
@@ -16,6 +19,7 @@ const emit = defineEmits<{
   (e: 'column-select', column: ColumnMetadata, table: TableMetadata): void
   (e: 'insert-table', tableName: string): void
   (e: 'insert-column', columnName: string): void
+  (e: 'tablesLoaded', tables: TableMetadata[]): void
 }>()
 
 // 数据源存储
@@ -25,7 +29,18 @@ const dataSourceStore = useDataSourceStore()
 const searchTerm = ref('')
 const expandedTables = ref<string[]>([])
 const isLoading = ref(false)
-const error = ref('')
+const error = ref<string>('')
+const tables = ref<TableMetadata[]>([])
+
+interface ExplorerState {
+  loading: boolean;
+  error: string;
+}
+
+const state = reactive<ExplorerState>({
+  loading: false,
+  error: ''
+})
 
 // 获取数据源的元数据
 const getMetadataForDataSource = (dataSourceId: string) => {
@@ -38,6 +53,7 @@ const getMetadataForDataSource = (dataSourceId: string) => {
 const loadMetadata = async (dataSourceId: string) => {
   if (!dataSourceId) return
   
+  console.log('开始加载元数据，数据源ID:', dataSourceId)
   isLoading.value = true
   error.value = ''
   
@@ -45,12 +61,25 @@ const loadMetadata = async (dataSourceId: string) => {
     // 使用数据源store中的方法加载元数据
     // 如果不存在loadMetadata方法，则尝试使用其他可用方法或模拟加载
     if (typeof dataSourceStore.fetchDataSources === 'function') {
+      console.log('正在获取数据源列表...')
       await dataSourceStore.fetchDataSources()
+    }
+    
+    // 获取数据源元数据
+    console.log('尝试获取数据源元数据...')
+    if (typeof dataSourceStore.getDataSourceMetadata === 'function') {
+      try {
+        console.log('调用getDataSourceMetadata方法...')
+        await dataSourceStore.getDataSourceMetadata(dataSourceId)
+      } catch (metadataError) {
+        console.warn('获取元数据时出错:', metadataError)
+      }
     }
 
     // 如果搜索到有表，自动展开
     if (searchTerm.value) {
       const metadata = getMetadataForDataSource(dataSourceId)
+      console.log('搜索模式下获取到的元数据:', metadata)
       const tables = metadata?.tables || []
       const filteredTables = tables.filter((table: TableMetadata) => {
         // 检查表名
@@ -67,10 +96,34 @@ const loadMetadata = async (dataSourceId: string) => {
       // 自动展开搜索到的表
       expandedTables.value = filteredTables.map((t: TableMetadata) => t.name)
     }
+    
+    // 检查元数据是否成功加载
+    const metadata = getMetadataForDataSource(dataSourceId)
+    console.log('加载到的元数据:', metadata)
+    if (!metadata || !metadata.tables || metadata.tables.length === 0) {
+      console.warn('元数据加载完成，但未找到表信息')
+      // 尝试主动同步元数据
+      if (typeof dataSourceStore.syncDataSourceMetadata === 'function') {
+        console.log('尝试主动同步元数据...')
+        try {
+          await dataSourceStore.syncDataSourceMetadata(dataSourceId)
+          console.log('同步完成，重新获取元数据...')
+          if (typeof dataSourceStore.getDataSourceMetadata === 'function') {
+            await dataSourceStore.getDataSourceMetadata(dataSourceId)
+          }
+        } catch (syncError) {
+          console.warn('同步元数据失败:', syncError)
+        }
+      }
+    } else {
+      console.log('元数据加载成功，找到表数量:', metadata.tables.length)
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载元数据失败'
+    console.error('加载元数据出错:', err)
   } finally {
     isLoading.value = false
+    console.log('元数据加载流程完成')
   }
 }
 
@@ -116,28 +169,167 @@ const filteredTables = computed(() => {
 
 // 展开/折叠表格
 const toggleTable = (tableName: string) => {
+  console.log(`切换表格 ${tableName} 的展开状态`)
+  
   if (expandedTables.value.includes(tableName)) {
+    console.log(`折叠表格 ${tableName}`)
     expandedTables.value = expandedTables.value.filter(t => t !== tableName)
   } else {
+    console.log(`展开表格 ${tableName}，尝试加载字段信息`)
+    
+    // 先添加到展开列表
     expandedTables.value.push(tableName)
+    
+    // 尝试加载表的字段信息
+    loadColumns(tableName).catch(err => {
+      console.error(`加载表 ${tableName} 的字段信息失败:`, err)
+    })
   }
 }
 
-// 展开所有表格
-const expandAllTables = () => {
-  if (filteredTables.value.length > 0) {
-    expandedTables.value = filteredTables.value.map((t: TableMetadata) => t.name)
+// 获取表的字段信息
+const loadColumns = async (tableName: string) => {
+  if (!props.dataSourceId || !tableName) return []
+
+  console.log(`MetadataExplorer: 开始获取表 ${tableName} 的字段信息`)
+  const targetTable = tables.value.find(t => getTableName(t) === tableName)
+  
+  if (targetTable && targetTable.columns && targetTable.columns.length > 0) {
+    console.log(`MetadataExplorer: 表 ${tableName} 已有字段信息, 数量:`, targetTable.columns.length)
+    return targetTable.columns
+  }
+
+  try {
+    console.log(`MetadataExplorer: 从API获取表 ${tableName} 的字段信息`)
+    // 先尝试直接从API获取字段信息
+    try {
+      const columnsData = await dataSourceService.getTableColumns(props.dataSourceId, tableName)
+      console.log(`MetadataExplorer: API获取表 ${tableName} 字段成功:`, columnsData)
+      
+      if (columnsData && columnsData.length > 0) {
+        // 更新表的列信息
+        if (targetTable) {
+          targetTable.columns = columnsData
+          console.log(`MetadataExplorer: 更新表 ${tableName} 字段信息, 数量:`, columnsData.length)
+        }
+        
+        return columnsData
+      }
+    } catch (apiError) {
+      console.error(`MetadataExplorer: 直接API获取表 ${tableName} 字段失败:`, apiError)
+    }
+    
+    // 如果直接获取失败，回退到使用默认方法
+    console.log(`尝试使用默认方法获取表 ${tableName} 字段信息`)
+    // 模拟列信息，或者直接返回空数组
+    const columns: ColumnMetadata[] = []
+    console.log(`MetadataExplorer: 使用默认方法获取表 ${tableName} 字段信息`)
+    
+    return columns
+  } catch (err) {
+    console.error(`MetadataExplorer: 获取表 ${tableName} 的字段信息失败:`, err)
+    message.error(`获取表 ${tableName} 的字段信息失败`)
+    return []
   }
 }
 
-// 折叠所有表格
-const collapseAllTables = () => {
-  expandedTables.value = []
+// 组件挂载时初始化
+onMounted(async () => {
+  if (props.dataSourceId) {
+    try {
+      await fetchMetadata()
+    } catch (err) {
+      console.error('初始化加载元数据失败:', err)
+    }
+  }
+})
+
+// 获取元数据
+const fetchMetadata = async () => {
+  if (!props.dataSourceId) {
+    console.error('数据源ID为空，无法获取元数据')
+    return
+  }
+
+  isLoading.value = true
+  state.loading = true
+  state.error = ''
+  error.value = ''
+
+  try {
+    console.log('MetadataExplorer: 开始获取元数据...')
+    
+    // 从store获取元数据
+    const metadata = await dataSourceStore.getDataSourceMetadata(props.dataSourceId)
+    console.log('MetadataExplorer: 获取到元数据结果:', metadata)
+    
+    if (!metadata) {
+      error.value = '未能获取到元数据'
+      console.error('MetadataExplorer: 未能获取到元数据')
+      return
+    }
+
+    // 尝试直接从API获取表列表（作为后备方案）
+    if (!metadata.tables || metadata.tables.length === 0) {
+      console.log('MetadataExplorer: 元数据中没有表，尝试直接API获取')
+      try {
+        const tablesData = await dataSourceService.getTableMetadata(props.dataSourceId)
+        if (tablesData && tablesData.length > 0) {
+          console.log('MetadataExplorer: API直接获取表成功', tablesData)
+          tables.value = tablesData
+          emit('tablesLoaded', tables.value)
+          return
+        }
+      } catch (apiError) {
+        console.error('MetadataExplorer: 直接API获取表失败', apiError)
+      }
+    }
+
+    tables.value = metadata.tables || []
+    console.log('MetadataExplorer: 设置表列表', tables.value.length)
+    
+    // 如果表为空显示错误提示
+    if (tables.value.length === 0) {
+      error.value = '无可用表，请检查数据库连接和权限'
+      console.warn('MetadataExplorer: 表列表为空')
+    } else {
+      console.log('MetadataExplorer: 表加载完成, 数量:', tables.value.length)
+    }
+    
+    emit('tablesLoaded', tables.value)
+  } catch (err) {
+    console.error('MetadataExplorer: 获取元数据失败:', err)
+    error.value = err instanceof Error ? err.message : String(err)
+    
+    // 错误时，尝试直接获取表列表
+    try {
+      console.log('MetadataExplorer: 错误恢复，尝试直接API获取表')
+      const tablesData = await dataSourceService.getTableMetadata(props.dataSourceId)
+      if (tablesData && tablesData.length > 0) {
+        console.log('MetadataExplorer: 错误恢复成功', tablesData)
+        tables.value = tablesData
+        error.value = '' // 清除错误
+        emit('tablesLoaded', tables.value)
+      }
+    } catch (recoveryError) {
+      console.error('MetadataExplorer: 错误恢复失败', recoveryError)
+    }
+  } finally {
+    isLoading.value = false
+  }
 }
 
-// 清除搜索
-const clearSearch = () => {
-  searchTerm.value = ''
+// 获取表名的辅助函数
+const getTableName = (table: any): string => {
+  if (table.name && typeof table.name === 'object' && 'name' in table.name) {
+    return table.name.name;
+  }
+  return typeof table.name === 'string' ? table.name : '';
+}
+
+// 获取表显示名称
+const getTableDisplayName = (table: TableMetadata): string => {
+  return getTableName(table);
 }
 
 // 获取列类型显示
@@ -168,8 +360,25 @@ const insertColumnName = (columnName: string) => {
 // 刷新元数据
 const refreshMetadata = async () => {
   if (props.dataSourceId) {
-    await loadMetadata(props.dataSourceId)
+    await fetchMetadata()
   }
+}
+
+// 清除搜索
+const clearSearch = () => {
+  searchTerm.value = ''
+}
+
+// 展开所有表格
+const expandAllTables = () => {
+  if (filteredTables.value.length > 0) {
+    expandedTables.value = filteredTables.value.map((t) => getTableName(t))
+  }
+}
+
+// 折叠所有表格
+const collapseAllTables = () => {
+  expandedTables.value = []
 }
 </script>
 
@@ -260,19 +469,19 @@ const refreshMetadata = async () => {
         <!-- 表头部 -->
         <div
           class="flex items-center justify-between px-2 py-1.5 bg-gray-50 cursor-pointer hover:bg-gray-100"
-          @click="toggleTable(table.name)"
+          @click="toggleTable(getTableName(table))"
         >
           <div class="flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm0 2h10a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1z" clip-rule="evenodd" />
             </svg>
-            <span class="font-medium text-sm truncate">{{ table.name }}</span>
+            <span class="font-medium text-sm truncate">{{ getTableDisplayName(table) }}</span>
           </div>
           <div class="flex items-center space-x-1">
             <button
               class="p-0.5 text-gray-500 hover:text-blue-600 focus:outline-none"
               title="插入表名"
-              @click.stop="insertTableName(table.name)"
+              @click.stop="insertTableName(getTableName(table))"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
@@ -284,7 +493,7 @@ const refreshMetadata = async () => {
               class="h-4 w-4 text-gray-400"
               viewBox="0 0 20 20"
               fill="currentColor"
-              :class="{'transform rotate-180': expandedTables.includes(table.name)}"
+              :class="{'transform rotate-180': expandedTables.includes(getTableName(table))}"
             >
               <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
             </svg>
@@ -292,7 +501,7 @@ const refreshMetadata = async () => {
         </div>
         
         <!-- 表列表 -->
-        <div v-if="expandedTables.includes(table.name)" class="border-t">
+        <div v-if="expandedTables.includes(getTableName(table))" class="border-t">
           <div
             v-for="column in table.columns"
             :key="`${table.name}-${column.name}`"

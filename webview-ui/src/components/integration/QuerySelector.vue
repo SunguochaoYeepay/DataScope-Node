@@ -12,6 +12,7 @@ const props = defineProps<{
   error?: string;
   required?: boolean;
   disabled?: boolean;
+  dataSourceId?: string;
 }>();
 
 // 组件事件
@@ -25,23 +26,31 @@ const queryStore = useQueryStore();
 const message = useMessageStore();
 
 // 状态
-const queries = ref<Array<{ id: string; name: string; description?: string; queryType: string; }>>([]);
+const queries = ref<Array<{ id: string; name: string; description?: string; queryType: string; dataSourceId?: string; }>>([]);
 const loading = ref(false);
 const searchText = ref('');
 const selectedQueryId = ref(props.modelValue || '');
 
 // 计算属性
 const filteredQueries = computed(() => {
-  if (!searchText.value) {
-    return queries.value;
+  let result = queries.value;
+  
+  // 先过滤数据源
+  if (props.dataSourceId) {
+    result = result.filter(query => query.dataSourceId === props.dataSourceId);
   }
   
-  const searchLower = searchText.value.toLowerCase();
-  return queries.value.filter(query => {
-    return query.name.toLowerCase().includes(searchLower) ||
-           (query.description && query.description.toLowerCase().includes(searchLower)) ||
-           query.id.toLowerCase().includes(searchLower);
-  });
+  // 再过滤搜索关键词
+  if (searchText.value) {
+    const searchLower = searchText.value.toLowerCase();
+    result = result.filter(query => {
+      return query.name.toLowerCase().includes(searchLower) ||
+             (query.description && query.description.toLowerCase().includes(searchLower)) ||
+             query.id.toLowerCase().includes(searchLower);
+    });
+  }
+  
+  return result;
 });
 
 // 监听selectedQueryId变化
@@ -60,6 +69,19 @@ watch(() => props.modelValue, (newValue) => {
   selectedQueryId.value = newValue;
 });
 
+// 监听dataSourceId变化，重置选择的查询
+watch(() => props.dataSourceId, (newValue) => {
+  if (newValue && selectedQueryId.value) {
+    // 检查当前选择的查询是否属于新的数据源
+    const currentQuery = queries.value.find(q => q.id === selectedQueryId.value);
+    if (currentQuery && currentQuery.dataSourceId !== newValue) {
+      // 如果不属于，则清空选择
+      selectedQueryId.value = '';
+      emit('update:modelValue', '');
+    }
+  }
+});
+
 // 生命周期钩子
 onMounted(async () => {
   await loadQueries();
@@ -76,13 +98,17 @@ const loadQueries = async () => {
     console.log('获取到的查询列表数据:', result);
     
     if (result) {
-      queries.value = result.map(query => {
+      // 确保我们正确处理API返回的分页结果，取出items
+      const queryItems = Array.isArray(result) ? result : result.items || [];
+      
+      queries.value = queryItems.map(query => {
         console.log('处理查询数据:', query.id, query.name);
         return {
           id: query.id,
           name: query.name || `查询 ${query.id}`,
           description: query.description,
-          queryType: query.queryType
+          queryType: query.queryType,
+          dataSourceId: query.dataSourceId // 确保查询数据中包含数据源ID
         };
       });
       
@@ -126,9 +152,9 @@ const handleQueryChange = (event: Event) => {
         class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
         :class="{ 'pr-10': loading, 'border-red-300': props.error }"
         :placeholder="props.placeholder || '请选择数据查询'"
-        :disabled="props.disabled || loading"
+        :disabled="!!props.disabled || loading || !!(props.dataSourceId && filteredQueries.length === 0)"
       >
-        <option value="">请选择数据查询</option>
+        <option value="">{{ props.dataSourceId && filteredQueries.length === 0 ? '当前数据源没有可用查询' : '请选择数据查询' }}</option>
         <option 
           v-for="query in filteredQueries" 
           :key="query.id" 

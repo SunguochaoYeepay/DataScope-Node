@@ -1,5 +1,5 @@
 import { AppError } from '../app-error';
-import { ERROR_CODES } from '../error-codes';
+import { ERROR_CODES, GENERAL_ERROR } from '../error-codes';
 
 /**
  * 数据验证错误类
@@ -36,7 +36,7 @@ export class ValidationError extends AppError {
    */
   static requiredField(field: string, message?: string): ValidationError {
     const errorMessage = message || `字段 ${field} 为必填项`;
-    return new ValidationError(errorMessage, ERROR_CODES.REQUIRED_FIELD_MISSING, { field });
+    return new ValidationError(errorMessage, GENERAL_ERROR.REQUIRED_FIELD_MISSING, { field });
   }
 
   /**
@@ -47,7 +47,7 @@ export class ValidationError extends AppError {
    */
   static invalidType(field: string, expected: string, message?: string): ValidationError {
     const errorMessage = message || `字段 ${field} 类型应为 ${expected}`;
-    return new ValidationError(errorMessage, ERROR_CODES.INVALID_FIELD_TYPE, { field, expected });
+    return new ValidationError(errorMessage, GENERAL_ERROR.INVALID_FIELD_TYPE, { field, expected });
   }
 
   /**
@@ -67,7 +67,7 @@ export class ValidationError extends AppError {
       errorMessage = message || `字段 ${field} 长度应不超过 ${max}`;
     }
     
-    return new ValidationError(errorMessage, ERROR_CODES.INVALID_FIELD_LENGTH, { field, min, max });
+    return new ValidationError(errorMessage, GENERAL_ERROR.INVALID_FIELD_LENGTH, { field, min, max });
   }
 
   /**
@@ -78,6 +78,6 @@ export class ValidationError extends AppError {
    */
   static invalidFormat(field: string, format: string, message?: string): ValidationError {
     const errorMessage = message || `字段 ${field} 格式应为 ${format}`;
-    return new ValidationError(errorMessage, ERROR_CODES.INVALID_FIELD_FORMAT, { field, format });
+    return new ValidationError(errorMessage, GENERAL_ERROR.INVALID_FIELD_FORMAT, { field, format });
   }
 }

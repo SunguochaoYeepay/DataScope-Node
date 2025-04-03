@@ -4,31 +4,40 @@ import type {
   Query,
   QueryResult,
   QueryStatus,
+  QueryType,
   ExecuteQueryParams,
   NaturalLanguageQueryParams,
   SaveQueryParams,
   QueryHistoryParams,
   QueryDisplayConfig,
   QueryFavorite,
+  PageResponse,
   QuerySuggestion,
   QueryExecutionPlan,
   QueryVisualization,
-  ChartConfig
+  ChartConfig,
+  FetchQueryParams,
+  PaginatedResponse,
+  QueryServiceStatus
 } from '@/types/query'
-import { queryService, isUsingMockApi } from '@/services/query'
-import { message } from '@/services/message'
+import type {
+  PaginationParams,
+  PaginationInfo,
+  PaginationResponse,
+  BaseQueryParams
+} from '@/types/common'
+import { queryService, getApiBaseUrl } from '@/services/query'
+import { useMessageService } from '@/services/message'
 import { loading } from '@/services/loading'
+import { getErrorMessage } from '@/utils/error'
 
 // 查询参数接口
-export interface FetchQueryParams {
+interface QueryParams extends BaseQueryParams {
   dataSourceId?: string
   status?: QueryStatus
-  queryType?: string
-  search?: string
-  page?: number
-  size?: number
-  sortBy?: string
-  sortDir?: 'asc' | 'desc'
+  serviceStatus?: string
+  queryType?: QueryType
+  includeDrafts?: boolean
 }
 
 // 查询API类型定义
@@ -74,6 +83,9 @@ export interface QueryExecutionError {
 }
 
 export const useQueryStore = defineStore('query', () => {
+  // 获取消息服务
+  const messageService = useMessageService()
+  
   // 状态
   const queries = ref<Query[]>([])
   const currentQuery = ref<Query | null>(null)
@@ -84,11 +96,13 @@ export const useQueryStore = defineStore('query', () => {
   const executionPlan = ref<QueryExecutionPlan | null>(null)
   const suggestions = ref<QuerySuggestion[]>([])
   const visualization = ref<QueryVisualization | null>(null)
-  const pagination = ref({
-    total: 0,
+  const executionHistory = ref<QueryExecution[]>([])
+  const pagination = ref<PaginationInfo>({
     page: 1,
-    size: 10,
-    totalPages: 0
+    pageSize: 10,
+    total: 0,
+    totalPages: 0,
+    hasMore: false
   })
   const isExecuting = ref(false)
   const isLoadingHistory = ref(false)
@@ -106,71 +120,108 @@ export const useQueryStore = defineStore('query', () => {
   })
 
   // 执行 SQL 查询
-  const executeQuery = async (params: ExecuteQueryParams) => {
-    isExecuting.value = true
-    error.value = null
-    loading.show('执行查询中...', {
-      showCancelButton: true,
-      onCancel: () => {
-        if (currentQuery.value?.id) {
-          cancelQuery(currentQuery.value.id)
-        } else {
-          isExecuting.value = false
-        }
-      }
-    })
-    
+  const executeQuery = async (params: ExecuteQueryParams): Promise<QueryResult> => {
     try {
+      isExecuting.value = true
+      loading.show('正在执行查询...')
+      
+      // 使用查询服务执行查询
       const result = await queryService.executeQuery(params)
+      
+      // 更新当前查询结果
       currentQueryResult.value = result
       
-      // 如果没有错误，更新当前查询
-      currentQuery.value = {
-        id: result.id || '',
+      // 创建查询对象，确保包含所有必需属性
+      const tempQuery: Query = {
+        id: result.id,
+        name: 'Query at ' + new Date().toLocaleString(),
+        description: '',
+        folderId: '',
         dataSourceId: params.dataSourceId,
-        queryType: params.queryType,
+        queryType: params.queryType || 'SQL',
         queryText: params.queryText,
-        status: result.status || 'COMPLETED',
+        status: result.status as QueryStatus,
+        serviceStatus: 'ACTIVE',
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        executionTime: result.executionTime,
-        resultCount: result.rowCount
+        executionTime: result.executionTime || 0,
+        resultCount: result.rowCount || 0,
+        error: result.error,
+        isFavorite: false,
+        executionCount: 0,
+        lastExecutedAt: new Date().toISOString()
       }
       
-      // 获取查询优化建议
-      getQuerySuggestions(result.id)
+      // 添加到查询历史
+      currentQuery.value = tempQuery
+      queryHistory.value = [tempQuery, ...queryHistory.value].slice(0, 100)
       
-      // 尝试获取执行计划
-      if (params.queryType === 'SQL') {
-        getQueryExecutionPlan(result.id)
-      }
+      // 处理数据格式，确保在前端一致展示
+      const processedResult = processQueryResult(result)
       
-      message.success(`查询成功，返回 ${result.rowCount} 条记录${result.executionTime ? `，执行时间 ${result.executionTime}ms` : ''}`)
-      fetchQueryHistory()
-      return result
-    } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      currentQueryResult.value = null
-      
-      // 如果有错误，更新当前查询状态
-      if (currentQuery.value) {
-        currentQuery.value = {
-          ...currentQuery.value,
-          status: 'FAILED',
-          error: err instanceof Error ? err.message : String(err)
-        }
-      }
-      
-      message.error(`查询失败: ${error.value.message}`)
-      throw error.value
+      messageService.success('查询执行成功')
+      return processedResult
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('执行查询失败:', errorMessage)
+      messageService.error('执行查询失败: ' + errorMessage)
+      throw error
     } finally {
       isExecuting.value = false
       loading.hide()
     }
   }
   
+  // 处理查询结果数据
+  const processQueryResult = (result: QueryResult): QueryResult => {
+    // 复制结果对象，避免修改原始对象
+    const processedResult: QueryResult = { ...result };
+    
+    // 确保rows是标准格式的数组数据
+    if (processedResult.rows && Array.isArray(processedResult.rows)) {
+      // 确保每一行都是对象类型
+      processedResult.rows = processedResult.rows.map((row: any) => {
+        // 如果行已经是对象，直接返回
+        if (row && typeof row === 'object' && !Array.isArray(row)) {
+          return row;
+        }
+        
+        // 如果行是数组，转换为对象
+        if (Array.isArray(row)) {
+          const rowObj: Record<string, any> = {};
+          processedResult.columns.forEach((col, index) => {
+            if (index < row.length) {
+              rowObj[col] = row[index];
+            }
+          });
+          return rowObj;
+        }
+        
+        // 其他情况返回空对象
+        return {};
+      });
+    }
+    
+    // 如果存在fields字段但没有columns字段，从fields提取columns
+    if (!processedResult.columns && processedResult.fields) {
+      processedResult.columns = processedResult.fields.map((field: any) => {
+        if (typeof field === 'string') {
+          return field;
+        } else if (field && typeof field === 'object' && field.name) {
+          return field.name;
+        }
+        return '';
+      }).filter(Boolean);
+    }
+    
+    return processedResult;
+  };
+  
   // 执行自然语言查询
-  const executeNaturalLanguageQuery = async (params: NaturalLanguageQueryParams) => {
+  const executeNaturalLanguageQuery = async (params: NaturalLanguageQueryParams): Promise<{
+    query: Query;
+    result: QueryResult;
+  }> => {
     isExecuting.value = true
     error.value = null
     loading.show('处理自然语言查询中...', {
@@ -189,19 +240,28 @@ export const useQueryStore = defineStore('query', () => {
       currentQueryResult.value = response.result
       
       // 更新当前查询
-      currentQuery.value = {
+      const tempQuery: Query = {
         id: response.query.id || '',
+        name: 'Natural Language Query at ' + new Date().toLocaleString(),
+        description: '',
+        folderId: '',
         dataSourceId: params.dataSourceId,
         queryType: 'NATURAL_LANGUAGE',
         queryText: params.question,
         status: 'COMPLETED',
+        serviceStatus: 'ACTIVE',
         createdAt: response.query.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        executionTime: response.result.executionTime,
-        resultCount: response.result.rowCount
+        executionTime: response.result.executionTime || 0,
+        resultCount: response.result.rowCount || 0,
+        isFavorite: false,
+        executionCount: 0,
+        lastExecutedAt: new Date().toISOString()
       }
       
-      message.success(`查询成功，返回 ${response.result.rowCount} 条记录${response.result.executionTime ? `，执行时间 ${response.result.executionTime}ms` : ''}`)
+      currentQuery.value = tempQuery
+      
+      messageService.success(`查询成功，返回 ${response.result.rowCount} 条记录${response.result.executionTime ? `，执行时间 ${response.result.executionTime}ms` : ''}`)
       fetchQueryHistory()
       return response
     } catch (err) {
@@ -217,7 +277,7 @@ export const useQueryStore = defineStore('query', () => {
         }
       }
       
-      message.error(`查询失败: ${error.value.message}`)
+      messageService.error(`查询失败: ${error.value.message}`)
       throw error.value
     } finally {
       isExecuting.value = false
@@ -251,12 +311,12 @@ export const useQueryStore = defineStore('query', () => {
         currentQueryResult.value.status = 'CANCELLED'
       }
       
-      message.success('查询已取消')
+      messageService.success('查询已取消')
       return true
     } catch (err) {
       console.error('取消查询错误:', err)
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('取消查询失败')
+      messageService.error('取消查询失败')
       
       // 即使API调用失败，也要强制停止执行状态
       isExecuting.value = false
@@ -288,30 +348,82 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
   
-  // 加载查询历史
-  const fetchQueryHistory = async (params: QueryHistoryParams = {}) => {
-    isLoadingHistory.value = true
-    
+  // 获取查询历史
+  const fetchQueryHistory = async (params: QueryHistoryParams = { page: 1, size: 10 }) => {
     try {
-      const response = await queryService.getQueryHistory({
-        ...params,
-        page: params.page || pagination.value.page,
-        size: params.size || pagination.value.size
-      })
+      isLoadingHistory.value = true
+      error.value = null
+      console.log('=====================================================')
+      console.log('开始获取查询历史，参数:', params)
       
-      queryHistory.value = response.items
-      pagination.value = {
-        total: response.total,
-        page: response.page,
-        size: response.size,
-        totalPages: response.totalPages
+      // 确保params中至少有page和size参数
+      const safeParams: QueryHistoryParams = {
+        page: params.page || 1,
+        size: params.size || 10,
+        ...params
       }
       
-      return response
+      console.log('处理后的参数:', safeParams)
+      
+      // 调用API获取查询历史
+      const result = await queryService.getQueryHistory(safeParams)
+      console.log('获取到查询历史返回值:', result.items ? `包含${result.items.length}条记录` : '无记录')
+      
+      // 检查服务返回的数据结构
+      if (!result.items || !Array.isArray(result.items)) {
+        console.warn('查询历史API返回了空的或非数组的items:', result)
+        
+        // 尝试查看原始响应格式，帮助调试
+        if (result) {
+          console.log('响应格式详情:', 
+            Object.keys(result).join(','), 
+            'items类型:', result.items ? typeof result.items : '无items字段'
+          )
+        }
+      }
+      
+      // 将查询历史数据存储到store
+      queryHistory.value = result.items || []
+      console.log('查询历史存储成功，记录数:', queryHistory.value.length)
+      
+      // 更新分页信息
+      pagination.value = {
+        page: result.page || 1,
+        size: result.size || 10,
+        total: result.total || 0,
+        totalPages: result.totalPages || Math.ceil((result.total || 0) / (result.size || 10)),
+        hasMore: (result.page || 1) < (result.totalPages || 1)
+      }
+      
+      console.log('分页信息更新:', pagination.value)
+      console.log('=====================================================')
+      
+      return result
     } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
-      console.error('加载查询历史失败', error.value)
-      return null
+      console.error('获取查询历史失败:', err)
+      console.log('=====================================================')
+      
+      // 使用工具函数获取错误消息
+      let errorMessage = ''
+      if (err instanceof Error) {
+        errorMessage = err.message
+      } else if (typeof err === 'string') {
+        errorMessage = err
+      } else {
+        errorMessage = '未知错误'
+      }
+      
+      // 将错误消息创建为Error对象存储
+      error.value = new Error(errorMessage)
+      
+      // 返回空结果
+      return {
+        items: [],
+        page: 1,
+        size: 10,
+        total: 0,
+        totalPages: 0
+      }
     } finally {
       isLoadingHistory.value = false
     }
@@ -319,15 +431,24 @@ export const useQueryStore = defineStore('query', () => {
   
   // 获取查询详情
   const getQuery = async (id: string) => {
+    if (!id) {
+      error.value = new Error('查询ID不能为空')
+      return null
+    }
+    
     try {
       loading.show('加载查询信息...')
+      currentQuery.value = await queryService.getQuery(id)
       
-      const query = await queryService.getQuery(id)
-      currentQuery.value = query
-      return query
+      if (!currentQuery.value) {
+        error.value = new Error(`未找到ID为 ${id} 的查询，该查询可能已被删除或不存在`)
+        return null
+      }
+      
+      return currentQuery.value
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('加载查询信息失败')
+      messageService.error(error.value.message)
       return null
     } finally {
       loading.hide()
@@ -346,12 +467,31 @@ export const useQueryStore = defineStore('query', () => {
         currentQuery.value = savedQuery
       }
       
-      message.success('查询保存成功')
-      fetchQueryHistory()
+      messageService.success('查询保存成功')
+      
+      // 检查查询历史中是否存在该ID
+      const existsInHistory = queryHistory.value.some(q => q.id === savedQuery.id)
+      if (!existsInHistory) {
+        console.log('保存的查询ID不在历史记录中，重新加载查询历史')
+        await fetchQueryHistory()
+      }
+      
+      // 同时更新保存的查询列表(queries)
+      const existsInQueries = queries.value.some(q => q.id === savedQuery.id)
+      if (!existsInQueries) {
+        // 如果是新查询，添加到查询列表的开头
+        queries.value = [savedQuery, ...queries.value]
+      } else {
+        // 如果是更新查询，替换已有的
+        queries.value = queries.value.map(q => 
+          q.id === savedQuery.id ? savedQuery : q
+        )
+      }
+      
       return savedQuery
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('保存查询失败')
+      messageService.error('保存查询失败')
       throw error.value
     } finally {
       loading.hide()
@@ -359,26 +499,46 @@ export const useQueryStore = defineStore('query', () => {
   }
   
   // 删除查询
-  const deleteQuery = async (id: string) => {
+  const deleteQuery = async (id: string): Promise<boolean> => {
     try {
-      loading.show('删除查询中...')
+      // 开始加载
+      isExecuting.value = true;
       
-      await queryService.deleteQuery(id)
+      // 调用接口删除
+      await queryService.deleteQuery(id);
       
-      // 如果当前查询是被删除的查询，清空当前查询
-      if (currentQuery.value && currentQuery.value.id === id) {
-        currentQuery.value = null
-        currentQueryResult.value = null
-      }
+      // 从数据中移除
+      queries.value = queries.value.filter(query => query.id !== id);
+      
+      // 显示成功消息
+      messageService.success('查询已成功删除');
+      
+      return true;
+    } catch (error) {
+      console.error('删除查询失败:', error);
+      const errorMessage = getErrorMessage(error);
+      messageService.error(`删除查询失败: ${errorMessage}`);
+      return false;
+    } finally {
+      isExecuting.value = false;
+    }
+  }
+  
+  // 删除查询历史
+  const deleteQueryHistory = async (historyId: string) => {
+    try {
+      loading.show('删除查询历史中...')
+      
+      await queryService.deleteQueryHistory(historyId)
       
       // 从历史中移除
-      queryHistory.value = queryHistory.value.filter(q => q.id !== id)
+      queryHistory.value = queryHistory.value.filter(q => q.id !== historyId)
       
-      message.success('查询已删除')
+      messageService.success('查询历史已删除')
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('删除查询失败')
+      messageService.error('删除查询历史失败')
       return false
     } finally {
       loading.hide()
@@ -400,12 +560,12 @@ export const useQueryStore = defineStore('query', () => {
         currentQuery.value.isFavorite = true
       }
       
-      message.success('已添加到收藏夹')
+      messageService.success('已添加到收藏夹')
       getFavorites()
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('收藏查询失败')
+      messageService.error('收藏查询失败')
       return false
     }
   }
@@ -428,11 +588,11 @@ export const useQueryStore = defineStore('query', () => {
       // 从收藏夹中移除
       favorites.value = favorites.value.filter(f => f.queryId !== id)
       
-      message.success('已从收藏夹中移除')
+      messageService.success('已从收藏夹中移除')
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('取消收藏失败')
+      messageService.error('取消收藏失败')
       return false
     }
   }
@@ -458,11 +618,11 @@ export const useQueryStore = defineStore('query', () => {
       const result = await queryService.saveDisplayConfig(queryId, config)
       displayConfig.value = result
       
-      message.success('显示配置已保存')
+      messageService.success('显示配置已保存')
       return result
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error('保存显示配置失败')
+      messageService.error('保存显示配置失败')
       return null
     } finally {
       loading.hide()
@@ -498,12 +658,44 @@ export const useQueryStore = defineStore('query', () => {
   // 获取查询执行计划
   const getQueryExecutionPlan = async (queryId: string) => {
     try {
-      const plan = await queryService.getQueryExecutionPlan(queryId)
+      console.log(`开始获取查询执行计划，查询ID: ${queryId}`)
+      
+      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      console.log(`执行计划API响应状态: ${response.status} ${response.statusText}`)
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error?.message || response.statusText
+        console.log(`获取查询执行计划失败: ${response.statusText}, 错误内容:`, JSON.stringify(errorData))
+        
+        // 如果是特定错误（例如计划不存在），则返回null并不抛出错误
+        if (errorData.error?.code === 10006 || errorMessage.includes('不存在')) {
+          console.log('执行计划暂不可用:', errorMessage)
+          return null
+        }
+        
+        throw new Error(`获取查询执行计划失败: ${response.statusText}`)
+      }
+      
+      const plan = await response.json()
+      console.log('成功获取查询执行计划:', plan)
       executionPlan.value = plan
       return plan
     } catch (err) {
-      console.error('获取查询执行计划失败', err)
-      return null
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error('获取查询执行计划错误:', err)
+      
+      // 不显示错误通知，因为这是后台功能，不应该影响用户体验
+      // messageService.error('获取查询执行计划失败')
+      
+      throw new Error(`获取查询执行计划失败: ${errorMsg}`)
     }
   }
   
@@ -540,13 +732,35 @@ export const useQueryStore = defineStore('query', () => {
     try {
       loading.show(`正在导出为 ${format.toUpperCase()} 格式...`)
       
-      await queryService.exportQueryResults(queryId, format)
+      // 使用自定义实现，如果API不支持
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/export?format=${format}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
       
-      message.success(`查询结果已导出为 ${format.toUpperCase()} 格式`)
+      if (!response.ok) {
+        throw new Error(`导出失败: ${response.statusText}`);
+      }
+      
+      // 处理响应，下载文件
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `query-${queryId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+      
+      messageService.success(`查询结果已导出为 ${format.toUpperCase()} 格式`)
       return true
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
-      message.error(`导出查询结果失败: ${error.value.message}`)
+      messageService.error(`导出为 ${format.toUpperCase()} 格式失败`)
       return false
     } finally {
       loading.hide()
@@ -573,92 +787,136 @@ export const useQueryStore = defineStore('query', () => {
   }
 
   // 获取查询执行历史
-  async function getQueryExecutionHistory(queryId: string): Promise<QueryExecution[]> {
+  const getQueryExecutionHistory = async (queryId: string) => {
+    if (!queryId) return []
+    
+    isLoadingHistory.value = true
+    error.value = null
+    
     try {
-      if (isUsingMockApi()) {
-        // 生成模拟数据
-        return mockQueryExecutionHistory(queryId)
-      }
+      console.log(`获取查询${queryId}的执行历史`)
       
-      // 这里应该通过queryService调用，但后端API尚未提供此功能
-      console.error('后端API尚未提供查询执行历史功能')
-      return []
-    } catch (error) {
-      console.error('Failed to get query execution history:', error)
-      return []
-    }
-  }
-  
-  // 获取特定执行记录的结果
-  async function getExecutionResults(executionId: string): Promise<QueryResult | null> {
-    try {
-      if (isUsingMockApi()) {
-        // 使用当前结果作为模拟数据
-        return currentQueryResult.value
-      }
+      // 调用查询服务获取执行历史，而不是直接调用API
+      const history = await queryService.getQueryExecutionHistory(queryId)
       
-      // 这里应该通过queryService调用，但后端API尚未提供此功能
-      console.error('后端API尚未提供查询执行结果获取功能')
-      return null
-    } catch (error) {
-      console.error('Failed to get execution results:', error)
-      return null
-    }
-  }
-  
-  // 获取执行错误信息
-  async function getExecutionError(executionId: string): Promise<QueryExecutionError | null> {
-    try {
-      if (isUsingMockApi()) {
-        // 生成模拟错误数据
-        return {
-          executionId,
-          errorCode: 'SYNTAX_ERROR',
-          errorMessage: '查询语法错误',
-          errorDetails: '在SQL语句中发现未闭合的引号或括号',
-          stackTrace: 'ErrorClass: Syntax error at line 2, position 15...'
-        }
-      }
-      
-      // 这里应该通过queryService调用，但后端API尚未提供此功能
-      console.error('后端API尚未提供查询执行错误获取功能')
-      return null
-    } catch (error) {
-      console.error('Failed to get execution error:', error)
-      return null
-    }
-  }
-
-  // 获取查询列表
-  const fetchQueries = async (params?: FetchQueryParams) => {
-    try {
-      console.log('Query store: fetchQueries called with params:', params);
-      
-      const result = await queryService.getQueryHistory({
-        dataSourceId: params?.dataSourceId,
-        queryType: params?.queryType as any,
-        page: params?.page || 0,
-        size: params?.size || 100
-      });
-      
-      console.log('Query store: fetchQueries result:', result);
-      
-      // 确保每个查询都有name属性
-      const queriesWithNames = result.items.map(query => {
-        if (!query.name) {
-          return { ...query, name: `查询 ${query.id}` };
-        }
-        return query;
-      });
-      
-      console.log('Query store: queriesWithNames:', queriesWithNames);
-      
-      return queriesWithNames;
+      console.log(`获取到${history.length}条执行历史记录`)
+      executionHistory.value = history || []
+      return history
     } catch (err) {
-      console.error('获取查询列表失败', err);
-      return [];
+      console.error('获取执行历史失败:', err)
+      error.value = err instanceof Error ? err : new Error(String(err))
+      executionHistory.value = []
+      return []
+    } finally {
+      isLoadingHistory.value = false
     }
-  };
+  }
+  
+  // 手动设置当前查询文本
+  const setCurrentQueryText = (queryText: string) => {
+    if (currentQuery.value) {
+      currentQuery.value.queryText = queryText
+    }
+  }
+  
+  // 获取查询列表
+  const fetchQueries = async (params?: QueryParams): Promise<Query[]> => {
+    try {
+      loading.show('加载查询列表...')
+      
+      const queryParams = {
+        queryType: params?.queryType,
+        status: params?.status,
+        serviceStatus: params?.serviceStatus,
+        searchTerm: params?.search,
+        sortBy: params?.sortBy,
+        sortDir: params?.sortDir,
+        includeDrafts: params?.includeDrafts,
+        page: params?.page ?? 1,
+        size: params?.size ?? 10
+      }
+      
+      const response = await queryService.getQueries(queryParams)
+      
+      queries.value = response.items
+      pagination.value = {
+        total: response.total,
+        page: response.page,
+        size: response.size,
+        totalPages: response.totalPages,
+        hasMore: response.page < response.totalPages
+      }
+      
+      return response.items
+    } catch (error) {
+      console.error('加载查询列表失败:', error)
+      messageService.error('加载查询列表失败')
+      throw error
+    } finally {
+      loading.hide()
+    }
+  }
+  
+  // 更新查询状态
+  const updateQueryStatus = async (id: string, serviceStatus: QueryServiceStatus) => {
+    try {
+      loading.show(`正在${serviceStatus === 'ENABLED' ? '启用' : '禁用'}查询...`)
+      
+      // 从当前数据中获取查询详情
+      const query = queries.value.find(q => q.id === id)
+      if (!query) {
+        throw new Error('找不到要更新的查询')
+      }
+      
+      // 映射服务状态到查询状态
+      const status: QueryStatus = serviceStatus === 'ENABLED' ? 'PUBLISHED' : 'DEPRECATED';
+      
+      console.log('更新查询状态，当前查询数据:', query);
+      console.log('将设置新状态:', { status, serviceStatus });
+      
+      // 调用 saveQuery 接口更新状态
+      const updatedQuery = await queryService.saveQuery({
+        id,
+        name: query.name,
+        description: query.description,
+        dataSourceId: query.dataSourceId || '',
+        sql: query.queryText || '',
+        status: status,
+        serviceStatus: serviceStatus // 明确设置服务状态
+      })
+      
+      console.log('查询状态更新成功，返回数据:', updatedQuery);
+      
+      // 更新本地状态
+      if (updatedQuery) {
+        // 更新查询列表中的状态
+        const index = queries.value.findIndex(q => q.id === id)
+        if (index !== -1) {
+          queries.value[index] = {
+            ...queries.value[index],
+            status: status,
+            serviceStatus: serviceStatus
+          }
+        }
+        
+        // 如果当前查询是被更新的查询，也更新当前查询
+        if (currentQuery.value && currentQuery.value.id === id) {
+          currentQuery.value.status = status
+          currentQuery.value.serviceStatus = serviceStatus
+        }
+        
+        messageService.success(`查询已${serviceStatus === 'ENABLED' ? '启用' : '禁用'}`)
+      }
+      
+      return updatedQuery
+    } catch (err) {
+      error.value = err instanceof Error ? err : new Error(String(err))
+      messageService.error(`${serviceStatus === 'ENABLED' ? '启用' : '禁用'}查询失败: ${error.value.message}`)
+      return null
+    } finally {
+      loading.hide()
+    }
+  }
   
   return {
     // 状态
@@ -671,6 +929,7 @@ export const useQueryStore = defineStore('query', () => {
     executionPlan,
     suggestions,
     visualization,
+    executionHistory,
     pagination,
     isExecuting,
     isLoadingHistory,
@@ -703,56 +962,11 @@ export const useQueryStore = defineStore('query', () => {
     resetState,
     init,
     getQueryExecutionHistory,
-    getExecutionResults,
-    getExecutionError,
-    fetchQueries
+    setCurrentQueryText,
+    fetchQueries,
+    deleteQueryHistory,
+    updateQueryStatus
   }
 })
 
 export default useQueryStore
-
-// 模拟查询执行历史数据
-function mockQueryExecutionHistory(queryId: string): QueryExecution[] {
-  const now = Date.now()
-  return [
-    {
-      id: `exec-${queryId}-1`,
-      queryId,
-      executedAt: new Date(now - 3600000).toISOString(),
-      executionTime: 1250,
-      status: 'COMPLETED',
-      rowCount: 128
-    },
-    {
-      id: `exec-${queryId}-2`,
-      queryId,
-      executedAt: new Date(now - 7200000).toISOString(),
-      executionTime: 2100,
-      status: 'COMPLETED',
-      rowCount: 256
-    },
-    {
-      id: `exec-${queryId}-3`,
-      queryId,
-      executedAt: new Date(now - 14400000).toISOString(),
-      executionTime: 890,
-      status: 'FAILED',
-      errorMessage: '查询超时或语法错误'
-    },
-    {
-      id: `exec-${queryId}-4`,
-      queryId,
-      executedAt: new Date(now - 86400000).toISOString(),
-      executionTime: 1500,
-      status: 'COMPLETED',
-      rowCount: 64
-    },
-    {
-      id: `exec-${queryId}-5`,
-      queryId,
-      executedAt: new Date(now - 172800000).toISOString(),
-      executionTime: 3200,
-      status: 'CANCELLED'
-    }
-  ]
-}

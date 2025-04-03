@@ -1,6 +1,6 @@
 import type {
   DataSource,
-  CreateDataSourceParams,
+  CreateDataSourceParams as DataSourceInput,
   UpdateDataSourceParams,
   TestConnectionParams,
   SyncMetadataParams,
@@ -14,17 +14,14 @@ import type {
   DataSourceStatus,
   SyncFrequency
 } from '@/types/datasource'
-import type { TableMetadata, TableRelationship } from '@/types/metadata'
-import { mockDataSourceApi } from '@/mocks/datasource'
-
-// 使用环境变量判断是否使用模拟API
-const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
+import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/metadata'
+import { getApiBaseUrl } from './query'
 
 // API 基础路径
-const API_BASE_URL = '/api/datasources'
+const API_BASE_URL = `${getApiBaseUrl()}/api/datasources`
 
 // 元数据API基础路径 - 已更新为标准API路径
-const METADATA_API_BASE_URL = '/api/metadata'
+const METADATA_API_BASE_URL = `${getApiBaseUrl()}/api/metadata`
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -61,7 +58,7 @@ const adaptDataSource = (source: any): DataSource => {
     updatedAt: source.updatedAt,
     // 其他可选字段
     errorMessage: source.errorMessage,
-    connectionOptions: source.connectionParams || {},
+    connectionParams: source.connectionParams || {},
     // 额外字段处理
     metadata: source.metadata
   }
@@ -71,41 +68,98 @@ const adaptDataSource = (source: any): DataSource => {
 export const dataSourceService = {
   // 获取数据源列表
   async getDataSources(params: DataSourceQueryParams): Promise<PageResponse<DataSource>> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSources(params)
-    }
-
     try {
-      // 构建查询参数
+      // 构建查询参数 - 使用标准参数：page/size
       const queryParams = new URLSearchParams()
-      if (params.name) queryParams.append('name', params.name)
-      if (params.type) queryParams.append('type', params.type.toLowerCase()) // 发送小写类型
-      if (params.status) queryParams.append('status', params.status)
-      if (params.page !== undefined) queryParams.append('page', params.page.toString())
-      if (params.size) queryParams.append('size', params.size.toString())
+      
+      // 添加过滤参数
+      if (params.name) {
+        queryParams.append('name', params.name);
+      }
+      if (params.type) {
+        queryParams.append('type', params.type.toLowerCase());
+      }
+      if (params.status) {
+        queryParams.append('status', params.status);
+      }
+      
+      // 添加分页参数（使用标准page/size参数名）
+      queryParams.append('page', String(params.page || 1));
+      queryParams.append('size', String(params.size || 10));
       
       // 发送请求
-      const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`)
+      const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`);
+      
       if (!response.ok) {
-        throw new Error(`获取数据源列表失败: ${response.statusText}`)
+        throw new Error(`获取数据源列表失败: ${response.statusText}`);
       }
       
-      // 处理响应数据 - 文档中明确返回的是数组而非分页对象
-      const rawData = await handleResponse<any[]>(response)
+      // 处理响应数据
+      const responseData = await response.json();
+      console.log('数据源列表原始响应:', responseData);
       
-      // 将后端数据适配为前端需要的格式
-      const adaptedData: DataSource[] = Array.isArray(rawData) 
-        ? rawData.map(adaptDataSource) 
-        : [];
+      // 处理不同响应格式
+      let items: any[] = [];
+      let totalItems = 0;
+      let totalPages = 1;
+      let currentPage = Number(params.page || 1);
+      let pageSize = Number(params.size || 10);
       
-      // 手动构造分页对象
+      // 1. 处理标准成功响应格式
+      if (responseData.success === true && responseData.data) {
+        // 提取items数组
+        if (Array.isArray(responseData.data)) {
+          items = responseData.data;
+          totalItems = items.length;
+        } else if (responseData.data.items && Array.isArray(responseData.data.items)) {
+          items = responseData.data.items;
+          
+          // 从pagination对象中提取分页信息
+          if (responseData.data.pagination) {
+            totalItems = responseData.data.pagination.total || items.length;
+            totalPages = responseData.data.pagination.totalPages || 
+                        Math.ceil(totalItems / pageSize);
+            currentPage = responseData.data.pagination.page || currentPage;
+            pageSize = responseData.data.pagination.size || pageSize;
+          }
+        }
+      } 
+      // 2. 处理直接返回数组的格式
+      else if (Array.isArray(responseData)) {
+        items = responseData;
+        totalItems = items.length;
+      } 
+      // 3. 处理其他格式
+      else {
+        // 尝试从各种可能的字段中提取数据
+        if (responseData.items && Array.isArray(responseData.items)) {
+          items = responseData.items;
+        } else if (responseData.dataSources && Array.isArray(responseData.dataSources)) {
+          items = responseData.dataSources;
+        } else if (responseData.data && Array.isArray(responseData.data)) {
+          items = responseData.data;
+        }
+        
+        // 提取分页信息
+        totalItems = responseData.total || responseData.totalCount || items.length;
+        totalPages = responseData.totalPages || 
+                    responseData.pages || 
+                    Math.ceil(totalItems / pageSize);
+        currentPage = responseData.page || currentPage;
+        pageSize = responseData.size || responseData.pageSize || pageSize;
+      }
+      
+      // 适配数据源对象
+      const dataSources: DataSource[] = items.map(adaptDataSource);
+      
+      // 返回标准分页响应
       return {
-        items: adaptedData,
-        total: adaptedData.length,
-        page: params.page || 1,
-        size: params.size || adaptedData.length,
-        totalPages: Math.ceil(adaptedData.length / (params.size || adaptedData.length || 10))
-      }
+        items: dataSources,
+        page: currentPage,
+        size: pageSize,
+        total: totalItems,
+        totalPages: totalPages
+      };
     } catch (error) {
       console.error('获取数据源列表错误:', error)
       throw error
@@ -114,10 +168,6 @@ export const dataSourceService = {
   
   // 获取单个数据源详情
   async getDataSource(id: string): Promise<DataSource> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSource(id)
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`)
       if (!response.ok) {
@@ -133,25 +183,20 @@ export const dataSourceService = {
   },
   
   // 创建数据源
-  async createDataSource(params: CreateDataSourceParams): Promise<DataSource> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.createDataSource(params)
-    }
-
+  async createDataSource(data: DataSourceInput): Promise<DataSource> {
     try {
-      // 转换参数格式以匹配后端期望
+      // 构建符合后端期望的请求体
       const requestBody = {
-        name: params.name,
-        description: params.description,
-        type: params.type.toLowerCase(), // 后端期望小写的类型
-        host: params.host,
-        port: params.port,
-        database: params.database || params.databaseName, // 优先使用database，其次使用databaseName
-        username: params.username,
-        password: params.password,
-        syncFrequency: params.syncFrequency,
-        // 转换字段名称不同的属性
-        connectionParams: params.connectionOptions || {} // 后端使用connectionParams
+        name: data.name,
+        description: data.description || '',
+        type: data.type.toLowerCase(), // 后端期望小写的类型
+        host: data.host,
+        port: data.port,
+        database: data.database || data.databaseName, // 优先使用database，其次使用databaseName
+        username: data.username,
+        password: data.password,
+        syncFrequency: data.syncFrequency,
+        connectionParams: data.connectionParams || {} // 使用统一的字段名
       }
       
       const response = await fetch(`${API_BASE_URL}`, {
@@ -166,11 +211,10 @@ export const dataSourceService = {
         throw new Error(`创建数据源失败: ${response.statusText}`)
       }
       
-      // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
       const result = await response.json()
-      const data = result.data || result  // 兼容不同的响应格式
+      const responseData = result.data || result
       
-      return adaptDataSource(data)
+      return adaptDataSource(responseData)
     } catch (error) {
       console.error('创建数据源错误:', error)
       throw error
@@ -179,10 +223,6 @@ export const dataSourceService = {
   
   // 更新数据源
   async updateDataSource(params: UpdateDataSourceParams): Promise<DataSource> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.updateDataSource(params)
-    }
-
     try {
       // 构建符合后端期望的请求体
       const requestBody: any = {
@@ -191,13 +231,11 @@ export const dataSourceService = {
         description: params.description,
         host: params.host,
         port: params.port,
-        database: params.database || params.databaseName, // 优先使用database，其次使用databaseName
+        database: params.database || params.databaseName,
         username: params.username,
-        // 只有在明确提供时才发送密码
         ...(params.password && { password: params.password }),
         syncFrequency: params.syncFrequency,
-        // 转换字段名称不同的属性
-        connectionParams: params.connectionOptions || {} // 后端使用connectionParams
+        connectionParams: params.connectionParams || {}
       }
       
       const response = await fetch(`${API_BASE_URL}/${params.id}`, {
@@ -212,9 +250,8 @@ export const dataSourceService = {
         throw new Error(`更新数据源失败: ${response.statusText}`)
       }
       
-      // 处理响应数据 - 注意后端返回的格式可能是 { success: true, data: {...} }
       const result = await response.json()
-      const data = result.data || result  // 兼容不同的响应格式
+      const data = result.data || result
       
       return adaptDataSource(data)
     } catch (error) {
@@ -225,11 +262,6 @@ export const dataSourceService = {
   
   // 删除数据源
   async deleteDataSource(id: string): Promise<void> {
-    if (USE_MOCK_API) {
-      await mockDataSourceApi.deleteDataSource(id)
-      return
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`, {
         method: 'DELETE'
@@ -248,10 +280,6 @@ export const dataSourceService = {
   
   // 测试数据源连接
   async testConnection(params: TestConnectionParams): Promise<ConnectionTestResult> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.testConnection(params)
-    }
-
     try {
       // 构建请求体
       const requestBody = {
@@ -292,11 +320,11 @@ export const dataSourceService = {
         };
       }
 
-      const data = await response.json();
+      const responseData = await response.json();
       return {
-        success: data.success,
-        message: data.message,
-        details: data.details
+        success: responseData.success,
+        message: responseData.message,
+        details: responseData.details
       }
     } catch (error) {
       console.error('测试连接失败:', error);
@@ -310,10 +338,6 @@ export const dataSourceService = {
   
   // 同步数据源元数据
   async syncMetadata(params: SyncMetadataParams): Promise<MetadataSyncResult> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.syncMetadata(params)
-    }
-
     try {
       // 构建符合后端预期的请求体
       const requestBody = {
@@ -391,72 +415,90 @@ export const dataSourceService = {
   },
   
   // 获取表元数据
-  async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata | Record<string, TableMetadata>> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableMetadata(dataSourceId, tableName as string)
-    }
-
+  async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata[]> {
     try {
-      console.log('获取表元数据，API路径:', `${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
-      // 构建查询参数
-      const queryParams = new URLSearchParams()
-      if (tableName) queryParams.append('tableName', tableName)
-      
-      // 使用新的元数据API路径格式
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables${tableName ? `/${tableName}` : ''}`)
-      
-      // 即使响应不是200也尝试获取内容
+      // 使用标准API路径
+      const url = tableName 
+        ? `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}`
+        : `${METADATA_API_BASE_URL}/${dataSourceId}/tables`;
+
+      console.log(`获取表元数据URL: ${url}`);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`获取表元数据失败: ${response.statusText}`);
+      }
+
+      // 处理多种可能的响应格式
       const responseText = await response.text();
-      console.log('原始API响应:', responseText);
+      console.log(`表元数据原始响应: ${responseText.substring(0, 100)}...`);
       
       let responseData;
       try {
         responseData = JSON.parse(responseText);
-        console.log('解析后的API响应:', responseData);
       } catch (e) {
-        console.error('解析JSON失败:', e);
-        return tableName ? {} as TableMetadata : {};
+        console.error('解析表元数据响应失败:', e);
+        throw new Error(`解析表元数据响应失败: ${responseText.substring(0, 100)}`);
       }
       
-      // 如果请求失败，返回空对象而不是抛出异常
-      if (!responseData || (responseData.success === false)) {
-        console.error(`获取表元数据失败: ${responseData?.message || '未知错误'}`)
-        return tableName ? {} as TableMetadata : {}
+      // 处理标准化的 success/data/items/pagination 响应格式
+      if (responseData.success === true && responseData.data && responseData.data.items) {
+        console.log(`从标准化响应中提取表元数据: ${responseData.data.items.length}个表`);
+        return responseData.data.items;
+      } 
+      // 处理直接返回表对象的情况
+      else if (tableName && responseData.name) {
+        console.log(`获取到单个表元数据: ${responseData.name}`);
+        return [responseData];
+      }
+      // 处理直接返回表数组的情况
+      else if (Array.isArray(responseData)) {
+        console.log(`获取到表元数据数组: ${responseData.length}个表`);
+        return responseData;
+      }
+      // 处理返回对象的情况
+      else if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
+        // 如果是对象但不是数组，可能是旧格式的键值对
+        if (Object.keys(responseData).length > 0 && typeof Object.values(responseData)[0] === 'object') {
+          console.log(`从对象中提取表元数据: ${Object.keys(responseData).length}个表`);
+          return Object.values(responseData);
+        }
+        // 单个表的情况
+        else if (responseData.name) {
+          console.log(`获取到单个表元数据对象: ${responseData.name}`);
+          return [responseData];
+        }
       }
       
-      // 处理不同的返回格式
-      let tables;
-      if (responseData.success && responseData.data) {
-        // 新格式: { success: true, data: {...} }
-        tables = responseData.data;
-      } else if (Array.isArray(responseData)) {
-        // 数组格式: [{table1}, {table2}]
-        tables = responseData.reduce((acc, table) => {
-          acc[table.name] = table;
-          return acc;
-        }, {});
-      } else {
-        // 假设是直接返回的对象: {table1: {...}, table2: {...}}
-        tables = responseData;
-      }
-      
-      console.log('处理后的表数据:', tables);
-      
-      // 如果指定了表名，返回特定表的元数据；否则返回所有表
-      return tableName ? tables[tableName] || {} as TableMetadata : tables
+      // 无法识别的响应格式
+      console.error('无法识别的表元数据响应格式:', responseData);
+      return [];
     } catch (error) {
-      console.error(`获取数据源${dataSourceId}表元数据错误:`, error)
-      // 返回空对象而不是抛出异常
-      return tableName ? {} as TableMetadata : {}
+      console.error('获取表元数据错误:', error);
+      throw error;
+    }
+  },
+  
+  // 获取表字段信息
+  async getTableColumns(dataSourceId: string, tableName: string): Promise<ColumnMetadata[]> {
+    try {
+      // 使用标准API路径
+      const url = `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns`
+      
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`获取表字段信息失败: ${response.statusText}`)
+      }
+
+      const data = await handleResponse<any>(response)
+      return data
+    } catch (error) {
+      console.error('获取表字段信息错误:', error)
+      throw error
     }
   },
   
   // 获取表关系
   async getTableRelationships(dataSourceId: string): Promise<TableRelationship[]> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableRelationships(dataSourceId)
-    }
-
     try {
       // 构建查询参数获取表关系，根据新API格式
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/relationships`)
@@ -486,32 +528,6 @@ export const dataSourceService = {
       filters?: Record<string, any>
     } = {}
   ) {
-    if (USE_MOCK_API) {
-      return {
-        data: Array(params.size || 10).fill(null).map((_, i) => {
-          // 创建一个模拟行，每行包含5列示例数据
-          return {
-            id: i + 1,
-            name: `示例数据 ${i + 1}`,
-            created_at: new Date(Date.now() - i * 86400000).toISOString(),
-            value: Math.round(Math.random() * 1000) / 10,
-            status: ['活跃', '禁用', '待审核'][i % 3]
-          };
-        }),
-        columns: [
-          { name: 'id', type: 'INTEGER' },
-          { name: 'name', type: 'VARCHAR' },
-          { name: 'created_at', type: 'DATETIME' },
-          { name: 'value', type: 'DECIMAL' },
-          { name: 'status', type: 'VARCHAR' }
-        ],
-        page: params.page || 1,
-        size: params.size || 10,
-        total: 100,
-        totalPages: 10
-      };
-    }
-
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams();
@@ -560,54 +576,65 @@ export const dataSourceService = {
         totalPages: 0
       };
       
-      // 检查不同的响应格式并适配
-      if (data.data.rows !== undefined) {
-        // 标准格式 data.data.rows
-        rows = data.data.rows || [];
-        
-        // 处理columns格式转换，将MySQL格式的列定义转换为组件需要的格式
-        if (data.data.columns && Array.isArray(data.data.columns)) {
-          formattedColumns = data.data.columns.map((col: any) => {
-            // 处理MySQL DESC格式的列
-            if (col.Field) {
-              return {
-                name: col.Field,
-                type: col.Type || 'VARCHAR'
-              };
-            }
-            // 处理标准格式的列
+      // 使用统一的API响应格式
+      const responseData = data.data;
+      
+      // 现在使用items字段而不是rows
+      if (responseData.items !== undefined) {
+        rows = responseData.items || [];
+      } else if (responseData.rows !== undefined) {
+        // 兼容旧格式
+        rows = responseData.rows || [];
+      } else if (Array.isArray(responseData)) {
+        // 直接返回数组的情况
+        rows = responseData;
+      }
+      
+      // 处理列信息
+      if (responseData.columns && Array.isArray(responseData.columns)) {
+        formattedColumns = responseData.columns.map((col: any) => {
+          // 处理MySQL DESC格式的列
+          if (col.Field) {
             return {
-              name: col.name || col.column_name || col.columnName || col.Field || '',
-              type: col.type || col.data_type || col.dataType || col.Type || 'VARCHAR'
+              name: col.Field,
+              type: col.Type || 'VARCHAR'
             };
-          });
-        }
-        
-        // 处理分页信息
-        if (data.data.pagination) {
-          pagination = {
-            ...pagination,
-            page: data.data.pagination.page || params.page || 1,
-            size: data.data.pagination.size || params.size || 10,
-            total: data.data.pagination.total || 0,
-            totalPages: data.data.pagination.totalPages || 0
+          }
+          // 处理标准格式的列
+          return {
+            name: col.name || col.column_name || col.columnName || col.Field || '',
+            type: col.type || col.data_type || col.dataType || col.Type || 'VARCHAR'
           };
-        }
-      } else if (Array.isArray(data.data)) {
-        // 如果直接返回了数据数组
-        rows = data.data;
-        // 尝试从第一行数据推断列
-        if (rows.length > 0) {
-          formattedColumns = Object.keys(rows[0]).map(key => ({
-            name: key,
-            type: typeof rows[0][key] === 'number' ? 'NUMBER' : 
-                  typeof rows[0][key] === 'boolean' ? 'BOOLEAN' : 'VARCHAR'
-          }));
-        }
+        });
+      } else if (rows.length > 0) {
+        // 如果没有列信息但有数据，从数据中推断列
+        formattedColumns = Object.keys(rows[0]).map(key => ({
+          name: key,
+          type: typeof rows[0][key] === 'number' ? 'NUMBER' : 
+                typeof rows[0][key] === 'boolean' ? 'BOOLEAN' : 'VARCHAR'
+        }));
+      }
+      
+      // 处理分页信息 - 现在使用统一的pagination对象
+      if (responseData.pagination) {
+        pagination = {
+          page: responseData.pagination.page !== undefined ? responseData.pagination.page : (params.page || 1),
+          size: responseData.pagination.size !== undefined ? responseData.pagination.size : (params.size || 10),
+          total: responseData.pagination.total || rows.length,
+          totalPages: responseData.pagination.totalPages !== undefined ? 
+                      responseData.pagination.totalPages : 
+                      Math.ceil((responseData.pagination.total || rows.length) / (responseData.pagination.size || params.size || 10))
+        };
       } else {
-        // 如果返回了其他结构，给出警告但尝试处理
-        console.warn('未识别的表数据预览响应格式:', data);
-        rows = [];
+        // 兼容旧格式或简单格式
+        pagination = {
+          page: responseData.page !== undefined ? responseData.page : (params.page || 1),
+          size: responseData.size !== undefined ? responseData.size : (params.size || 10),
+          total: responseData.total || rows.length,
+          totalPages: responseData.totalPages !== undefined ? 
+                      responseData.totalPages : 
+                      Math.ceil((responseData.total || rows.length) / (responseData.size || params.size || 10))
+        };
       }
       
       return {
@@ -615,8 +642,8 @@ export const dataSourceService = {
         columns: formattedColumns,
         page: pagination.page,
         size: pagination.size,
-        total: pagination.total || rows.length,
-        totalPages: pagination.totalPages || Math.ceil((pagination.total || rows.length) / pagination.size)
+        total: pagination.total,
+        totalPages: pagination.totalPages
       };
     } catch (error) {
       console.error(`获取数据源${dataSourceId}表${tableName}预览错误:`, error);
@@ -626,12 +653,6 @@ export const dataSourceService = {
   
   // 使用表格预览功能作为备选方案
   async getTablePreview(dataSourceId: string, tableName: string, limit: number = 10): Promise<any[]> {
-    if (USE_MOCK_API) {
-      // 使用mock api中类似的功能
-      const result = await mockDataSourceApi.getTableDataPreview(dataSourceId, tableName, { size: limit });
-      return result.data || [];
-    }
-
     try {
       const queryParams = new URLSearchParams()
       queryParams.append('limit', limit.toString())
@@ -652,10 +673,6 @@ export const dataSourceService = {
   
   // 搜索数据源元数据
   async searchMetadata(dataSourceId: string, keyword: string): Promise<any> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.searchMetadata(dataSourceId, keyword)
-    }
-
     try {
       const queryParams = new URLSearchParams()
       queryParams.append('keyword', keyword)
@@ -676,10 +693,6 @@ export const dataSourceService = {
   
   // 获取数据源统计信息
   async getDataSourceStats(id: string): Promise<DataSourceStats> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSourceStats(id)
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${id}/stats`)
       
@@ -715,11 +728,6 @@ export const dataSourceService = {
   
   // 新增: 获取同步历史记录
   async getSyncHistory(dataSourceId: string): Promise<any[]> {
-    if (USE_MOCK_API) {
-      // 模拟数据
-      return []
-    }
-
     try {
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/sync-history`)
       
@@ -736,11 +744,6 @@ export const dataSourceService = {
 
   // 新增: 分析表列的详细信息
   async analyzeColumns(dataSourceId: string, tableName: string, columnNames?: string[]): Promise<any> {
-    if (USE_MOCK_API) {
-      // 模拟数据
-      return {}
-    }
-
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams()
@@ -764,14 +767,6 @@ export const dataSourceService = {
 
   // 测试现有数据源连接
   async testExistingConnection(id: string): Promise<ConnectionTestResult> {
-    if (USE_MOCK_API) {
-      return {
-        success: true,
-        message: '连接成功',
-        details: null
-      };
-    }
-
     try {
       // 使用API文档中的正确路径：/datasources/{id}/test
       const response = await fetch(`${API_BASE_URL}/${id}/test`, {
@@ -826,17 +821,6 @@ export const dataSourceService = {
     page?: number,
     size?: number
   }): Promise<any> {
-    if (USE_MOCK_API) {
-      // 模拟数据
-      return {
-        items: [],
-        total: 0,
-        page: params.page || 1,
-        size: params.size || 10,
-        totalPages: 0
-      }
-    }
-
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams();
@@ -887,6 +871,44 @@ export const dataSourceService = {
     } catch (error) {
       console.error('高级搜索失败:', error);
       throw error;
+    }
+  },
+
+  // 根据ID获取数据源名称
+  async getDataSourceName(id: string): Promise<string> {
+    if (!id) return '未指定';
+    
+    try {
+      const dataSource = await this.getDataSource(id);
+      return dataSource?.name || '未指定';
+    } catch (error) {
+      console.error(`获取数据源${id}名称失败:`, error);
+      return '未指定';
+    }
+  },
+  
+  // 批量获取数据源名称
+  async getDataSourceNames(ids: string[]): Promise<Record<string, string>> {
+    if (!ids || ids.length === 0) return {};
+    
+    try {
+      // 获取所有数据源
+      const response = await this.getDataSources({ page: 1, size: 100 });
+      const dataSources = response.items || [];
+      
+      // 创建ID到名称的映射
+      const nameMap: Record<string, string> = {};
+      dataSources.forEach(ds => {
+        if (ds.id && ids.includes(ds.id)) {
+          nameMap[ds.id] = ds.name || '未指定';
+        }
+      });
+      
+      return nameMap;
+    } catch (error) {
+      console.error('批量获取数据源名称失败:', error);
+      // 返回默认值映射
+      return ids.reduce((map, id) => ({ ...map, [id]: '未指定' }), {});
     }
   }
 }

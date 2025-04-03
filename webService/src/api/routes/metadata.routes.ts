@@ -9,7 +9,7 @@ const router = Router();
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/sync:
+ * /api/metadata/datasources/{dataSourceId}/sync:
  *   post:
  *     summary: 同步数据源元数据
  *     tags: [Metadata]
@@ -115,7 +115,7 @@ router.post(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/structure:
+ * /api/metadata/datasources/{dataSourceId}/structure:
  *   get:
  *     summary: 获取数据源的元数据结构
  *     tags: [Metadata]
@@ -291,9 +291,9 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/sync-history:
+ * /api/metadata/datasources/{dataSourceId}/sync-history:
  *   get:
- *     summary: 获取同步历史记录
+ *     summary: 获取数据源同步历史记录
  *     tags: [Metadata]
  *     parameters:
  *       - in: path
@@ -397,9 +397,9 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/preview:
+ * /api/metadata/datasources/{dataSourceId}/preview:
  *   get:
- *     summary: 获取表数据预览
+ *     summary: 获取数据源预览数据
  *     tags: [Metadata]
  *     parameters:
  *       - in: path
@@ -524,7 +524,7 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/columns/analyze:
+ * /api/metadata/datasources/{dataSourceId}/columns/analyze:
  *   get:
  *     summary: 分析表列的详细信息
  *     tags: [Metadata]
@@ -657,7 +657,7 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/tables:
+ * /api/metadata/datasources/{dataSourceId}/tables:
  *   get:
  *     summary: 获取数据源的表列表
  *     tags: [Metadata]
@@ -707,7 +707,7 @@ router.get('/datasources/:dataSourceId/tables', metadataController.getTables);
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/tables/{tableName}:
+ * /api/metadata/datasources/{dataSourceId}/tables/{tableName}:
  *   get:
  *     summary: 获取表结构
  *     tags: [Metadata]
@@ -746,7 +746,7 @@ router.get('/datasources/:dataSourceId/tables/:tableName', metadataController.ge
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/stats:
+ * /api/metadata/datasources/{dataSourceId}/stats:
  *   get:
  *     summary: 获取数据源的统计信息
  *     tags: [Metadata]
@@ -822,7 +822,7 @@ router.get(
 
 /**
  * @swagger
- * /metadata/datasources/{dataSourceId}/tables/{tableName}/data:
+ * /api/metadata/datasources/{dataSourceId}/tables/{tableName}/data:
  *   get:
  *     summary: 获取表数据预览
  *     description: 返回指定数据源中特定表的数据，支持分页、排序和过滤
@@ -907,5 +907,62 @@ router.get(
   '/:dataSourceId/tables/:tableName/data',
   metadataController.getTableData
 );
+
+/**
+ * @swagger
+ * /api/metadata/{dataSourceId}/tables/{tableName}/columns:
+ *   get:
+ *     summary: 获取表的字段信息
+ *     description: 获取指定数据源中指定表的所有字段信息
+ *     tags: [Metadata]
+ *     parameters:
+ *       - in: path
+ *         name: dataSourceId
+ *         required: true
+ *         description: 数据源ID
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: tableName
+ *         required: true
+ *         description: 表名
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 成功获取表的字段信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                       nullable:
+ *                         type: boolean
+ *                       defaultValue:
+ *                         type: string
+ *                       isPrimaryKey:
+ *                         type: boolean
+ *                       comment:
+ *                         type: string
+ *       404:
+ *         description: 数据源或表不存在
+ *       500:
+ *         description: 服务器内部错误
+ */
+router.get('/:dataSourceId/tables/:tableName/columns', metadataController.getTableColumns);
+
+// 兼容路径
+router.get('/datasources/:dataSourceId/tables/:tableName/columns', metadataController.getTableColumns);
 
 export default router;

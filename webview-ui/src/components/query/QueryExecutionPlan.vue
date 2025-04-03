@@ -27,8 +27,19 @@ const loadExecutionPlan = async () => {
   error.value = null
   
   try {
+    console.log(`QueryExecutionPlan组件: 开始加载查询执行计划, queryId: ${props.queryId}`);
     const plan = await queryStore.getQueryExecutionPlan(props.queryId)
+    console.log('QueryExecutionPlan组件: 获取到执行计划:', plan);
     executionPlan.value = plan
+    
+    // 检查执行计划数据是否有效
+    if (plan && plan.planDetails && 
+        plan.planDetails.steps && 
+        plan.planDetails.steps.length > 0) {
+      console.log(`QueryExecutionPlan组件: 执行计划有效，包含 ${plan.planDetails.steps.length} 个步骤`);
+    } else {
+      console.warn('QueryExecutionPlan组件: 执行计划数据不完整或为空');
+    }
   } catch (err) {
     console.error('加载执行计划失败:', err)
     error.value = err instanceof Error ? err.message : '加载执行计划失败'
@@ -249,6 +260,15 @@ onMounted(() => {
         </svg>
         <p>无执行计划数据</p>
         <p class="text-sm mt-1">可能是查询尚未执行或不支持执行计划</p>
+        
+        <!-- 添加手动获取执行计划按钮 -->
+        <button 
+          @click="loadExecutionPlan" 
+          class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        >
+          <i class="fas fa-sync-alt mr-2"></i>
+          获取执行计划
+        </button>
       </div>
     </div>
   </div>

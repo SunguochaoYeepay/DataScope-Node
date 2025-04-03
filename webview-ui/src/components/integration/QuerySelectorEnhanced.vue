@@ -4,7 +4,7 @@ import { useQueryStore } from '@/stores/query';
 import { useMessageStore } from '@/stores/message';
 import QueryParamsConfig from './QueryParamsConfig.vue';
 import QueryPreview from './QueryPreview.vue';
-import queryService from '@/services/query';
+import { queryService } from '@/services/query';
 
 // 组件属性
 const props = defineProps<{

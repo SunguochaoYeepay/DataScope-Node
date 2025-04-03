@@ -1,0 +1,77 @@
+// 查询模型更新，添加版本控制和状态管理支持
+model Query {
+  id               String      @id @default(uuid())
+  name             String
+  description      String?     @db.Text
+  dataSourceId     String
+  sqlContent       String      @db.Text
+  status           String      @default("DRAFT") // DRAFT, PUBLISHED
+  serviceStatus    String      @default("ENABLED") @map("service_status") // ENABLED, DISABLED
+  queryType        String      @default("SQL") // SQL, NATURAL_LANGUAGE
+  currentVersionId String?     @map("current_version_id")
+  versionsCount    Int         @default(0) @map("versions_count")
+  disabledReason   String?     @db.Text @map("disabled_reason")
+  disabledAt       DateTime?   @map("disabled_at") 
+  isFavorite       Boolean     @default(false)
+  executionCount   Int         @default(0)
+  lastExecutedAt   DateTime?
+  tags             String?     // 逗号分隔的标签
+  nonce            Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  createdBy        String      @default("system")
+  updatedBy        String      @default("system")
+
+  dataSource       DataSource  @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  versions         QueryVersion[]
+  displayConfigs   DisplayConfig[]
+  queryHistory     QueryHistory[]
+  queryPlans       QueryPlan[]
+  
+  @@map("tbl_query")
+}
+
+// 新增：查询版本模型
+model QueryVersion {
+  id             String    @id @default(uuid())
+  queryId        String    @map("query_id")
+  versionNumber  Int       @map("version_number")
+  versionStatus  String    @default("DRAFT") @map("version_status") // DRAFT, PUBLISHED, DEPRECATED
+  sqlContent     String    @db.Text @map("sql_content")
+  dataSourceId   String    @map("data_source_id")
+  parameters     Json?
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  publishedAt    DateTime? @map("published_at")
+  deprecatedAt   DateTime? @map("deprecated_at")
+  createdBy      String    @default("system") @map("created_by")
+
+  query          Query     @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  histories      QueryHistory[]
+  
+  @@map("tbl_query_version")
+}
+
+// 更新：查询历史关联到版本
+model QueryHistory {
+  id             String       @id @default(uuid())
+  queryId        String?      @map("queryId") // 如果是一次性查询，可能没有保存的查询ID
+  versionId      String?      @map("version_id") // 关联的查询版本ID
+  versionNumber  Int?         @map("version_number") // 执行时的版本号
+  dataSourceId   String
+  sqlContent     String       @db.Text
+  status         String       // RUNNING, COMPLETED, FAILED, CANCELLED
+  startTime      DateTime
+  endTime        DateTime?
+  duration       Int?         // 执行时间(毫秒)
+  executionTimeMs Int?        @map("execution_time_ms") // 精确执行时间(毫秒)
+  rowCount       Int?         @map("row_count") // 返回的行数
+  errorMessage   String?      @db.Text
+  createdAt      DateTime     @default(now())
+  createdBy      String       @default("system")
+
+  query          Query?       @relation(fields: [queryId], references: [id], onDelete: SetNull)
+  version        QueryVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
+
+  @@map("tbl_query_history")
+}

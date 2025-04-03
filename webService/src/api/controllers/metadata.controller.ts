@@ -9,6 +9,7 @@ import config from '../../config';
 import { PrismaClient } from '@prisma/client';
 import { StatusCodes } from 'http-status-codes';
 import mysql from 'mysql2/promise';
+import { getPaginationParams } from '../../utils/api.utils';
 
 const dataSourceService = new DataSourceService();
 const prisma = new PrismaClient();
@@ -102,18 +103,18 @@ class MetadataController {
   async getSyncHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const { dataSourceId } = req.params;
-      const { limit, offset } = req.query;
+      const pagination = getPaginationParams(req);
       
       const result = await metadataService.getSyncHistory(
-      dataSourceId,
-        Number(limit) || 10,
-        Number(offset) || 0
-    );
-    
+        dataSourceId,
+        pagination.limit,
+        pagination.offset
+      );
+      
       res.status(200).json({
-      success: true,
+        success: true,
         data: result
-    });
+      });
     } catch (error: any) {
       next(error);
     }
@@ -476,7 +477,7 @@ class MetadataController {
       // 获取数据源的表列表
       const tables = await metadataService.getTables(dataSourceId);
       
-      logger.info(`成功获取数据源 ${dataSourceId} 的表列表，共 ${tables.length} 张表`);
+      logger.info(`成功获取数据源 ${dataSourceId} 的表列表，共 ${tables.items ? tables.items.length : 0} 张表`);
       
       return res.status(200).json({
       success: true,
@@ -643,7 +644,7 @@ class MetadataController {
         res.json({
           success: true,
           data: {
-            rows,
+            items: rows,
             columns,
             pagination: {
               page,
@@ -674,6 +675,108 @@ class MetadataController {
         message: error.message || '获取表数据失败',
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
+    }
+  }
+
+  /**
+   * 获取表的字段信息
+   * @param req 请求对象
+   * @param res 响应对象
+   * @param next 下一个中间件
+   */
+  async getTableColumns(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { dataSourceId, tableName } = req.params;
+      
+      logger.info(`获取数据源 ${dataSourceId} 表 ${tableName} 的字段信息`);
+      
+      if (!dataSourceId || !tableName) {
+        throw new ApiError('缺少必要参数: dataSourceId或tableName', StatusCodes.BAD_REQUEST);
+      }
+
+      // 验证数据源是否存在
+      const dataSource = await dataSourceService.getDataSourceById(dataSourceId);
+      if (!dataSource) {
+        throw new ApiError(`数据源 ${dataSourceId} 不存在`, StatusCodes.NOT_FOUND);
+      }
+
+      // 获取连接器
+      const connector = await dataSourceService.getConnector(dataSourceId);
+      
+      // 获取表所在的数据库/schema
+      const databaseOrSchema = dataSource.databaseName;
+      
+      // 尝试两种方式获取字段信息
+      let columns = [];
+      try {
+        // 方式1: 直接使用connector.getColumns
+        columns = await connector.getColumns(databaseOrSchema, tableName);
+      } catch (err) {
+        logger.warn(`直接调用getColumns失败，尝试通过SQL查询获取表结构`, { error: err });
+        
+        // 方式2: 执行SQL获取列信息
+        const describeResult = await connector.executeQuery(`DESCRIBE ${tableName}`);
+        if (describeResult && describeResult.rows && Array.isArray(describeResult.rows)) {
+          columns = describeResult.rows.map(row => ({
+            name: row.Field,
+            type: row.Type,
+            nullable: row.Null === 'YES',
+            defaultValue: row.Default,
+            isPrimaryKey: row.Key === 'PRI',
+            comment: row.Comment || ''
+          }));
+        }
+      }
+      
+      // 如果还是没有数据，尝试第三种方式
+      if (!columns.length) {
+        logger.warn(`前两种方式获取列信息失败，尝试INFORMATION_SCHEMA查询`);
+        try {
+          const infoSchemaQuery = `
+            SELECT 
+              COLUMN_NAME as name,
+              DATA_TYPE as dataType,
+              COLUMN_TYPE as columnType,
+              IS_NULLABLE = 'YES' as isNullable,
+              COLUMN_KEY = 'PRI' as isPrimaryKey,
+              COLUMN_DEFAULT as defaultValue,
+              COLUMN_COMMENT as comment
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+            ORDER BY ORDINAL_POSITION
+          `;
+          const infoSchemaResult = await connector.executeQuery(infoSchemaQuery, [databaseOrSchema, tableName]);
+          if (infoSchemaResult && infoSchemaResult.rows && Array.isArray(infoSchemaResult.rows)) {
+            columns = infoSchemaResult.rows;
+          }
+        } catch (err) {
+          logger.error(`所有方式获取列信息均失败`, { error: err });
+        }
+      }
+      
+      // 返回结果
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: columns
+      });
+      
+    } catch (error: any) {
+      logger.error(`获取表 ${req.params.tableName} 的字段信息失败`, { 
+        error: error.message,
+        stack: error.stack 
+      });
+      
+      if (error instanceof ApiError) {
+        res.status(error.statusCode).json({
+          success: false,
+          message: error.message
+        });
+      } else {
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: error.message || '获取表字段信息时发生错误'
+        });
+      }
     }
   }
 }

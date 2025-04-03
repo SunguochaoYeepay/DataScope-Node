@@ -11,7 +11,7 @@ const queryPlanController = new QueryPlanController();
 
 /**
  * @swagger
- * /query-plans/analyze:
+ * /api/query-plans/analyze:
  *   post:
  *     summary: 分析SQL查询执行计划
  *     description: 分析SQL查询的执行计划并提供优化建议
@@ -87,7 +87,6 @@ const queryPlanController = new QueryPlanController();
  *                 id: "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
  */
 router.post('/analyze',
-  authenticate,
   [
     check('dataSourceId').isString().not().isEmpty().withMessage('数据源ID不能为空'),
     check('sql').isString().not().isEmpty().withMessage('SQL查询语句不能为空')
@@ -97,7 +96,7 @@ router.post('/analyze',
 
 /**
  * @swagger
- * /query-plans/{planId}/optimize:
+ * /api/query-plans/{planId}/optimize:
  *   get:
  *     summary: 获取查询执行计划的优化建议
  *     description: 根据查询计划ID获取SQL优化建议和优化后的SQL语句
@@ -141,7 +140,6 @@ router.post('/analyze',
  *                 optimizedSql: "SELECT * FROM users FORCE INDEX(idx_users_status) JOIN orders ON users.id = orders.user_id WHERE users.status = 'active'"
  */
 router.get('/:planId/optimize',
-  authenticate,
   [
     check('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
   ],
@@ -150,7 +148,7 @@ router.get('/:planId/optimize',
 
 /**
  * @swagger
- * /query-plans/compare:
+ * /api/query-plans/compare:
  *   post:
  *     summary: 比较两个查询执行计划
  *     description: 比较两个执行计划的差异和性能改进
@@ -204,7 +202,6 @@ router.get('/:planId/optimize',
  *                     description: "优化后估算成本降低了 40%"
  */
 router.post('/compare',
-  authenticate,
   [
     check('planAId').isString().not().isEmpty().withMessage('原始执行计划ID不能为空'),
     check('planBId').isString().not().isEmpty().withMessage('对比执行计划ID不能为空')
@@ -214,7 +211,7 @@ router.post('/compare',
 
 /**
  * @swagger
- * /query-plans/history:
+ * /api/query-plans/history:
  *   get:
  *     summary: 获取查询计划历史记录
  *     description: 获取查询计划历史记录列表
@@ -279,16 +276,15 @@ router.post('/compare',
  *                 offset: 0
  */
 router.get('/history',
-  authenticate,
   queryPlanController.getQueryPlanHistory.bind(queryPlanController)
 );
 
 /**
  * @swagger
- * /query-plans/{planId}:
+ * /api/query-plans/{planId}:
  *   get:
  *     summary: 获取特定查询计划
- *     description: 根据ID获取查询计划详情
+ *     description: 根据ID获取查询计划的详细信息
  *     tags: [QueryPlans]
  *     security:
  *       - bearerAuth: []
@@ -330,7 +326,6 @@ router.get('/history',
  *                       key: "idx_status"
  */
 router.get('/:planId',
-  authenticate,
   [
     check('planId').isString().not().isEmpty().withMessage('查询计划ID不能为空')
   ],

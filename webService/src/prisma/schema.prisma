@@ -1,0 +1,125 @@
+// 数据库模型定义
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("USER") // USER, ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+
+  @@map("users")
+}
+
+// 数据源模型
+model DataSource {
+  id          String   @id @default(uuid())
+  name        String
+  type        String // MYSQL, POSTGRES, etc.
+  config      String   @db.Text // JSON配置
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // 关联
+  queries       Query[]
+  queryVersions QueryVersion[]
+
+  @@map("data_sources")
+}
+
+// 查询模型
+model Query {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?  @db.Text
+  dataSourceId     String
+  status           String   @default("DRAFT") // DRAFT, PUBLISHED
+  serviceStatus    String   @default("ENABLED") // ENABLED, DISABLED
+  currentVersionId String?  // 当前活跃版本ID
+  draftVersionId   String?  // 当前草稿版本ID
+  disabledReason   String?  @db.Text
+  disabledAt       DateTime?
+  isFavorite       Boolean  @default(false)
+  executionCount   Int      @default(0)
+  lastExecutedAt   DateTime?
+  tags             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdBy        String?
+  updatedBy        String?
+
+  // 关联
+  dataSource    DataSource      @relation(fields: [dataSourceId], references: [id])
+  versions      QueryVersion[]
+  executions    QueryExecution[]
+
+  @@map("queries")
+}
+
+// 查询版本模型
+model QueryVersion {
+  id             String    @id @default(uuid())
+  queryId        String
+  versionNumber  Int
+  versionStatus  String    @default("DRAFT") // DRAFT, PUBLISHED, DEPRECATED
+  sqlContent     String    @db.Text
+  dataSourceId   String
+  parameters     String?   @db.Text // JSON存储的参数定义
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now())
+  publishedAt    DateTime?
+  deprecatedAt   DateTime?
+  createdBy      String?
+
+  // 关联
+  query          Query       @relation(fields: [queryId], references: [id])
+  dataSource     DataSource  @relation(fields: [dataSourceId], references: [id])
+  executions     QueryExecution[]
+
+  @@index([queryId])
+  @@map("query_versions")
+}
+
+// 查询执行历史
+model QueryExecution {
+  id              String    @id @default(uuid())
+  queryId         String
+  versionId       String?
+  versionNumber   Int?
+  dataSourceId    String
+  sqlContent      String    @db.Text
+  params          String?   @db.Text // JSON存储的执行参数
+  status          String    @default("RUNNING") // RUNNING, COMPLETED, FAILED, CANCELLED
+  startTime       DateTime  @default(now())
+  endTime         DateTime?
+  duration        Int?      // 持续时间(毫秒)
+  executionTimeMs Int?      // 实际执行时间(毫秒)
+  rowCount        Int?
+  resultSetSize   Int?      // 结果集大小(字节)
+  errorMessage    String?   @db.Text
+  createdAt       DateTime  @default(now())
+  createdBy       String?
+
+  // 关联
+  query           Query       @relation(fields: [queryId], references: [id])
+  version         QueryVersion? @relation(fields: [versionId], references: [id])
+
+  @@index([queryId])
+  @@index([versionId])
+  @@map("query_executions")
+}

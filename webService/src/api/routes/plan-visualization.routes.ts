@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { check } from 'express-validator';
 import planVisualizationController from '../controllers/plan-visualization.controller';
 import { validate } from '../../utils/validate';
+import { authenticate } from '../../middleware/auth';
 
 const router = Router();
 
 /**
  * @swagger
- * /plan-visualization/{planId}:
+ * /api/plan-visualization/{planId}:
  *   get:
  *     summary: 获取查询计划可视化数据
  *     tags: [PlanVisualization]
@@ -106,7 +107,7 @@ router.get(
 
 /**
  * @swagger
- * /plan-visualization/compare/{planId1}/{planId2}:
+ * /api/plan-visualization/compare/{planId1}/{planId2}:
  *   get:
  *     summary: 比较两个查询计划
  *     tags: [PlanVisualization]
@@ -219,7 +220,7 @@ router.get(
 
 /**
  * @swagger
- * /plan-visualization/{planId}/notes:
+ * /api/plan-visualization/{planId}/notes:
  *   post:
  *     summary: 保存查询计划分析注释
  *     tags: [PlanVisualization]
@@ -293,7 +294,7 @@ router.post(
 
 /**
  * @swagger
- * /plan-visualization/{planId}/optimize:
+ * /api/plan-visualization/{planId}/optimize:
  *   get:
  *     summary: 生成优化后的SQL查询
  *     tags: [PlanVisualization]

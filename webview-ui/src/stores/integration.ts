@@ -95,7 +95,6 @@ export const useIntegrationStore = defineStore('integration', () => {
       if (USE_MOCK) {
         // 使用模拟数据
         const result = await createMockIntegration(integration);
-        // 更新本地数据
         integrations.value.push(result);
         currentIntegration.value = result;
         return result;
@@ -130,16 +129,13 @@ export const useIntegrationStore = defineStore('integration', () => {
         // 使用模拟数据
         const result = await updateMockIntegration(id, integration);
         
-        if (result) {
-          // 更新本地数据
-          const index = integrations.value.findIndex(item => item.id === id);
-          if (index !== -1) {
-            integrations.value[index] = result;
-          }
-          
-          currentIntegration.value = result;
+        // 更新本地数据
+        const index = integrations.value.findIndex(item => item.id === id);
+        if (index !== -1) {
+          integrations.value[index] = result;
         }
         
+        currentIntegration.value = result;
         return result;
       } else {
         // 调用接口更新集成
@@ -219,7 +215,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         return result;
       } else {
         // 调用接口删除集成
-        await api.delete(`/api/low-code/apis/${id}`);
+        const result = await api.delete(`/api/low-code/apis/${id}`);
         
         // 更新本地数据
         integrations.value = integrations.value.filter(item => item.id !== id);
@@ -228,7 +224,7 @@ export const useIntegrationStore = defineStore('integration', () => {
           currentIntegration.value = null;
         }
         
-        return true;
+        return result.data;
       }
     } catch (err: any) {
       console.error('删除集成失败', err);
@@ -239,37 +235,41 @@ export const useIntegrationStore = defineStore('integration', () => {
     }
   };
   
-  // 执行查询
-  const executeQuery = async (queryId: string, params: any) => {
+  // 测试集成
+  const testIntegration = async (id: string, params?: Record<string, any>) => {
+    loading.value = true;
+    error.value = null;
+    
+    try {
+      // 调用测试接口
+      const result = await api.post(`/api/low-code/apis/${id}/test`, params || {});
+      return result.data;
+    } catch (err: any) {
+      console.error('测试集成失败', err);
+      error.value = err.message || '测试集成失败';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  // 执行集成查询
+  const executeQuery = async (integrationId: string, params?: Record<string, any>) => {
     loading.value = true;
     error.value = null;
     
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const data = await executeMockQuery(queryId, params);
-        
-        // 处理分页
-        let result = {
-          data,
-          total: data.length,
-          page: params?.page || 1,
-          pageSize: params?.pageSize || 10
-        };
-        
-        if (params?.pageSize && params?.page) {
-          const start = (params.page - 1) * params.pageSize;
-          const end = start + params.pageSize;
-          result.data = data.slice(start, end);
-        }
-        
+        const result = await executeMockQuery(integrationId, params);
         return result;
       } else {
-        // 调用接口执行查询
+        // 调用执行接口
         const result = await api.post(`/api/data-service/query`, {
-          integrationId: queryId,
-          params: params
+          integrationId,
+          params: params || {}
         });
+        
         return result.data;
       }
     } catch (err: any) {
@@ -281,51 +281,49 @@ export const useIntegrationStore = defineStore('integration', () => {
     }
   };
   
-  // 调用URL集成点
-  const callUrlIntegrationPoint = async (url: string, method: string, data: any, headers: Record<string, string> = {}) => {
+  // 获取集成配置
+  const getIntegrationConfig = async (id: string) => {
     loading.value = true;
     error.value = null;
     
     try {
-      // 调用外部URL集成点
-      const result = await api.post('/api/v1/low-code/apis/call-url', {
-        url,
-        method,
-        data,
-        headers
-      });
-      
+      // 调用接口获取配置
+      const result = await api.get(`/api/low-code/apis/${id}/config`);
       return result.data;
     } catch (err: any) {
-      console.error('调用URL集成点失败', err);
-      error.value = err.message || '调用URL集成点失败';
+      console.error('获取集成配置失败', err);
+      error.value = err.message || '获取集成配置失败';
       throw err;
     } finally {
       loading.value = false;
     }
   };
   
-  // 调用表单提交集成点
-  const callFormSubmitIntegrationPoint = async (formId: string, action: string, data: any) => {
-    loading.value = true;
-    error.value = null;
-    
-    try {
-      // 调用表单提交集成点
-      const result = await api.post('/api/v1/low-code/apis/call-form', {
-        formId,
-        action,
-        data
-      });
+  // 按类型过滤集成
+  const filterByType = (type: string) => {
+    return computed(() => {
+      return integrations.value.filter(item => item.type === type);
+    });
+  };
+  
+  // 按状态过滤集成
+  const filterByStatus = (status: IntegrationStatus) => {
+    return computed(() => {
+      return integrations.value.filter(item => item.status === status);
+    });
+  };
+  
+  // 搜索集成
+  const searchIntegrations = (query: string) => {
+    return computed(() => {
+      if (!query) return integrations.value;
       
-      return result.data;
-    } catch (err: any) {
-      console.error('调用表单提交集成点失败', err);
-      error.value = err.message || '调用表单提交集成点失败';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+      const lowercaseQuery = query.toLowerCase();
+      return integrations.value.filter(item => 
+        item.name.toLowerCase().includes(lowercaseQuery) || 
+        (item.description && item.description.toLowerCase().includes(lowercaseQuery))
+      );
+    });
   };
   
   return {
@@ -335,15 +333,20 @@ export const useIntegrationStore = defineStore('integration', () => {
     loading,
     error,
     
-    // 方法
+    // 操作方法
     fetchIntegrations,
     fetchIntegrationById,
     createIntegration,
     updateIntegration,
     updateIntegrationStatus,
     deleteIntegration,
+    testIntegration,
     executeQuery,
-    callUrlIntegrationPoint,
-    callFormSubmitIntegrationPoint
+    getIntegrationConfig,
+    
+    // 工具方法
+    filterByType,
+    filterByStatus,
+    searchIntegrations
   };
 });
