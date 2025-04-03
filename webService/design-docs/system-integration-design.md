@@ -113,8 +113,12 @@ interface QueryResponse {
     totalPages?: number;
   };
   error?: {
-    code: string;
+    code: number;
+    type: string;
     message: string;
+    timestamp: string;
+    path: string;
+    requestId: string;
     details?: any;
   };
 }
@@ -186,6 +190,8 @@ model Integration {
 // src/services/integration.service.ts
 import { PrismaClient } from '@prisma/client';
 import { QueryService } from './query.service';
+import { ApiError } from '../utils/errors';
+import logger from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -194,69 +200,296 @@ export class IntegrationService {
 
   // 获取所有集成
   async getIntegrations() {
-    return prisma.integration.findMany();
+    try {
+      return prisma.integration.findMany();
+    } catch (error) {
+      logger.error('获取集成列表失败', { error });
+      throw ApiError.internal('获取集成列表失败', { originalError: error.message });
+    }
   }
 
   // 获取集成详情
   async getIntegrationById(id: string) {
-    return prisma.integration.findUnique({
-      where: { id }
-    });
+    try {
+      const integration = await prisma.integration.findUnique({
+        where: { id }
+      });
+      
+      if (!integration) {
+        throw ApiError.notFound(`ID为${id}的集成配置不存在`);
+      }
+      
+      return integration;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`获取集成详情失败: ${id}`, { error });
+      throw ApiError.internal('获取集成详情失败', { originalError: error.message });
+    }
   }
 
   // 创建集成
   async createIntegration(data: any) {
-    return prisma.integration.create({
-      data
-    });
+    try {
+      // 验证关联的查询是否存在
+      const queryExists = await prisma.query.findUnique({
+        where: { id: data.queryId }
+      });
+      
+      if (!queryExists) {
+        throw ApiError.badRequest(`ID为${data.queryId}的查询不存在`);
+      }
+      
+      return prisma.integration.create({
+        data
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error('创建集成失败', { error, data });
+      throw ApiError.internal('创建集成失败', { originalError: error.message });
+    }
   }
 
   // 更新集成
   async updateIntegration(id: string, data: any) {
-    return prisma.integration.update({
-      where: { id },
-      data
-    });
+    try {
+      // 检查集成是否存在
+      const integration = await this.getIntegrationById(id);
+      
+      // 如果更新了queryId，验证新的查询是否存在
+      if (data.queryId && data.queryId !== integration.queryId) {
+        const queryExists = await prisma.query.findUnique({
+          where: { id: data.queryId }
+        });
+        
+        if (!queryExists) {
+          throw ApiError.badRequest(`ID为${data.queryId}的查询不存在`);
+        }
+      }
+      
+      return prisma.integration.update({
+        where: { id },
+        data
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`更新集成失败: ${id}`, { error, data });
+      throw ApiError.internal('更新集成失败', { originalError: error.message });
+    }
   }
 
   // 删除集成
   async deleteIntegration(id: string) {
-    return prisma.integration.delete({
-      where: { id }
-    });
+    try {
+      // 检查集成是否存在
+      await this.getIntegrationById(id);
+      
+      return prisma.integration.delete({
+        where: { id }
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`删除集成失败: ${id}`, { error });
+      throw ApiError.internal('删除集成失败', { originalError: error.message });
+    }
   }
 
   // 执行集成查询
-  async executeQuery(integrationId: string, params: any, pagination?: any) {
-    // 1. 获取集成配置
-    const integration = await this.getIntegrationById(integrationId);
-    if (!integration) {
-      throw new Error('Integration not found');
+  async executeQuery(integrationId: string, params: any, pagination?: any, sorting?: any) {
+    try {
+      // 1. 获取集成配置
+      const integration = await this.getIntegrationById(integrationId);
+      
+      // 2. 获取关联的查询信息
+      const query = await prisma.query.findUnique({
+        where: { id: integration.queryId },
+        include: {
+          dataSource: true
+        }
+      });
+      
+      if (!query) {
+        throw ApiError.notFound(`ID为${integration.queryId}的查询不存在`);
+      }
+      
+      // 3. 验证参数
+      this.validateParams(integration.config, params);
+      
+      // 4. 准备执行SQL
+      // 获取SQL内容和数据源ID
+      const sqlContent = query.sqlContent;
+      const dataSourceId = query.dataSourceId;
+      
+      // 处理SQL参数
+      const sqlParams = this.prepareSqlParams(integration.config, params);
+      
+      // 5. 执行查询
+      // 调用现有的查询服务执行查询
+      const result = await this.queryService.executeQuery(
+        dataSourceId,
+        sqlContent,
+        sqlParams,
+        {
+          page: pagination?.page,
+          pageSize: pagination?.pageSize,
+          sort: sorting?.field,
+          order: sorting?.order
+        }
+      );
+      
+      // 6. 格式化结果
+      return this.formatResult(result, integration.config);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      logger.error(`执行集成查询失败: ${integrationId}`, { 
+        error, 
+        params, 
+        pagination,
+        sorting
+      });
+      throw ApiError.internal('执行集成查询失败', { originalError: error.message });
     }
+  }
 
-    // 2. 验证参数
-    this.validateParams(integration.config, params);
-
-    // 3. 调用查询服务
-    const result = await this.queryService.executeQuery({
-      queryId: integration.queryId,
-      params,
-      pagination
-    });
-
-    // 4. 格式化结果
-    return this.formatResult(result, integration.config);
+  // 准备SQL参数
+  private prepareSqlParams(config: any, params: any): any[] {
+    // 获取参数配置
+    const paramConfigs = config.params || [];
+    const sqlParams: any[] = [];
+    
+    // 按照参数配置顺序准备SQL参数
+    for (const paramConfig of paramConfigs) {
+      let value = params[paramConfig.name];
+      
+      // 如果参数未提供但有默认值，使用默认值
+      if ((value === undefined || value === null) && paramConfig.defaultValue !== undefined) {
+        value = paramConfig.defaultValue;
+      }
+      
+      // 进行必要的类型转换
+      if (value !== undefined && value !== null) {
+        switch (paramConfig.type) {
+          case 'number':
+            value = Number(value);
+            break;
+          case 'boolean':
+            value = Boolean(value);
+            break;
+          case 'string':
+          default:
+            value = String(value);
+            break;
+        }
+      }
+      
+      sqlParams.push(value);
+    }
+    
+    return sqlParams;
   }
 
   // 验证参数
   private validateParams(config: any, params: any) {
-    // 实现参数验证逻辑
+    // 获取参数配置
+    const paramConfigs = config.params || [];
+    
+    // 检查必填参数
+    for (const paramConfig of paramConfigs) {
+      if (paramConfig.required && (params[paramConfig.name] === undefined || params[paramConfig.name] === null)) {
+        throw ApiError.badRequest(`参数${paramConfig.name}为必填项`);
+      }
+      
+      // TODO: 添加参数类型验证
+    }
   }
 
   // 格式化结果
   private formatResult(result: any, config: any) {
-    // 实现结果格式化逻辑
-    return result;
+    // 处理可能的空结果
+    if (!result || !result.rows) {
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        totalPages: 0
+      };
+    }
+    
+    // 获取原始查询结果
+    const { rows, rowCount, fields, totalCount, page, pageSize, totalPages } = result;
+    
+    // 获取表格配置
+    const tableConfig = config.tableConfig || { columns: [] };
+    
+    // 映射字段
+    let records = rows;
+    if (tableConfig.columns && tableConfig.columns.length > 0) {
+      // 如果定义了列映射，则应用列映射
+      records = rows.map((row: any) => {
+        const mappedRow: any = {};
+        
+        for (const column of tableConfig.columns) {
+          // 使用dataIndex作为原始字段名，key作为映射后的字段名
+          if (column.dataIndex && column.key) {
+            // 获取原始值
+            const originalValue = row[column.dataIndex];
+            
+            // 应用格式化器（如果有）
+            let formattedValue = originalValue;
+            if (column.formatter) {
+              try {
+                // 注意：实际实现中，这里可能需要一个更安全的方式来执行格式化器
+                // 例如使用预定义的格式化函数而不是eval
+                const formatFunc = new Function('value', 'row', 'return ' + column.formatter);
+                formattedValue = formatFunc(originalValue, row);
+              } catch (error) {
+                logger.warn('格式化字段值失败', { error, column, value: originalValue });
+                formattedValue = originalValue;
+              }
+            }
+            
+            // 设置映射后的值
+            mappedRow[column.key] = formattedValue;
+          }
+        }
+        
+        return mappedRow;
+      });
+    }
+    
+    // 构建返回结果
+    const formattedResult = {
+      records,
+      total: totalCount || rowCount,
+      page: page || 1,
+      pageSize: pageSize || records.length,
+      totalPages: totalPages || 1
+    };
+    
+    // 可选：添加元数据
+    if (config.includeMetadata) {
+      formattedResult.metadata = {
+        fields: fields.map((f: any) => ({
+          name: f.name,
+          type: f.type
+        })),
+        query: {
+          executionTime: result.executionTime
+        }
+      };
+    }
+    
+    return formattedResult;
   }
 }
 ```
@@ -265,72 +498,85 @@ export class IntegrationService {
 
 ```typescript
 // src/controllers/integration.controller.ts
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { IntegrationService } from '../services/integration.service';
+import { ApiError } from '../utils/apiError';
 
 export class IntegrationController {
   constructor(private integrationService: IntegrationService) {}
 
   // 获取所有集成
-  async getIntegrations(req: Request, res: Response) {
+  async getIntegrations(req: Request, res: Response, next: NextFunction) {
     try {
       const integrations = await this.integrationService.getIntegrations();
-      res.json(integrations);
+      res.json({
+        success: true,
+        data: integrations
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   }
 
   // 获取单个集成
-  async getIntegrationById(req: Request, res: Response) {
+  async getIntegrationById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const integration = await this.integrationService.getIntegrationById(id);
       if (!integration) {
-        return res.status(404).json({ error: 'Integration not found' });
+        throw ApiError.notFound('集成配置不存在');
       }
-      res.json(integration);
+      res.json({
+        success: true,
+        data: integration
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   }
 
   // 创建集成
-  async createIntegration(req: Request, res: Response) {
+  async createIntegration(req: Request, res: Response, next: NextFunction) {
     try {
       const data = req.body;
       const integration = await this.integrationService.createIntegration(data);
-      res.status(201).json(integration);
+      res.status(201).json({
+        success: true,
+        data: integration
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   }
 
   // 更新集成
-  async updateIntegration(req: Request, res: Response) {
+  async updateIntegration(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const data = req.body;
       const integration = await this.integrationService.updateIntegration(id, data);
-      res.json(integration);
+      res.json({
+        success: true,
+        data: integration
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   }
 
   // 删除集成
-  async deleteIntegration(req: Request, res: Response) {
+  async deleteIntegration(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       await this.integrationService.deleteIntegration(id);
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   }
 
   // 执行查询
-  async executeQuery(req: Request, res: Response) {
+  async executeQuery(req: Request, res: Response, next: any) {
     try {
       const { integrationId, params, pagination } = req.body;
       const result = await this.integrationService.executeQuery(
@@ -343,12 +589,8 @@ export class IntegrationController {
         data: result
       });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: {
-          message: error.message
-        }
-      });
+      // 将错误传递给全局错误处理中间件
+      next(error);
     }
   }
 }
@@ -360,23 +602,100 @@ export class IntegrationController {
 // src/routes/integration.routes.ts
 import { Router } from 'express';
 import { IntegrationController } from '../controllers/integration.controller';
-import { IntegrationService } from '../services/integration.service';
-import { QueryService } from '../services/query.service';
+import authMiddleware from '../middlewares/auth.middleware';
+import { validate } from '../utils/validate';
+import { body, param } from 'express-validator';
 
 const router = Router();
-const queryService = new QueryService();
-const integrationService = new IntegrationService(queryService);
-const controller = new IntegrationController(integrationService);
+const controller = new IntegrationController();
 
 // 集成管理路由
-router.get('/v1/low-code/apis', controller.getIntegrations.bind(controller));
-router.get('/v1/low-code/apis/:id', controller.getIntegrationById.bind(controller));
-router.post('/v1/low-code/apis', controller.createIntegration.bind(controller));
-router.put('/v1/low-code/apis/:id', controller.updateIntegration.bind(controller));
-router.delete('/v1/low-code/apis/:id', controller.deleteIntegration.bind(controller));
+// 获取集成列表
+router.get(
+  '/v1/low-code/apis',
+  authMiddleware.authenticate,
+  controller.getIntegrations
+);
 
-// 数据查询路由
-router.post('/data-service/query', controller.executeQuery.bind(controller));
+// 获取单个集成
+router.get(
+  '/v1/low-code/apis/:id',
+  authMiddleware.authenticate,
+  validate([
+    param('id').isUUID().withMessage('集成ID必须是有效的UUID')
+  ]),
+  controller.getIntegrationById
+);
+
+// 创建集成
+router.post(
+  '/v1/low-code/apis',
+  authMiddleware.authenticate,
+  validate([
+    body('name').notEmpty().withMessage('集成名称不能为空'),
+    body('queryId').isUUID().withMessage('查询ID必须是有效的UUID'),
+    body('type').isIn(['FORM', 'TABLE', 'CHART']).withMessage('集成类型必须是FORM、TABLE或CHART之一'),
+    body('config').isObject().withMessage('配置必须是有效的JSON对象')
+  ]),
+  controller.createIntegration
+);
+
+// 更新集成
+router.put(
+  '/v1/low-code/apis/:id',
+  authMiddleware.authenticate,
+  validate([
+    param('id').isUUID().withMessage('集成ID必须是有效的UUID'),
+    body('name').optional().notEmpty().withMessage('集成名称不能为空'),
+    body('queryId').optional().isUUID().withMessage('查询ID必须是有效的UUID'),
+    body('type').optional().isIn(['FORM', 'TABLE', 'CHART']).withMessage('集成类型必须是FORM、TABLE或CHART之一'),
+    body('config').optional().isObject().withMessage('配置必须是有效的JSON对象')
+  ]),
+  controller.updateIntegration
+);
+
+// 删除集成
+router.delete(
+  '/v1/low-code/apis/:id',
+  authMiddleware.authenticate,
+  validate([
+    param('id').isUUID().withMessage('集成ID必须是有效的UUID')
+  ]),
+  controller.deleteIntegration
+);
+
+// 获取API配置
+router.get(
+  '/v1/low-code/apis/:id/config',
+  authMiddleware.authenticate,
+  validate([
+    param('id').isUUID().withMessage('集成ID必须是有效的UUID')
+  ]),
+  controller.getIntegrationConfig
+);
+
+// 测试集成
+router.post(
+  '/v1/low-code/apis/:id/test',
+  authMiddleware.authenticate,
+  validate([
+    param('id').isUUID().withMessage('集成ID必须是有效的UUID'),
+    body('params').optional().isObject().withMessage('参数必须是有效的JSON对象')
+  ]),
+  controller.testIntegration
+);
+
+// 数据查询接口
+router.post(
+  '/data-service/query',
+  validate([
+    body('integrationId').isUUID().withMessage('集成ID必须是有效的UUID'),
+    body('params').optional().isObject().withMessage('参数必须是有效的JSON对象'),
+    body('pagination').optional().isObject().withMessage('分页参数必须是有效的JSON对象'),
+    body('sorting').optional().isObject().withMessage('排序参数必须是有效的JSON对象')
+  ]),
+  controller.executeQuery
+);
 
 export default router;
 ```
