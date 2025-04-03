@@ -794,25 +794,18 @@ export const useQueryStore = defineStore('query', () => {
     error.value = null
     
     try {
-      // 使用 fetch 直接调用 API
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/execution-history`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      })
+      console.log(`获取查询${queryId}的执行历史`)
       
-      if (!response.ok) {
-        throw new Error(`获取执行历史失败: ${response.statusText}`)
-      }
+      // 调用查询服务获取执行历史，而不是直接调用API
+      const history = await queryService.getQueryExecutionHistory(queryId)
       
-      const data = await response.json()
-      executionHistory.value = data || []
-      return data
+      console.log(`获取到${history.length}条执行历史记录`)
+      executionHistory.value = history || []
+      return history
     } catch (err) {
       console.error('获取执行历史失败:', err)
       error.value = err instanceof Error ? err : new Error(String(err))
+      executionHistory.value = []
       return []
     } finally {
       isLoadingHistory.value = false

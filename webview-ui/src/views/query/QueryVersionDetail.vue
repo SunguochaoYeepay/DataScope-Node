@@ -1,30 +1,40 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-100">
+  <div class="h-full flex flex-col bg-gray-50">
     <!-- 头部导航和标题 -->
-    <div class="bg-white border-b border-gray-200 px-4 py-4">
+    <div class="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-4 py-4 shadow-sm">
       <div class="container mx-auto">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-4">
             <router-link 
               :to="`/query/detail/${queryId}`" 
-              class="text-gray-500 hover:text-gray-700 flex items-center"
+              class="text-gray-500 hover:text-indigo-600 flex items-center transition-colors duration-200"
             >
               <i class="fas fa-arrow-left mr-2"></i>
               返回查询详情
             </router-link>
-            <h1 class="text-xl font-semibold text-gray-800">
+            <h1 class="text-xl font-semibold text-gray-800 flex items-center">
               版本详情 
-              <span class="text-blue-600 ml-2">V{{ versionNumber }}</span>
+              <span class="ml-3 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">
+                V{{ versionNumber }}
+              </span>
             </h1>
           </div>
           <div class="flex items-center space-x-3">
             <button
               @click="handleActivate"
               v-if="!isActiveVersion && versionData?.status === 'PUBLISHED'"
-              class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md shadow-sm text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
             >
               <i class="fas fa-check-circle mr-2"></i>
               设为活跃版本
+            </button>
+            <button
+              v-if="versionData?.queryText"
+              @click="executeQuery"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md shadow-sm text-white bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+            >
+              <i class="fas fa-play mr-2"></i>
+              执行查询
             </button>
           </div>
         </div>
@@ -34,21 +44,23 @@
     <!-- 加载状态 -->
     <div v-if="isLoading" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center">
-        <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <span class="text-gray-600">加载版本信息...</span>
+        <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+        <span class="text-gray-600 text-lg">加载版本信息...</span>
       </div>
     </div>
 
     <!-- 错误提示 -->
     <div v-else-if="errorMessage" class="flex-1 flex items-center justify-center">
-      <div class="text-center">
-        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
+      <div class="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+        <div class="w-20 h-20 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-5">
+          <i class="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+        </div>
         <h2 class="text-xl font-medium text-gray-800 mb-2">加载失败</h2>
-        <p class="text-gray-600 mb-4">{{ errorMessage }}</p>
+        <p class="text-gray-600 mb-6">{{ errorMessage }}</p>
         <div class="flex justify-center space-x-3">
           <button
             @click="loadVersionData"
-            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
           >
             <i class="fas fa-sync-alt mr-2"></i>
             重试
@@ -60,233 +72,324 @@
     <!-- 主内容区 -->
     <div v-else class="flex-1 overflow-auto container mx-auto px-4 py-6">
       <!-- 版本基本信息 -->
-      <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <h3 class="text-sm font-medium text-gray-500">版本状态</h3>
-            <div class="mt-1">
-              <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                :class="{
-                  'bg-yellow-100 text-yellow-800': versionData?.status === 'DRAFT',
-                  'bg-green-100 text-green-800': versionData?.status === 'PUBLISHED',
-                  'bg-gray-100 text-gray-800': versionData?.status === 'DEPRECATED'
-                }"
-              >
-                {{ formatVersionStatus(versionData?.status) }}
-              </span>
-              <span v-if="isActiveVersion" class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                <i class="fas fa-check-circle mr-1"></i>
-                活跃版本
-              </span>
+      <div class="bg-white shadow rounded-lg overflow-hidden mb-6 border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <h2 class="text-lg font-medium text-gray-800">版本信息</h2>
+        </div>
+        <div class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h3 class="text-sm font-medium text-gray-500 mb-2">版本状态</h3>
+              <div class="flex items-center">
+                <span
+                  class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                  :class="{
+                    'bg-yellow-100 text-yellow-800': versionData?.status === 'DRAFT',
+                    'bg-green-100 text-green-800': versionData?.status === 'PUBLISHED',
+                    'bg-gray-100 text-gray-800': versionData?.status === 'DEPRECATED'
+                  }"
+                >
+                  <i :class="[
+                    'mr-1.5',
+                    versionData?.status === 'DRAFT' ? 'fas fa-pencil-alt' : '',
+                    versionData?.status === 'PUBLISHED' ? 'fas fa-check' : '',
+                    versionData?.status === 'DEPRECATED' ? 'fas fa-archive' : ''
+                  ]"></i>
+                  {{ formatVersionStatus(versionData?.status) }}
+                </span>
+                <span v-if="isActiveVersion" class="ml-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                  <i class="fas fa-star mr-1.5"></i>
+                  活跃版本
+                </span>
+              </div>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h3 class="text-sm font-medium text-gray-500 mb-2">创建时间</h3>
+              <p class="text-sm text-gray-900 flex items-center">
+                <i class="far fa-calendar-alt mr-2 text-indigo-500"></i>
+                {{ formatDateTime(versionData?.createdAt) }}
+              </p>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h3 class="text-sm font-medium text-gray-500 mb-2">发布时间</h3>
+              <p class="text-sm text-gray-900 flex items-center">
+                <i class="far fa-calendar-check mr-2 text-green-500"></i>
+                {{ versionData?.publishedAt ? formatDateTime(versionData?.publishedAt) : '尚未发布' }}
+              </p>
             </div>
           </div>
-          
-          <div>
-            <h3 class="text-sm font-medium text-gray-500">创建时间</h3>
-            <p class="mt-1 text-sm text-gray-900">{{ formatDateTime(versionData?.createdAt) }}</p>
-          </div>
-          
-          <div>
-            <h3 class="text-sm font-medium text-gray-500">发布时间</h3>
-            <p class="mt-1 text-sm text-gray-900">{{ versionData?.publishedAt ? formatDateTime(versionData?.publishedAt) : '尚未发布' }}</p>
-          </div>
-        </div>
 
-        <div class="mt-4">
-          <h3 class="text-sm font-medium text-gray-500">查询内容</h3>
-          <div class="mt-1 p-3 bg-gray-50 rounded border border-gray-200 overflow-auto max-h-64">
-            <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ versionData?.queryText }}</pre>
+          <div class="mt-6">
+            <h3 class="text-sm font-medium text-gray-500 mb-2 flex items-center">
+              <i class="fas fa-code mr-2 text-indigo-500"></i>
+              查询内容
+            </h3>
+            <div class="mt-1 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+              <div v-if="versionData?.queryText" class="relative">
+                <div class="absolute right-2 top-2 flex space-x-2">
+                  <button
+                    @click="copyQueryText"
+                    class="p-1.5 bg-white rounded shadow-sm text-gray-600 hover:text-indigo-600 transition-colors duration-200"
+                    title="复制查询内容"
+                  >
+                    <i class="fas fa-copy"></i>
+                  </button>
+                </div>
+                <pre class="p-4 text-sm text-gray-800 whitespace-pre-wrap overflow-auto max-h-64">{{ versionData.queryText }}</pre>
+              </div>
+              <div v-else class="flex flex-col items-center justify-center py-10 px-4">
+                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+                  <i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>
+                </div>
+                <p class="text-gray-600 font-medium mb-2">此版本没有查询内容</p>
+                <p class="text-sm text-gray-500 text-center max-w-md">
+                  可能是因为数据源未创建或数据导入过程中出错。请检查版本创建过程是否正确完成。
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- 标签页导航 -->
-      <div class="bg-white shadow rounded-lg mb-6">
+      <div class="bg-white shadow rounded-lg overflow-hidden mb-6 border border-gray-200">
         <div class="border-b border-gray-200">
-          <nav class="flex -mb-px">
+          <nav class="flex" aria-label="Tabs">
             <button
               v-for="tab in tabs"
               :key="tab.id"
               @click="activeTab = tab.id"
               :class="[
+                'py-4 px-6 text-sm font-medium',
+                'transition-all duration-200 ease-in-out',
                 activeTab === tab.id
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                'py-4 px-6 border-b-2 font-medium text-sm focus:outline-none transition-colors duration-200'
+                  ? 'border-b-2 border-indigo-500 text-indigo-600 bg-indigo-50 bg-opacity-50'
+                  : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
               ]"
             >
-              <i :class="['fas mr-2', tab.icon]"></i>
-              {{ tab.label }}
+              <div class="flex items-center space-x-2">
+                <i :class="['fas', tab.icon]"></i>
+                <span>{{ tab.label }}</span>
+              </div>
             </button>
           </nav>
         </div>
-      </div>
 
-      <!-- 执行历史标签页 -->
-      <div v-if="activeTab === 'execution-history'" class="bg-white shadow rounded-lg p-6 mb-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-lg font-medium text-gray-900">执行历史</h2>
-        </div>
-
-        <div v-if="isLoadingHistory" class="flex justify-center py-12">
-          <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <div v-else-if="executionHistory.length === 0" class="text-center py-12">
-          <i class="fas fa-history text-4xl text-gray-300 mb-3"></i>
-          <p class="text-gray-500">此版本暂无执行历史记录</p>
-        </div>
-        <div v-else>
-          <!-- 执行历史列表 -->
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">执行时间</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">执行用时</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结果行数</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="history in executionHistory" :key="history.id">
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatDateTime(history.executedAt) }}</td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span 
-                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                      :class="{
-                        'bg-green-100 text-green-800': history.status === 'SUCCESS',
-                        'bg-red-100 text-red-800': history.status === 'ERROR',
-                        'bg-yellow-100 text-yellow-800': history.status === 'CANCELLED',
-                        'bg-blue-100 text-blue-800': history.status === 'RUNNING'
-                      }"
-                    >
-                      {{ formatExecutionStatus(history.status) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatExecutionTime(history.executionTime) }}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ history.resultRowCount || '-' }}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button 
-                      @click="viewExecutionDetails(history.id)"
-                      class="text-indigo-600 hover:text-indigo-900"
-                    >
-                      查看详情
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- 执行计划标签页 -->
-      <div v-if="activeTab === 'execution-plan'" class="bg-white shadow rounded-lg p-6 mb-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-lg font-medium text-gray-900">执行计划</h2>
-        </div>
-
-        <div v-if="isLoadingPlan" class="flex justify-center py-12">
-          <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <div v-else-if="!executionPlan" class="text-center py-12">
-          <i class="fas fa-project-diagram text-4xl text-gray-300 mb-3"></i>
-          <p class="text-gray-500">此版本暂无执行计划</p>
-          <p class="text-gray-400 text-sm mt-2">需要先执行查询才能获取执行计划</p>
-        </div>
-        <div v-else>
-          <!-- 执行计划内容 -->
-          <div class="p-4 bg-gray-50 rounded-lg overflow-auto max-h-96">
-            <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ JSON.stringify(executionPlan, null, 2) }}</pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- 查询结果标签页 -->
-      <div v-if="activeTab === 'results'" class="bg-white shadow rounded-lg p-6 mb-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-lg font-medium text-gray-900">查询结果</h2>
-          <div v-if="queryResults && queryResults.length > 0" class="flex space-x-2">
-            <button
-              @click="exportResults('csv')"
-              class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
-            >
-              <i class="fas fa-file-csv mr-1.5"></i>
-              导出CSV
-            </button>
-            <button
-              @click="exportResults('excel')"
-              class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
-            >
-              <i class="fas fa-file-excel mr-1.5"></i>
-              导出Excel
-            </button>
-          </div>
-        </div>
-
-        <div v-if="isLoadingResults" class="flex justify-center py-12">
-          <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <div v-else-if="!queryResults || queryResults.length === 0" class="text-center py-12">
-          <i class="fas fa-table text-4xl text-gray-300 mb-3"></i>
-          <p class="text-gray-500">此版本暂无查询结果</p>
-          <p class="text-gray-400 text-sm mt-2">需要先执行查询才能查看结果</p>
-          <button
-            @click="executeQuery"
-            class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <i class="fas fa-play mr-2"></i>
-            执行查询
-          </button>
-        </div>
-        <div v-else>
-          <!-- 查询结果表格 -->
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th v-for="(column, index) in queryResultColumns" :key="index" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {{ column }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="(row, rowIndex) in queryResults" :key="rowIndex">
-                  <td v-for="(column, colIndex) in queryResultColumns" :key="colIndex" class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {{ row[column] }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          <!-- 分页控件 -->
-          <div v-if="totalResultPages > 1" class="flex justify-between items-center mt-4">
-            <div class="text-sm text-gray-500">
-              显示 {{ (currentResultPage - 1) * resultPageSize + 1 }} - {{ Math.min(currentResultPage * resultPageSize, totalResultRows) }} 行，共 {{ totalResultRows }} 行
-            </div>
-            <div class="flex space-x-2">
+        <!-- 内容区域 -->
+        <div class="p-6">
+          <!-- 执行历史标签页 -->
+          <div v-if="activeTab === 'execution-history'" class="animate-fadeIn">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-lg font-medium text-gray-900 flex items-center">
+                <i class="fas fa-history text-indigo-500 mr-2"></i>
+                执行历史
+              </h2>
               <button
-                @click="prevResultPage"
-                :disabled="currentResultPage <= 1"
+                v-if="!isLoadingHistory && versionData?.queryText"
+                @click="loadExecutionHistory"
                 class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
-                :class="{ 'opacity-50 cursor-not-allowed': currentResultPage <= 1 }"
               >
-                <i class="fas fa-chevron-left mr-1.5"></i>
-                上一页
-              </button>
-              <button
-                @click="nextResultPage"
-                :disabled="currentResultPage >= totalResultPages"
-                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
-                :class="{ 'opacity-50 cursor-not-allowed': currentResultPage >= totalResultPages }"
-              >
-                下一页
-                <i class="fas fa-chevron-right ml-1.5"></i>
+                <i class="fas fa-sync-alt mr-1.5"></i>
+                刷新
               </button>
             </div>
+
+            <div v-if="isLoadingHistory" class="flex justify-center py-12">
+              <div class="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div v-else-if="executionHistory.length === 0" class="flex flex-col items-center justify-center py-16 bg-gray-50 rounded-lg border border-gray-200">
+              <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-history text-gray-400 text-2xl"></i>
+              </div>
+              <p class="text-gray-600 font-medium mb-2">此版本暂无执行历史记录</p>
+              <p class="text-sm text-gray-500 mb-4">尝试执行查询以生成历史记录</p>
+              <button
+                v-if="versionData?.queryText"
+                @click="executeQuery"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+              >
+                <i class="fas fa-play mr-2"></i>
+                执行查询
+              </button>
+            </div>
+            <div v-else>
+              <!-- 执行历史列表 -->
+              <div class="overflow-x-auto bg-white rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">执行时间</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">执行用时</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结果行数</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="history in executionHistory" :key="history.id" class="hover:bg-gray-50 transition-colors duration-150">
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatDateTime(history.executedAt) }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span 
+                          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                          :class="{
+                            'bg-green-100 text-green-800': String(history.status).toUpperCase() === 'SUCCESS',
+                            'bg-red-100 text-red-800': String(history.status).toUpperCase() === 'ERROR',
+                            'bg-yellow-100 text-yellow-800': String(history.status).toUpperCase() === 'CANCELLED',
+                            'bg-blue-100 text-blue-800': String(history.status).toUpperCase() === 'RUNNING'
+                          }"
+                        >
+                          <i :class="[
+                            'mr-1', 
+                            String(history.status).toUpperCase() === 'SUCCESS' ? 'fas fa-check' : '',
+                            String(history.status).toUpperCase() === 'ERROR' ? 'fas fa-times' : '',
+                            String(history.status).toUpperCase() === 'CANCELLED' ? 'fas fa-ban' : '',
+                            String(history.status).toUpperCase() === 'RUNNING' ? 'fas fa-spinner fa-spin' : ''
+                          ]"></i>
+                          {{ formatExecutionStatus(history.status) }}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatExecutionTime(history.executionTime) }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ history.rowCount || '-' }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button 
+                          @click="viewExecutionDetails(history.id)"
+                          class="text-indigo-600 hover:text-indigo-900 hover:underline transition-colors duration-150"
+                        >
+                          查看详情
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 执行计划标签页 -->
+          <div v-if="activeTab === 'execution-plan'" class="animate-fadeIn">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-lg font-medium text-gray-900 flex items-center">
+                <i class="fas fa-project-diagram text-indigo-500 mr-2"></i>
+                执行计划
+              </h2>
+            </div>
+
+            <div v-if="isLoadingPlan" class="flex justify-center py-12">
+              <div class="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div v-else-if="!executionPlan" class="flex flex-col items-center justify-center py-16 bg-gray-50 rounded-lg border border-gray-200">
+              <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-project-diagram text-gray-400 text-2xl"></i>
+              </div>
+              <p class="text-gray-600 font-medium mb-2">此版本暂无执行计划</p>
+              <p class="text-sm text-gray-500 mb-4">需要先执行查询才能获取执行计划</p>
+              <button
+                v-if="versionData?.queryText"
+                @click="executeQuery"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+              >
+                <i class="fas fa-play mr-2"></i>
+                执行查询
+              </button>
+            </div>
+            <div v-else>
+              <!-- 执行计划内容 -->
+              <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 overflow-auto max-h-96">
+                <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ JSON.stringify(executionPlan, null, 2) }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- 查询结果标签页 -->
+          <div v-if="activeTab === 'results'" class="animate-fadeIn">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-lg font-medium text-gray-900">查询结果</h2>
+              <div v-if="queryResults && queryResults.length > 0" class="flex space-x-2">
+                <button
+                  @click="exportResults('csv')"
+                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
+                >
+                  <i class="fas fa-file-csv mr-1.5"></i>
+                  导出CSV
+                </button>
+                <button
+                  @click="exportResults('excel')"
+                  class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
+                >
+                  <i class="fas fa-file-excel mr-1.5"></i>
+                  导出Excel
+                </button>
+              </div>
+            </div>
+
+            <div v-if="isLoadingResults" class="flex justify-center py-12">
+              <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div v-else-if="!queryResults || queryResults.length === 0" class="text-center py-12">
+              <i class="fas fa-table text-4xl text-gray-300 mb-3"></i>
+              <p class="text-gray-500">此版本暂无查询结果</p>
+              <p class="text-gray-400 text-sm mt-2">需要先执行查询才能查看结果</p>
+            </div>
+            <div v-else>
+              <!-- 查询结果表格 -->
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th v-for="(column, index) in queryResultColumns" :key="index" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        {{ column }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="(row, rowIndex) in queryResults" :key="rowIndex">
+                      <td v-for="(column, colIndex) in queryResultColumns" :key="colIndex" class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ row[column] }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              <!-- 分页控件 -->
+              <div v-if="totalResultPages > 1" class="flex justify-between items-center mt-4">
+                <div class="text-sm text-gray-500">
+                  显示 {{ (currentResultPage - 1) * resultPageSize + 1 }} - {{ Math.min(currentResultPage * resultPageSize, totalResultRows) }} 行，共 {{ totalResultRows }} 行
+                </div>
+                <div class="flex space-x-2">
+                  <button
+                    @click="prevResultPage"
+                    :disabled="currentResultPage <= 1"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
+                    :class="{ 'opacity-50 cursor-not-allowed': currentResultPage <= 1 }"
+                  >
+                    <i class="fas fa-chevron-left mr-1.5"></i>
+                    上一页
+                  </button>
+                  <button
+                    @click="nextResultPage"
+                    :disabled="currentResultPage >= totalResultPages"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
+                    :class="{ 'opacity-50 cursor-not-allowed': currentResultPage >= totalResultPages }"
+                  >
+                    下一页
+                    <i class="fas fa-chevron-right ml-1.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 可视化标签页 -->
+          <div v-if="activeTab === 'visualization'" class="animate-fadeIn">
+            <!-- 可视化内容... -->
+          </div>
+
+          <!-- 优化建议标签页 -->
+          <div v-if="activeTab === 'optimization'" class="animate-fadeIn">
+            <!-- 优化建议内容... -->
           </div>
         </div>
       </div>
@@ -297,23 +400,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useMessage } from 'naive-ui'
+import { useMessageStore } from '@/stores/message'
 import useQueryStore from '@/stores/query'
 import { queryService } from '@/services/query'
 import { versionService } from '@/services/queryVersion'
 import type { Query, QueryVersion as QueryVersionType, QueryExecutionPlan, QuerySuggestion, QueryExecution, QueryStatus } from '@/types/query'
-import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion'
+import type { QueryVersion } from '@/types/queryVersion'
 
 // 执行状态类型
 type ExecutionStatus = 'SUCCESS' | 'ERROR' | 'RUNNING' | 'CANCELLED'
 
-// 查询版本状态类型
-type QueryVersionStatus = 'DRAFT' | 'PUBLISHED' | 'DEPRECATED'
+// 查询版本状态类型 - 修改名称避免冲突
+type VersionStatus = 'DRAFT' | 'PUBLISHED' | 'DEPRECATED'
 
 const route = useRoute();
 const router = useRouter();
 const queryStore = useQueryStore();
-const message = useMessage();
+const message = useMessageStore();
 
 // 从路由参数获取查询ID和版本ID
 const queryId = computed(() => route.params.id as string);
@@ -415,9 +518,7 @@ const loadExecutionHistory = async () => {
     
     try {
       // 使用查询服务获取执行历史
-      const historyData = await queryService.getQueryExecutionHistory(queryId.value, {
-        versionId: versionId.value
-      });
+      const historyData = await queryService.getQueryExecutionHistory(queryId.value);
       
       if (historyData && Array.isArray(historyData)) {
         executionHistory.value = historyData;
@@ -511,9 +612,9 @@ const handleActivate = async () => {
 };
 
 // 格式化版本状态显示
-const formatVersionStatus = (status?: QueryVersionStatus): string => {
+const formatVersionStatus = (status?: string): string => {
   if (!status) return '-';
-  const statusMap: Record<QueryVersionStatus, string> = {
+  const statusMap: Record<string, string> = {
     'DRAFT': '草稿',
     'PUBLISHED': '已发布',
     'DEPRECATED': '已废弃'
@@ -522,9 +623,9 @@ const formatVersionStatus = (status?: QueryVersionStatus): string => {
 };
 
 // 格式化执行状态
-const formatExecutionStatus = (status?: ExecutionStatus): string => {
+const formatExecutionStatus = (status?: string): string => {
   if (!status) return '-';
-  const statusMap: Record<ExecutionStatus, string> = {
+  const statusMap: Record<string, string> = {
     'SUCCESS': '成功',
     'ERROR': '失败',
     'RUNNING': '执行中',
@@ -607,8 +708,9 @@ const loadQueryResults = async () => {
 
 // 执行查询
 const executeQuery = async () => {
-  if (!versionData.value || !versionData.value.sql) {
+  if (!versionData.value || !versionData.value.queryText) {
     console.error('无法执行查询，查询内容为空');
+    message.error('无法执行查询，查询内容为空');
     return;
   }
   
@@ -616,10 +718,18 @@ const executeQuery = async () => {
     console.log('正在执行查询...');
     isExecuting.value = true;
     
+    // 获取主查询信息以获取数据源ID
+    const query = await queryStore.getQuery(queryId.value);
+    const dataSourceId = versionData.value.dataSourceId || query?.dataSourceId;
+    
+    if (!dataSourceId) {
+      throw new Error('无法执行查询：缺少数据源ID');
+    }
+    
     // 执行查询
     const result = await queryService.executeQuery({
-      dataSourceId: versionData.value.dataSourceId,
-      queryText: versionData.value.sql,
+      dataSourceId: dataSourceId,
+      queryText: versionData.value.queryText,
       queryType: 'SQL',
       maxRows: 1000
     });
@@ -632,10 +742,10 @@ const executeQuery = async () => {
     // 同时更新执行历史
     await loadExecutionHistory();
     
-    console.log('查询执行成功');
+    message.success('查询执行成功');
   } catch (error) {
     console.error('查询执行失败:', error);
-    // 在这里可以显示错误消息
+    message.error(`查询执行失败: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     isExecuting.value = false;
   }
@@ -683,6 +793,20 @@ const handleTabChange = (tabId: string) => {
   }
 };
 
+// 添加复制查询文本功能
+const copyQueryText = () => {
+  if (versionData.value?.queryText) {
+    navigator.clipboard.writeText(versionData.value.queryText)
+      .then(() => {
+        message.success('查询内容已复制到剪贴板');
+      })
+      .catch(err => {
+        console.error('复制失败:', err);
+        message.error('复制失败，请手动选择并复制');
+      });
+  }
+};
+
 // 组件挂载时加载数据
 onMounted(() => {
   loadVersionData();
@@ -690,6 +814,21 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .container {
   max-width: 1200px;
 }

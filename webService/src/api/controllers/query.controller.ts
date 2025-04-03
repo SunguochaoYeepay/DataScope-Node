@@ -643,17 +643,27 @@ export class QueryController {
    */
   async getQueryHistory(req: Request, res: Response, next: NextFunction) {
     try {
-      const { dataSourceId, limit, offset, page, size } = req.query;
+      const { dataSourceId, queryId, limit, offset, page, size } = req.query;
       
       // 优先使用limit和offset参数，如果未提供则尝试使用page和size参数
       let finalLimit = limit ? Number(limit) : (size ? Number(size) : 20);
       let finalOffset = offset ? Number(offset) : (page ? (Number(page) - 1) * finalLimit : 0);
       
       // 使用Prisma ORM查询数据
-      logger.debug('获取查询历史记录', { dataSourceId, limit: finalLimit, offset: finalOffset });
+      logger.debug('获取查询历史记录', { dataSourceId, queryId, limit: finalLimit, offset: finalOffset });
       
       // 构建查询条件
-      const where = dataSourceId ? { dataSourceId: dataSourceId as string } : {};
+      const where: any = {};
+      
+      // 添加数据源ID过滤条件
+      if (dataSourceId) {
+        where.dataSourceId = dataSourceId as string;
+      }
+      
+      // 添加查询ID过滤条件
+      if (queryId) {
+        where.queryId = queryId as string;
+      }
       
       try {
         // 使用Prisma查询
@@ -670,7 +680,7 @@ export class QueryController {
           prisma.queryHistory.count({ where })
         ]);
         
-        logger.debug(`成功获取查询历史记录: ${history.length} 条，总计: ${total}`);
+        logger.debug(`成功获取查询历史记录: ${history.length} 条，总计: ${total}`, { where });
         
         // 构建分页信息
         const pagination = {
@@ -690,7 +700,7 @@ export class QueryController {
           }
         });
       } catch (dbError) {
-        logger.error('Prisma查询历史记录失败', { error: dbError });
+        logger.error('Prisma查询历史记录失败', { error: dbError, where });
         throw new ApiError('获取查询历史记录失败', 500);
       }
     } catch (error: any) {

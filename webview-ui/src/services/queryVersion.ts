@@ -63,7 +63,17 @@ export const versionService = {
       }
       
       const result = await response.json();
-      return mapVersionFromApi(result.data);
+      console.log('获取到版本详情原始数据:', result);
+      
+      // 尝试识别结果的格式（有些API返回包裹在data字段，有些直接返回对象）
+      const versionData = result.data || result;
+      
+      // 确保结果非空
+      if (!versionData || Object.keys(versionData).length === 0) {
+        throw new Error(`获取版本详情失败: 服务器返回空数据`);
+      }
+      
+      return mapVersionFromApi(versionData);
     } catch (error) {
       console.error('获取版本详情失败:', error);
       throw error;
@@ -226,15 +236,36 @@ export const versionService = {
 
 // 将API返回的版本数据映射为前端使用的格式
 function mapVersionFromApi(result: any): QueryVersion {
+  if (!result) {
+    console.error('无法映射版本数据：数据为空');
+    throw new Error('无法映射版本数据：数据为空');
+  }
+  
+  console.log('映射版本数据:', result);
+  
+  // 处理可能为null的sqlContent字段
+  let queryText = '';
+  if (result.queryText) {
+    queryText = result.queryText;
+  } else if (result.sqlContent && result.sqlContent !== null) {
+    queryText = result.sqlContent;
+  } else {
+    // 如果两者都为空或null，可能需要显示一个特殊提示
+    console.warn('警告: 版本查询内容为空');
+  }
+  
   return {
     id: result.id,
-    queryId: result.queryId,
-    versionNumber: result.versionNumber,
-    status: result.status as QueryVersionStatus,
-    queryText: result.queryText,
-    createdAt: result.createdAt,
-    updatedAt: result.updatedAt,
-    publishedAt: result.publishedAt,
-    deprecatedAt: result.deprecatedAt
+    queryId: result.queryId || result.query_id,
+    versionNumber: result.versionNumber || result.version_number || 1,
+    status: result.status || result.versionStatus || 'DRAFT',
+    queryText: queryText, // 使用处理过的queryText
+    createdAt: result.createdAt || result.created_at || new Date().toISOString(),
+    updatedAt: result.updatedAt || result.updated_at || new Date().toISOString(),
+    publishedAt: result.publishedAt || result.published_at,
+    deprecatedAt: result.deprecatedAt || result.deprecated_at,
+    isActive: result.isActive || result.is_active || false,
+    // 添加其他可能的映射字段
+    dataSourceId: result.dataSourceId || result.datasource_id
   };
 }

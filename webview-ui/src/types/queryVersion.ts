@@ -27,6 +27,8 @@ export interface QueryVersion {
   deprecated_at?: string;
   is_active?: boolean;
   query_id?: string;
+  // 添加数据源ID字段
+  dataSourceId?: string;
 }
 
 /**

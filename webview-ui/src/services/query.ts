@@ -819,10 +819,15 @@ export const queryService = {
   async getQueryExecutionPlan(queryId: string): Promise<QueryExecutionPlan | null> {
     try {
       console.log(`开始获取查询执行计划，queryId: ${queryId}`);
-      const url = `${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`;
+      // 修改为后端支持的API路径
+      const url = `${getApiBaseUrl()}/api/queries/plans`;
       console.log('执行计划API URL:', url);
       
-      const response = await fetch(url, {
+      // 添加查询ID作为查询参数
+      const params = new URLSearchParams();
+      params.append('queryId', queryId);
+      
+      const response = await fetch(`${url}?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
@@ -855,6 +860,13 @@ export const queryService = {
       }
       
       const result = responseData.data || responseData;
+      
+      // 处理列表响应 - 获取第一条记录
+      if (Array.isArray(result) && result.length > 0) {
+        console.log('执行计划API返回数组，使用第一条记录:', result[0]);
+        const executionPlan = formatExecutionPlan(result[0], queryId);
+        return executionPlan;
+      }
       
       // 确保结果是对象
       if (typeof result !== 'object' || result === null) {
@@ -1062,7 +1074,12 @@ export const queryService = {
       }
       
       console.log('获取查询执行历史，queryId:', queryId);
-      const url = `${getApiBaseUrl()}/api/queries/${queryId}/execution-history`;
+      
+      // 使用正确的API路径和查询参数格式
+      const params = new URLSearchParams();
+      params.append('queryId', queryId);
+      
+      const url = `${getApiBaseUrl()}/api/queries/history?${params.toString()}`;
       console.log('执行历史API URL:', url);
       
       const response = await fetch(url, {
@@ -1097,7 +1114,8 @@ export const queryService = {
         return []; // 返回空数组而不是抛出错误
       }
       
-      const result = responseData.data || responseData;
+      // 处理后端返回的嵌套结构
+      const result = responseData.data?.items || responseData.data || responseData.items || responseData;
       
       // 确保结果是数组
       if (!Array.isArray(result)) {
@@ -1110,8 +1128,15 @@ export const queryService = {
         return [];
       }
       
+      // 过滤结果，只保留与指定queryId相关的历史记录
+      const filteredHistory = result.filter(item => {
+        return item.queryId === queryId || !item.queryId; // 包含匹配的queryId或没有指定queryId的记录
+      });
+      
+      console.log(`过滤后的执行历史记录数: ${filteredHistory.length}`);
+      
       // 确保每个历史记录都有必要的字段
-      const history = result.map(item => ({
+      const history = filteredHistory.map(item => ({
         id: item.id,
         queryId: item.queryId || queryId,
         executedAt: item.executedAt || item.startTime || new Date().toISOString(),
