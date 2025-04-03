@@ -1,0 +1,1072 @@
+openapi: 3.0.0
+info:
+  title: DataScope系统集成API
+  description: 提供系统集成管理和数据查询的API接口
+  version: 1.0.0
+  contact:
+    name: DataScope技术团队
+    email: support@datascope.com
+
+servers:
+  - url: http://localhost:3000/api
+    description: 开发环境
+  - url: https://test-api.datascope.com/api
+    description: 测试环境
+  - url: https://api.datascope.com/api
+    description: 生产环境
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 使用Bearer Token进行认证
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: 使用API Key进行认证
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              format: int32
+              example: 400
+            type:
+              type: string
+              example: BAD_REQUEST
+            message:
+              type: string
+              example: 参数验证失败
+            timestamp:
+              type: string
+              format: date-time
+              example: '2023-01-01T00:00:00.000Z'
+            path:
+              type: string
+              example: '/api/v1/low-code/apis'
+            requestId:
+              type: string
+              example: 'req-uuid-123'
+            details:
+              type: object
+              example: {}
+
+    Integration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: uuid-example-1
+        name:
+          type: string
+          example: 用户查询接口
+        description:
+          type: string
+          example: 查询系统用户信息
+        queryId:
+          type: string
+          format: uuid
+          example: uuid-query-1
+        type:
+          type: string
+          enum: [FORM, TABLE, CHART]
+          example: TABLE
+        config:
+          type: object
+          properties:
+            params:
+              type: array
+              items:
+                $ref: '#/components/schemas/ParamConfig'
+            tableConfig:
+              $ref: '#/components/schemas/TableConfig'
+            chartConfig:
+              $ref: '#/components/schemas/ChartConfig'
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, INACTIVE]
+          example: ACTIVE
+        createdAt:
+          type: string
+          format: date-time
+          example: '2023-01-01T00:00:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2023-01-01T00:00:00.000Z'
+        createdBy:
+          type: string
+          example: admin-uuid
+        updatedBy:
+          type: string
+          example: admin-uuid
+
+    ParamConfig:
+      type: object
+      properties:
+        name:
+          type: string
+          example: username
+        label:
+          type: string
+          example: 用户名
+        type:
+          type: string
+          enum: [string, number, boolean, date, select]
+          example: string
+        required:
+          type: boolean
+          example: true
+        defaultValue:
+          type: string
+          example: ''
+        placeholder:
+          type: string
+          example: 请输入用户名
+        description:
+          type: string
+          example: 用户的登录名
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+                example: 活跃
+              value:
+                type: string
+                example: active
+        min:
+          type: number
+          example: 0
+        max:
+          type: number
+          example: 100
+        regex:
+          type: string
+          example: '^[a-zA-Z0-9_]{3,20}$'
+        format:
+          type: string
+          example: 'YYYY-MM-DD'
+
+    TableConfig:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                example: id
+              dataIndex:
+                type: string
+                example: id
+              title:
+                type: string
+                example: ID
+              width:
+                type: integer
+                example: 80
+              fixed:
+                type: string
+                enum: [left, right]
+                example: left
+              align:
+                type: string
+                enum: [left, center, right]
+                example: left
+              sortable:
+                type: boolean
+                example: true
+              formatter:
+                type: string
+                example: 'value => formatter(value)'
+        rowKey:
+          type: string
+          example: id
+        pagination:
+          type: boolean
+          example: true
+        defaultPageSize:
+          type: integer
+          example: 20
+        defaultSorting:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: createdAt
+              order:
+                type: string
+                enum: [asc, desc]
+                example: desc
+
+    ChartConfig:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [bar, line, pie, scatter]
+          example: bar
+        xField:
+          type: string
+          example: date
+        yField:
+          type: string
+          example: value
+        seriesField:
+          type: string
+          example: category
+        title:
+          type: string
+          example: 数据分析图表
+        subtitle:
+          type: string
+          example: 月度趋势
+        legend:
+          type: boolean
+          example: true
+        tooltip:
+          type: boolean
+          example: true
+        colors:
+          type: array
+          items:
+            type: string
+          example: ['#1890ff', '#2fc25b', '#facc14']
+
+    IntegrationList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Integration'
+            total:
+              type: integer
+              example: 42
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 20
+            totalPages:
+              type: integer
+              example: 3
+
+    IntegrationDetail:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Integration'
+
+    IntegrationCreate:
+      type: object
+      required:
+        - name
+        - queryId
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          example: 用户查询接口
+        description:
+          type: string
+          example: 查询系统用户信息
+        queryId:
+          type: string
+          format: uuid
+          example: uuid-query-1
+        type:
+          type: string
+          enum: [FORM, TABLE, CHART]
+          example: TABLE
+        config:
+          type: object
+          properties:
+            params:
+              type: array
+              items:
+                $ref: '#/components/schemas/ParamConfig'
+            tableConfig:
+              $ref: '#/components/schemas/TableConfig'
+            chartConfig:
+              $ref: '#/components/schemas/ChartConfig'
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, INACTIVE]
+          example: DRAFT
+
+    IntegrationUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 更新后的用户查询接口
+        description:
+          type: string
+          example: 查询系统用户信息（已更新）
+        queryId:
+          type: string
+          format: uuid
+          example: uuid-query-1
+        type:
+          type: string
+          enum: [FORM, TABLE, CHART]
+          example: TABLE
+        config:
+          type: object
+          properties:
+            params:
+              type: array
+              items:
+                $ref: '#/components/schemas/ParamConfig'
+            tableConfig:
+              $ref: '#/components/schemas/TableConfig'
+            chartConfig:
+              $ref: '#/components/schemas/ChartConfig'
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, INACTIVE]
+          example: ACTIVE
+
+    IntegrationStatusUpdate:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, INACTIVE]
+          example: ACTIVE
+
+    IntegrationConfig:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            apiEndpoint:
+              type: string
+              example: /api/data-service/query
+            method:
+              type: string
+              example: POST
+            requestFormat:
+              type: object
+              example:
+                integrationId: uuid-example-1
+                params:
+                  username: 示例值
+                pagination:
+                  page: 1
+                  pageSize: 10
+                sorting:
+                  - field: createdAt
+                    order: desc
+            responseFormat:
+              type: object
+              example:
+                success: true
+                data:
+                  records:
+                    - id: 1
+                      username: user1
+                  total: 100
+                  page: 1
+                  pageSize: 10
+                  totalPages: 10
+            parameterDocs:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    example: username
+                  description:
+                    type: string
+                    example: 用户名
+                  type:
+                    type: string
+                    example: string
+                  required:
+                    type: boolean
+                    example: true
+                  example:
+                    type: string
+                    example: john_doe
+            authRequirements:
+              type: object
+              properties:
+                requireAuth:
+                  type: boolean
+                  example: true
+                authMethods:
+                  type: array
+                  items:
+                    type: string
+                  example: [api_key, bearer_token]
+
+    QueryRequest:
+      type: object
+      required:
+        - integrationId
+      properties:
+        integrationId:
+          type: string
+          format: uuid
+          example: uuid-example-1
+        params:
+          type: object
+          example:
+            username: searchuser
+            status: active
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 20
+        sorting:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: createdAt
+              order:
+                type: string
+                enum: [asc, desc]
+                example: desc
+
+    QueryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            records:
+              type: array
+              items:
+                type: object
+              example:
+                - id: 1
+                  username: searchuser
+                  email: user@example.com
+                  status: active
+                  lastLogin: '2023-01-01T00:00:00.000Z'
+            total:
+              type: integer
+              example: 42
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 20
+            totalPages:
+              type: integer
+              example: 3
+
+paths:
+  /v1/low-code/apis:
+    get:
+      tags:
+        - 集成管理
+      summary: 获取集成列表
+      description: 获取系统中所有的集成配置列表，支持分页和筛选
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码，默认为1
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          description: 每页记录数，默认为20
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          description: 按状态筛选
+          required: false
+          schema:
+            type: string
+            enum: [DRAFT, ACTIVE, INACTIVE]
+        - name: type
+          in: query
+          description: 按类型筛选
+          required: false
+          schema:
+            type: string
+            enum: [FORM, TABLE, CHART]
+        - name: search
+          in: query
+          description: 按名称或描述搜索
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功获取集成列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationList'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags:
+        - 集成管理
+      summary: 创建集成
+      description: 创建新的系统集成配置
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationCreate'
+      responses:
+        '201':
+          description: 成功创建集成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationDetail'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/low-code/apis/{id}:
+    get:
+      tags:
+        - 集成管理
+      summary: 获取单个集成
+      description: 获取指定ID的集成详细信息
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功获取集成详细信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationDetail'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    put:
+      tags:
+        - 集成管理
+      summary: 更新集成
+      description: 更新现有的系统集成配置
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationUpdate'
+      responses:
+        '200':
+          description: 成功更新集成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationDetail'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      tags:
+        - 集成管理
+      summary: 删除集成
+      description: 删除指定的系统集成配置
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 成功删除集成
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/low-code/apis/{id}/status:
+    patch:
+      tags:
+        - 集成管理
+      summary: 更新集成状态
+      description: 快速更新集成的状态
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationStatusUpdate'
+      responses:
+        '200':
+          description: 成功更新集成状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: uuid-example-1
+                      status:
+                        type: string
+                        enum: [DRAFT, ACTIVE, INACTIVE]
+                        example: ACTIVE
+                      updatedAt:
+                        type: string
+                        format: date-time
+                        example: '2023-01-01T01:00:00.000Z'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/low-code/apis/{id}/config:
+    get:
+      tags:
+        - 集成管理
+      summary: 获取API配置
+      description: 获取集成的API使用配置和文档，用于外部系统集成
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功获取API配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationConfig'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/low-code/apis/{id}/test:
+    post:
+      tags:
+        - 集成管理
+      summary: 测试集成
+      description: 测试系统集成配置，返回实际查询结果
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                params:
+                  type: object
+                  example:
+                    username: testuser
+                pagination:
+                  type: object
+                  properties:
+                    page:
+                      type: integer
+                      example: 1
+                    pageSize:
+                      type: integer
+                      example: 10
+                sorting:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      field:
+                        type: string
+                        example: createdAt
+                      order:
+                        type: string
+                        enum: [asc, desc]
+                        example: desc
+      responses:
+        '200':
+          description: 成功测试集成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/low-code/apis/{id}/export:
+    get:
+      tags:
+        - 集成管理
+      summary: 导出集成配置
+      description: 导出集成配置为JSON文件
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 集成ID (UUID格式)
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          description: 导出格式
+          required: false
+          schema:
+            type: string
+            enum: [json, standard]
+            default: json
+      responses:
+        '200':
+          description: 成功导出集成配置
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /data-service/query:
+    post:
+      tags:
+        - 数据查询
+      summary: 执行集成查询
+      description: 执行集成查询，获取数据结果。此接口主要供外部系统调用，用于获取数据
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 成功执行查询
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未认证或认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: 权限不足，禁止访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 集成不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
