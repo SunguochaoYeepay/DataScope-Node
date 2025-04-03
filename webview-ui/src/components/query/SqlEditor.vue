@@ -97,9 +97,58 @@ const execute = () => {
     return
   }
   
-  if (!content.value.trim()) {
+  if (!content.value || !content.value.trim()) {
     // 触发执行事件，但携带错误信息
     emit('execute', '请在SQL编辑器中输入查询语句')
+    return
+  }
+  
+  // 增强的SQL语法验证
+  const sql = content.value.trim().toUpperCase();
+  
+  // 检查是否包含基本SQL关键字
+  if (!sql.includes('SELECT') && !sql.includes('INSERT') && 
+      !sql.includes('UPDATE') && !sql.includes('DELETE') &&
+      !sql.includes('CREATE') && !sql.includes('ALTER') &&
+      !sql.includes('DROP')) {
+    emit('execute', '无效的SQL语句，请检查语法')
+    return
+  }
+  
+  // 检查SELECT语句结构
+  if (sql.includes('SELECT')) {
+    // 检查是否有FROM关键字
+    if (!sql.includes('FROM')) {
+      emit('execute', 'SELECT语句缺少FROM子句')
+      return
+    }
+    
+    // 检查只有SELECT *的简单情况
+    if (sql.match(/^\s*SELECT\s+\*\s*$/i)) {
+      emit('execute', '不完整的SQL语句，请指定表名')
+      return
+    }
+    
+    // 检查SELECT * FROM没有表名的情况
+    const selectFromMatch = sql.match(/^\s*SELECT\s+\*\s+FROM\s+$/i);
+    if (selectFromMatch) {
+      emit('execute', '请在FROM子句后指定表名')
+      return
+    }
+  }
+  
+  // 括号匹配检查
+  const openCount = (sql.match(/\(/g) || []).length;
+  const closeCount = (sql.match(/\)/g) || []).length;
+  if (openCount !== closeCount) {
+    emit('execute', '括号不匹配，请检查SQL语法')
+    return
+  }
+  
+  // 引号匹配检查
+  const singleQuoteCount = (sql.match(/'/g) || []).length;
+  if (singleQuoteCount % 2 !== 0) {
+    emit('execute', '单引号不匹配，请检查SQL语法')
     return
   }
   
@@ -131,6 +180,40 @@ const insertKeyword = (keyword: string) => {
     editor.focus()
   }, 0)
 }
+
+// 在mounted钩子中设置初始高度
+onMounted(() => {
+  if (editorEl.value) {
+    // 自动调整高度以适应内容
+    adjustHeight(editorEl.value)
+  }
+})
+
+// 自动调整高度函数
+const adjustHeight = (element: HTMLTextAreaElement) => {
+  // 存储滚动位置
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  
+  // 重置高度以获取实际内容高度
+  element.style.height = 'auto'
+  
+  // 设置最小高度150px，但允许随内容增长
+  const contentHeight = Math.max(150, element.scrollHeight);
+  element.style.height = contentHeight + 'px'
+  
+  // 恢复滚动位置，防止页面跳动
+  window.scrollTo({top: scrollTop});
+}
+
+// 监听内容变化，调整高度
+watch(content, () => {
+  if (editorEl.value) {
+    // 使用nextTick确保DOM更新后再调整高度
+    setTimeout(() => {
+      adjustHeight(editorEl.value!)
+    }, 0)
+  }
+})
 </script>
 
 <template>
@@ -167,9 +250,9 @@ const insertKeyword = (keyword: string) => {
       
       <div class="flex-grow"></div>
       
-      <div class="text-xs text-gray-500 hidden md:block">
-        <span class="mr-2">Ctrl+Enter: 执行</span>
-        <span>Ctrl+S: 保存</span>
+      <div class="text-xs text-gray-500 hidden md:flex items-center">
+        <span class="mr-2 bg-gray-200 px-2 py-1 rounded">Ctrl+Enter: 执行</span>
+        <span class="bg-gray-200 px-2 py-1 rounded">Ctrl+S: 保存</span>
       </div>
     </div>
     
@@ -189,38 +272,22 @@ const insertKeyword = (keyword: string) => {
       @keydown="handleKeyDown"
     ></textarea>
     
-    <!-- 底部工具栏 -->
-    <div class="bg-gray-100 border-t p-1 flex justify-between">
-      <div class="flex items-center">
-        <span class="text-xs text-gray-500">{{ content.length }} 字符</span>
-      </div>
+    <!-- 简化的状态区域 -->
+    <div class="bg-gray-100 border-t p-1 flex justify-between items-center text-sm">
+      <div class="text-xs text-gray-500">{{ content.length }} 字符</div>
       
-      <div class="flex space-x-2">
-        <button
-          class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-          @click="save"
-        >
-          保存
-        </button>
-        
-        <button
-          :class="[
-            'px-3 py-1 rounded text-sm text-white',
-            props.dataSourceId && content.trim() ? 
-              'bg-blue-500 hover:bg-blue-600' : 
-              'bg-blue-300 opacity-60 cursor-not-allowed'
-          ]"
-          @click="execute"
-          :title="!props.dataSourceId ? '请选择数据源' : !content.trim() ? '请输入SQL查询' : '执行查询'"
-        >
-          执行
-        </button>
+      <div v-if="!props.dataSourceId" class="text-orange-600 text-xs flex items-center">
+        <i class="fas fa-exclamation-circle mr-1"></i>
+        请先选择一个数据源
       </div>
-    </div>
-
-    <!-- 无数据源提示 -->
-    <div v-if="!props.dataSourceId" class="p-4 bg-yellow-50 text-yellow-700 rounded border border-yellow-200 mt-2">
-      请先选择一个数据源以执行SQL查询。
+      <div v-else-if="!content.trim()" class="text-gray-500 text-xs flex items-center">
+        <i class="fas fa-pen mr-1"></i>
+        请输入SQL查询
+      </div>
+      <div v-else class="text-green-600 text-xs flex items-center">
+        <i class="fas fa-check-circle mr-1"></i>
+        按Ctrl+Enter执行
+      </div>
     </div>
   </div>
 </template>

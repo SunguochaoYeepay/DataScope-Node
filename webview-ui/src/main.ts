@@ -6,6 +6,8 @@ import './plugins/dayjs'
 
 import App from './App.vue'
 import router from './router'
+
+// 导入自定义样式，确保Tailwind可以正确应用
 import './styles/index.css'
 import { initQueryTemplates } from './services/queryTemplates'
 
@@ -22,13 +24,18 @@ import zhCN from './plugins/antd-locale'
 // 引入ECharts配置
 import './plugins/echarts'
 
+// 引入消息服务插件
+import { installMessageService } from './services/message'
+
 // 初始化查询模板
 initQueryTemplates()
 
+// 创建应用实例
 const app = createApp(App)
 
+// 使用插件
 app.use(createPinia())
 app.use(router)
-app.use(Antd, { locale: zhCN }) // 应用中文配置
-
+app.use(Antd)
+installMessageService.install(app)  // 正确调用消息服务插件
 app.mount('#app')

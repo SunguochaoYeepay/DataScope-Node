@@ -181,7 +181,11 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
         }
         
         // 添加分页限制
-        modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+        if (offset > 0) {
+          modifiedSql = `${modifiedSql} LIMIT ${offset}, ${limit}`;
+        } else {
+          modifiedSql = `${modifiedSql} LIMIT ${limit}`;
+        }
         
         // 计算总记录数
         try {

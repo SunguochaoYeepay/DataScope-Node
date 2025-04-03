@@ -9,7 +9,9 @@ import FormConfigEditor from '@/components/integration/FormConfigEditor.vue';
 import TableConfigTable from '@/components/integration/tablemode/TableConfigTable.vue';
 import IntegrationPointEditor from '@/components/integration/IntegrationPointEditor.vue';
 import IntegrationDebug from '@/components/integration/IntegrationDebug.vue';
+import DataSourceSelector from '@/components/dataSource/DataSourceSelector.vue';
 import type { Integration, FormConfig, TableConfig, IntegrationPoint } from '@/types/integration';
+import type { DataSource } from '@/types/dataSource';
 
 // 路由相关
 const route = useRoute();
@@ -33,6 +35,7 @@ const integration = reactive<Integration>({
   type: 'FORM',
   status: 'DRAFT',
   queryId: '',
+  dataSourceId: '',
   formConfig: {
     layout: 'vertical',
     conditions: [],
@@ -70,6 +73,7 @@ const integration = reactive<Integration>({
 const formErrors = reactive({
   name: '',
   queryId: '',
+  dataSourceId: '',
   formConfig: '',
   tableConfig: '',
   integrationPoint: ''
@@ -107,6 +111,7 @@ const loadIntegration = async (id: string) => {
       integration.type = result.type;
       integration.status = result.status;
       integration.queryId = result.queryId;
+      integration.dataSourceId = result.dataSourceId || '';
       integration.createTime = result.createTime;
       integration.updateTime = result.updateTime;
       
@@ -147,6 +152,12 @@ const validateForm = (): boolean => {
   // 验证名称
   if (!integration.name.trim()) {
     formErrors.name = '请输入集成名称';
+    isValid = false;
+  }
+  
+  // 验证数据源ID
+  if (!integration.dataSourceId.trim()) {
+    formErrors.dataSourceId = '请选择数据源';
     isValid = false;
   }
   
@@ -211,6 +222,7 @@ const saveIntegration = async () => {
         type: integration.type,
         status: integration.status,
         queryId: integration.queryId,
+        dataSourceId: integration.dataSourceId,
         formConfig: integration.type === 'FORM' ? integration.formConfig : undefined,
         tableConfig: integration.type === 'TABLE' ? integration.tableConfig : undefined,
         integrationPoint: integration.integrationPoint
@@ -228,6 +240,7 @@ const saveIntegration = async () => {
         type: integration.type,
         status: integration.status,
         queryId: integration.queryId,
+        dataSourceId: integration.dataSourceId,
         formConfig: integration.type === 'FORM' ? integration.formConfig : undefined,
         tableConfig: integration.type === 'TABLE' ? integration.tableConfig : undefined,
         integrationPoint: integration.integrationPoint
@@ -255,6 +268,15 @@ const previewIntegration = () => {
 // 取消编辑
 const cancelEdit = () => {
   router.push('/integration');
+};
+
+// 数据源选择变更处理
+const handleDataSourceSelected = (id: string, data: any) => {
+  console.log('选择的数据源:', data);
+  // 当数据源变化时，清空已选的查询
+  if (integration.queryId && integration.dataSourceId !== id) {
+    integration.queryId = '';
+  }
 };
 
 // 查询选择变更处理
@@ -391,6 +413,18 @@ const handleDebugInfo = (info: any) => {
           <h2 class="text-lg font-medium text-gray-900 mb-4">数据配置</h2>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- 数据源选择 -->
+            <div class="md:col-span-2">
+              <DataSourceSelector
+                v-model="integration.dataSourceId"
+                label="数据源"
+                placeholder="请选择数据源"
+                :error="formErrors.dataSourceId"
+                :required="true"
+                @selected="handleDataSourceSelected"
+              />
+            </div>
+            
             <!-- 查询选择 -->
             <div class="md:col-span-2">
               <QuerySelector
@@ -399,6 +433,7 @@ const handleDebugInfo = (info: any) => {
                 placeholder="请选择数据查询"
                 :error="formErrors.queryId"
                 :required="true"
+                :dataSourceId="integration.dataSourceId"
                 @selected="handleQuerySelected"
               />
             </div>

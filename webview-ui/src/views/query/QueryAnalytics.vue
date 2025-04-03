@@ -66,7 +66,7 @@
               
               <div>
                 <h3 class="text-sm font-medium text-gray-500">数据源</h3>
-                <p class="mt-1 text-sm text-gray-900">{{ query.dataSourceId || '未指定' }}</p>
+                <p class="mt-1 text-sm text-gray-900">{{ dataSourceName }}</p>
               </div>
               
               <div>
@@ -350,14 +350,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
+import { useDataSourceStore } from '@/stores/datasource'
 import type { Query, QueryStatus, QueryResult, QueryVisualization, QueryExecutionPlan, QuerySuggestion } from '@/types/query'
 
 const router = useRouter()
 const route = useRoute()
 const queryStore = useQueryStore()
+const dataSourceStore = useDataSourceStore()
 
 // 状态变量
 const isLoading = ref(true)
@@ -409,13 +411,37 @@ const queryResults = computed(() => {
   return queryStore.currentQueryResult
 })
 
+// 计算当前数据源名称
+const dataSourceName = computed(() => {
+  if (!queryStore.currentQuery || !queryStore.currentQuery.dataSourceId) {
+    return '未指定';
+  }
+  
+  const dataSource = dataSourceStore.dataSources.find(ds => ds.id === queryStore.currentQuery?.dataSourceId);
+  return dataSource ? dataSource.name : queryStore.currentQuery.dataSourceId;
+})
+
 // 初始化加载
-onMounted(() => {
+onMounted(async () => {
   // 保存来源路径用于返回按钮
   previousPath.value = document.referrer ? document.referrer : (route.query.from as string || '/query/history')
   
+  console.log('开始加载分析页面数据，查询ID:', queryId.value)
+  
+  // 加载数据源信息
+  if (dataSourceStore.dataSources.length === 0) {
+    await dataSourceStore.fetchDataSources()
+    console.log('加载的数据源:', dataSourceStore.dataSources)
+  }
+  
   // 加载查询数据
   loadQueryData()
+})
+
+// 监听标签页切换
+watch(activeTab, (newTabId) => {
+  console.log('标签页切换到:', newTabId)
+  loadTabData(newTabId)
 })
 
 // 加载查询及相关数据
@@ -424,15 +450,19 @@ const loadQueryData = async () => {
   errorMessage.value = ''
   
   try {
-    // 加载查询详情
+    // 加载查询详情 - 使用API实际路径，确保不会使用模拟数据
+    console.log('开始加载查询数据，查询ID:', queryId.value)
     const result = await queryStore.getQuery(queryId.value)
     
     // 检查是否获取到查询数据
     if (!result || !queryStore.currentQuery) {
+      console.error('未找到查询数据:', queryId.value)
       errorMessage.value = '找不到指定ID的查询，请返回查询历史页面重新选择'
       isLoading.value = false
       return
     }
+    
+    console.log('成功加载查询数据:', queryStore.currentQuery)
     
     // 根据选中的标签页加载其他数据
     await loadTabData(activeTab.value)
@@ -464,11 +494,6 @@ const loadTabData = async (tabId: string) => {
   }
 }
 
-// 监听标签切换
-const watchTabChanges = async (newTabId: string) => {
-  await loadTabData(newTabId)
-}
-
 // 加载可视化配置
 const loadVisualizationData = async () => {
   if (isLoadingVisualization.value) return
@@ -476,7 +501,9 @@ const loadVisualizationData = async () => {
   isLoadingVisualization.value = true
   
   try {
+    console.log('加载可视化数据，查询ID:', queryId.value)
     await queryStore.getQueryVisualization(queryId.value)
+    console.log('可视化数据:', queryStore.visualization)
   } catch (error) {
     console.error('Failed to load visualization data:', error)
   } finally {
@@ -491,7 +518,9 @@ const loadExecutionPlanData = async () => {
   isLoadingExecutionPlan.value = true
   
   try {
+    console.log('加载执行计划数据，查询ID:', queryId.value)
     await queryStore.getQueryExecutionPlan(queryId.value)
+    console.log('执行计划数据:', queryStore.executionPlan)
   } catch (error) {
     console.error('Failed to load execution plan:', error)
   } finally {
@@ -506,7 +535,9 @@ const loadSuggestionsData = async () => {
   isLoadingSuggestions.value = true
   
   try {
+    console.log('加载优化建议数据，查询ID:', queryId.value)
     await queryStore.getQuerySuggestions(queryId.value)
+    console.log('优化建议数据:', queryStore.suggestions)
   } catch (error) {
     console.error('Failed to load query suggestions:', error)
   } finally {
@@ -521,9 +552,17 @@ const loadResultsData = async () => {
   isLoadingResults.value = true
   
   try {
-    // 这里假设查询结果已经保存在store中或者通过API获取
-    // 模拟加载过程
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    console.log('加载查询结果数据，查询ID:', queryId.value)
+    // 尝试从store获取结果，如果不存在，则重新加载
+    if (!queryStore.currentQueryResult) {
+      try {
+        // 这里应该有一个获取查询结果的API
+        const result = await queryStore.getQuery(queryId.value)
+        console.log('查询结果数据:', queryStore.currentQueryResult)
+      } catch (err) {
+        console.error('获取查询结果失败:', err)
+      }
+    }
   } catch (error) {
     console.error('Failed to load query results:', error)
   } finally {

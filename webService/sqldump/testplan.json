@@ -1,0 +1,4 @@
+{
+  "id": "123",
+  "planData": "{\"planNodes\":[{\"id\":1,\"table\":\"users\",\"type\":\"index\",\"rows\":100,\"filtered\":100,\"key\":\"PRIMARY\",\"extra\":\"\"},{\"id\":2,\"table\":\"orders\",\"type\":\"ALL\",\"rows\":1500,\"filtered\":80,\"key\":\"\",\"extra\":\"Using filesort\"}],\"estimatedCost\":300,\"warnings\":[],\"optimizationTips\":[\"考虑为orders表添加索引\"]}"
+}

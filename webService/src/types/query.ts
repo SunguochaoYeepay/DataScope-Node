@@ -5,6 +5,7 @@ export interface ExecuteQueryParams {
 }
 
 export interface SaveQueryParams {
+  id?: string;
   name: string;
   dataSourceId: string;
   sql: string;

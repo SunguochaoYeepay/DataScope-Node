@@ -26,7 +26,7 @@ export const demonstrateValidationError = (req: Request, res: Response): void =>
   // 创建验证错误
   const error = new ValidationError(
     '请求参数验证失败',
-    ERROR_CODES.VALIDATION_FAILED,
+    ERROR_CODES.VALIDATION_ERROR,
     details
   );
   
@@ -42,11 +42,7 @@ export const demonstrateValidationError = (req: Request, res: Response): void =>
 export const demonstrateAuthorizationError = (req: Request, res: Response): void => {
   // 模拟授权错误
   const error = ApiError.forbidden(
-    '您没有权限执行此操作',
-    {
-      action: 'delete',
-      resource: 'user'
-    }
+    '您没有权限执行此操作'
   );
   
   // 抛出错误，将由错误处理中间件捕获
@@ -188,7 +184,7 @@ export const errorExamplesIndex = (req: Request, res: Response): void => {
   
   switch(type) {
     case 'badRequest':
-      throw ApiError.badRequest('无效的请求参数', { field: 'username', value: '' });
+      throw ApiError.badRequest('无效的请求参数');
     case 'unauthorized':
       throw ApiError.unauthorized('身份验证失败');
     case 'forbidden':

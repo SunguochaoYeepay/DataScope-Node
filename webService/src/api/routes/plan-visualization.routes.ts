@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { check } from 'express-validator';
 import planVisualizationController from '../controllers/plan-visualization.controller';
 import { validate } from '../../utils/validate';
+import { authenticate } from '../../middleware/auth';
 
 const router = Router();
 

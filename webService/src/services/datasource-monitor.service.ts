@@ -2,7 +2,16 @@ import { PrismaClient } from '@prisma/client';
 import { DataSourceService } from './datasource.service';
 import logger from '../utils/logger';
 
-const prisma = new PrismaClient();
+// 使用环境变量中的数据库URL创建Prisma客户端
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL || "mysql://root:datascope@localhost:3306/datascope"
+    }
+  }
+});
+// 检查是否使用模拟数据
+const useMockData = process.env.USE_MOCK_DATA === 'true';
 
 /**
  * 数据源监控服务
@@ -62,6 +71,12 @@ export class DataSourceMonitorService {
     try {
       logger.info('开始检查所有数据源连接状态...');
       
+      // 如果使用模拟数据，则跳过真实数据库连接检查
+      if (useMockData) {
+        logger.info('使用模拟数据模式，跳过数据源连接检查');
+        return;
+      }
+      
       // 获取所有活跃的数据源
       const dataSources = await prisma.dataSource.findMany({
         where: {
@@ -88,6 +103,12 @@ export class DataSourceMonitorService {
    */
   async checkDataSourceStatus(dataSourceId: string): Promise<void> {
     try {
+      // 如果使用模拟数据，则跳过真实数据库连接检查
+      if (useMockData) {
+        logger.info(`使用模拟数据模式，跳过数据源[${dataSourceId}]连接检查`);
+        return;
+      }
+      
       // 获取数据源
       const dataSource = await prisma.dataSource.findUnique({
         where: { id: dataSourceId }

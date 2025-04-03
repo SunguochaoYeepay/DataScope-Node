@@ -1,89 +1,162 @@
+/**
+ * API错误类
+ */
 import { AppError } from '../app-error';
-import { ERROR_CODES } from '../error-codes';
+import { ErrorCode } from '../error-codes';
 
 /**
  * API错误类
- * 用于API请求处理过程中的错误
+ * 扩展自AppError，用于表示API调用过程中的错误
  */
 export class ApiError extends AppError {
   /**
-   * 创建API错误
+   * 创建API错误实例
+   * @param code 错误代码
    * @param message 错误消息
-   * @param errorCode 错误码
-   * @param statusCode HTTP状态码
-   * @param errorType 错误类型
+   * @param originalError 原始错误
    * @param details 错误详情
    */
-  constructor(
-    message: string,
-    errorCode: number = ERROR_CODES.INTERNAL_SERVER_ERROR,
-    statusCode: number = 500,
-    errorType: string = 'ApiError',
-    details?: any
-  ) {
-    super(message, errorCode, statusCode, errorType, details);
+  /**
+   * 创建API错误实例
+   * 支持两种形式的参数，兼容不同版本的调用方式：
+   * 1. (code, message, ...)新型调用：错误码优先
+   * 2. (message, code, ...)旧型调用：消息优先
+   */
+  constructor(codeOrMessage: number | string, messageOrCode: string | number, originalErrorOrHttpStatus?: Error | number | string, detailsOrErrorType?: any | string, extraDetails?: any) {
+    // 判断调用方式
+    let code: number;
+    let message: string;
+    let originalError: Error | undefined;
+    let details: any;
+    
+    if (typeof codeOrMessage === 'number') {
+      // 新型调用：(code, message, originalError?, details?)
+      code = codeOrMessage;
+      message = messageOrCode as string;
+      originalError = originalErrorOrHttpStatus instanceof Error ? originalErrorOrHttpStatus : undefined;
+      details = detailsOrErrorType;
+    } else {
+      // 旧型调用：(message, code, httpStatus?, errorType?, details?)
+      message = codeOrMessage;
+      code = (typeof messageOrCode === 'number') ? messageOrCode : ErrorCode.UNKNOWN_ERROR;
+      
+      // 如果是原始错误消息字符串
+      if (typeof originalErrorOrHttpStatus === 'string') {
+        details = { originalError: originalErrorOrHttpStatus };
+      } else {
+        details = extraDetails || detailsOrErrorType;
+      }
+    }
+    
+    // 调用父类构造函数
+    super(message, code, 500, 'API_ERROR', details);
+    this.name = 'ApiError';
+
+    // 根据错误代码设置HTTP状态码
+    this.statusCode = this.getHttpStatusFromCode(code);
+    
+    // 如果指定了HTTP状态码，则使用指定的状态码
+    if (typeof originalErrorOrHttpStatus === 'number') {
+      this.statusCode = originalErrorOrHttpStatus;
+    }
+
+    // 捕获堆栈跟踪
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ApiError);
+    }
+  }
+  
+  /**
+   * 兼容旧版API错误类的创建方法
+   * 允许先传错误消息，再传状态码/错误码
+   * @param message 错误消息
+   * @param code HTTP状态码或错误码
+   * @param originalError 原始错误消息
+   */
+  static create(message: string, code: number = 500, originalError?: string): ApiError {
+    const errorCode = code >= 10000 ? code : ErrorCode.UNKNOWN_ERROR;
+    const details = originalError ? { originalError } : undefined;
+    return new ApiError(errorCode, message, undefined, details);
   }
 
   /**
-   * 创建400错误 - 无效请求
-   * @param message 错误消息
-   * @param details 错误详情
+   * 根据错误代码获取对应的HTTP状态码
+   * @param code 错误代码
+   * @returns HTTP状态码
    */
-  static badRequest(message: string = '无效的请求参数', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.INVALID_REQUEST, 400, 'BAD_REQUEST', details);
+  private getHttpStatusFromCode(code: number): number {
+    // 错误代码范围与HTTP状态码映射
+    if (code >= 10000 && code < 20000) return 400; // 请求错误
+    if (code >= 20000 && code < 30000) return 404; // 资源不存在
+    if (code >= 30000 && code < 40000) return 401; // 未授权
+    if (code >= 40000 && code < 50000) return 403; // 禁止访问
+    if (code >= 50000 && code < 60000) return 409; // 冲突
+    if (code >= 60000) return 500; // 服务器错误
+    
+    return 500; // 默认服务器错误
   }
 
   /**
-   * 创建401错误 - 未授权
+   * 创建一个包含内部错误详情的API错误
    * @param message 错误消息
    * @param details 错误详情
+   * @returns API错误实例
    */
-  static unauthorized(message: string = '未授权访问', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.UNAUTHORIZED, 401, 'UNAUTHORIZED', details);
+  static internal(message: string, details?: any): ApiError {
+    return new ApiError(ErrorCode.INTERNAL_SERVER_ERROR, message, undefined, details);
   }
 
   /**
-   * 创建403错误 - 禁止访问
+   * 创建一个表示未授权的API错误
    * @param message 错误消息
-   * @param details 错误详情
+   * @returns API错误实例
    */
-  static forbidden(message: string = '禁止访问此资源', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.FORBIDDEN, 403, 'FORBIDDEN', details);
+  static unauthorized(message = '未授权'): ApiError {
+    return new ApiError(ErrorCode.UNAUTHORIZED, message);
   }
 
   /**
-   * 创建404错误 - 资源不存在
+   * 创建一个表示禁止访问的API错误
    * @param message 错误消息
-   * @param details 错误详情
+   * @returns API错误实例
    */
-  static notFound(message: string = '请求的资源不存在', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.RESOURCE_NOT_FOUND, 404, 'NOT_FOUND', details);
+  static forbidden(message = '禁止访问'): ApiError {
+    return new ApiError(ErrorCode.FORBIDDEN, message);
   }
 
   /**
-   * 创建409错误 - 资源冲突
+   * 创建一个表示资源不存在的API错误
    * @param message 错误消息
-   * @param details 错误详情
+   * @returns API错误实例
    */
-  static conflict(message: string = '资源冲突', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.CONFLICT, 409, 'CONFLICT', details);
+  static notFound(message = '资源不存在'): ApiError {
+    return new ApiError(ErrorCode.NOT_FOUND, message);
   }
 
   /**
-   * 创建429错误 - 请求过多
+   * 创建一个表示请求无效的API错误
    * @param message 错误消息
-   * @param details 错误详情
+   * @returns API错误实例
    */
-  static tooManyRequests(message: string = '请求过于频繁，请稍后再试', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.TOO_MANY_REQUESTS, 429, 'TOO_MANY_REQUESTS', details);
+  static badRequest(message = '请求无效'): ApiError {
+    return new ApiError(ErrorCode.BAD_REQUEST, message);
   }
-
+  
   /**
-   * 创建500错误 - 服务器内部错误
+   * 创建一个表示冲突错误的API错误
    * @param message 错误消息
-   * @param details 错误详情
+   * @returns API错误实例
    */
-  static internal(message: string = '服务器内部错误', details?: any): ApiError {
-    return new ApiError(message, ERROR_CODES.INTERNAL_SERVER_ERROR, 500, 'INTERNAL_SERVER_ERROR', details);
+  static conflict(message = '资源冲突'): ApiError {
+    return new ApiError(ErrorCode.CONFLICT, message);
+  }
+  
+  /**
+   * 创建一个表示请求次数过多的API错误
+   * @param message 错误消息
+   * @returns API错误实例
+   */
+  static tooManyRequests(message = '请求次数过多'): ApiError {
+    return new ApiError(ErrorCode.TOO_MANY_REQUESTS, message);
   }
 }

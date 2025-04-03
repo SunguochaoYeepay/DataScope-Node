@@ -4,6 +4,7 @@ import logger from '../utils/logger';
 import metadataService from '../services/metadata.service';
 import datasourceService from '../services/datasource.service';
 import ApiError from '../utils/apiError';
+import { getPaginationParams } from '../utils/api.utils';
 
 /**
  * 元数据控制器，处理与数据源元数据相关的请求
@@ -25,7 +26,14 @@ class MetadataController {
         throw new ApiError(`数据源 ${dataSourceId} 不存在`, StatusCodes.NOT_FOUND);
       }
 
-      const tables = await metadataService.getTables(dataSourceId);
+      // 获取分页参数
+      const pagination = getPaginationParams(req);
+
+      // 获取表列表，传递分页参数
+      const tables = await metadataService.getTables(dataSourceId, {
+        page: pagination.page,
+        size: pagination.size
+      });
       
       res.status(StatusCodes.OK).json({
         success: true,
@@ -263,7 +271,11 @@ class MetadataController {
       }
       
       // 添加分页
-      sql += ` LIMIT ${offset}, ${size}`;
+      if (offset > 0) {
+        sql += ` LIMIT ${offset}, ${size}`;
+      } else {
+        sql += ` LIMIT ${size}`;
+      }
       
       // 执行查询
       const result = await connector.executeQuery(sql, params);
@@ -277,7 +289,7 @@ class MetadataController {
 
       // 构造响应数据
       const responseData = {
-        rows: result.rows,
+        items: result.rows,
         columns: result.fields ? result.fields.map((field: any) => ({
           name: field.name,
           type: field.type

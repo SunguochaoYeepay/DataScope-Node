@@ -104,15 +104,23 @@ const deleteQuery = async (query: Query, event: Event) => {
   event.stopPropagation()
   
   confirmModal.confirm({
-    title: '删除查询',
-    content: '确定要删除这个查询吗？此操作不可恢复。',
+    title: '删除查询历史',
+    content: '确定要删除这个查询历史记录吗？此操作不可恢复。',
     okButtonType: 'danger',
     okText: '删除',
     onOk: async () => {
-      await queryStore.deleteQuery(query.id)
+      await queryStore.deleteQueryHistory(query.id)
       refresh()
     }
   })
+}
+
+// 查看版本
+const viewVersions = (query: Query, event: Event) => {
+  event.stopPropagation()
+  
+  // 使用路由导航到版本管理页面
+  window.location.href = `/query/version/management/${query.id}`
 }
 
 // 格式化日期时间
@@ -266,61 +274,104 @@ onMounted(async () => {
       
       <!-- 查询列表 -->
       <div v-if="filteredHistory.length > 0" class="space-y-2">
-        <div
-          v-for="query in filteredHistory"
-          :key="query.id"
-          class="border rounded p-3 hover:bg-gray-50 cursor-pointer"
+        <div 
+          v-for="query in filteredHistory" 
+          :key="query.id" 
+          class="bg-white p-4 rounded-lg border hover:shadow-md cursor-pointer transition-shadow duration-200"
           @click="selectQuery(query)"
         >
-          <div class="flex justify-between">
-            <div class="flex items-center space-x-2">
-              <h4 class="font-medium">
-                {{ query.name || '未命名查询' }}
-              </h4>
+          <div class="flex justify-between items-start">
+            <div class="flex-grow">
+              <div class="flex items-center mb-1">
+                <h3 class="font-medium text-gray-900 mr-2">{{ query.name || '未命名查询' }}</h3>
+                
+                <!-- 版本信息 -->
+                <div v-if="query.versionNumber" class="flex items-center">
+                  <span 
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mr-1"
+                    :class="{
+                      'bg-yellow-100 text-yellow-800': query.versionStatus === 'DRAFT',
+                      'bg-green-100 text-green-800': query.versionStatus === 'PUBLISHED',
+                      'bg-gray-100 text-gray-800': query.versionStatus === 'DEPRECATED'
+                    }"
+                  >
+                    v{{ query.versionNumber }}
+                  </span>
+                  
+                  <span v-if="query.isActiveVersion" class="text-green-600" title="当前活跃版本">
+                    <i class="fas fa-check-circle"></i>
+                  </span>
+                </div>
+              </div>
               
-              <span
-                class="px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="getStatusClass(query.status)"
-              >
-                {{ getStatusDisplay(query.status) }}
-              </span>
+              <div class="text-sm text-gray-500 mb-2">{{ query.description || '无描述' }}</div>
+              
+              <div class="flex items-center text-xs text-gray-500 mb-2 space-x-3">
+                <span>
+                  <i class="far fa-calendar-alt mr-1"></i>
+                  {{ formatDateTime(query.createdAt) }}
+                </span>
+                
+                <span v-if="query.updatedAt && query.updatedAt !== query.createdAt">
+                  <i class="far fa-clock mr-1"></i>
+                  更新于: {{ formatDateTime(query.updatedAt) }}
+                </span>
+                
+                <span v-if="query.lastRun">
+                  <i class="fas fa-play mr-1"></i>
+                  上次运行: {{ formatDateTime(query.lastRun) }}
+                </span>
+                
+                <span v-if="query.executionTime !== undefined">
+                  <i class="fas fa-stopwatch mr-1"></i>
+                  执行时间: {{ query.executionTime }}ms
+                </span>
+              </div>
+              
+              <div class="flex items-center text-xs">
+                <span 
+                  class="px-2 py-0.5 rounded-full mr-2"
+                  :class="getStatusClass(query.status || 'COMPLETED')"
+                >
+                  {{ getStatusDisplay(query.status || 'COMPLETED') }}
+                </span>
+                
+                <span class="text-gray-500 mr-2">
+                  <i class="far fa-file-alt mr-1"></i>
+                  {{ getQueryTypeDisplay(query.queryType || 'SQL') }}
+                </span>
+                
+                <span v-if="query.resultCount !== undefined" class="text-gray-500">
+                  <i class="fas fa-table mr-1"></i>
+                  {{ query.resultCount }} 行结果
+                </span>
+              </div>
             </div>
             
             <div class="flex space-x-1">
-              <button
-                class="p-1 text-gray-500 hover:text-yellow-500"
-                :class="{ 'text-yellow-500': query.isFavorite }"
-                :title="query.isFavorite ? '从收藏夹中移除' : '添加到收藏夹'"
-                @click="toggleFavorite(query, $event)"
+              <button 
+                @click="toggleFavorite(query, $event)" 
+                class="p-1 rounded hover:bg-gray-100"
+                :title="query.isFavorite ? '取消收藏' : '收藏'"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" stroke="none">
-                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
+                <i :class="[
+                  query.isFavorite ? 'fas fa-star text-yellow-400' : 'far fa-star text-gray-400'
+                ]"></i>
               </button>
               
-              <button
-                class="p-1 text-gray-500 hover:text-red-500"
-                title="删除"
-                @click="deleteQuery(query, $event)"
+              <button 
+                @click="viewVersions(query, $event)" 
+                class="p-1 rounded hover:bg-gray-100"
+                title="查看版本"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+                <i class="fas fa-code-branch text-gray-400"></i>
               </button>
             </div>
           </div>
           
-          <div class="text-xs text-gray-500 mt-1">
-            <div class="flex items-center space-x-4 mb-1">
-              <span>类型: {{ getQueryTypeDisplay(query.queryType) }}</span>
-              <span>执行时间: {{ query.executionTime || '—' }}ms</span>
-              <span>结果数: {{ query.resultCount || '—' }}</span>
-            </div>
-            
-            <div class="flex justify-between">
-              <div class="truncate max-w-xs">{{ query.queryText }}</div>
-              <div>{{ formatDateTime(query.createdAt) }}</div>
-            </div>
+          <!-- 查询内容预览 -->
+          <div class="mt-2 p-2 bg-gray-50 rounded border text-xs text-gray-600 font-mono line-clamp-2">
+            {{ query.queryText }}
           </div>
         </div>
         

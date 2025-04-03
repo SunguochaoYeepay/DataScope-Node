@@ -165,17 +165,16 @@ const handleView = (dataSource: DataSource) => {
 
 // 处理测试连接
 const handleTestConnection = (dataSource: DataSource) => {
-  const params: TestConnectionParams = {
-    id: dataSource.id,
+  const testParams: TestConnectionParams = {
     type: dataSource.type,
     host: dataSource.host,
     port: dataSource.port,
     database: dataSource.databaseName,
     username: dataSource.username,
-    connectionParams: dataSource.connectionOptions || {}
+    connectionParams: dataSource.connectionParams || {}
   }
   
-  emit('test-connection', params, (success) => {
+  emit('test-connection', testParams, (success) => {
     if (success) {
       // 处理连接成功的逻辑
       console.log('连接测试成功')

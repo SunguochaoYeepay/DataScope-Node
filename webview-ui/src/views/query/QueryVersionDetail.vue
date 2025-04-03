@@ -297,12 +297,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { useMessage } from 'naive-ui'
 import useQueryStore from '@/stores/query'
 import { queryService } from '@/services/query'
 import { versionService } from '@/services/queryVersion'
-import type { Query, QueryExecution, QueryExecutionPlan, QuerySuggestion } from '@/types/query'
-import type { QueryVersion } from '@/types/queryVersion'
+import type { Query, QueryVersion as QueryVersionType, QueryExecutionPlan, QuerySuggestion, QueryExecution, QueryStatus } from '@/types/query'
+import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion'
 
 // 执行状态类型
 type ExecutionStatus = 'SUCCESS' | 'ERROR' | 'RUNNING' | 'CANCELLED'
@@ -313,6 +313,7 @@ type QueryVersionStatus = 'DRAFT' | 'PUBLISHED' | 'DEPRECATED'
 const route = useRoute();
 const router = useRouter();
 const queryStore = useQueryStore();
+const message = useMessage();
 
 // 从路由参数获取查询ID和版本ID
 const queryId = computed(() => route.params.id as string);
@@ -476,7 +477,7 @@ const loadExecutionPlan = async () => {
 // 查看执行详情
 const viewExecutionDetails = (executionId: string) => {
   console.log(`查看执行详情: ${executionId}`);
-  ElMessage.info('执行详情功能开发中...');
+  message.info('执行详情功能开发中...');
 };
 
 // 设为活跃版本
@@ -486,7 +487,7 @@ const handleActivate = async () => {
     
     // 使用真实API调用激活版本
     if (!queryId.value || !versionId.value) {
-      ElMessage.error('无法激活版本：查询ID或版本ID为空');
+      message.error('无法激活版本：查询ID或版本ID为空');
       return;
     }
     
@@ -499,13 +500,13 @@ const handleActivate = async () => {
         versionData.value.isActive = true;
       }
       
-      ElMessage.success('已将当前版本设置为活跃版本');
+      message.success('已将当前版本设置为活跃版本');
     } else {
-      ElMessage.error('设置活跃版本失败，请稍后重试');
+      message.error('设置活跃版本失败，请稍后重试');
     }
   } catch (error) {
     console.error('Failed to activate version:', error);
-    ElMessage.error('设置活跃版本失败，请稍后重试');
+    message.error('设置活跃版本失败，请稍后重试');
   }
 };
 
@@ -521,12 +522,15 @@ const formatVersionStatus = (status?: QueryVersionStatus): string => {
 };
 
 // 格式化执行状态
-const formatExecutionStatus = (status: string) => {
-  if (status === 'SUCCESS') return '成功';
-  if (status === 'ERROR') return '失败';
-  if (status === 'RUNNING') return '执行中';
-  if (status === 'CANCELLED') return '已取消';
-  return status;
+const formatExecutionStatus = (status?: ExecutionStatus): string => {
+  if (!status) return '-';
+  const statusMap: Record<ExecutionStatus, string> = {
+    'SUCCESS': '成功',
+    'ERROR': '失败',
+    'RUNNING': '执行中',
+    'CANCELLED': '已取消'
+  };
+  return statusMap[status] || status;
 };
 
 // 格式化日期和时间
@@ -640,14 +644,14 @@ const executeQuery = async () => {
 // 导出结果
 const exportResults = (format: 'csv' | 'excel') => {
   if (!queryResults.value || queryResults.value.length === 0) {
-    ElMessage.error('无可导出的查询结果');
+    message.error('无可导出的查询结果');
     return;
   }
   
-  ElMessage.success(`已开始导出查询结果为 ${format.toUpperCase()} 格式`);
+  message.success(`已开始导出查询结果为 ${format.toUpperCase()} 格式`);
   
   // 这里应该实现实际的导出逻辑
-  console.log(`导出查询结果为${format}格式`);
+  console.log(`导出结果为 ${format} 格式`);
 };
 
 // 结果分页控制

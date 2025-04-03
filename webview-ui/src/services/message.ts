@@ -1,4 +1,5 @@
 import { createVNode, render } from 'vue'
+import type { App } from 'vue'
 import type { MessageConfig, MessageInstance, MessageService } from '@/types/message'
 import MessageAlert from '@/components/common/MessageAlert.vue'
 
@@ -109,6 +110,31 @@ export const message: MessageService = {
   closeAll() {
     instances.forEach(instance => removeInstance(instance.id))
   }
+}
+
+/**
+ * 消息服务插件，用于在Vue 3中通过插件机制安装消息服务
+ */
+export const installMessageService = {
+  /**
+   * 安装插件方法
+   * @param app Vue应用实例
+   */
+  install(app: App): void {
+    // 将消息服务添加到全局属性中
+    app.config.globalProperties.$message = message;
+    
+    // 提供消息服务供组件通过inject使用
+    app.provide('messageService', message);
+  }
+};
+
+/**
+ * 获取消息服务的Hook函数
+ * @returns 消息服务实例
+ */
+export function useMessageService(): MessageService {
+  return message;
 }
 
 export default message

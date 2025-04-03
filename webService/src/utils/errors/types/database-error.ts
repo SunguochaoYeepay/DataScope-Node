@@ -1,5 +1,5 @@
 import { AppError } from '../app-error';
-import { ERROR_CODES } from '../error-codes';
+import { ERROR_CODES, GENERAL_ERROR } from '../error-codes';
 
 /**
  * 数据库错误类
@@ -55,7 +55,7 @@ export class DatabaseError extends AppError {
    * @param details 错误详情
    */
   static recordNotFound(message: string = '请求的数据库记录不存在', details?: any): DatabaseError {
-    return new DatabaseError(message, ERROR_CODES.DATABASE_RECORD_NOT_FOUND, 404, details);
+    return new DatabaseError(message, GENERAL_ERROR.DATABASE_RECORD_NOT_FOUND, 404, details);
   }
 
   /**
@@ -64,7 +64,7 @@ export class DatabaseError extends AppError {
    * @param details 错误详情
    */
   static recordExists(message: string = '数据库记录已存在', details?: any): DatabaseError {
-    return new DatabaseError(message, ERROR_CODES.DATABASE_RECORD_EXISTS, 409, details);
+    return new DatabaseError(message, GENERAL_ERROR.DATABASE_RECORD_EXISTS, 409, details);
   }
 
   /**
