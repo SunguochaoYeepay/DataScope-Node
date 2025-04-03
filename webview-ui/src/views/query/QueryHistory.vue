@@ -243,14 +243,6 @@
                 </button>
                 
                 <button
-                  @click="viewQueryVersions(query)"
-                  class="p-2 text-gray-500 hover:text-blue-600 rounded"
-                  title="查看版本历史"
-                >
-                  <i class="fas fa-code-branch"></i>
-                </button>
-                
-                <button
                   @click="viewQueryAnalytics(query)"
                   class="p-2 text-gray-500 hover:text-indigo-600 rounded"
                   title="查看分析"
@@ -634,11 +626,6 @@ export default defineComponent({
       router.push(`/query/detail/${query.id}`)
     }
     
-    // 查看查询版本历史
-    const viewQueryVersions = (query: Query) => {
-      router.push(`/query/version/management/${query.id}`)
-    }
-
     // 查看查询分析
     const viewQueryAnalytics = (query: Query) => {
       router.push(`/query/analytics/${query.id}`)
@@ -841,7 +828,6 @@ export default defineComponent({
       editQuery,
       toggleFavorite,
       viewQueryDetail,
-      viewQueryVersions,
       viewQueryAnalytics,
       confirmDelete,
       deleteQuery,

@@ -118,13 +118,13 @@ router.get('/query/version/:versionId', asyncHandler(async (req: Request, res: R
 router.put('/query/version/activate/:versionId', asyncHandler(async (req: Request, res: Response) => {
   const { versionId } = req.params;
   
-  logger.info(`开始激活版本: ${versionId}`, { path: req.path, params: req.params });
+  logger.info(`激活版本 - 前端直接调用路径: ${versionId}`, { path: req.path });
   
   try {
     // 记录版本详情
     const versionDetails = await queryVersionService.getVersionById(versionId);
     logger.info(`激活版本详情:`, { 
-      versionId, 
+      versionId,
       queryId: versionDetails.queryId,
       versionNumber: versionDetails.versionNumber,
       status: versionDetails.versionStatus
@@ -132,7 +132,8 @@ router.put('/query/version/activate/:versionId', asyncHandler(async (req: Reques
     
     // 激活版本
     const updatedQuery = await queryVersionService.activateVersion(versionId);
-    logger.info(`激活版本成功:`, { 
+    
+    logger.info(`激活版本成功:`, {
       versionId,
       queryId: updatedQuery.id,
       currentVersionId: updatedQuery.currentVersionId
@@ -143,6 +144,62 @@ router.put('/query/version/activate/:versionId', asyncHandler(async (req: Reques
       req.query.currentVersionId = updatedQuery.currentVersionId as string;
     }
     
+    // 使用统一的API响应格式
+    res.status(200).json({
+      success: true,
+      message: '已成功将版本设为活跃版本',
+      data: updatedQuery
+    });
+  } catch (error: any) {
+    const message = error.message || '激活版本失败';
+    const code = error.errorCode || 10006;
+    
+    logger.error(`激活版本失败: ${message}`, { error, versionId });
+    
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        code,
+        message,
+        details: error.details || null
+      }
+    });
+  }
+}));
+
+/**
+ * 前端直接调用路径(带/api前缀)：激活版本
+ */
+router.put('/api/query/version/activate/:versionId', asyncHandler(async (req: Request, res: Response) => {
+  const { versionId } = req.params;
+  
+  logger.info(`激活版本 - 前端直接调用路径(带/api前缀): ${versionId}`, { path: req.path });
+  
+  try {
+    // 记录版本详情
+    const versionDetails = await queryVersionService.getVersionById(versionId);
+    logger.info(`激活版本详情:`, { 
+      versionId,
+      queryId: versionDetails.queryId,
+      versionNumber: versionDetails.versionNumber,
+      status: versionDetails.versionStatus
+    });
+    
+    // 激活版本
+    const updatedQuery = await queryVersionService.activateVersion(versionId);
+    
+    logger.info(`激活版本成功:`, {
+      versionId,
+      queryId: updatedQuery.id,
+      currentVersionId: updatedQuery.currentVersionId
+    });
+    
+    // 注意！在响应前设置当前版本ID，以便中间件正确识别活跃版本
+    if (updatedQuery.currentVersionId) {
+      req.query.currentVersionId = updatedQuery.currentVersionId as string;
+    }
+    
+    // 使用统一的API响应格式
     res.status(200).json({
       success: true,
       message: '已成功将版本设为活跃版本',
@@ -321,7 +378,11 @@ router.post('/queries/versions/:versionId/publish', asyncHandler(async (req: Req
       versionNumber: publishedVersion.versionNumber
     });
     
-    res.status(200).json(publishedVersion);
+    // 使用统一的API响应格式
+    res.status(200).json({
+      success: true,
+      data: publishedVersion
+    });
   } catch (error: any) {
     const message = error.message || '发布版本失败';
     const code = error.errorCode || 10006;
@@ -399,6 +460,166 @@ router.post('/queries/:queryId/versions/:versionId/activate', asyncHandler(async
     const code = error.errorCode || 10006;
     
     logger.error(`激活版本失败: ${message}`, { error, versionId });
+    
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        code,
+        message,
+        details: error.details || null
+      }
+    });
+  }
+}));
+
+/**
+ * 前端直接调用路径：发布版本 (POST方法)
+ */
+router.post('/query/version/publish/:versionId', asyncHandler(async (req: Request, res: Response) => {
+  const { versionId } = req.params;
+  
+  logger.info(`发布版本 - 前端直接调用路径(POST): ${versionId}`, { path: req.path });
+  
+  try {
+    // 发布版本
+    const publishedVersion = await queryVersionService.publishVersion(versionId);
+    
+    logger.info(`发布版本成功:`, {
+      versionId,
+      queryId: publishedVersion.queryId,
+      versionNumber: publishedVersion.versionNumber
+    });
+    
+    // 使用统一的API响应格式
+    res.status(200).json({
+      success: true,
+      data: publishedVersion
+    });
+  } catch (error: any) {
+    const message = error.message || '发布版本失败';
+    const code = error.errorCode || 10006;
+    
+    logger.error(`发布版本失败: ${message}`, { error, versionId });
+    
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        code,
+        message,
+        details: error.details || null
+      }
+    });
+  }
+}));
+
+/**
+ * 前端直接调用路径(带/api前缀)：发布版本 (POST方法)
+ */
+router.post('/api/query/version/publish/:versionId', asyncHandler(async (req: Request, res: Response) => {
+  const { versionId } = req.params;
+  
+  logger.info(`发布版本 - 前端直接调用路径(POST,带/api前缀): ${versionId}`, { path: req.path });
+  
+  try {
+    // 发布版本
+    const publishedVersion = await queryVersionService.publishVersion(versionId);
+    
+    logger.info(`发布版本成功:`, {
+      versionId,
+      queryId: publishedVersion.queryId,
+      versionNumber: publishedVersion.versionNumber
+    });
+    
+    // 使用统一的API响应格式
+    res.status(200).json({
+      success: true,
+      data: publishedVersion
+    });
+  } catch (error: any) {
+    const message = error.message || '发布版本失败';
+    const code = error.errorCode || 10006;
+    
+    logger.error(`发布版本失败: ${message}`, { error, versionId });
+    
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        code,
+        message,
+        details: error.details || null
+      }
+    });
+  }
+}));
+
+/**
+ * 前端直接调用路径：发布版本 (PUT方法)
+ */
+router.put('/query/version/publish/:versionId', asyncHandler(async (req: Request, res: Response) => {
+  const { versionId } = req.params;
+  
+  logger.info(`发布版本 - 前端直接调用路径(PUT): ${versionId}`, { path: req.path });
+  
+  try {
+    // 发布版本
+    const publishedVersion = await queryVersionService.publishVersion(versionId);
+    
+    logger.info(`发布版本成功:`, {
+      versionId,
+      queryId: publishedVersion.queryId,
+      versionNumber: publishedVersion.versionNumber
+    });
+    
+    // 使用统一的API响应格式
+    res.status(200).json({
+      success: true,
+      data: publishedVersion
+    });
+  } catch (error: any) {
+    const message = error.message || '发布版本失败';
+    const code = error.errorCode || 10006;
+    
+    logger.error(`发布版本失败: ${message}`, { error, versionId });
+    
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        code,
+        message,
+        details: error.details || null
+      }
+    });
+  }
+}));
+
+/**
+ * 前端直接调用路径(带/api前缀)：发布版本 (PUT方法)
+ */
+router.put('/api/query/version/publish/:versionId', asyncHandler(async (req: Request, res: Response) => {
+  const { versionId } = req.params;
+  
+  logger.info(`发布版本 - 前端直接调用路径(PUT,带/api前缀): ${versionId}`, { path: req.path });
+  
+  try {
+    // 发布版本
+    const publishedVersion = await queryVersionService.publishVersion(versionId);
+    
+    logger.info(`发布版本成功:`, {
+      versionId,
+      queryId: publishedVersion.queryId,
+      versionNumber: publishedVersion.versionNumber
+    });
+    
+    // 使用统一的API响应格式
+    res.status(200).json({
+      success: true,
+      data: publishedVersion
+    });
+  } catch (error: any) {
+    const message = error.message || '发布版本失败';
+    const code = error.errorCode || 10006;
+    
+    logger.error(`发布版本失败: ${message}`, { error, versionId });
     
     res.status(error.statusCode || 500).json({
       success: false,

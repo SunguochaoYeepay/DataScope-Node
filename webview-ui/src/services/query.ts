@@ -1187,6 +1187,7 @@ export const queryService = {
     sortBy?: string;
     sortDir?: string;
     includeDrafts?: boolean;
+    includeVersionInfo?: boolean;
   } = {}): Promise<PageResponse<Query>> {
     if (isUsingMockApi()) {
       return mockQueryApi.getQueries(params)
@@ -1204,6 +1205,7 @@ export const queryService = {
       if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
       if (params?.sortDir) queryParams.append('sortDir', params.sortDir)
       if (params?.includeDrafts !== undefined) queryParams.append('includeDrafts', String(params.includeDrafts))
+      if (params?.includeVersionInfo !== undefined) queryParams.append('includeVersionInfo', String(params.includeVersionInfo))
 
       console.log('获取查询列表参数:', Object.fromEntries(queryParams.entries()));
       
@@ -1400,6 +1402,52 @@ export const queryService = {
     } catch (error) {
       console.error('更新查询错误:', error);
       throw error;
+    }
+  },
+
+  /**
+   * 保存查询
+   * @param query 查询对象
+   * @returns 保存的查询对象
+   */
+  async createQueryWithVersion(query: {
+    id?: string;
+    name: string;
+    dataSourceId: string;
+    sql: string;
+    description?: string;
+    tags?: string[];
+    isPublic?: boolean;
+  }): Promise<any> {
+    try {
+      const response = await API.post('/queries', query);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || '保存查询失败';
+      throw new Error(errorMessage);
+    }
+  },
+
+  /**
+   * 一键发布查询
+   * 创建查询，同时创建版本并发布激活该版本
+   * @param query 查询对象
+   * @returns 保存并发布的查询对象
+   */
+  async publishQuery(query: {
+    id?: string;
+    name: string;
+    dataSourceId: string;
+    sql: string;
+    description?: string;
+    tags?: string[];
+  }): Promise<any> {
+    try {
+      const response = await API.post('/queries/publish', query);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || '发布查询失败';
+      throw new Error(errorMessage);
     }
   },
 }

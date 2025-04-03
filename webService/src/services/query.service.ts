@@ -577,8 +577,37 @@ export class QueryService {
         take: limit
       });
       
+      // 获取所有查询的当前版本ID
+      const versionIds = queries
+        .filter(q => q.currentVersionId)
+        .map(q => q.currentVersionId as string);
+      
+      // 批量获取版本信息
+      const versions = await prisma.queryVersion.findMany({
+        where: {
+          id: { in: versionIds }
+        }
+      });
+      
+      // 处理结果，将版本信息整合到查询对象中
+      const processedQueries = queries.map(query => {
+        // 基础查询对象
+        const processedQuery: any = { ...query };
+        
+        // 查找匹配的版本信息
+        if (query.currentVersionId) {
+          const version = versions.find(v => v.id === query.currentVersionId);
+          if (version) {
+            processedQuery.versionNumber = version.versionNumber;
+            processedQuery.versionStatus = version.versionStatus;
+          }
+        }
+        
+        return processedQuery;
+      });
+      
       // 返回标准格式的分页响应
-      return createPaginatedResponse(queries, total, page, limit);
+      return createPaginatedResponse(processedQueries, total, page, limit);
     } catch (error: any) {
       logger.error('获取查询列表失败', { error, options });
       throw new ApiError('获取查询列表失败', 500, error.message);

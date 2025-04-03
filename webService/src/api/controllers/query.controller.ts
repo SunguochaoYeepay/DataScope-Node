@@ -8,6 +8,7 @@ import dataSourceService from '../../services/datasource.service';
 import { StatusCodes } from 'http-status-codes';
 import { getPaginationParams, createSuccessResponse } from '../../utils/api.utils';
 import { PrismaClient } from '@prisma/client';
+import queryVersionService from '../../services/query-version.service';
 
 const prisma = new PrismaClient();
 
@@ -304,7 +305,8 @@ export class QueryController {
         description,
         sql,
         tags,
-        isPublic
+        isPublic,
+        shouldPublish = false // 默认不自动发布
       } = req.body;
 
       // 如果前端提供了ID，记录一下
@@ -312,19 +314,53 @@ export class QueryController {
         logger.debug('前端提供了自定义ID', { id });
       }
 
-      const savedQuery = await queryService.saveQuery({
+      // 使用重构后的保存查询方法，同时创建初始版本
+      const userId = (req as any).user?.id || 'system';
+      
+      // 调用版本化服务进行保存
+      const result = await queryVersionService.saveQueryWithVersion({
         id,
-        dataSourceId,
         name,
-        description,
+        dataSourceId,
         sql,
-        tags,
-        isPublic
+        description,
+        tags: tags ? Array.isArray(tags) ? tags : [tags] : [],
+        userId,
+        isPublic: isPublic === true
       });
       
+      // 如果需要发布和激活版本
+      if (shouldPublish && result.versionId) {
+        try {
+          // 发布版本
+          logger.debug('自动发布查询版本', { queryId: result.query.id, versionId: result.versionId });
+          await queryVersionService.publishVersion(result.versionId);
+          
+          // 设置为活跃版本
+          logger.debug('自动设置版本为活跃版本', { queryId: result.query.id, versionId: result.versionId });
+          await queryVersionService.activateVersion(result.versionId);
+          
+          // 重新获取查询信息，确保包含最新状态
+          const updatedQuery = await queryService.getQueryById(result.query.id);
+          
+          // 返回成功响应，包含查询信息和版本ID
+          return res.status(201).json({
+            success: true,
+            data: updatedQuery
+          });
+        } catch (publishError) {
+          logger.error('自动发布并激活版本失败', { error: publishError, queryId: result.query.id, versionId: result.versionId });
+          // 即使发布失败，仍然返回创建的查询
+        }
+      }
+      
+      // 返回成功响应，包含查询信息和版本ID
       res.status(201).json({
         success: true,
-        data: savedQuery
+        data: {
+          ...result.query,
+          currentVersionId: result.versionId
+        }
       });
     } catch (error: any) {
       logger.error('保存查询失败', { error, body: req.body });
@@ -913,6 +949,92 @@ export class QueryController {
           message: `删除失败：${error.message || '未知错误'}`,
           details: null
         }
+      });
+    }
+  }
+
+  /**
+   * 一键保存并发布查询
+   * 创建查询记录、初始版本，并发布激活该版本
+   */
+  async publishQuery(req: Request, res: Response, next: NextFunction) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        // 格式化验证错误
+        const formattedErrors = errors.array().map(error => ({
+          field: (error as any).path || (error as any).param,
+          value: (error as any).value,
+          message: error.msg
+        }));
+        
+        return res.status(400).json({
+          success: false,
+          message: '查询发布失败：输入验证错误',
+          errors: formattedErrors
+        });
+      }
+
+      const {
+        id,
+        dataSourceId,
+        name,
+        description,
+        sql,
+        tags
+      } = req.body;
+
+      const userId = (req as any).user?.id || 'system';
+      
+      // 第一步：保存查询并创建初始版本
+      logger.debug('开始一键发布查询', { name, dataSourceId });
+      
+      // 调用版本化服务进行保存
+      const result = await queryVersionService.saveQueryWithVersion({
+        id,
+        name,
+        dataSourceId,
+        sql,
+        description,
+        tags: tags ? Array.isArray(tags) ? tags : [tags] : [],
+        userId,
+        isPublic: true // 设置为公开
+      });
+      
+      // 第二步：发布该版本
+      logger.debug('发布查询版本', { versionId: result.versionId });
+      const publishedVersion = await queryVersionService.publishVersion(result.versionId);
+      
+      // 第三步：激活该版本
+      logger.debug('激活查询版本', { versionId: result.versionId });
+      const activatedQuery = await queryVersionService.activateVersion(result.versionId);
+      
+      // 返回成功响应
+      res.status(201).json({
+        success: true,
+        data: {
+          ...activatedQuery,
+          currentVersionId: result.versionId,
+          publishedVersion: publishedVersion
+        },
+        message: '查询已成功保存并发布'
+      });
+    } catch (error: any) {
+      logger.error('保存并发布查询失败', { error, body: req.body });
+      
+      // 处理特定类型的错误
+      if (error instanceof ApiError) {
+        return res.status(error.statusCode || 500).json({
+          success: false,
+          message: `查询发布失败：${error.message}`,
+          errorCode: error.errorCode
+        });
+      }
+      
+      // 未知错误处理
+      return res.status(500).json({
+        success: false,
+        message: `查询发布失败：${error.message || '未知错误'}`
       });
     }
   }

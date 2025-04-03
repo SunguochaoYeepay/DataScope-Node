@@ -158,7 +158,7 @@ app.use('/api/mock-plan', mockPlanRouter);
 
 // 直接注册查询版本路由，确保前端访问路径正确
 app.use('/api', queryVersionRoutes);
-app.use('', queryVersionRoutes);
+app.use('', queryVersionRoutes); // 使root路径也能访问
 console.log('主应用：查询版本路由已加载：/api 和 根路径');
 
 // 注册API路由

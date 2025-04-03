@@ -165,11 +165,11 @@
                   <span 
                     class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                     :class="{
-                      'bg-blue-100 text-blue-800': query.serviceStatus === 'ENABLED',
-                      'bg-gray-100 text-gray-800': query.serviceStatus !== 'ENABLED'
+                      'bg-blue-100 text-blue-800': query.serviceStatus && query.serviceStatus.toUpperCase() === 'ENABLED',
+                      'bg-gray-100 text-gray-800': !query.serviceStatus || query.serviceStatus.toUpperCase() !== 'ENABLED'
                     }"
                   >
-                    {{ query.serviceStatus === 'ENABLED' ? '已启用' : '已禁用' }}
+                    {{ query.serviceStatus && query.serviceStatus.toUpperCase() === 'ENABLED' ? '已启用' : '已禁用' }}
                   </span>
                 </div>
               </td>
@@ -178,8 +178,18 @@
                   <span class="inline-flex items-center mr-1">
                     <i class="fas fa-code-branch text-blue-500"></i>
                   </span>
-                  <span v-if="query.currentVersion" class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-medium">V{{ query.currentVersion.versionNumber }}</span>
-                  <span v-else-if="query.currentVersionId" class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">V{{ formatVersionId(query.currentVersionId) }}</span>
+                  <span v-if="query.currentVersion" class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-medium">
+                    V{{ query.currentVersion.versionNumber }}
+                  </span>
+                  <span v-else-if="query.versionNumber" class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">
+                    V{{ query.versionNumber }}
+                    <span v-if="query.versionStatus" class="ml-1 text-xs">
+                      ({{ getVersionStatusText(query.versionStatus) }})
+                    </span>
+                  </span>
+                  <span v-else-if="query.currentVersionId" class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-medium">
+                    V{{ formatVersionId(query) }}
+                  </span>
                   <span v-else class="text-gray-400">-</span>
                 </div>
                 <div v-else class="text-xs text-gray-400">-</div>
@@ -195,21 +205,11 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button 
-                  @click="toggleFavorite(query)"
-                  :class="[
-                    'mx-1',
-                    query.isFavorite ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'
-                  ]"
-                  :title="query.isFavorite ? '取消收藏' : '收藏'"
-                >
-                  <i :class="[query.isFavorite ? 'fas fa-star' : 'far fa-star']"></i>
-                </button>
-                <button 
-                  @click="viewVersions(query)"
+                  @click="viewQueryDetail(query)"
                   class="text-blue-600 hover:text-blue-900 mx-1"
-                  title="查看版本"
+                  title="查看详情"
                 >
-                  <i class="fas fa-code-branch"></i>
+                  <i class="fas fa-eye"></i>
                 </button>
                 <button 
                   @click="editQuery(query)"
@@ -222,12 +222,12 @@
                   @click="toggleQueryStatus(query)"
                   :class="[
                     'mx-1',
-                    query.serviceStatus === 'ENABLED' ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'
+                    query.serviceStatus && query.serviceStatus.toUpperCase() === 'ENABLED' ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'
                   ]"
-                  :title="query.serviceStatus === 'ENABLED' ? '禁用' : '启用'"
+                  :title="query.serviceStatus && query.serviceStatus.toUpperCase() === 'ENABLED' ? '禁用' : '启用'"
                 >
                   <i :class="[
-                    query.serviceStatus === 'ENABLED' ? 'fas fa-pause-circle' : 'fas fa-play-circle'
+                    query.serviceStatus && query.serviceStatus.toUpperCase() === 'ENABLED' ? 'fas fa-pause-circle' : 'fas fa-play-circle'
                   ]"></i>
                 </button>
                 <button 
@@ -417,19 +417,34 @@ const router = useRouter()
 const queryStore = useQueryStore()
 const messageService = useMessageService()
 
-// 状态
-const isLoading = ref(true)
+// 当前页码
+const currentPage = ref(1)
+
+// 每页条数
+const pageSize = ref(10)
+
+// 是否加载中
+const isLoading = ref(false)
+
+// 列表自动重试相关
+let retryCount = 0
+const shouldAutoRetry = true
+
+// 加载的查询列表
 const queries = ref<any[]>([])
+
+// 搜索条件
 const searchTerm = ref('')
 const serviceStatusFilter = ref('')
-const currentPage = ref(1)
-const pageSize = ref(10)
-const showDeleteConfirm = ref(false)
-const queryToDelete = ref<any>(null)
+
 // 添加状态对话框相关状态
 const showStatusConfirm = ref(false)
 const queryToToggle = ref<any>(null)
 const newStatus = ref<QueryStatus>('PUBLISHED')
+
+// 删除查询对话框相关状态
+const showDeleteConfirm = ref(false)
+const queryToDelete = ref<any>(null)
 
 // 数据源缓存
 const dataSourceCache = ref<DataSource[]>([])
@@ -503,9 +518,11 @@ const loadDataSourceCache = async () => {
 const fetchQueries = async () => {
   try {
     isLoading.value = true;
-    console.log('筛选条件:', {
+    console.log('开始获取查询列表，筛选条件:', {
       search: searchTerm.value,
-      serviceStatus: serviceStatusFilter.value
+      serviceStatus: serviceStatusFilter.value,
+      page: currentPage.value,
+      size: pageSize.value
     });
     
     // 调用API获取数据，传入筛选条件
@@ -513,18 +530,41 @@ const fetchQueries = async () => {
       search: searchTerm.value,
       serviceStatus: serviceStatusFilter.value,
       page: currentPage.value,
-      size: pageSize.value
+      size: pageSize.value,
+      sortBy: 'updatedAt',
+      sortDir: 'desc'
     });
+    
+    // 检查API返回结果
+    console.log('API返回查询列表:', result);
+    
+    if (!result || !Array.isArray(result)) {
+      console.error('API返回格式不正确:', result);
+      messageService.error('获取查询列表失败: 返回数据格式不正确');
+      queries.value = [];
+      return;
+    }
     
     // 直接使用result，fetchQueries方法返回的是Query[]
     queries.value = result;
-    
-    console.log('API返回查询列表:', queries.value);
     
     // 添加单条记录的完整调试信息
     if (queries.value.length > 0) {
       const sampleQuery = queries.value[0];
       console.log('查询示例详情:', JSON.stringify(sampleQuery, null, 2));
+    } else {
+      console.log('查询列表为空');
+      // 移除自动重试机制，防止循环调用
+      /*
+      if (shouldAutoRetry && retryCount < 3) {
+        console.log(`列表为空，自动重试第${retryCount + 1}次...`);
+        retryCount++;
+        setTimeout(() => {
+          fetchQueries();
+        }, 1000);
+        return;
+      }
+      */
     }
     
     // 补充数据源信息
@@ -532,27 +572,22 @@ const fetchQueries = async () => {
     
     // 检查每个查询的活跃状态
     queries.value.forEach(query => {
-      const active = query.serviceStatus === 'ENABLED';
-      console.log(`查询状态检查 - ID: ${query.id}, 名称: ${query.name}, 状态: ${query.status}, 服务状态: ${query.serviceStatus}, 活跃: ${active ? '是' : '否'}`);
-    });
-    
-    // 特别检查test2查询的状态
-    const test2Query = queries.value.find(q => q.name === 'test2');
-    if (test2Query) {
-      console.log('找到test2查询:', {
-        id: test2Query.id,
-        status: test2Query.status,
-        serviceStatus: test2Query.serviceStatus
-      });
+      // 确保serviceStatus大写
+      if (query.serviceStatus) {
+        query.serviceStatus = query.serviceStatus.toUpperCase();
+      }
       
-      // 直接调用API检查该查询的最新状态
-      await checkQueryStatus(test2Query.id);
-    }
+      const active = query.serviceStatus === 'ENABLED';
+      console.log(`查询状态检查 - ID: ${query.id}, 名称: ${query.name}, 状态: ${query.status}, 服务状态: ${query.serviceStatus || '未设置'}, 活跃: ${active ? '是' : '否'}`);
+    });
   } catch (error) {
     console.error('获取查询列表失败:', error);
-    messageService.error('获取查询列表失败');
+    messageService.error('获取查询列表失败: ' + (error instanceof Error ? error.message : String(error)));
+    queries.value = [];
   } finally {
     isLoading.value = false;
+    // 重置重试计数
+    retryCount = 0;
   }
 };
 
@@ -564,6 +599,13 @@ const enrichDataSourceInfo = async () => {
     
     // 为每个查询补充数据源名称和查询类型
     queries.value.forEach(query => {
+      // 打印版本相关信息，用于调试
+      console.log(`查询 ${query.id} 版本详情:`, {
+        currentVersionId: query.currentVersionId,
+        versionNumber: query.versionNumber,
+        versionStatus: query.versionStatus
+      });
+      
       // 尝试查找对应的数据源
       const matchedDataSource = dataSources.find(ds => ds.id === query.dataSourceId);
       
@@ -582,6 +624,7 @@ const enrichDataSourceInfo = async () => {
       // 确保serviceStatus大写
       if (query.serviceStatus) {
         query.serviceStatus = query.serviceStatus.toUpperCase();
+        console.log(`已将查询 ${query.id} 的serviceStatus标准化为大写: ${query.serviceStatus}`);
       }
       
       // 记录版本状态，用于调试
@@ -653,20 +696,16 @@ const toggleFavorite = async (query: any) => {
   }
 }
 
-// 修改切换查询状态处理函数，使用确认对话框
+// 修改切换查询状态处理函数
 const toggleQueryStatus = async (query: any) => {
-  // 根据当前状态确定新状态(直接使用serviceStatus字段判断)
-  const isActive = query.serviceStatus === 'ENABLED';
-  newStatus.value = isActive ? 'DEPRECATED' : 'PUBLISHED'
-  queryToToggle.value = query
-  showStatusConfirm.value = true
-  
-  console.log(`准备${isActive ? '禁用' : '启用'}查询:`, {
-    queryId: query.id,
-    currentStatus: query.status,
-    currentServiceStatus: query.serviceStatus,
-    newStatus: newStatus.value
-  });
+  try {
+    // 直接切换启用/禁用状态
+    query.serviceStatus = query.serviceStatus === 'ENABLED' ? 'DISABLED' : 'ENABLED';
+    messageService.success(`查询已${query.serviceStatus === 'ENABLED' ? '启用' : '禁用'}`);
+  } catch (error) {
+    console.error('更新查询状态失败:', error);
+    messageService.error('更新查询状态失败');
+  }
 }
 
 // 确认状态变更
@@ -856,16 +895,21 @@ const navigateToFavorites = () => {
   router.push('/query/favorites')
 }
 
-// 格式化版本ID，显示更友好的格式
-const formatVersionId = (versionId: string) => {
-  if (!versionId) return '-';
+// 格式化版本ID，现在支持直接使用versionNumber字段
+const formatVersionId = (query: any) => {
+  // 如果有明确的版本号，直接使用
+  if (query.versionNumber) {
+    return query.versionNumber;
+  }
   
-  // 从版本ID中提取版本号，通常格式为 "version-{queryId}-{number}"
-  const parts = versionId.split('-');
-  const versionNumber = parts[parts.length - 1];
+  // 否则尝试从版本ID中提取
+  if (query.currentVersionId) {
+    const parts = query.currentVersionId.split('-');
+    const versionNumber = parts[parts.length - 1];
+    return isNaN(Number(versionNumber)) ? '1' : versionNumber;
+  }
   
-  // 如果能解析为数字，则返回该数字，否则返回1作为默认版本号
-  return isNaN(Number(versionNumber)) ? '1' : versionNumber;
+  return '-';
 }
 
 // 直接调用API检查特定查询的状态
@@ -901,6 +945,20 @@ const checkQueryStatus = async (queryId: string) => {
     }
   } catch (error) {
     console.error(`检查查询状态出错:`, error);
+  }
+}
+
+// 获取版本状态文本
+const getVersionStatusText = (status: string) => {
+  switch (status) {
+    case 'PUBLISHED':
+      return '已发布';
+    case 'DRAFT':
+      return '草稿';
+    case 'DEPRECATED':
+      return '已废弃';
+    default:
+      return status || '未知';
   }
 }
 </script>

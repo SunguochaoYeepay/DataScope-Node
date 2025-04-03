@@ -117,51 +117,8 @@
           </div>
         </div>
         
-        <!-- 标签页导航 -->
-        <div class="bg-white shadow rounded-lg mb-6">
-          <div class="border-b border-gray-200">
-            <nav class="flex -mb-px">
-              <button
-                v-for="tab in tabs"
-                :key="tab.id"
-                @click="activeTab = tab.id"
-                :class="[
-                  activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                  'py-4 px-6 border-b-2 font-medium text-sm focus:outline-none transition-colors duration-200'
-                ]"
-              >
-                <i :class="['fas mr-2', tab.icon]"></i>
-                {{ tab.label }}
-              </button>
-            </nav>
-          </div>
-        </div>
-        
-        <!-- 版本列表标签页 -->
-        <div v-if="activeTab === 'versions'" class="bg-white shadow rounded-lg overflow-hidden mb-6">
-          <div class="p-6">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="text-lg font-medium text-gray-900">版本历史</h2>
-              <router-link
-                :to="`/query/versions/${queryId}`"
-                class="text-sm text-indigo-600 hover:text-indigo-900"
-              >
-                查看详细版本管理
-              </router-link>
-            </div>
-            
-            <version-list
-              :query-id="queryId"
-              :compact="true"
-              @version-selected="handleVersionSelected"
-            />
-          </div>
-        </div>
-        
-        <!-- 查询详情标签页 -->
-        <div v-if="activeTab === 'details'" class="bg-white shadow rounded-lg p-6 mb-6">
+        <!-- 基本信息卡片 -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
           <div class="flex flex-col space-y-6">
             <!-- 查询基本信息 -->
             <div>
@@ -229,40 +186,25 @@
           </div>
         </div>
         
-        <!-- 执行历史标签页 -->
-        <div v-if="activeTab === 'history'" class="bg-white shadow rounded-lg mb-6 p-6">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-medium text-gray-900">执行历史</h2>
-            <div class="flex space-x-2">
-              <select
-                v-model="historyVersionFilter"
-                class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        <!-- 版本历史部分 -->
+        <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+          <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-lg font-medium text-gray-900">版本历史</h2>
+              <router-link
+                :to="`/query/versions/${queryId}`"
+                class="text-sm text-indigo-600 hover:text-indigo-900"
               >
-                <option value="all">所有版本</option>
-                <option v-for="version in versions" :key="version.versionNumber" :value="version.versionNumber">
-                  版本 {{ version.versionNumber }}
-                </option>
-              </select>
+                查看详细版本管理
+              </router-link>
             </div>
+            
+            <version-list
+              :query-id="queryId"
+              :compact="true"
+              @version-selected="handleVersionSelected"
+            />
           </div>
-          
-          <!-- 查询历史列表 -->
-          <query-history-with-version
-            :query-id="queryId"
-            :version-filter="historyVersionFilter"
-          />
-        </div>
-        
-        <!-- 结果标签页 -->
-        <div v-if="activeTab === 'results'" class="bg-white shadow rounded-lg p-6 mb-6">
-          <query-results
-            :query-id="queryId"
-            :results="queryResults"
-            :is-loading="isLoadingResults"
-            :error="errorMessage"
-            @cancel="handleCancelQuery"
-            @export="exportResults"
-          />
         </div>
       </div>
     </div>
@@ -270,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
@@ -284,8 +226,6 @@ import type { QueryVersionStatus } from '@/types/queryVersion'
 import QueryStatusManager from '@/components/query/status/QueryStatusManager.vue'
 import VersionStatusBar from '@/components/query/version/VersionStatusBar.vue'
 import VersionList from '@/components/query/version/VersionList.vue'
-import QueryHistoryWithVersion from '@/components/query/QueryHistoryWithVersion.vue'
-import QueryResults from '@/components/query/QueryResults.vue'
 
 // Store
 const queryStore = useQueryStore()
@@ -295,24 +235,9 @@ const statusStore = useQueryStatusStore()
 const route = useRoute()
 const router = useRouter()
 
-// 标签页定义
-const tabs = [
-  { id: 'details', label: '查询详情', icon: 'fa-info-circle' },
-  { id: 'versions', label: '版本历史', icon: 'fa-code-branch' },
-  { id: 'history', label: '执行历史', icon: 'fa-history' },
-  { id: 'results', label: '查询结果', icon: 'fa-table' }
-]
-
 // 状态变量
 const isLoading = ref(true)
-const isLoadingResults = ref(false)
-const isLoadingVersions = ref(false)
 const errorMessage = ref('')
-const activeTab = ref('details')
-const historyVersionFilter = ref('all')
-
-// SQL编辑器内容
-const currentSql = ref('')
 
 // 从URL参数获取查询ID
 const queryId = computed(() => {
@@ -341,11 +266,6 @@ const canExecuteQuery = computed(() => {
     (query.value.queryText && query.value.queryText.trim().length > 0))
 })
 
-// 获取查询结果
-const queryResults = computed(() => {
-  return queryStore.currentQueryResult
-})
-
 // 初始化加载
 onMounted(async () => {
   // 如果数据源列表为空，加载数据源
@@ -355,11 +275,6 @@ onMounted(async () => {
   
   // 加载查询数据
   loadQueryData()
-})
-
-// 监听标签页变化
-watch(activeTab, (newTabId) => {
-  loadTabData(newTabId)
 })
 
 // 加载查询及相关数据
@@ -379,17 +294,11 @@ const loadQueryData = async () => {
       return
     }
     
-    // 加载查询服务状态
-    await statusStore.getQueryStatus(queryId.value)
-    
     // 加载查询版本信息
     await versionStore.getQueryVersions(queryId.value)
     
     // 加载当前活跃版本
     await versionStore.getCurrentVersion(queryId.value)
-    
-    // 根据选中的标签页加载其他数据
-    await loadTabData(activeTab.value)
     
     isLoading.value = false
   } catch (error) {
@@ -398,62 +307,6 @@ const loadQueryData = async () => {
       ? `无法加载查询信息: ${error.message}` 
       : '无法加载查询信息，请检查查询ID是否有效'
     isLoading.value = false
-  }
-}
-
-// 根据标签页加载相应数据
-const loadTabData = async (tabId: string) => {
-  if (!queryId.value) return
-  
-  if (tabId === 'history') {
-    // 在历史标签页中加载执行历史
-    await loadExecutionHistory()
-  } else if (tabId === 'results') {
-    // 在结果标签页中加载最近一次执行结果
-    await loadResultsData()
-  } else if (tabId === 'versions') {
-    // 在版本标签页中加载版本信息
-    await loadVersionsData()
-  }
-}
-
-// 加载执行历史
-const loadExecutionHistory = async () => {
-  try {
-    await queryStore.getQueryHistory(queryId.value)
-  } catch (error) {
-    console.error('Failed to load execution history:', error)
-  }
-}
-
-// 加载查询结果
-const loadResultsData = async () => {
-  if (isLoadingResults.value) return
-  
-  isLoadingResults.value = true
-  
-  try {
-    // 加载最近一次执行的结果
-    await queryStore.getLastQueryResult(queryId.value)
-  } catch (error) {
-    console.error('Failed to load query results:', error)
-  } finally {
-    isLoadingResults.value = false
-  }
-}
-
-// 加载版本信息
-const loadVersionsData = async () => {
-  if (isLoadingVersions.value) return
-  
-  isLoadingVersions.value = true
-  
-  try {
-    await versionStore.getQueryVersions(queryId.value)
-  } catch (error) {
-    console.error('Failed to load query versions:', error)
-  } finally {
-    isLoadingVersions.value = false
   }
 }
 
@@ -476,11 +329,11 @@ const handleShare = (id: string) => {
   const url = `${window.location.origin}/query/detail/${id}`
   navigator.clipboard.writeText(url)
     .then(() => {
-      // TODO: 显示分享成功提示
-      console.log('URL copied to clipboard')
+      message.success('链接已复制到剪贴板')
     })
     .catch(err => {
       console.error('Failed to copy URL:', err)
+      message.error('复制链接失败')
     })
 }
 
@@ -488,93 +341,23 @@ const handleShare = (id: string) => {
 const executeCurrentQuery = async () => {
   if (!canExecuteQuery.value) return
   
-  let queryText = ''
-  let queryType = ''
-  
-  // 优先使用当前活跃版本的查询内容
-  if (currentVersion.value) {
-    queryText = currentVersion.value.queryText
-    queryType = currentVersion.value.queryType
-  } else if (query.value) {
-    queryText = query.value.queryText
-    queryType = query.value.queryType
-  } else {
-    return
-  }
-  
-  isLoadingResults.value = true
-  errorMessage.value = ''
-  
   try {
-    // 执行查询
-    if (queryType === 'SQL') {
-      await queryStore.executeQuery({
-        dataSourceId: query.value!.dataSourceId,
-        queryText,
-        queryType: 'SQL',
-        version: currentVersion.value?.versionNumber
+    // 使用当前活跃版本的查询内容
+    if (currentVersion.value) {
+      // 导航到执行页面
+      router.push({
+        name: 'QueryVersionExecute',
+        params: {
+          id: queryId.value,
+          versionId: currentVersion.value.id
+        }
       })
     } else {
-      await queryStore.executeNaturalLanguageQuery({
-        dataSourceId: query.value!.dataSourceId,
-        question: queryText,
-        version: currentVersion.value?.versionNumber
-      })
+      message.error('没有可执行的版本')
     }
-    
-    // 如果执行成功，自动切换到结果标签页
-    activeTab.value = 'results'
-    await loadResultsData()
-    
   } catch (error) {
-    console.error('查询执行失败:', error)
-    errorMessage.value = error instanceof Error ? error.message : '执行查询时出错'
-  } finally {
-    isLoadingResults.value = false
-  }
-}
-
-// 导出结果
-const exportResults = (format: 'csv' | 'excel' | 'json') => {
-  if (!queryResults.value) return
-  
-  queryStore.exportQueryResults(queryId.value, format)
-    .then(() => {
-      console.log(`Results exported successfully as ${format}`)
-    })
-    .catch(error => {
-      console.error('Failed to export results:', error)
-    })
-}
-
-// 取消当前执行的查询
-const handleCancelQuery = async (execId: string) => {
-  try {
-    await queryStore.cancelQuery(execId)
-    
-    // 更新状态并重新加载执行历史
-    isLoadingResults.value = false
-    if (activeTab.value === 'history') {
-      loadExecutionHistory()
-    }
-    
-  } catch (error) {
-    console.error('取消查询失败:', error)
-    errorMessage.value = error instanceof Error ? error.message : '取消查询时出错'
-  }
-}
-
-// 处理版本选择
-const handleVersionSelected = (version: QueryVersion) => {
-  versionStore.setCurrentVersion(version)
-}
-
-// 处理版本变更
-const handleVersionChanged = async (versionNumber: number) => {
-  try {
-    await versionStore.getVersion(queryId.value, versionNumber)
-  } catch (error) {
-    console.error('Failed to load version:', error)
+    console.error('执行查询失败:', error)
+    message.error('执行查询失败')
   }
 }
 
@@ -586,7 +369,7 @@ const getDataSourceName = (dataSourceId: string) => {
 
 // 格式化日期
 const formatDate = (dateString: string | undefined) => {
-  if (!dateString) return ''
+  if (!dateString) return '-'
   
   const date = new Date(dateString)
   return date.toLocaleString('zh-CN', {
@@ -598,178 +381,27 @@ const formatDate = (dateString: string | undefined) => {
   })
 }
 
-// 加载查询版本列表
-const loadVersions = async () => {
-  try {
-    isLoadingVersions.value = true
-    await versionStore.fetchVersions(queryId.value)
-  } catch (err) {
-    console.error('加载版本列表失败:', err)
-    errorMessage.value = '无法加载版本列表，请稍后重试'
-  } finally {
-    isLoadingVersions.value = false
-  }
+// 版本选择处理
+const handleVersionSelected = (versionId: string) => {
+  // 导航到版本详情页
+  router.push({
+    name: 'QueryVersionDetails',
+    params: {
+      id: queryId.value,
+      versionId: versionId
+    }
+  })
 }
 
-// 加载指定版本详情
-const loadVersion = async (versionId: string) => {
+// 版本变更处理
+const handleVersionChanged = async (versionId: string) => {
   try {
-    isLoading.value = true
-    const version = await versionStore.getVersion(queryId.value, versionId)
-    
-    // 更新当前选中的SQL版本
-    if (version) {
-      currentSql.value = version.queryText || ''
-    }
-  } catch (error) {
-    console.error('加载版本详情失败:', error)
-    errorMessage.value = '无法加载版本详情，请稍后重试'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 切换版本处理函数
-const handleVersionChange = async (versionId: string) => {
-  try {
-    await loadVersion(versionId)
-    
-    // 如果当前是编辑器页面，需要更新编辑器内容
-    if (activeTab.value === 'editor') {
-      // 更新SQL内容和版本状态等信息
-      currentSql.value = versionStore.currentVersion?.queryText || ''
-    }
-    
-    message.success('已切换到版本 ' + (versionStore.currentVersion?.versionNumber || ''))
+    // 加载指定版本
+    await versionStore.getCurrentVersion(queryId.value, versionId)
+    message.success('已切换到新版本')
   } catch (error) {
     console.error('版本切换失败:', error)
     message.error('版本切换失败')
-  }
-}
-
-// 保存草稿版本
-const handleSaveDraft = async () => {
-  try {
-    isLoading.value = true
-    
-    // 保存当前版本
-    await versionStore.saveDraft(queryId.value, {
-      versionId: versionStore.currentVersion?.id,
-      queryText: currentSql.value
-    })
-    
-    message.success('草稿已保存')
-    
-    // 重新加载版本列表
-    await loadVersions()
-  } catch (error) {
-    console.error('保存草稿失败:', error)
-    message.error('保存草稿失败')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 发布版本
-const handlePublishVersion = async (setActive: boolean = false) => {
-  try {
-    if (!versionStore.currentVersion) {
-      message.error('没有选择要发布的版本')
-      return
-    }
-    
-    isLoading.value = true
-    
-    // 发布当前版本
-    await versionStore.publishVersion(
-      queryId.value, 
-      versionStore.currentVersion.id,
-      setActive
-    )
-    
-    message.success(`版本已发布${setActive ? '并设为当前活跃版本' : ''}`)
-    
-    // 重新加载版本列表
-    await loadVersions()
-  } catch (error) {
-    console.error('发布版本失败:', error)
-    message.error('发布版本失败')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 设置活跃版本
-const handleSetActiveVersion = async (versionId: string) => {
-  try {
-    isLoading.value = true
-    
-    // 设置为活跃版本
-    await versionStore.setActiveVersion(queryId.value, versionId)
-    
-    message.success('已设为当前活跃版本')
-    
-    // 重新加载版本列表
-    await loadVersions()
-  } catch (error) {
-    console.error('设置活跃版本失败:', error)
-    message.error('设置活跃版本失败')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 创建新版本
-const handleCreateNewVersion = async () => {
-  try {
-    if (!versionStore.currentVersion) {
-      message.error('无法创建新版本，当前没有选择基础版本')
-      return
-    }
-    
-    isLoading.value = true
-    
-    // 创建新版本
-    const newVersion = await versionStore.createNewVersion(
-      queryId.value,
-      versionStore.currentVersion.id
-    )
-    
-    message.success('新版本已创建')
-    
-    // 加载新创建的版本
-    await loadVersion(newVersion.id)
-    
-    // 重新加载版本列表
-    await loadVersions()
-    
-    // 切换到编辑器标签
-    activeTab.value = 'editor'
-  } catch (error) {
-    console.error('创建新版本失败:', error)
-    message.error('创建新版本失败')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 废弃版本
-const handleDeprecateVersion = async (versionId: string) => {
-  try {
-    isLoading.value = true
-    
-    // 废弃版本
-    await versionStore.deprecateVersion(queryId.value, versionId)
-    
-    message.success('版本已废弃')
-    
-    // 重新加载版本列表
-    await loadVersions()
-  } catch (error) {
-    console.error('废弃版本失败:', error)
-    message.error('废弃版本失败')
-  } finally {
-    isLoading.value = false
   }
 }
 </script>

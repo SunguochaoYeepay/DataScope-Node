@@ -6,35 +6,38 @@
         <h1 class="text-2xl font-bold text-gray-900">
           {{ currentQueryId ? '编辑查询' : '新增查询' }}
         </h1>
-        <div class="flex space-x-3">
-        <button
-          @click="returnToList"
-          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <i class="fas fa-arrow-left mr-2"></i>
-          返回列表
-        </button>
+        <!-- 操作按钮组 -->
+        <div class="flex items-center space-x-2 ml-auto">
+          <button
+            @click="returnToList"
+            class="px-4 py-2 rounded-md flex items-center text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors"
+          >
+            <i class="fas fa-arrow-left mr-2"></i>
+            返回列表
+          </button>
+
           <button
             v-if="currentQueryId"
+            class="px-4 py-2 rounded-md flex items-center text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors"
             @click="viewVersions"
-            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             <i class="fas fa-code-branch mr-2"></i>
             查看版本
           </button>
-        <button
-          @click="toggleFavorite"
-          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <i class="fas fa-star mr-2" :class="{ 'text-yellow-400': isFavorite }"></i>
-          收藏
-        </button>
+
           <button
-            v-if="currentQueryId && versionStatus === 'DRAFT'"
-            @click="publishVersion"
-            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            class="px-4 py-2 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-100 transition-colors"
+            @click="saveQuery"
           >
-            <i class="fas fa-check-circle mr-2"></i>
+            <i class="fas fa-save mr-2"></i>
+            保存
+          </button>
+
+          <button
+            class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors"
+            @click="publishQuery"
+          >
+            <i class="fas fa-upload mr-2"></i>
             发布
           </button>
         </div>
@@ -529,6 +532,7 @@ import { message, Modal } from 'ant-design-vue'
 import type { QueryType } from '@/types/query'
 import { getApiBaseUrl } from '@/services/query'
 import type { QueryVersion as QueryVersionType } from '@/types/queryVersion'
+import axios from 'axios'
 
 // 导入组件
 import MetadataExplorer from '@/components/query/MetadataExplorer.vue'
@@ -556,6 +560,15 @@ const toggleDark = useToggle(isDark)
 // Store
 const queryStore = useQueryStore()
 const dataSourceStore = useDataSourceStore()
+// 来源路径管理
+const backUrl = computed(() => {
+  // 如果是从详情页过来，则返回详情页
+  if (route.query.from === "detail" && route.query.id) {
+    return `/query/detail/${route.query.id}`;
+  }
+  // 默认返回列表页
+  return "/query/list";
+});
 
 // 状态
 const activeTab = ref<'editor' | 'nlq' | 'builder'>('editor')
@@ -1587,9 +1600,38 @@ const handleSaveQuery = async (saveData: any) => {
       if (!route.query.id) {
         const newQuery = { ...route.query, id: result.id };
         router.replace({ query: newQuery });
-    }
+      }
+      
+      // 创建查询草稿版本（但不发布或激活）
+      try {
+        statusMessage.value = '正在创建查询草稿版本...';
+        
+        // 调用版本API
+        const versionApi = axios.create({
+          baseURL: import.meta.env.VITE_API_BASE_URL || '',
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log(`创建查询草稿版本: ${versionApi.defaults.baseURL}/api/queries/${result.id}/versions`);
+        const versionResponse = await versionApi.post(`/api/queries/${result.id}/versions`, {
+          sqlContent: queryText,
+          dataSourceId: selectedDataSourceId.value,
+          description: saveData.description || ''
+        });
+        
+        if (versionResponse.data.success) {
+          console.log('草稿版本创建成功:', versionResponse.data);
+          statusMessage.value = '查询保存成功，并创建了草稿版本';
+        }
+      } catch (versionError) {
+        console.error('创建草稿版本失败:', versionError);
+        // 版本创建失败不影响主流程，只记录日志
+      }
     
-    setTimeout(() => {
+      setTimeout(() => {
         statusMessage.value = null;
       }, 3000);
     } else {
@@ -2103,6 +2145,119 @@ const lastDraftSaveTime = computed(() => {
     return `${days}天前`;
   }
 });
+
+// 处理发布查询
+const publishQuery = async () => {
+  try {
+    if (!currentQueryId.value) {
+      message.error('请先保存查询再发布');
+      return;
+    }
+    
+    statusMessage.value = '正在发布查询...';
+    
+    // 查询当前草稿版本
+    const versionApi = axios.create({
+      baseURL: import.meta.env.VITE_API_BASE_URL || '',
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // 获取查询详情，查看是否有草稿版本
+    console.log(`获取查询详情: ${versionApi.defaults.baseURL}/api/queries/${currentQueryId.value}`);
+    const queryResponse = await versionApi.get(`/api/queries/${currentQueryId.value}`);
+    
+    if (!queryResponse.data.success || !queryResponse.data.data) {
+      throw new Error('获取查询详情失败');
+    }
+    
+    const query = queryResponse.data.data;
+    console.log('查询详情:', query);
+    
+    // 如果没有草稿版本，先创建一个
+    let draftVersionId = query.draftVersionId;
+    
+    if (!draftVersionId) {
+      console.log('没有草稿版本，创建新版本...');
+      // 获取当前查询文本
+      const queryText = activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value;
+      
+      // 创建草稿版本
+      const createResponse = await versionApi.post(`/api/queries/${currentQueryId.value}/versions`, {
+        sqlContent: queryText,
+        dataSourceId: selectedDataSourceId.value,
+        description: query.description || ''
+      });
+      
+      if (!createResponse.data.success || !createResponse.data.data) {
+        throw new Error('创建版本失败');
+      }
+      
+      draftVersionId = createResponse.data.data.id;
+      console.log('草稿版本创建成功:', draftVersionId);
+    }
+    
+    // 发布版本
+    console.log(`发布版本: ${versionApi.defaults.baseURL}/api/queries/versions/${draftVersionId}/publish`);
+    const publishResponse = await versionApi.post(`/api/queries/versions/${draftVersionId}/publish`);
+    
+    // 适配后端统一的API响应格式
+    if (!publishResponse.data || !publishResponse.data.success) {
+      console.error('发布响应数据:', publishResponse.data);
+      const errorMsg = publishResponse.data?.error?.message || '发布版本失败';
+      throw new Error(errorMsg);
+    }
+    
+    // 从统一的success/data格式中获取版本数据
+    const publishedVersion = publishResponse.data.data;
+    if (!publishedVersion || (!publishedVersion.status && !publishedVersion.versionStatus) || 
+        (publishedVersion.status !== 'PUBLISHED' && publishedVersion.versionStatus !== 'PUBLISHED')) {
+      console.error('发布版本数据格式不正确:', publishedVersion);
+      throw new Error('发布版本失败: 响应数据不符合预期格式');
+    }
+    
+    console.log('版本发布成功:', publishedVersion);
+    
+    // 激活版本
+    console.log(`激活版本: ${versionApi.defaults.baseURL}/api/queries/${query.id}/versions/${draftVersionId}/activate`);
+    const activateResponse = await versionApi.post(`/api/queries/${query.id}/versions/${draftVersionId}/activate`);
+    
+    // 适配后端统一的API响应格式
+    if (!activateResponse.data) {
+      console.error('激活响应数据:', activateResponse.data);
+      throw new Error('激活版本失败: 返回数据不符合预期格式');
+    }
+    
+    // 获取激活后的查询对象
+    const activatedQuery = activateResponse.data;
+    if (!activatedQuery.id) {
+      console.error('激活查询数据格式不正确:', activatedQuery);
+      throw new Error('激活版本失败: 响应数据不符合预期格式');
+    }
+    
+    console.log('版本激活成功:', activatedQuery);
+    
+    message.success('查询发布成功');
+    statusMessage.value = '查询发布成功，版本已激活';
+    
+    // 添加成功后跳转到查询列表页面
+    setTimeout(() => {
+      statusMessage.value = null;
+      // 使用路由导航到查询列表页面
+      router.push('/query/list');
+    }, 1500);
+  } catch (error) {
+    console.error('发布查询失败:', error);
+    message.error(error instanceof Error ? error.message : '发布查询失败');
+    statusMessage.value = error instanceof Error ? error.message : '发布查询失败';
+    setTimeout(() => {
+      statusMessage.value = null;
+    }, 5000);
+  }
+};
+
 </script>
 
 <style scoped>

@@ -21,6 +21,127 @@ class QueryVersionService {
   }
 
   /**
+   * 创建查询并同时创建初始版本
+   * @param params 创建查询所需参数
+   * @returns 创建的查询和版本信息
+   */
+  async saveQueryWithVersion(params: {
+    id?: string;
+    name: string;
+    dataSourceId: string;
+    sql: string;
+    description?: string;
+    tags?: string[];
+    userId?: string;
+    isPublic?: boolean;
+  }) {
+    try {
+      const { id, name, dataSourceId, sql, description, tags, userId = 'system', isPublic } = params;
+      
+      logger.debug('保存查询并创建初始版本', { name, dataSourceId });
+      
+      // 整理查询数据，确保所有字段都在模型中存在
+      const queryData: any = {
+        name,
+        dataSourceId,
+        sqlContent: sql,
+        description: description || '',
+        tags: tags?.join(',') || '',
+        status: isPublic ? 'PUBLISHED' : 'DRAFT',
+        serviceStatus: 'ENABLED', // 使用字符串而非枚举
+        createdBy: userId,
+        updatedBy: userId,
+        queryType: 'SQL', // 默认查询类型
+        isFavorite: false, // 默认非收藏
+        executionCount: 0 // 默认执行次数
+      };
+      
+      // 如果提供了自定义ID，使用它
+      if (id) {
+        queryData.id = id;
+      }
+      
+      // 打印查询数据，帮助调试
+      logger.debug('最终创建查询数据', { queryData });
+      
+      // 验证关键字段
+      if (!queryData.name) {
+        throw new ApiError(VERSION_ERROR.VERSION_CREATE_FAILED, '查询名称不能为空');
+      }
+      
+      if (!queryData.dataSourceId) {
+        throw new ApiError(VERSION_ERROR.VERSION_CREATE_FAILED, '数据源ID不能为空');
+      }
+      
+      if (!queryData.sqlContent) {
+        throw new ApiError(VERSION_ERROR.VERSION_CREATE_FAILED, 'SQL内容不能为空');
+      }
+      
+      // 改用非事务方式创建查询
+      let query;
+      let versionId;
+      
+      try {
+        // 1. 首先创建查询记录
+        query = await this.prisma.query.create({
+          data: queryData
+        });
+        
+        // 记录查询创建成功
+        logger.debug('查询创建成功', { queryId: query.id });
+        
+        // 2. 创建查询初始版本
+        versionId = uuidv4();
+        const version = await this.prisma.queryVersion.create({
+          data: {
+            id: versionId,
+            queryId: query.id,
+            versionNumber: 1,
+            versionStatus: 'DRAFT', // 使用字符串而非枚举
+            sqlContent: sql,
+            dataSourceId,
+            description: description || '',
+            createdBy: userId
+          }
+        });
+        
+        // 记录版本创建成功
+        logger.debug('查询版本创建成功', { versionId: version.id });
+        
+        // 3. 更新查询记录，设置草稿版本ID
+        await this.prisma.query.update({
+          where: { id: query.id },
+          data: {
+            draftVersionId: versionId
+          }
+        });
+        
+        return { query, versionId };
+      } catch (innerError: any) {
+        // 记录详细错误
+        logger.error('直接创建查询或版本失败', { 
+          errorMessage: innerError?.message,
+          errorName: innerError?.name,
+          stack: innerError?.stack
+        });
+        
+        throw innerError;
+      }
+    } catch (error: any) {
+      logger.error('保存查询并创建初始版本失败', { 
+        errorMessage: error?.message,
+        errorName: error?.name,
+        name: params.name,
+        stack: error?.stack 
+      });
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(VERSION_ERROR.VERSION_CREATE_FAILED, '保存查询并创建初始版本失败', error);
+    }
+  }
+
+  /**
    * 创建新版本
    * @param params 创建版本所需参数
    * @returns 创建的版本信息

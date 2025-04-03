@@ -21,8 +21,7 @@
     </div>
     
     <div v-else class="versions-list">
-      <div class="flex justify-between items-center mb-6">
-        <h3 class="text-lg font-medium text-gray-900">版本历史</h3>
+      <div class="flex justify-end mb-6">
         <button
           @click="createNewVersion"
           class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -38,6 +37,7 @@
             <tr>
               <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">版本</th>
               <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">状态</th>
+              <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">激活状态</th>
               <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">创建时间</th>
               <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">发布时间</th>
               <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -46,14 +46,22 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 bg-white">
-            <tr v-for="version in versions" :key="version.id" :class="{ 'bg-blue-50': version.isActive }">
-              <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+            <tr 
+              v-for="version in versions" 
+              :key="version.id" 
+              :class="{ 
+                'bg-blue-50': isCurrentVersion(version),
+                'hover:bg-gray-50': !isCurrentVersion(version)
+              }"
+            >
+              <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                 <div class="flex items-center">
-                  <span v-if="version.isActive" class="h-2 w-2 inline-block rounded-full bg-green-400 mr-2"></span>
-                  <span>v{{ formatVersionNumber(version.id) }}</span>
+                  <span :class="{ 'font-medium': isCurrentVersion(version) }">
+                    v{{ version.versionNumber }}
+                  </span>
                 </div>
               </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+              <td class="whitespace-nowrap px-3 py-4 text-sm">
                 <span
                   class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                   :class="{
@@ -65,38 +73,56 @@
                   {{ formatStatus(version.status) }}
                 </span>
               </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ formatDate(version.createdAt) }}</td>
+              <td class="whitespace-nowrap px-3 py-4 text-sm">
+                <span
+                  v-if="isCurrentVersion(version)"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                >
+                  <i class="fas fa-check-circle mr-1"></i>
+                  当前激活
+                </span>
+                <span v-else class="text-gray-500">-</span>
+              </td>
+              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                {{ formatDate(version.createdAt) }}
+              </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                 {{ version.publishedAt ? formatDate(version.publishedAt) : '—' }}
               </td>
               <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                <button
-                  @click="viewVersion(version)"
-                  class="text-indigo-600 hover:text-indigo-900 mr-4"
-                >
-                  查看
-                </button>
-                <button
-                  v-if="version.status === 'DRAFT'"
-                  @click="publishVersion(version.id)"
-                  class="text-green-600 hover:text-green-900 mr-4"
-                >
-                  发布
-                </button>
-                <button
-                  v-if="version.status === 'PUBLISHED' && !version.isActive"
-                  @click="activateVersion(queryId, version.id)"
-                  class="text-blue-600 hover:text-blue-900 mr-4"
-                >
-                  激活
-                </button>
-                <button
-                  v-if="version.status === 'PUBLISHED'"
-                  @click="deprecateVersion(version.id)"
-                  class="text-red-600 hover:text-red-900"
-                >
-                  废弃
-                </button>
+                <div class="flex justify-end space-x-2">
+                  <button
+                    @click="viewVersion(version)"
+                    class="text-indigo-600 hover:text-indigo-900"
+                    title="查看版本详情"
+                  >
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button
+                    v-if="version.status === 'DRAFT'"
+                    @click="publishVersion(version.id)"
+                    class="text-green-600 hover:text-green-900"
+                    title="发布版本"
+                  >
+                    <i class="fas fa-check"></i>
+                  </button>
+                  <button
+                    v-if="version.status === 'PUBLISHED' && !isCurrentVersion(version)"
+                    @click="activateVersion(queryId, version.id)"
+                    class="text-blue-600 hover:text-blue-900"
+                    title="激活版本"
+                  >
+                    <i class="fas fa-play"></i>
+                  </button>
+                  <button
+                    v-if="version.status === 'PUBLISHED'"
+                    @click="deprecateVersion(version.id)"
+                    class="text-red-600 hover:text-red-900"
+                    title="废弃版本"
+                  >
+                    <i class="fas fa-archive"></i>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -192,10 +218,11 @@ import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion';
 import versionService from '@/services/queryVersion';
 import { useQueryStore } from '@/stores/query';
 import type { Query } from '@/types/query';
+import axios from 'axios';
 
 const props = defineProps<{
   queryId: string;
-  activeVersionNumber?: string;
+  activeVersionNumber?: number;
 }>();
 
 const router = useRouter();
@@ -272,15 +299,21 @@ const displayPages = computed(() => {
 const formatVersionNumber = (versionId: string | null): string => {
   if (!versionId) return '无版本';
   
-  // 使用完整版本ID
-  return versionId;
+  // 查找版本对象以获取版本号
+  const version = versions.value.find(v => v.id === versionId);
+  if (version && version.versionNumber) {
+    return version.versionNumber.toString();
+  }
+  
+  // 如果找不到对应的版本对象，返回默认值
+  return '1';
 }
 
 // 判断版本是否为活跃版本
 const isActiveVersion = (versionId: string | null): boolean => {
   if (!versionId || !props.activeVersionNumber) return false;
-  return versionId === props.activeVersionNumber;
-}
+  return versionId === String(props.activeVersionNumber);
+};
 
 // 如果版本列表为空，显示一个提示消息
 const hasNoVersions = computed(() => {
@@ -294,13 +327,34 @@ const loadVersions = async () => {
     // 获取查询详情
     const query = await queryStore.getQuery(props.queryId);
     
-    // 使用一致的模拟数据源，确保查询列表和详情页显示一致
     console.log('加载版本数据，查询ID:', props.queryId);
     
-    // 统一使用模拟数据，保证数据一致性
-    // 注意: 由于实际环境中可能暂时没有正式的版本API，所以统一使用模拟数据
-    // 这样确保查询列表页和详情页显示的版本信息保持一致，避免用户混淆
-    console.log('使用模拟数据');
+    try {
+      // 尝试使用真实API获取版本数据
+      const versionApi = axios.create({
+        baseURL: import.meta.env.VITE_API_BASE_URL || '',
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log(`请求版本列表API: ${versionApi.defaults.baseURL}/api/query/version/management/${props.queryId}`);
+      const response = await versionApi.get(`/api/query/version/management/${props.queryId}`);
+      
+      if (response.data.success && Array.isArray(response.data.data)) {
+        console.log('API返回版本数据:', response.data.data);
+        processVersions(response.data.data);
+        return;
+      } else {
+        console.warn('API返回数据格式不正确:', response.data);
+      }
+    } catch (apiError) {
+      console.error('API请求失败，使用回退方案:', apiError);
+    }
+    
+    // 如果API请求失败或返回空数据，使用模拟数据作为备选方案
+    console.log('使用模拟数据作为备选');
     
     // 模拟数据 - 固定为两个版本
     const mockData = {
@@ -332,9 +386,7 @@ const loadVersions = async () => {
       totalPages: 1
     };
     
-    versions.value = mockData.items;
-    totalItems.value = mockData.total;
-    totalPages.value = mockData.totalPages;
+    processVersions(mockData.items);
   } catch (error) {
     console.error('加载版本数据失败:', error);
     message.error('无法加载版本数据，请稍后重试');
@@ -374,8 +426,9 @@ const viewVersion = (version: QueryVersion) => {
     console.error('路由跳转失败:', error);
     message.error(`路由跳转失败: ${error instanceof Error ? error.message : String(error)}`);
     
-    // 使用备选方案
-    window.location.href = `${window.location.origin}/query/detail/${props.queryId}/version/${version.id}`;
+    // 使用备选方案，采用完整的URL路径
+    const baseUrl = window.location.origin;
+    window.location.href = `${baseUrl}/query/detail/${props.queryId}/version/${version.id}`;
   }
 };
 
@@ -490,6 +543,22 @@ watch(currentPage, () => {
 onMounted(() => {
   loadVersions();
 });
+
+// 处理版本数据映射
+const processVersions = (data: any[]) => {
+  versions.value = data.map((v: any) => ({
+    ...v,
+    isActive: v.id === (props.activeVersionNumber ? String(props.activeVersionNumber) : null)
+  }));
+  totalItems.value = data.length;
+  totalPages.value = Math.ceil(totalItems.value / pageSize.value);
+};
+
+// 添加判断当前版本的方法
+const isCurrentVersion = (version: QueryVersion): boolean => {
+  if (!props.activeVersionNumber || !version.versionNumber) return false;
+  return version.versionNumber === props.activeVersionNumber;
+};
 </script>
 
 <style scoped>
@@ -498,5 +567,19 @@ onMounted(() => {
   background-color: white;
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* 添加过渡效果 */
+tr {
+  @apply transition-colors duration-150 ease-in-out;
+}
+
+/* 操作按钮样式 */
+button {
+  @apply p-1.5 rounded-full transition-colors duration-150 ease-in-out;
+}
+
+button:hover {
+  @apply bg-gray-100;
 }
 </style>

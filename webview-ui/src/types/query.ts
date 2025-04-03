@@ -381,13 +381,12 @@ export interface PageResponse<T> {
  * 查询参数接口
  */
 export interface FetchQueryParams {
-  dataSourceId?: string
-  status?: QueryStatus
-  serviceStatus?: string
-  queryType?: string
-  search?: string
-  page?: number
-  size?: number
-  sortBy?: string
-  sortDir?: 'asc' | 'desc'
+  page?: number;
+  size?: number;
+  queryType?: string;
+  status?: QueryStatus;
+  serviceStatus?: string;
+  search?: string;
+  sortBy?: string;
+  sortDir?: string;
 }

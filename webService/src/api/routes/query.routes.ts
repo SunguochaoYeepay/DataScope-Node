@@ -283,28 +283,93 @@ router.post(
  * /queries:
  *   post:
  *     summary: 保存查询
+ *     description: 创建新查询，同时创建初始版本
  *     tags: [Queries]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/QuerySave'
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: 查询名称
+ *               dataSourceId:
+ *                 type: string
+ *                 description: 数据源ID
+ *               sql:
+ *                 type: string
+ *                 description: SQL语句
+ *               description:
+ *                 type: string
+ *                 description: 查询描述
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 标签列表
+ *               isPublic:
+ *                 type: boolean
+ *                 description: 是否公开
+ *             required:
+ *               - name
+ *               - dataSourceId
+ *               - sql
  *     responses:
  *       201:
- *         description: 查询保存成功
+ *         description: 查询创建成功
  *       400:
  *         description: 请求参数错误
+ *       500:
+ *         description: 服务器内部错误
  */
-router.post(
-  '/',
-  [
-    check('name').not().isEmpty().withMessage('查询名称不能为空'),
-    check('dataSourceId').not().isEmpty().withMessage('数据源ID不能为空'),
-    check('sql').not().isEmpty().withMessage('SQL语句不能为空'),
-  ],
-  queryController.saveQuery
-);
+router.post('/', queryController.validateSaveQuery(), queryController.saveQuery);
+
+/**
+ * @swagger
+ * /queries/publish:
+ *   post:
+ *     summary: 一键保存并发布查询
+ *     description: 创建查询，同时创建初始版本并发布激活该版本
+ *     tags: [Queries]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: 查询名称
+ *               dataSourceId:
+ *                 type: string
+ *                 description: 数据源ID
+ *               sql:
+ *                 type: string
+ *                 description: SQL语句
+ *               description:
+ *                 type: string
+ *                 description: 查询描述
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 标签列表
+ *             required:
+ *               - name
+ *               - dataSourceId
+ *               - sql
+ *     responses:
+ *       201:
+ *         description: 查询创建并发布成功
+ *       400:
+ *         description: 请求参数错误
+ *       500:
+ *         description: 服务器内部错误
+ */
+router.post('/publish', queryController.validateSaveQuery(), queryController.publishQuery);
 
 /**
  * @swagger
@@ -333,6 +398,16 @@ router.post(
  *         schema:
  *           type: string
  *         description: 搜索关键词
+ *       - in: query
+ *         name: includeDrafts
+ *         schema:
+ *           type: boolean
+ *         description: 是否包含草稿
+ *       - in: query
+ *         name: includeVersionInfo
+ *         schema:
+ *           type: boolean
+ *         description: 是否包含版本详情
  *     responses:
  *       200:
  *         description: 查询列表

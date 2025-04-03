@@ -811,8 +811,7 @@ export const useQueryStore = defineStore('query', () => {
         serviceStatus: params?.serviceStatus, // 添加serviceStatus参数
         searchTerm: params?.search,
         sortBy: params?.sortBy || 'updatedAt',
-        sortDir: params?.sortDir || 'desc',
-        includeDrafts: true
+        sortDir: params?.sortDir || 'desc'
       });
       
       console.log('API响应:', result);
