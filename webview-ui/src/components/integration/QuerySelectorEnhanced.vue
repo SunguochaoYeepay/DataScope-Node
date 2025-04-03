@@ -5,6 +5,7 @@ import { useMessageStore } from '@/stores/message';
 import QueryParamsConfig from './QueryParamsConfig.vue';
 import QueryPreview from './QueryPreview.vue';
 import { queryService } from '@/services/query';
+import type { QueryHistoryParams, QueryType } from '@/types/query';
 
 // 组件属性
 const props = defineProps<{
@@ -15,6 +16,7 @@ const props = defineProps<{
   required?: boolean;
   disabled?: boolean;
   showPreview?: boolean; // 是否显示预览功能
+  dataSourceId?: string; // 新增数据源ID属性，用于级联查询
 }>();
 
 // 组件事件
@@ -29,7 +31,7 @@ const queryStore = useQueryStore();
 const message = useMessageStore();
 
 // 状态
-const queries = ref<Array<{ id: string; name: string; description?: string; type?: string; }>>([]);
+const queries = ref<Array<{ id: string; name: string; description?: string; type?: string; dataSourceId?: string; }>>([]);
 const loading = ref(false);
 const searchText = ref('');
 const selectedQueryId = ref(props.modelValue || '');
@@ -45,13 +47,20 @@ const previewPageSize = ref(10);
 
 // 计算属性
 const filteredQueries = computed(() => {
+  let result = queries.value;
+  
+  // 先过滤数据源
+  if (props.dataSourceId) {
+    result = result.filter(query => query.dataSourceId === props.dataSourceId);
+  }
+  
   if (!searchText.value) {
     // 无需过滤名称，因为我们已经在加载时确保所有查询都有名称
-    return queries.value;
+    return result;
   }
   
   const searchLower = searchText.value.toLowerCase();
-  return queries.value.filter(query => {
+  return result.filter(query => {
     return query.name.toLowerCase().includes(searchLower) ||
            (query.description && query.description.toLowerCase().includes(searchLower)) ||
            query.id.toLowerCase().includes(searchLower);
@@ -79,6 +88,26 @@ watch(() => props.modelValue, (newValue) => {
   selectedQueryId.value = newValue;
 });
 
+// 监听dataSourceId变化，重新加载查询
+watch(() => props.dataSourceId, (newValue, oldValue) => {
+  console.log(`QuerySelectorEnhanced: 数据源ID变更: ${oldValue} -> ${newValue}`);
+  
+  if (newValue) {
+    // 如果数据源ID变更，重新加载查询列表
+    loadQueries();
+    
+    // 如果当前选择的查询不属于新的数据源，则清空选择
+    if (selectedQueryId.value) {
+      const currentQuery = queries.value.find(q => q.id === selectedQueryId.value);
+      if (currentQuery && currentQuery.dataSourceId !== newValue) {
+        console.log(`QuerySelectorEnhanced: 已选择的查询(${selectedQueryId.value})不属于新数据源(${newValue})，清空选择`);
+        selectedQueryId.value = '';
+        emit('update:modelValue', '');
+      }
+    }
+  }
+}, { immediate: false });
+
 // 生命周期钩子
 onMounted(async () => {
   await loadQueries();
@@ -90,23 +119,42 @@ const loadQueries = async () => {
   
   try {
     console.log('QuerySelectorEnhanced: 开始获取查询列表数据...');
+    
+    // 构造查询参数，如果有数据源ID则包含
+    const params: QueryHistoryParams = { 
+      page: 1,
+      size: 100,
+      queryType: 'SQL' as QueryType 
+    };
+    
+    if (props.dataSourceId) {
+      params.dataSourceId = props.dataSourceId;
+      console.log(`QuerySelectorEnhanced: 使用数据源ID筛选查询: ${props.dataSourceId}`);
+    }
+    
     // 直接使用queryService而不是queryStore
-    const result = await queryService.getQueries({ queryType: 'DATA' });
+    const result = await queryService.getQueries(params);
     
     console.log('QuerySelectorEnhanced: 获取到的查询列表数据:', result);
     
     if (result) {
-      queries.value = result.map(query => {
-        console.log('QuerySelectorEnhanced: 处理查询数据:', query.id, query.name);
+      // 确保我们正确处理API返回的分页结果，取出items
+      const queryItems = Array.isArray(result) ? result : result.items || [];
+      
+      queries.value = queryItems.map(query => {
+        console.log('QuerySelectorEnhanced: 处理查询数据:', query.id, query.name, query.dataSourceId);
         return {
           id: query.id,
           name: query.name || `查询 ${query.id}`, // 确保始终有名称
           description: query.description,
-          type: query.queryType
+          type: query.queryType || query.type,
+          dataSourceId: query.dataSourceId // 添加数据源ID以支持过滤
         };
       });
       
       console.log('QuerySelectorEnhanced: 处理后的查询列表:', queries.value);
+      console.log(`QuerySelectorEnhanced: 与数据源 ${props.dataSourceId} 关联的查询数量:`, 
+        props.dataSourceId ? queries.value.filter(q => q.dataSourceId === props.dataSourceId).length : queries.value.length);
     }
   } catch (error) {
     console.error('加载查询列表失败', error);
@@ -158,9 +206,9 @@ const togglePreview = () => {
         class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
         :class="{ 'pr-10': loading, 'border-red-300': props.error }"
         :placeholder="props.placeholder || '请选择数据查询'"
-        :disabled="props.disabled || loading"
+        :disabled="props.disabled || loading || !!(props.dataSourceId && filteredQueries.length === 0)"
       >
-        <option value="">请选择数据查询</option>
+        <option value="">{{ props.dataSourceId && filteredQueries.length === 0 ? '当前数据源没有可用查询' : '请选择数据查询' }}</option>
         <option 
           v-for="query in filteredQueries" 
           :key="query.id" 
@@ -173,10 +221,26 @@ const togglePreview = () => {
       <div v-if="loading" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
         <i class="fas fa-circle-notch fa-spin text-gray-400"></i>
       </div>
+      
+      <div v-if="!loading" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+        <button 
+          type="button" 
+          @click="refreshQueries"
+          class="text-gray-400 hover:text-gray-500 focus:outline-none"
+          title="刷新查询列表"
+        >
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
     </div>
     
     <div v-if="props.error" class="mt-1 text-sm text-red-600">
       {{ props.error }}
+    </div>
+    
+    <!-- 数据源提示 -->
+    <div v-if="props.dataSourceId && !selectedQueryId && filteredQueries.length === 0 && !loading" class="mt-2 text-sm text-amber-600">
+      <i class="fas fa-info-circle mr-1"></i> 当前数据源下没有可用的查询，请先为该数据源创建查询
     </div>
     
     <!-- 参数配置面板 -->

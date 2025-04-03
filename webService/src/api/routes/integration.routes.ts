@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { IntegrationController } from '../controllers/integration.controller';
-import authMiddleware from '../../middlewares/auth.middleware';
+import { authMiddleware } from '../../middlewares/auth.middleware';
 import { validate } from '../../utils/validate';
 import { body, param } from 'express-validator';
 
@@ -11,14 +11,14 @@ const controller = new IntegrationController();
 // 获取集成列表
 router.get(
   '/low-code/apis',
-  authMiddleware.authenticate,
+  authMiddleware,
   controller.getIntegrations
 );
 
 // 获取单个集成
 router.get(
   '/low-code/apis/:id',
-  authMiddleware.authenticate,
+  authMiddleware,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID')
   ]),
@@ -28,7 +28,7 @@ router.get(
 // 创建集成
 router.post(
   '/low-code/apis',
-  authMiddleware.authenticate,
+  authMiddleware,
   validate([
     body('name').notEmpty().withMessage('集成名称不能为空'),
     body('queryId').isUUID().withMessage('查询ID必须是有效的UUID'),
@@ -41,7 +41,7 @@ router.post(
 // 更新集成
 router.put(
   '/low-code/apis/:id',
-  authMiddleware.authenticate,
+  authMiddleware,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID'),
     body('name').optional().notEmpty().withMessage('集成名称不能为空'),
@@ -55,7 +55,7 @@ router.put(
 // 删除集成
 router.delete(
   '/low-code/apis/:id',
-  authMiddleware.authenticate,
+  authMiddleware,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID')
   ]),
@@ -65,7 +65,7 @@ router.delete(
 // 获取API配置
 router.get(
   '/low-code/apis/:id/config',
-  authMiddleware.authenticate,
+  authMiddleware,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID')
   ]),
@@ -75,7 +75,7 @@ router.get(
 // 测试集成
 router.post(
   '/low-code/apis/:id/test',
-  authMiddleware.authenticate,
+  authMiddleware,
   validate([
     param('id').isUUID().withMessage('集成ID必须是有效的UUID'),
     body('params').optional().isObject().withMessage('参数必须是有效的JSON对象')

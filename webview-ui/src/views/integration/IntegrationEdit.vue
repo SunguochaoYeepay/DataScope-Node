@@ -9,9 +9,9 @@ import FormConfigEditor from '@/components/integration/FormConfigEditor.vue';
 import TableConfigTable from '@/components/integration/tablemode/TableConfigTable.vue';
 import IntegrationPointEditor from '@/components/integration/IntegrationPointEditor.vue';
 import IntegrationDebug from '@/components/integration/IntegrationDebug.vue';
-import DataSourceSelector from '@/components/dataSource/DataSourceSelector.vue';
+import DataSourceSelector from '@/components/datasource/DataSourceSelector.vue';
 import type { Integration, FormConfig, TableConfig, IntegrationPoint } from '@/types/integration';
-import type { DataSource } from '@/types/dataSource';
+import type { DataSource } from '@/types/datasource';
 
 // 路由相关
 const route = useRoute();
@@ -409,6 +409,7 @@ const handleDebugInfo = (info: any) => {
           </div>
         </div>
         
+        <!-- 数据配置 -->
         <div class="border-t border-gray-200 pt-6">
           <h2 class="text-lg font-medium text-gray-900 mb-4">数据配置</h2>
           
@@ -423,6 +424,9 @@ const handleDebugInfo = (info: any) => {
                 :required="true"
                 @selected="handleDataSourceSelected"
               />
+              <div v-if="!integration.dataSourceId" class="mt-2 text-sm text-amber-600">
+                <i class="fas fa-info-circle mr-1"></i> 请先选择数据源，然后再选择查询
+              </div>
             </div>
             
             <!-- 查询选择 -->
@@ -434,8 +438,12 @@ const handleDebugInfo = (info: any) => {
                 :error="formErrors.queryId"
                 :required="true"
                 :dataSourceId="integration.dataSourceId"
+                :disabled="!integration.dataSourceId"
                 @selected="handleQuerySelected"
               />
+              <div v-if="integration.dataSourceId && !integration.queryId" class="mt-2 text-sm text-blue-600">
+                <i class="fas fa-lightbulb mr-1"></i> 提示：只有与所选数据源关联的查询才会显示在列表中
+              </div>
             </div>
             
             <!-- 集成类型 -->

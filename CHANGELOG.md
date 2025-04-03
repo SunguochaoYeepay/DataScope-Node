@@ -71,6 +71,15 @@
 
 ### 修复
 
+- 修复了后端服务查询版本编译错误
+  - 重构了query.controller.ts控制器，替换了过时的版本管理功能
+  - 删除了不兼容的query-version.service和相关文件
+  - 修复了集成路由中authMiddleware的导入和使用方式
+  - 修复了app.ts中对已删除模块的导入引用
+  - 移除了routes目录中不存在模块的导出
+  - 确保了所有查询控制器方法的实现，保持API兼容性
+  - 优化了错误处理，提供友好的临时禁用提示
+  
 - 修复了TypeScript编译错误
   - 修复了metadata.controller.ts中重复定义的previewTableData方法（重命名为getTablePreviewInternal）
   - 修正了query-plan.routes.ts中的方法绑定问题

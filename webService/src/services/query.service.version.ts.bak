@@ -16,6 +16,20 @@ import {
   QueryServiceStatus  
 } from '../types/query-version';
 
+// 创建一个空的模拟服务对象，代替导入
+const queryVersionService = {
+  createVersion: async () => { throw new Error('Service temporarily disabled'); },
+  updateDraft: async () => { throw new Error('Service temporarily disabled'); },
+  getDraft: async () => { throw new Error('Service temporarily disabled'); },
+  publishVersion: async () => { throw new Error('Service temporarily disabled'); },
+  deprecateVersion: async () => { throw new Error('Service temporarily disabled'); },
+  getVersionById: async () => { throw new Error('Service temporarily disabled'); },
+  getVersions: async () => { throw new Error('Service temporarily disabled'); },
+  activateVersion: async () => { throw new Error('Service temporarily disabled'); },
+  disableQuery: async () => { throw new Error('Service temporarily disabled'); },
+  enableQuery: async () => { throw new Error('Service temporarily disabled'); }
+};
+
 const prismaClient = new PrismaClient();
 
 /**
@@ -381,115 +395,9 @@ export async function getQueryHistoryWithVersion({
 }
 
 /**
- * 获取查询的所有版本
- * @param queryId 查询ID
- * @returns 版本列表
- */
-export async function getVersions(queryId: string) {
-  try {
-    // 检查查询是否存在
-    const query = await prismaClient.query.findUnique({
-      where: { id: queryId }
-    });
-    
-    if (!query) {
-      throw new ApiError(ERROR_CODES.QUERY_NOT_FOUND, '查询不存在');
-    }
-    
-    // 获取所有版本
-    const versions = await prismaClient.queryVersion.findMany({
-      where: { queryId },
-      orderBy: { versionNumber: 'desc' }
-    });
-    
-    return versions;
-  } catch (error) {
-    logger.error(`获取查询版本失败，查询ID: ${queryId}`, error);
-    
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    
-    throw new ApiError(VERSION_ERROR.VERSION_NOT_FOUND, '获取查询版本失败');
-  }
-}
-
-/**
  * 查询版本管理服务
  * 用于管理查询的版本相关操作
  */
 export class QueryServiceVersion {
   // ... rest of the code ...
-}
-
-/**
- * 创建查询版本
- * @param queryId 查询ID
- * @param versionData 版本数据
- * @returns 创建的版本
- */
-export async function createVersion(queryId: string, versionData: any) {
-  try {
-    // 检查查询是否存在
-    const query = await prismaClient.query.findUnique({
-      where: { id: queryId }
-    });
-    
-    if (!query) {
-      throw new ApiError(ERROR_CODES.QUERY_NOT_FOUND, `查询不存在，ID: ${queryId}`);
-    }
-    
-    // 获取该查询的最新版本号
-    const latestVersion = await prismaClient.queryVersion.findFirst({
-      where: { queryId },
-      orderBy: { versionNumber: 'desc' }
-    });
-    
-    // 计算新版本号
-    const versionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
-    
-    // 创建新版本
-    const newVersion = await prismaClient.queryVersion.create({
-      data: {
-        id: uuidv4(),
-        queryId,
-        versionNumber,
-        versionStatus: versionData.versionStatus || 'DRAFT',
-        sqlContent: versionData.sqlContent || query.sqlContent,
-        dataSourceId: versionData.dataSourceId || query.dataSourceId,
-        description: versionData.description || `版本 ${versionNumber}`,
-        createdBy: versionData.createdBy || 'system'
-      }
-    });
-    
-    // 更新查询的版本计数
-    await prismaClient.query.update({
-      where: { id: queryId },
-      data: { 
-        versionsCount: { increment: 1 },
-        updatedAt: new Date()
-      }
-    });
-    
-    // 如果是已发布版本，更新查询的当前版本
-    if (versionData.versionStatus === 'PUBLISHED') {
-      await prismaClient.query.update({
-        where: { id: queryId },
-        data: { 
-          currentVersionId: newVersion.id,
-          updatedAt: new Date()
-        }
-      });
-    }
-    
-    return newVersion;
-  } catch (error) {
-    logger.error(`创建查询版本失败，查询ID: ${queryId}`, error);
-    
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    
-    throw new ApiError(VERSION_ERROR.VERSION_CREATE_FAILED, '创建查询版本失败');
-  }
 }

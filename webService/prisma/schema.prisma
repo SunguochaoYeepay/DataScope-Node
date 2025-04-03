@@ -9,9 +9,9 @@ datasource db {
 }
 
 model DataSource {
-  id                String         @id @default(uuid())
+  id                String       @id @default(uuid())
   name              String
-  description       String?        @db.Text
+  description       String?      @db.Text
   type              String
   host              String
   port              Int
@@ -23,14 +23,13 @@ model DataSource {
   status            String
   syncFrequency     String?
   lastSyncTime      DateTime?
-  nonce             Int            @default(0)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  createdBy         String         @default("system")
-  updatedBy         String         @default("system")
-  active            Boolean        @default(true)
+  nonce             Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  createdBy         String       @default("system")
+  updatedBy         String       @default("system")
+  active            Boolean      @default(true)
   queries           Query[]
-  queryVersions     QueryVersion[]
   savedQueries      SavedQuery[]
   schemas           Schema[]
 
@@ -142,53 +141,49 @@ model ColumnRelationship {
 }
 
 model Query {
-  id               String          @id @default(uuid())
-  name             String
-  description      String?         @db.Text
-  dataSourceId     String
-  sqlContent       String          @db.Text
-  status           String          @default("DRAFT")
-  queryType        String          @default("SQL")
-  isFavorite       Boolean         @default(false)
-  executionCount   Int             @default(0)
-  lastExecutedAt   DateTime?
-  tags             String?
-  nonce            Int             @default(0)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  createdBy        String          @default("system")
-  updatedBy        String          @default("system")
-  serviceStatus    String          @default("ENABLED")
-  usageCount       Int             @default(0)
-  versions         QueryVersion[]
-  executions       QueryHistory[]
-  dataSource       DataSource      @relation(fields: [dataSourceId], references: [id])
-  folders          QueryFolder[]
-  favorites        QueryFavorite[]
-  savedQueries     SavedQuery[]
-  queryPlans       QueryPlan[]
-  comparisons      QueryPlanComparison[]
-  planHistories    QueryPlanHistory[]
-  integrations     Integration[]
+  id                 String          @id @default(uuid())
+  name               String
+  description        String?         @db.Text
+  dataSourceId       String
+  sqlContent         String          @db.Text
+  status             String          @default("DRAFT")
+  queryType          String          @default("SQL")
+  isFavorite         Boolean         @default(false)
+  executionCount     Int             @default(0)
+  lastExecutedAt     DateTime?
+  tags               String?
+  currentVersionId   String?         // 当前版本ID
+  versionsCount      Int             @default(0) // 版本数量
+  nonce              Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  createdBy          String          @default("system")
+  updatedBy          String          @default("system")
+  tbl_display_config DisplayConfig[]
+  integrations       Integration[]
+  dataSource         DataSource      @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  executions         QueryHistory[]
+  queryPlans         QueryPlan[]
+  versions           QueryVersion[]  // 关联查询版本
 
   @@index([dataSourceId], map: "tbl_query_dataSourceId_fkey")
   @@map("tbl_query")
 }
 
 model QueryHistory {
-  id            String   @id @default(uuid())
-  queryId       String
-  executedBy    String
-  executedAt    DateTime @default(now())
-  executionTime Int?     @default(0)
-  status        String
-  error         String?  @db.Text
-  rowCount      Int?     @default(0)
-  nonce         Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  parameters    Json?
-  query         Query    @relation(fields: [queryId], references: [id])
+  id           String    @id @default(uuid())
+  queryId      String?
+  dataSourceId String
+  sqlContent   String    @db.Text
+  status       String
+  startTime    DateTime
+  endTime      DateTime?
+  duration     Int?
+  rowCount     Int?
+  errorMessage String?   @db.Text
+  createdAt    DateTime  @default(now())
+  createdBy    String    @default("system")
+  query        Query?    @relation(fields: [queryId], references: [id])
 
   @@index([queryId], map: "tbl_query_history_queryId_fkey")
   @@map("tbl_query_history")
@@ -196,105 +191,117 @@ model QueryHistory {
 
 model DisplayConfig {
   id          String   @id @default(uuid())
-  resourceId  String
-  resourceType String
-  configType  String
-  config      Json?
+  queryId     String
+  displayType String
+  chartType   String?
+  title       String?
+  description String?  @db.Text
+  config      Json
+  isDefault   Boolean  @default(false)
   nonce       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdBy   String   @default("system")
   updatedBy   String   @default("system")
+  tbl_query   Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
 
-  @@index([resourceId, resourceType], map: "tbl_display_config_resource_fkey")
+  @@index([queryId], map: "tbl_display_config_queryId_fkey")
   @@map("tbl_display_config")
 }
 
 model MetadataSyncHistory {
-  id           String   @id @default(uuid())
-  dataSourceId String
-  syncTime     DateTime @default(now())
-  status       String
-  error        String?
-  tablesCount  Int?     @default(0)
-  nonce        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  dataSourceId       String
+  status             String
+  startTime          DateTime
+  endTime            DateTime?
+  duration           Int?
+  syncType           String
+  tablesCount        Int?
+  viewsCount         Int?
+  relationshipsCount Int?
+  errorMessage       String?   @db.Text
+  createdAt          DateTime  @default(now())
+  createdBy          String    @default("system")
 
   @@map("tbl_metadata_sync_history")
 }
 
 model QueryPlan {
-  id         String   @id @default(uuid())
-  queryId    String
-  planJson   Json
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  query      Query    @relation(fields: [queryId], references: [id])
-  planType   String   @default("EXPLAIN")
-  isOptimized Boolean  @default(false)
-  suggestions Json?
+  id                                                                          String                @id @default(uuid())
+  queryId                                                                     String?
+  dataSourceId                                                                String
+  name                                                                        String?
+  sql                                                                         String                @db.Text
+  planData                                                                    String                @db.Text
+  estimatedCost                                                               Float?
+  optimizationTips                                                            String?               @db.Text
+  isAnalyzed                                                                  Boolean               @default(false)
+  createdAt                                                                   DateTime              @default(now())
+  updatedAt                                                                   DateTime              @updatedAt
+  createdBy                                                                   String                @default("system")
+  query                                                                       Query?                @relation(fields: [queryId], references: [id])
+  tbl_query_plan_comparison_tbl_query_plan_comparison_planAIdTotbl_query_plan QueryPlanComparison[] @relation("tbl_query_plan_comparison_planAIdTotbl_query_plan")
+  tbl_query_plan_comparison_tbl_query_plan_comparison_planBIdTotbl_query_plan QueryPlanComparison[] @relation("tbl_query_plan_comparison_planBIdTotbl_query_plan")
 
   @@index([queryId], map: "tbl_query_plan_queryId_fkey")
   @@map("tbl_query_plan")
 }
 
 model QueryPlanComparison {
-  id          String   @id @default(uuid())
-  queryId     String
-  originalPlanJson Json
-  optimizedPlanJson Json
-  improvements Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  query       Query    @relation(fields: [queryId], references: [id])
+  id                                                               String    @id @default(uuid())
+  planAId                                                          String
+  planBId                                                          String
+  comparisonData                                                   String    @db.Text
+  improvement                                                      Float?
+  createdAt                                                        DateTime  @default(now())
+  createdBy                                                        String    @default("system")
+  tbl_query_plan_tbl_query_plan_comparison_planAIdTotbl_query_plan QueryPlan @relation("tbl_query_plan_comparison_planAIdTotbl_query_plan", fields: [planAId], references: [id], onDelete: Cascade)
+  tbl_query_plan_tbl_query_plan_comparison_planBIdTotbl_query_plan QueryPlan @relation("tbl_query_plan_comparison_planBIdTotbl_query_plan", fields: [planBId], references: [id], onDelete: Cascade)
 
-  @@index([queryId], map: "tbl_query_plan_comparison_queryId_fkey")
+  @@index([planAId], map: "tbl_query_plan_comparison_planAId_fkey")
+  @@index([planBId], map: "tbl_query_plan_comparison_planBId_fkey")
   @@map("tbl_query_plan_comparison")
 }
 
 model QueryPlanHistory {
-  id          String   @id @default(uuid())
-  queryId     String
-  planJson    Json
-  createdAt   DateTime @default(now())
-  query       Query    @relation(fields: [queryId], references: [id])
+  id           String   @id @default(uuid())
+  dataSourceId String
+  sql          String   @db.Text
+  planData     String   @db.Text
+  createdAt    DateTime @default(now())
 
   @@map("tbl_query_plan_history")
 }
 
 model SavedQuery {
-  id            String     @id @default(uuid())
-  name          String
-  description   String?    @db.Text
-  userId        String
-  queryId       String
-  dataSourceId  String
-  sqlContent    String     @db.Text
-  parameters    Json?
-  isFavorite    Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  lastExecutedAt DateTime?
-  executionCount Int       @default(0)
-  query         Query      @relation(fields: [queryId], references: [id])
-  dataSource    DataSource @relation(fields: [dataSourceId], references: [id])
+  id               String       @id @default(uuid())
+  name             String
+  description      String?      @db.Text
+  sql              String       @db.Text
+  dataSourceId     String
+  tags             String
+  folderId         String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  dataSource       DataSource   @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  tbl_query_folder QueryFolder? @relation(fields: [folderId], references: [id])
 
-  @@index([queryId], map: "tbl_saved_query_queryId_fkey")
   @@index([dataSourceId], map: "tbl_saved_query_dataSourceId_fkey")
+  @@index([folderId], map: "tbl_saved_query_folderId_fkey")
   @@map("tbl_saved_query")
 }
 
 model QueryFolder {
-  id          String    @id @default(uuid())
-  name        String
-  description String?   @db.Text
-  parentId    String?
-  queries     Query[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  parent      QueryFolder? @relation("FolderTree", fields: [parentId], references: [id])
-  children    QueryFolder[] @relation("FolderTree")
+  id              String        @id @default(uuid())
+  name            String
+  description     String?       @db.Text
+  parentId        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  parent          QueryFolder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children        QueryFolder[] @relation("FolderTree")
+  tbl_saved_query SavedQuery[]
 
   @@index([parentId], map: "tbl_query_folder_parentId_fkey")
   @@map("tbl_query_folder")
@@ -302,12 +309,10 @@ model QueryFolder {
 
 model QueryFavorite {
   id        String   @id @default(uuid())
-  userId    String
   queryId   String
+  userId    String   @default("anonymous")
   createdAt DateTime @default(now())
-  query     Query    @relation(fields: [queryId], references: [id])
 
-  @@index([queryId], map: "tbl_query_favorite_queryId_fkey")
   @@map("tbl_query_favorite")
 }
 
@@ -316,11 +321,13 @@ model Integration {
   name        String
   description String?  @db.Text
   queryId     String
-  type        String   // TABLE, FORM, CHART
-  status      String   @default("DRAFT")
+  type        String
   config      Json
-  createTime  DateTime @default(now())
-  updateTime  DateTime @updatedAt
+  status      String   @default("DRAFT")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  createdBy   String?
+  updatedBy   String?
   query       Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
 
   @@index([queryId], map: "tbl_integration_queryId_fkey")
@@ -328,31 +335,28 @@ model Integration {
 }
 
 model Metadata {
-  id         String   @id @default(uuid())
-  key        String   @unique
-  value      String   @db.Text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(uuid())
+  dataSourceId String
+  structure    String   @db.LongText
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("tbl_metadata")
 }
 
 model QueryVersion {
-  id           String     @id @default(uuid())
-  queryId      String
-  dataSourceId String
+  id            String   @id @default(uuid())
+  queryId       String
   versionNumber Int
-  status       String     @default("DRAFT")
-  sqlContent   String?    @db.Text
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  publishedAt  DateTime?
-  deprecatedAt DateTime?
-  isActive     Boolean    @default(false)
-  query        Query?      @relation(fields: [queryId], references: [id])
-  dataSource   DataSource @relation(fields: [dataSourceId], references: [id])
+  versionStatus String   @default("DRAFT")
+  sqlContent    String   @db.Text
+  dataSourceId  String
+  description   String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String   @default("system")
+  query         Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
 
   @@index([queryId], map: "tbl_query_version_queryId_fkey")
-  @@index([dataSourceId], map: "tbl_query_version_dataSourceId_fkey")
   @@map("tbl_query_version")
 }

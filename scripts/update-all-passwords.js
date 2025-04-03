@@ -52,10 +52,10 @@ async function updateAllPasswords() {
   try {
     // 数据库连接配置
     const dbConfig = {
-      host: '127.0.0.1',
+      host: 'localhost',
       port: 3306,
       user: 'root',
-      password: 'datascope',
+      password: 'tZ_,;qP1?CtV',
       database: 'datascope',
       multipleStatements: true
     };

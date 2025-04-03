@@ -5,19 +5,18 @@ import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { ApiError } from '../utils/errors/types/api-error';
 import { VERSION_ERROR } from '../utils/errors/error-codes-version';
-import { ERROR_CODES } from '../utils/errors/error-codes';
+import { ERROR_CODES, GENERAL_ERROR } from '../utils/errors/error-codes';
 import { QueryVersionStatus, QueryServiceStatus, CreateVersionParams, UpdateDraftParams } from '../types/query-version';
 import logger from '../utils/logger';
+import prisma from '../prisma';
 
-/**
- * 查询版本服务类
- * 负责处理查询版本的创建、更新、发布和管理
- */
-class QueryVersionService {
+// 暂时禁用该服务，直到Prisma模型完全配置好
+export class QueryVersionService_DISABLED {
+  // 使用传入的Prisma客户端或默认客户端
   private prisma: PrismaClient;
-
-  constructor() {
-    this.prisma = new PrismaClient();
+  
+  constructor(prismaClient?: PrismaClient) {
+    this.prisma = prismaClient || prisma;
   }
 
   /**
@@ -595,4 +594,4 @@ class QueryVersionService {
 }
 
 // 导出单例实例
-export default new QueryVersionService();
+export default new QueryVersionService_DISABLED();

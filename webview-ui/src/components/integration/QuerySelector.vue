@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useQueryStore } from '@/stores/query';
 import { useMessageStore } from '@/stores/message';
 import { queryService } from '@/services/query';
+import type { QueryHistoryParams, QueryType } from '@/types/query';
 
 // 组件属性
 const props = defineProps<{
@@ -69,18 +70,25 @@ watch(() => props.modelValue, (newValue) => {
   selectedQueryId.value = newValue;
 });
 
-// 监听dataSourceId变化，重置选择的查询
-watch(() => props.dataSourceId, (newValue) => {
-  if (newValue && selectedQueryId.value) {
-    // 检查当前选择的查询是否属于新的数据源
-    const currentQuery = queries.value.find(q => q.id === selectedQueryId.value);
-    if (currentQuery && currentQuery.dataSourceId !== newValue) {
-      // 如果不属于，则清空选择
-      selectedQueryId.value = '';
-      emit('update:modelValue', '');
+// 监听dataSourceId变化，重新加载查询
+watch(() => props.dataSourceId, (newValue, oldValue) => {
+  console.log(`数据源ID变更: ${oldValue} -> ${newValue}`);
+  
+  if (newValue) {
+    // 如果数据源ID变更，重新加载查询列表
+    loadQueries();
+    
+    // 如果当前选择的查询不属于新的数据源，则清空选择
+    if (selectedQueryId.value) {
+      const currentQuery = queries.value.find(q => q.id === selectedQueryId.value);
+      if (currentQuery && currentQuery.dataSourceId !== newValue) {
+        console.log(`已选择的查询(${selectedQueryId.value})不属于新数据源(${newValue})，清空选择`);
+        selectedQueryId.value = '';
+        emit('update:modelValue', '');
+      }
     }
   }
-});
+}, { immediate: false });
 
 // 生命周期钩子
 onMounted(async () => {
@@ -93,7 +101,20 @@ const loadQueries = async () => {
   
   try {
     console.log('开始获取查询列表数据...');
-    const result = await queryService.getQueries({ queryType: 'DATA' });
+    
+    // 如果指定了数据源ID，则在请求中包含该参数
+    const params: QueryHistoryParams = { 
+      page: 1, 
+      size: 100,
+      queryType: 'SQL' as QueryType
+    };
+    
+    if (props.dataSourceId) {
+      params.dataSourceId = props.dataSourceId;
+      console.log(`使用数据源ID筛选查询: ${props.dataSourceId}`);
+    }
+    
+    const result = await queryService.getQueries(params);
     
     console.log('获取到的查询列表数据:', result);
     
@@ -102,7 +123,7 @@ const loadQueries = async () => {
       const queryItems = Array.isArray(result) ? result : result.items || [];
       
       queries.value = queryItems.map(query => {
-        console.log('处理查询数据:', query.id, query.name);
+        console.log('处理查询数据:', query.id, query.name, query.dataSourceId);
         return {
           id: query.id,
           name: query.name || `查询 ${query.id}`,
@@ -113,6 +134,8 @@ const loadQueries = async () => {
       });
       
       console.log('处理后的查询列表:', queries.value);
+      console.log(`与数据源 ${props.dataSourceId} 关联的查询数量:`, 
+        props.dataSourceId ? queries.value.filter(q => q.dataSourceId === props.dataSourceId).length : queries.value.length);
     }
   } catch (error) {
     console.error('加载查询列表失败', error);
