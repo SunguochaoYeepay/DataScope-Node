@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 3000, // 修改端口为3000避免与其他服务冲突
+    port: 8080, // 改回原来的8080端口
     cors: true, // 启用CORS
     proxy: {
       // 配置代理
@@ -25,9 +25,9 @@ export default defineConfig({
     },
     headers: {
       // 更新CSP策略，确保允许本地样式加载
-      'Content-Security-Policy': "default-src 'self' http://localhost:5000; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:5000 ws://localhost:5000 http://localhost:3000 ws://localhost:3000"
+      'Content-Security-Policy': "default-src 'self' http://localhost:5000; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:5000 ws://localhost:5000 http://localhost:8080 ws://localhost:8080"
     },
-    strictPort: false // 允许尝试其他端口，如果3000被占用
+    strictPort: true // 如果端口被占用，则退出而不是尝试其他端口
   },
   build: {
     outDir: 'dist',
