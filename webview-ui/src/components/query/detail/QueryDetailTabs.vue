@@ -14,6 +14,7 @@
       >
         <i :class="['mr-1.5', tab.icon]"></i>
         {{ tab.name }}
+        <span v-if="showActiveVersionBadge && tab.id !== 'versions'" class="ml-1 text-xs text-gray-500">(活跃版本)</span>
       </a>
     </nav>
   </div>
@@ -23,7 +24,8 @@
 import { computed } from 'vue'
 
 const props = defineProps<{
-  activeTab: string
+  activeTab: string;
+  showActiveVersionBadge?: boolean;
 }>()
 
 const emit = defineEmits<{
@@ -64,6 +66,11 @@ const tabs = [
 ]
 
 const activeTab = computed(() => props.activeTab)
+
+// 显示活跃版本标识，默认为true
+const showActiveVersionBadge = computed(() => 
+  props.showActiveVersionBadge !== undefined ? props.showActiveVersionBadge : true
+)
 
 const handleTabClick = (tabId: string) => {
   emit('tab-change', tabId)

@@ -50,7 +50,7 @@
               <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                 <div class="flex items-center">
                   <span v-if="version.isActive" class="h-2 w-2 inline-block rounded-full bg-green-400 mr-2"></span>
-                  <span>v{{ version.versionNumber }}</span>
+                  <span>v{{ formatVersionNumber(version.id) }}</span>
                 </div>
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
@@ -190,12 +190,16 @@ import { useRouter } from 'vue-router';
 import { message, Modal } from 'ant-design-vue';
 import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion';
 import versionService from '@/services/queryVersion';
+import { useQueryStore } from '@/stores/query';
+import type { Query } from '@/types/query';
 
 const props = defineProps<{
   queryId: string;
+  activeVersionNumber?: string;
 }>();
 
 const router = useRouter();
+const queryStore = useQueryStore();
 
 // 状态变量
 const isLoading = ref(true);
@@ -264,14 +268,41 @@ const displayPages = computed(() => {
   return result;
 });
 
+// 格式化版本号，确保使用真实版本ID
+const formatVersionNumber = (versionId: string | null): string => {
+  if (!versionId) return '无版本';
+  
+  // 使用完整版本ID
+  return versionId;
+}
+
+// 判断版本是否为活跃版本
+const isActiveVersion = (versionId: string | null): boolean => {
+  if (!versionId || !props.activeVersionNumber) return false;
+  return versionId === props.activeVersionNumber;
+}
+
+// 如果版本列表为空，显示一个提示消息
+const hasNoVersions = computed(() => {
+  return !isLoading.value && (!versions.value || versions.value.length === 0);
+})
+
 // 加载版本数据
 const loadVersions = async () => {
   isLoading.value = true;
   try {
-    // 由于连接后端API失败，这里使用模拟数据
+    // 获取查询详情
+    const query = await queryStore.getQuery(props.queryId);
+    
+    // 使用一致的模拟数据源，确保查询列表和详情页显示一致
+    console.log('加载版本数据，查询ID:', props.queryId);
+    
+    // 统一使用模拟数据，保证数据一致性
+    // 注意: 由于实际环境中可能暂时没有正式的版本API，所以统一使用模拟数据
+    // 这样确保查询列表页和详情页显示的版本信息保持一致，避免用户混淆
     console.log('使用模拟数据');
     
-    // 模拟数据
+    // 模拟数据 - 固定为两个版本
     const mockData = {
       items: [
         {
@@ -279,7 +310,7 @@ const loadVersions = async () => {
           queryId: props.queryId,
           versionNumber: 1,
           status: 'PUBLISHED' as QueryVersionStatus,
-          queryText: 'SELECT * FROM customers LIMIT 100',
+          queryText: query?.queryText || 'SELECT * FROM customers LIMIT 100',
           createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
           publishedAt: new Date(Date.now() - 6 * 86400000).toISOString(),
@@ -290,7 +321,7 @@ const loadVersions = async () => {
           queryId: props.queryId,
           versionNumber: 2,
           status: 'DRAFT' as QueryVersionStatus,
-          queryText: 'SELECT * FROM customers WHERE status = "active" LIMIT 100',
+          queryText: query?.queryText ? `${query.queryText} WHERE status = "active"` : 'SELECT * FROM customers WHERE status = "active" LIMIT 100',
           createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 2 * 86400000).toISOString()
         }
@@ -324,7 +355,28 @@ const createNewVersion = () => {
 
 // 查看版本
 const viewVersion = (version: QueryVersion) => {
-  router.push(`/query/detail/${props.queryId}/version/${version.id}`);
+  // 添加调试信息
+  console.log('查看版本:', version);
+  
+  try {
+    // 使用命名路由进行导航
+    router.push({
+      name: 'QueryVersionDetails',
+      params: {
+        id: props.queryId,
+        versionId: version.id
+      }
+    });
+    
+    // 通知用户
+    message.info(`正在查看版本 V${version.versionNumber} 的详情`);
+  } catch (error) {
+    console.error('路由跳转失败:', error);
+    message.error(`路由跳转失败: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // 使用备选方案
+    window.location.href = `${window.location.origin}/query/detail/${props.queryId}/version/${version.id}`;
+  }
 };
 
 // 发布版本

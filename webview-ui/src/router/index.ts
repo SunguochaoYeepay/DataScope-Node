@@ -104,6 +104,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/query/QueryDetail.vue')
       },
       {
+        path: 'detail/:id/version/:versionId',
+        name: 'QueryVersionDetails',
+        component: () => import('../views/query/QueryVersionDetail.vue'),
+        meta: {
+          title: '查询版本详情'
+        }
+      },
+      {
         path: 'version/management/:id',
         name: 'VersionManagement',
         component: () => import('../views/query/version/VersionManagementView.vue'),
@@ -113,7 +121,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'version/:id',
-        name: 'QueryVersionDetail',
+        name: 'LegacyQueryVersionDetail',
         component: () => import('../views/query/version/QueryDetailView.vue'),
         meta: {
           title: '查询版本详情'

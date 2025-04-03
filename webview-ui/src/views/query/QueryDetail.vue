@@ -139,6 +139,50 @@
               </div>
             </div>
             
+            <!-- 活跃版本信息 -->
+            <div class="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                  <span class="h-2 w-2 inline-block rounded-full bg-green-500 mr-2"></span>
+                  <h3 class="text-sm font-medium text-blue-800">活跃版本信息</h3>
+                  <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">V{{ activeVersionNumber }}</span>
+                </div>
+                <div>
+                  <button
+                    @click="activeTab = 'versions'"
+                    class="text-xs text-blue-700 hover:text-blue-900 flex items-center"
+                  >
+                    <i class="fas fa-code-branch mr-1"></i>
+                    查看所有版本
+                  </button>
+                </div>
+              </div>
+              
+              <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <span class="text-xs text-gray-500">状态:</span>
+                  <span 
+                    class="ml-1 text-xs px-1.5 py-0.5 rounded-full"
+                    :class="{
+                      'bg-yellow-100 text-yellow-800': activeVersionStatus === 'DRAFT',
+                      'bg-green-100 text-green-800': activeVersionStatus === 'PUBLISHED',
+                      'bg-gray-100 text-gray-800': activeVersionStatus === 'DEPRECATED'
+                    }"
+                  >
+                    {{ formatVersionStatus(activeVersionStatus) }}
+                  </span>
+                </div>
+                <div>
+                  <span class="text-xs text-gray-500">发布时间:</span>
+                  <span class="ml-1 text-xs text-gray-700">{{ formatDate(activeVersionPublishedAt) }}</span>
+                </div>
+                <div>
+                  <span class="text-xs text-gray-500">最后更新:</span>
+                  <span class="ml-1 text-xs text-gray-700">{{ formatDate(activeVersionUpdatedAt) }}</span>
+                </div>
+              </div>
+            </div>
+            
             <div class="mt-4">
               <h3 class="text-sm font-medium text-gray-500">查询内容</h3>
               <div class="mt-1 p-3 bg-gray-50 rounded border border-gray-200 overflow-auto max-h-32">
@@ -251,8 +295,8 @@
         </div>
         
         <!-- 版本标签页 -->
-        <div v-if="activeTab === 'versions'" class="bg-white shadow rounded-lg">
-          <QueryVersionsTab :queryId="query.id" />
+        <div v-if="activeTab === 'versions'" class="version-history-container">
+          <QueryVersionsTab :query-id="queryId" :active-version-number="activeVersionNumber" />
         </div>
         
         <!-- 可视化标签页 -->
@@ -500,6 +544,12 @@ const errorMessage = ref('')
 const activeTab = ref('visualization')
 const showExportOptions = ref(false) // 是否显示导出选项
 
+// 活跃版本相关信息
+const activeVersionNumber = ref<string | null>(null)
+const activeVersionStatus = ref<QueryStatus>('DRAFT')
+const activeVersionPublishedAt = ref<string | null>(null)
+const activeVersionUpdatedAt = ref<string | null>(null)
+
 // 保存来源路径用于返回按钮
 const previousPath = ref('')
 
@@ -685,42 +735,45 @@ watch(activeTab, (newTabId) => {
 
 // 加载查询及相关数据
 const loadQueryData = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
+  isLoading.value = true;
+  errorMessage.value = '';
   
   try {
     // 加载查询详情
-    const result = await queryStore.getQuery(queryId.value)
+    const result = await queryStore.getQuery(queryId.value);
     
     // 检查是否获取到查询数据
     if (!result || !queryStore.currentQuery) {
-      errorMessage.value = '找不到指定ID的查询，该查询可能已被删除或不存在'
-      isLoading.value = false
-      console.error(`查询ID ${queryId.value} 不存在`)
-      return
+      errorMessage.value = '找不到指定ID的查询，该查询可能已被删除或不存在';
+      isLoading.value = false;
+      console.error(`查询ID ${queryId.value} 不存在`);
+      return;
     }
     
+    // 加载版本数据
+    await loadVersionsData();
+    
     // 根据选中的标签页加载其他数据
-    await loadTabData(activeTab.value)
+    await loadTabData(activeTab.value);
     
     // 确保查询内容被正确加载
     if (query.value && !query.value.queryText && result.queryText) {
       // 如果查询结果中有查询文本但store中没有，手动设置
-      console.log('设置查询文本:', result.queryText)
+      console.log('设置查询文本:', result.queryText);
       if (queryStore.currentQuery) {
-        queryStore.currentQuery.queryText = result.queryText
+        queryStore.currentQuery.queryText = result.queryText;
       }
     }
     
-    isLoading.value = false
+    isLoading.value = false;
   } catch (error) {
-    console.error('Failed to load query data:', error)
+    console.error('Failed to load query data:', error);
     errorMessage.value = error instanceof Error 
       ? `无法加载查询信息: ${error.message}` 
-      : '无法加载查询信息，请检查查询ID是否有效'
-    isLoading.value = false
+      : '无法加载查询信息，请检查查询ID是否有效';
+    isLoading.value = false;
   }
-}
+};
 
 // 根据标签页加载相应数据
 const loadTabData = async (tabId: string) => {
@@ -746,7 +799,7 @@ const loadTabData = async (tabId: string) => {
 
 // 处理标签页变化
 const handleTabChange = (tabId: string) => {
-  activeTab.value = tabId
+  activeTab.value = tabId;
 }
 
 // 加载可视化配置
@@ -811,11 +864,37 @@ const loadResultsData = async () => {
   }
 }
 
-// 加载版本信息
+// 加载版本相关信息
 const loadVersionsData = async () => {
-  // 这里不需要特殊实现，因为QueryVersionsTab组件内部已经包含了加载逻辑
-  console.log('加载版本数据'); 
-}
+  try {
+    if (!queryId.value) return;
+    
+    // 使用已有的 getQuery 方法获取查询详情
+    await queryStore.getQuery(queryId.value);
+    
+    // 使用当前查询数据，避免访问可能不存在的属性
+    if (query.value) {
+      console.log('查询详情数据:', query.value);
+      
+      // 设置版本信息，使用安全的方式访问属性
+      activeVersionNumber.value = query.value.currentVersion || null;
+      activeVersionStatus.value = query.value.status || 'DRAFT';
+      
+      // 使用更新时间作为发布时间和更新时间
+      const updatedTime = query.value.updatedAt || new Date().toISOString();
+      activeVersionPublishedAt.value = updatedTime;
+      activeVersionUpdatedAt.value = updatedTime;
+      
+      console.log('设置版本信息:', {
+        version: activeVersionNumber.value,
+        status: activeVersionStatus.value,
+        updatedAt: activeVersionUpdatedAt.value
+      });
+    }
+  } catch (error) {
+    console.error('获取版本数据失败:', error);
+  }
+};
 
 // 编辑查询
 const editQuery = () => {
@@ -1136,6 +1215,37 @@ const getDataSourceName = (dataSourceId?: string): string => {
   const dataSource = dataSourceStore.dataSources.find(ds => ds.id === dataSourceId)
   return dataSource ? dataSource.name : dataSourceId
 }
+
+// 格式化版本状态显示
+const formatVersionStatus = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'DRAFT': '草稿',
+    'PUBLISHED': '已发布',
+    'DEPRECATED': '已废弃'
+  };
+  return statusMap[status] || status;
+};
+
+// 格式化日期简短显示
+const formatDate = (dateString: string): string => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+};
+
+// 查询标签页配置
+const tabs = [
+  { id: 'history', name: '执行历史', showActiveVersionBadge: true },
+  { id: 'visualization', name: '可视化', showActiveVersionBadge: true },
+  { id: 'execution-plan', name: '执行计划', showActiveVersionBadge: true },
+  { id: 'suggestions', name: '优化建议', showActiveVersionBadge: true },
+  { id: 'results', name: '结果', showActiveVersionBadge: true },
+  { id: 'versions', name: '版本历史', showActiveVersionBadge: false }
+];
 </script>
 
 <style scoped>

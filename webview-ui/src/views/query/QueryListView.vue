@@ -7,6 +7,12 @@
         
         <div class="flex space-x-2">
           <button
+            @click="fetchQueries"
+            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <i class="fas fa-sync-alt mr-2"></i>刷新
+          </button>
+          <button
             @click="navigateToFavorites"
             class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
@@ -23,55 +29,51 @@
       </div>
     </div>
     
-    <!-- 过滤器 -->
-    <div class="bg-white shadow rounded-lg p-6 mb-6">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- 搜索 -->
+    <!-- 筛选区域 -->
+    <div class="mb-6 bg-white p-4 rounded-lg shadow">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 搜索框 -->
         <div>
-          <label for="search" class="block text-sm font-medium text-gray-700 mb-1">
-            搜索
-          </label>
-          <div class="relative">
+          <label for="search" class="block text-sm font-medium text-gray-700 mb-1">搜索</label>
+          <div class="relative rounded-md shadow-sm">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <i class="fas fa-search text-gray-400"></i>
             </div>
-            <input 
+            <input
+              type="text"
+              name="search"
               id="search"
               v-model="searchTerm"
-              type="text"
-              class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               placeholder="搜索查询名称或描述"
             />
           </div>
         </div>
         
-        <!-- 状态过滤 -->
+        <!-- 查询状态筛选 -->
         <div>
-          <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">
-            状态
-          </label>
+          <label for="serviceStatusFilter" class="block text-sm font-medium text-gray-700 mb-1">查询状态</label>
           <select
-            id="status-filter"
-            v-model="statusFilter"
-            class="block w-full py-2 pl-3 pr-10 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            id="serviceStatusFilter"
+            v-model="serviceStatusFilter"
+            class="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           >
             <option value="">全部状态</option>
-            <option value="DRAFT">草稿</option>
-            <option value="PUBLISHED">已发布</option>
-            <option value="DEPRECATED">已废弃</option>
+            <option value="ENABLED">已启用</option>
+            <option value="DISABLED">已禁用</option>
           </select>
         </div>
-        
-        <!-- 操作按钮 -->
-        <div class="flex items-end">
-          <button 
-            @click="clearFilters"
-            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <i class="fas fa-sync-alt mr-2"></i>
-            重置筛选
-          </button>
-        </div>
+      </div>
+      
+      <!-- 筛选操作按钮 -->
+      <div class="mt-4 flex justify-end">
+        <button 
+          @click="clearFilters"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          <i class="fas fa-times-circle mr-2"></i>
+          重置筛选
+        </button>
       </div>
     </div>
     
@@ -84,13 +86,13 @@
       </div>
       
       <!-- 空状态 -->
-      <div v-else-if="filteredQueries.length === 0" class="p-10 text-center">
+      <div v-else-if="queries.length === 0" class="p-10 text-center">
         <div class="rounded-full bg-gray-100 h-16 w-16 flex items-center justify-center mx-auto mb-4">
           <i class="fas fa-search text-gray-400 text-2xl"></i>
         </div>
         <h3 class="text-sm font-medium text-gray-900">暂无查询服务</h3>
         <p class="mt-1 text-sm text-gray-500">
-          {{ searchTerm || statusFilter ? '没有符合筛选条件的查询服务' : '开始创建您的第一个查询服务' }}
+          {{ searchTerm || serviceStatusFilter ? '没有符合筛选条件的查询服务' : '开始创建您的第一个查询服务' }}
         </p>
         <div class="mt-6">
           <button 
@@ -112,10 +114,13 @@
                 名称
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                数据源/类型
+                数据源
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                当前状态
+                查询类型
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                服务状态
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 当前版本
@@ -129,7 +134,7 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="query in filteredQueries" :key="query.id">
+            <tr v-for="query in queries" :key="query.id">
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <div class="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md bg-indigo-100 text-indigo-600">
@@ -147,7 +152,9 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900">{{ query.dataSourceName || '未指定' }}</div>
-                <div class="text-xs text-gray-500">
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
                   <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
                     {{ query.queryType === 'SQL' ? 'SQL' : '自然语言' }}
                   </span>
@@ -158,11 +165,11 @@
                   <span 
                     class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                     :class="{
-                      'bg-blue-100 text-blue-800': query.isActive,
-                      'bg-gray-100 text-gray-800': !query.isActive
+                      'bg-blue-100 text-blue-800': query.serviceStatus === 'ENABLED',
+                      'bg-gray-100 text-gray-800': query.serviceStatus !== 'ENABLED'
                     }"
                   >
-                    {{ query.isActive ? '活跃' : '禁用' }}
+                    {{ query.serviceStatus === 'ENABLED' ? '已启用' : '已禁用' }}
                   </span>
                 </div>
               </td>
@@ -215,12 +222,12 @@
                   @click="toggleQueryStatus(query)"
                   :class="[
                     'mx-1',
-                    query.status === 'PUBLISHED' ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'
+                    query.serviceStatus === 'ENABLED' ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'
                   ]"
-                  :title="query.status === 'PUBLISHED' ? '禁用' : '启用'"
+                  :title="query.serviceStatus === 'ENABLED' ? '禁用' : '启用'"
                 >
                   <i :class="[
-                    query.status === 'PUBLISHED' ? 'fas fa-pause-circle' : 'fas fa-play-circle'
+                    query.serviceStatus === 'ENABLED' ? 'fas fa-pause-circle' : 'fas fa-play-circle'
                   ]"></i>
                 </button>
                 <button 
@@ -244,9 +251,9 @@
               显示
               <span class="font-medium">{{ (currentPage - 1) * pageSize + 1 }}</span>
               至
-              <span class="font-medium">{{ Math.min(currentPage * pageSize, filteredQueries.length) }}</span>
+              <span class="font-medium">{{ Math.min(currentPage * pageSize, queries.length) }}</span>
               条，共
-              <span class="font-medium">{{ filteredQueries.length }}</span>
+              <span class="font-medium">{{ queries.length }}</span>
               条记录
             </p>
           </div>
@@ -401,6 +408,9 @@ import { useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { formatRelativeTime } from '@/utils/formatters'
 import { useMessageService } from '@/services/message'
+import type { QueryStatus } from '@/types/query'
+import { dataSourceService } from '@/services/datasource'
+import type { DataSource } from '@/types/datasource'
 
 // 路由和Store
 const router = useRouter()
@@ -411,7 +421,7 @@ const messageService = useMessageService()
 const isLoading = ref(true)
 const queries = ref<any[]>([])
 const searchTerm = ref('')
-const statusFilter = ref('')
+const serviceStatusFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const showDeleteConfirm = ref(false)
@@ -419,32 +429,19 @@ const queryToDelete = ref<any>(null)
 // 添加状态对话框相关状态
 const showStatusConfirm = ref(false)
 const queryToToggle = ref<any>(null)
-const newStatus = ref('')
+const newStatus = ref<QueryStatus>('PUBLISHED')
 
-// 计算属性：筛选后的查询列表
-const filteredQueries = computed(() => {
-  let result = [...queries.value]
-  
-  // 搜索筛选
-  if (searchTerm.value) {
-    const term = searchTerm.value.toLowerCase()
-    result = result.filter(q => 
-      (q.name && q.name.toLowerCase().includes(term)) || 
-      (q.description && q.description.toLowerCase().includes(term))
-    )
-  }
-  
-  // 状态筛选
-  if (statusFilter.value) {
-    result = result.filter(q => q.status === statusFilter.value)
-  }
-  
-  return result
-})
+// 数据源缓存
+const dataSourceCache = ref<DataSource[]>([])
+
+// 监听筛选条件变化，重新获取数据
+watch([searchTerm, serviceStatusFilter], () => {
+  fetchQueries();
+});
 
 // 计算属性：总页数
 const totalPages = computed(() => {
-  return Math.ceil(filteredQueries.value.length / pageSize.value)
+  return Math.ceil(queries.value.length / pageSize.value)
 })
 
 // 计算属性：页码数组
@@ -480,109 +477,132 @@ const pageNumbers = computed(() => {
 
 // 初始化加载数据
 onMounted(async () => {
-  await fetchQueries()
+  // 先加载数据源信息
+  await loadDataSourceCache();
+  // 然后加载查询列表
+  await fetchQueries();
 })
+
+// 预加载数据源缓存
+const loadDataSourceCache = async () => {
+  try {
+    if (dataSourceCache.value.length === 0) {
+      const response = await dataSourceService.getDataSources({
+        page: 1,
+        size: 100 // 获取足够多的数据源
+      });
+      dataSourceCache.value = response.items;
+      console.log('已缓存数据源列表:', dataSourceCache.value.length);
+    }
+  } catch (error) {
+    console.error('预加载数据源缓存失败:', error);
+  }
+};
 
 // 获取查询列表数据
 const fetchQueries = async () => {
   try {
-    isLoading.value = true
-    // 实际项目中应从API获取数据
-    const response = await queryStore.fetchQueries()
-    queries.value = response || []
+    isLoading.value = true;
+    console.log('筛选条件:', {
+      search: searchTerm.value,
+      serviceStatus: serviceStatusFilter.value
+    });
     
-    console.log('API返回原始查询列表:', JSON.stringify(queries.value.slice(0, 2)));
+    // 调用API获取数据，传入筛选条件
+    const result = await queryStore.fetchQueries({
+      search: searchTerm.value,
+      serviceStatus: serviceStatusFilter.value,
+      page: currentPage.value,
+      size: pageSize.value
+    });
+    
+    // 直接使用result，fetchQueries方法返回的是Query[]
+    queries.value = result;
+    
+    console.log('API返回查询列表:', queries.value);
+    
+    // 添加单条记录的完整调试信息
+    if (queries.value.length > 0) {
+      const sampleQuery = queries.value[0];
+      console.log('查询示例详情:', JSON.stringify(sampleQuery, null, 2));
+    }
     
     // 补充数据源信息
-    await enrichDataSourceInfo()
+    await enrichDataSourceInfo();
     
-    console.log('补充数据源信息后的列表:', queries.value.map(q => ({
-      id: q.id.substring(0, 8), 
-      name: q.name,
-      dataSourceId: q.dataSourceId ? q.dataSourceId.substring(0, 8) : 'none',
-      dataSourceName: q.dataSourceName
-    })));
+    // 检查每个查询的活跃状态
+    queries.value.forEach(query => {
+      const active = query.serviceStatus === 'ENABLED';
+      console.log(`查询状态检查 - ID: ${query.id}, 名称: ${query.name}, 状态: ${query.status}, 服务状态: ${query.serviceStatus}, 活跃: ${active ? '是' : '否'}`);
+    });
+    
+    // 特别检查test2查询的状态
+    const test2Query = queries.value.find(q => q.name === 'test2');
+    if (test2Query) {
+      console.log('找到test2查询:', {
+        id: test2Query.id,
+        status: test2Query.status,
+        serviceStatus: test2Query.serviceStatus
+      });
+      
+      // 直接调用API检查该查询的最新状态
+      await checkQueryStatus(test2Query.id);
+    }
   } catch (error) {
-    console.error('获取查询列表失败:', error)
+    console.error('获取查询列表失败:', error);
+    messageService.error('获取查询列表失败');
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
+};
 
 // 补充数据源信息
 const enrichDataSourceInfo = async () => {
-  if (!queries.value || queries.value.length === 0) return
-  
   try {
-    // 收集所有数据源ID
-    const dataSourceIds = queries.value
-      .filter(q => q.dataSourceId && !q.dataSourceName)
-      .map(q => q.dataSourceId)
+    // 使用已缓存的数据源列表
+    const dataSources = dataSourceCache.value;
     
-    if (dataSourceIds.length === 0) return
-    
-    // 导入数据源服务
-    const { dataSourceService } = await import('@/services/datasource')
-    
-    // 检查dataSourceService中是否有getDataSourceNames方法，如果没有则使用替代方法
-    if (typeof dataSourceService.getDataSourceNames === 'function') {
-      // 使用批量获取方法
-      const dataSourceNames = await dataSourceService.getDataSourceNames(dataSourceIds)
-      
-      // 更新查询中的数据源名称
-      queries.value.forEach(query => {
-        if (query.dataSourceId && !query.dataSourceName) {
-          query.dataSourceName = dataSourceNames[query.dataSourceId] || '未指定'
-        }
-      })
-      
-      console.log('已补充数据源信息，更新了', Object.keys(dataSourceNames).length, '个数据源')
-    } else {
-      // 如果批量方法不存在，则尝试使用getDataSources方法
-      try {
-        // 获取所有数据源
-        const response = await dataSourceService.getDataSources({ page: 1, size: 100 })
-        const dataSources = response.items || []
-        
-        // 创建ID到名称的映射
-        const dataSourceMap: Record<string, string> = {};
-        dataSources.forEach(ds => {
-          if (ds.id) dataSourceMap[ds.id] = ds.name || '未指定'
-        });
-        
-        // 更新查询中的数据源名称
-        queries.value.forEach(query => {
-          if (query.dataSourceId && !query.dataSourceName) {
-            query.dataSourceName = dataSourceMap[query.dataSourceId] || '未指定'
-          }
-        })
-        
-        console.log('已通过getDataSources方法补充数据源信息，更新了', Object.keys(dataSourceMap).length, '个数据源')
-      } catch (innerError) {
-        console.error('通过getDataSources补充数据源信息失败:', innerError)
-        // 最后的备选：为所有未设置的数据源名称设置默认值
-        queries.value.forEach(query => {
-          if (!query.dataSourceName) {
-            query.dataSourceName = '未指定'
-          }
-        })
-      }
-    }
-  } catch (error) {
-    console.error('补充数据源信息失败:', error)
-    // 确保所有查询都有默认的数据源名称
+    // 为每个查询补充数据源名称和查询类型
     queries.value.forEach(query => {
-      if (!query.dataSourceName) {
-        query.dataSourceName = '未指定'
+      // 尝试查找对应的数据源
+      const matchedDataSource = dataSources.find(ds => ds.id === query.dataSourceId);
+      
+      // 如果找到对应的数据源，补充数据源名称
+      if (matchedDataSource) {
+        query.dataSourceName = matchedDataSource.name;
+      } else {
+        query.dataSourceName = '未知数据源';
       }
-    })
+      
+      // 确保查询类型大写
+      if (query.queryType) {
+        query.queryType = query.queryType.toUpperCase();
+      }
+      
+      // 确保serviceStatus大写
+      if (query.serviceStatus) {
+        query.serviceStatus = query.serviceStatus.toUpperCase();
+      }
+      
+      // 记录版本状态，用于调试
+      console.log(`查询${query.id} (${query.name}) 版本状态:`, {
+        currentVersionId: query.currentVersionId || '无',
+        status: query.status,
+        serviceStatus: query.serviceStatus
+      });
+    });
+    
+    // 强制使用最新状态更新列表显示
+    queries.value = [...queries.value];
+  } catch (error) {
+    console.error('补充数据源信息失败:', error);
   }
-}
+};
 
 // 清除筛选条件
 const clearFilters = () => {
   searchTerm.value = ''
-  statusFilter.value = ''
+  serviceStatusFilter.value = ''
   
   // 添加操作提示
   messageService.info('已重置所有筛选条件')
@@ -635,10 +655,18 @@ const toggleFavorite = async (query: any) => {
 
 // 修改切换查询状态处理函数，使用确认对话框
 const toggleQueryStatus = async (query: any) => {
-  // 根据当前状态确定新状态
-  newStatus.value = query.status === 'PUBLISHED' ? 'DEPRECATED' : 'PUBLISHED'
+  // 根据当前状态确定新状态(直接使用serviceStatus字段判断)
+  const isActive = query.serviceStatus === 'ENABLED';
+  newStatus.value = isActive ? 'DEPRECATED' : 'PUBLISHED'
   queryToToggle.value = query
   showStatusConfirm.value = true
+  
+  console.log(`准备${isActive ? '禁用' : '启用'}查询:`, {
+    queryId: query.id,
+    currentStatus: query.status,
+    currentServiceStatus: query.serviceStatus,
+    newStatus: newStatus.value
+  });
 }
 
 // 确认状态变更
@@ -646,16 +674,40 @@ const confirmStatusChange = async () => {
   if (!queryToToggle.value) return;
   
   try {
-    // 在实际项目中，应该调用API来更新状态
-    // await queryStore.updateQueryStatus(queryToToggle.value.id, newStatus.value);
+    console.log('开始更新查询状态:', {
+      queryId: queryToToggle.value.id,
+      newStatus: newStatus.value
+    });
     
-    // 这里只是模拟状态更新
-    queryToToggle.value.status = newStatus.value;
+    // 调用store中的updateQueryStatus方法
+    const result = await queryStore.updateQueryStatus(queryToToggle.value.id, newStatus.value);
     
-    // 使用全局消息服务显示成功消息
-    messageService.success(
-      `查询状态已${newStatus.value === 'PUBLISHED' ? '启用' : '禁用'}`
-    );
+    if (result) {
+      console.log('查询状态更新成功:', result);
+      
+      // 更新本地状态
+      queryToToggle.value.status = newStatus.value;
+      
+      // 更新serviceStatus，根据newStatus的值确定
+      if (newStatus.value === 'PUBLISHED') {
+        queryToToggle.value.serviceStatus = 'ENABLED';
+      } else {
+        queryToToggle.value.serviceStatus = 'DISABLED';
+      }
+      
+      console.log('本地状态已更新:', {
+        status: queryToToggle.value.status,
+        serviceStatus: queryToToggle.value.serviceStatus
+      });
+      
+      // 立即刷新查询列表，确保显示最新状态
+      await fetchQueries();
+      
+      messageService.success(`查询状态已${newStatus.value === 'PUBLISHED' ? '启用' : '禁用'}`);
+    } else {
+      console.error('查询状态更新返回空结果');
+      messageService.error('更新查询状态失败：服务器返回空结果');
+    }
     
     // 关闭确认对话框
     showStatusConfirm.value = false;
@@ -806,23 +858,49 @@ const navigateToFavorites = () => {
 
 // 格式化版本ID，显示更友好的格式
 const formatVersionId = (versionId: string) => {
-  if (!versionId) return '';
+  if (!versionId) return '-';
   
-  // 简单显示顺序数字，与详情页保持一致
-  // 如果ID格式为UUID，则取部分值转换为数字
-  if (versionId.includes('-')) {
-    // 提取UUID的第一部分的前4个字符，转换为整数
-    const firstPart = versionId.split('-')[0];
-    // 简单处理：取第一个字符转为数字，确保不为0（如果是0则返回1）
-    const versionNumber = parseInt(firstPart.charAt(0), 16) || 1;
-    return `${versionNumber}`;
+  // 从版本ID中提取版本号，通常格式为 "version-{queryId}-{number}"
+  const parts = versionId.split('-');
+  const versionNumber = parts[parts.length - 1];
+  
+  // 如果能解析为数字，则返回该数字，否则返回1作为默认版本号
+  return isNaN(Number(versionNumber)) ? '1' : versionNumber;
+}
+
+// 直接调用API检查特定查询的状态
+const checkQueryStatus = async (queryId: string) => {
+  try {
+    console.log(`正在检查查询状态: ${queryId}`);
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/${queryId}`);
+    if (!response.ok) {
+      throw new Error(`API响应错误: ${response.status}`);
+    }
+    const data = await response.json();
+    console.log(`API返回查询状态:`, data);
+    
+    if (data.success && data.data) {
+      // 找到对应查询并更新状态
+      const index = queries.value.findIndex(q => q.id === queryId);
+      if (index >= 0) {
+        const query = queries.value[index];
+        // 更新本地状态
+        query.serviceStatus = data.data.serviceStatus;
+        query.status = data.data.status;
+        
+        console.log(`已更新查询状态:`, {
+          id: queryId,
+          serviceStatus: query.serviceStatus,
+          status: query.status,
+          isEnabled: query.serviceStatus === 'ENABLED'
+        });
+        
+        // 强制刷新UI
+        queries.value = [...queries.value];
+      }
+    }
+  } catch (error) {
+    console.error(`检查查询状态出错:`, error);
   }
-  
-  // 其他情况返回1
-  return '1';
 }
 </script>
-
-<style scoped>
-/* 可能需要的其他样式 */
-</style>

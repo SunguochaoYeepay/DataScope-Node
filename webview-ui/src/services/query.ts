@@ -69,6 +69,13 @@ export const queryService = {
       }
 
       console.log('执行查询请求:', requestBody);
+      console.log('数据源ID:', params.dataSourceId);
+      console.log('SQL查询:', params.queryText);
+
+      // 进行额外验证，确保dataSourceId非空且有效
+      if (!requestBody.dataSourceId || requestBody.dataSourceId === 'undefined' || requestBody.dataSourceId === 'null') {
+        throw new Error('执行查询失败: 数据源ID无效或为空');
+      }
 
       const response = await fetch(`${getApiBaseUrl()}/api/queries/execute`, {
         method: 'POST',
@@ -1173,11 +1180,12 @@ export const queryService = {
   async getQueries(params: {
     page?: number;
     size?: number;
-    queryType?: string; 
+    queryType?: string;
     status?: string;
+    serviceStatus?: string;
     searchTerm?: string;
     sortBy?: string;
-    sortDir?: 'asc' | 'desc';
+    sortDir?: string;
     includeDrafts?: boolean;
   } = {}): Promise<PageResponse<Query>> {
     if (isUsingMockApi()) {
@@ -1185,42 +1193,18 @@ export const queryService = {
     }
 
     try {
-      // 构建查询参数
-      const { 
-        page = 1, 
-        size = 10, 
-        queryType, 
-        status, 
-        searchTerm,
-        sortBy,
-        sortDir = 'desc',
-        includeDrafts = true // 默认包含草稿状态的查询
-      } = params;
-      
-      const queryParams = new URLSearchParams();
-      queryParams.append('page', page.toString());
-      queryParams.append('size', size.toString());
-      
-      if (queryType) {
-        queryParams.append('queryType', queryType);
-      }
-      
-      if (status) {
-        queryParams.append('status', status);
-      }
-      
-      if (searchTerm) {
-        queryParams.append('searchTerm', searchTerm);
-      }
-      
-      if (sortBy) {
-        queryParams.append('sortBy', sortBy);
-        queryParams.append('sortDir', sortDir);
-      }
-      
-      // 添加includeDrafts参数
-      queryParams.append('includeDrafts', includeDrafts.toString());
-      
+      // 规范化查询参数
+      const queryParams = new URLSearchParams()
+      if (params?.page) queryParams.append('page', String(params.page))
+      if (params?.size) queryParams.append('size', String(params.size))
+      if (params?.queryType) queryParams.append('queryType', params.queryType)
+      if (params?.status) queryParams.append('status', params.status)
+      if (params?.serviceStatus) queryParams.append('serviceStatus', params.serviceStatus)
+      if (params?.searchTerm) queryParams.append('searchTerm', params.searchTerm)
+      if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
+      if (params?.sortDir) queryParams.append('sortDir', params.sortDir)
+      if (params?.includeDrafts !== undefined) queryParams.append('includeDrafts', String(params.includeDrafts))
+
       console.log('获取查询列表参数:', Object.fromEntries(queryParams.entries()));
       
       // 构建API请求路径
@@ -1262,7 +1246,7 @@ export const queryService = {
           if (responseData.data.pagination) {
             totalItems = responseData.data.pagination.total || queryItems.length;
             totalPages = responseData.data.pagination.totalPages || 
-                        Math.ceil(totalItems / size);
+                        Math.ceil(totalItems / params.size);
           }
         }
       } 
@@ -1286,7 +1270,7 @@ export const queryService = {
         totalItems = responseData.total || responseData.totalCount || queryItems.length;
         totalPages = responseData.totalPages || 
                     responseData.pages || 
-                    Math.ceil(totalItems / size);
+                    Math.ceil(totalItems / params.size);
       }
       
       // 将原始数据转换为前端Query对象
@@ -1323,11 +1307,11 @@ export const queryService = {
         };
       });
       
-      // 返回标准化的分页响应
+      // 创建标准分页响应
       const pageResponse: PageResponse<Query> = {
         items: queries,
-        page: Number(page),
-        size: Number(size),
+        page: Number(params.page || 1),
+        size: Number(params.size || 10),
         total: totalItems,
         totalPages: totalPages
       };
@@ -1370,6 +1354,51 @@ export const queryService = {
       return true;
     } catch (error) {
       console.error('删除查询历史错误:', error)
+      throw error;
+    }
+  },
+
+  // 更新查询
+  async updateQuery(id: string, updateData: Partial<SaveQueryParams>): Promise<Query> {
+    if (isUsingMockApi()) {
+      return mockQueryApi.updateQuery?.(id, updateData) || {
+        ...updateData,
+        id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      } as Query;
+    }
+
+    try {
+      // 确保使用正确的API路径格式
+      const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          name: updateData.name,
+          sql: updateData.sql,
+          description: updateData.description,
+          tags: updateData.tags,
+          dataSourceId: updateData.dataSourceId,
+          status: updateData.status,
+          isPublic: updateData.isPublic
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `更新查询失败: ${response.statusText}`);
+      }
+
+      const responseData = await response.json();
+      const result = responseData.success && responseData.data ? responseData.data : responseData;
+
+      return result;
+    } catch (error) {
+      console.error('更新查询错误:', error);
       throw error;
     }
   },

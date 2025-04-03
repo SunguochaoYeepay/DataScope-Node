@@ -115,6 +115,7 @@ export interface Query {
   description?: string;
   folderId?: string;
   status?: QueryStatus;
+  serviceStatus?: string;
   dataSourceId?: string;
   dataSourceName?: string;
   queryType?: QueryType;
@@ -202,6 +203,9 @@ export interface SaveQueryParams {
   dataSourceId: string;
   sql: string;
   description?: string;
+  status?: QueryStatus;
+  tags?: string[];
+  isPublic?: boolean;
 }
 
 /**
@@ -371,4 +375,19 @@ export interface PageResponse<T> {
   page: number;
   size: number;
   totalPages: number;
+}
+
+/**
+ * 查询参数接口
+ */
+export interface FetchQueryParams {
+  dataSourceId?: string
+  status?: QueryStatus
+  serviceStatus?: string
+  queryType?: string
+  search?: string
+  page?: number
+  size?: number
+  sortBy?: string
+  sortDir?: 'asc' | 'desc'
 }

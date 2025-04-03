@@ -7,13 +7,13 @@
           {{ currentQueryId ? '编辑查询' : '新增查询' }}
         </h1>
         <div class="flex space-x-3">
-          <button
-            @click="returnToList"
-            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <i class="fas fa-arrow-left mr-2"></i>
-            返回列表
-          </button>
+        <button
+          @click="returnToList"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          <i class="fas fa-arrow-left mr-2"></i>
+          返回列表
+        </button>
           <button
             v-if="currentQueryId"
             @click="viewVersions"
@@ -22,13 +22,13 @@
             <i class="fas fa-code-branch mr-2"></i>
             查看版本
           </button>
-          <button
-            @click="toggleFavorite"
-            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <i class="fas fa-star mr-2" :class="{ 'text-yellow-400': isFavorite }"></i>
-            收藏
-          </button>
+        <button
+          @click="toggleFavorite"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          <i class="fas fa-star mr-2" :class="{ 'text-yellow-400': isFavorite }"></i>
+          收藏
+        </button>
           <button
             v-if="currentQueryId && versionStatus === 'DRAFT'"
             @click="publishVersion"
@@ -207,13 +207,13 @@
             <div v-if="selectedDataSourceId">
               <!-- 判断所选数据源是否可用 -->
               <div v-if="selectedDataSource && selectedDataSource.status === 'ACTIVE'">
-                <MetadataExplorer
+              <MetadataExplorer
                   :dataSourceId="selectedDataSourceId"
-                  @table-select="handleTableSelect"
-                  @column-select="handleColumnSelect"
-                  @insert-table="insertTableName"
-                  @insert-column="insertColumnName"
-                />
+                @table-select="handleTableSelect"
+                @column-select="handleColumnSelect"
+                @insert-table="insertTableName"
+                @insert-column="insertColumnName"
+              />
               </div>
               <!-- 数据源不可用时显示提示 -->
               <div v-else class="p-4 text-center">
@@ -341,9 +341,9 @@
                   未保存更改
                 </div>
               
-                <SqlEditor 
-                  v-model="sqlQuery" 
-                  :data-source-id="selectedDataSourceId" 
+              <SqlEditor 
+                v-model="sqlQuery" 
+                :data-source-id="selectedDataSourceId" 
                   @execute="handleExecuteQuery" 
                 />
               </div>
@@ -624,7 +624,19 @@ const versionStatusText = computed(() => {
 // 加载状态
 onMounted(async () => {
   isComponentMounted = true
-  // 初始化数据源列表
+  
+  console.log('QueryEditor组件已挂载')
+  
+  // 使用JavaScript监听select元素变化，Vue的v-model可能未正确同步
+  const selectElement = document.querySelector('select[v-model="selectedDataSourceId"]') as HTMLSelectElement;
+  if (selectElement) {
+    selectElement.addEventListener('change', (event) => {
+      selectedDataSourceId.value = (event.target as HTMLSelectElement).value;
+      console.log('数据源选择已变更:', selectedDataSourceId.value);
+    });
+  }
+
+  // 加载数据源
   await dataSourceStore.fetchDataSources()
   
   // 获取当前URL中的查询ID参数，判断是新增还是编辑
@@ -637,24 +649,27 @@ onMounted(async () => {
     selectedDataSourceId.value = dataSourceStore.activeDataSources[0].id
   }
 
-  // 加载当前查询（如果有ID）
-  if (currentQueryId.value && currentQueryId.value !== 'new') {
-    await loadQueryById(currentQueryId.value)
-  }
-  
-  // 在页面初始化时，确保版本号正确
-  if (window.location.href.includes('/edit')) {
-    console.log('页面初始化');
-    // 不再硬编码设置V3版本号，将在loadQueryById处理
+  // 处理查询ID
+  if (queryId && queryId !== 'new') {
+    // 设置当前查询ID
+    currentQueryId.value = queryId
+    console.log('从URL获取查询ID:', queryId)
+    
+    // 加载查询详情
+    await loadQueryById(queryId)
   } else {
     // 新增查询场景，默认设置为V1
-    console.log('新增查询场景，默认设置版本号为V1');
-    selectedVersion.value = 'V1';
-    queryVersion.value = 'V1';
-    availableVersions.value = ['V1'];
-    currentMaxVersionNumber.value = 1;
-    versionStatus.value = 'DRAFT';
+    console.log('新增查询场景，默认设置版本号为V1')
+    selectedVersion.value = 'V1'
+    queryVersion.value = 'V1'
+    availableVersions.value = ['V1']
+    currentMaxVersionNumber.value = 1
+    versionStatus.value = 'DRAFT'
   }
+  
+  // 添加全局键盘事件监听
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  document.addEventListener('keydown', handleGlobalKeyDown)
 })
 
 // 页面离开处理
@@ -797,7 +812,7 @@ const canExecuteQuery = computed(() => {
 // 从查询ID加载查询内容
 const loadQueryById = async (queryId: string) => {
   try {
-    isLoadingQuery.value = true
+  isLoadingQuery.value = true
     
     console.log('开始加载查询，ID:', queryId)
     
@@ -806,6 +821,7 @@ const loadQueryById = async (queryId: string) => {
     
     // 首先尝试从store的direct API获取
     try {
+      console.log('通过 queryStore.getQuery 获取查询')
       query = await queryStore.getQuery(queryId)
       console.log('通过API获取到查询:', query)
     } catch (apiError) {
@@ -838,31 +854,9 @@ const loadQueryById = async (queryId: string) => {
         query = queries.find((q: Query) => q.id === queryId) || null
         
         if (!query) {
-          // 如果仍然未找到查询，但要求能够调试版本功能，则创建一个临时查询对象
-          console.log('未找到查询，创建临时查询对象')
-          query = {
-            id: queryId,
-            name: '临时查询',
-            dataSourceId: selectedDataSourceId.value || (dataSourceStore.dataSources[0]?.id || ''),
-            queryType: 'SQL',
-            queryText: sqlQuery.value || 'SELECT * FROM users',
-            status: 'DRAFT',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isFavorite: false,
-            executionCount: 0
-          }
-          
-          // 激活新增版本按钮
-          versionStatus.value = 'DRAFT'
-          currentQueryId.value = queryId
-          
-          // 将临时查询添加到store中
-          queryStore.currentQuery = query
-          
-          message.info('已创建临时查询对象，以便调试版本功能')
-          
-          // 完成加载
+          console.error('未能找到查询信息，ID:', queryId)
+          message.error('加载查询失败：未找到该查询')
+          statusMessage.value = '加载查询失败：未找到该查询'
           isLoadingQuery.value = false
           return
         }
@@ -879,10 +873,18 @@ const loadQueryById = async (queryId: string) => {
     selectedDataSourceId.value = query.dataSourceId || ''
     queryName.value = query.name || '未命名查询'
     
+    // 设置查询内容
+    if (query.queryType === 'SQL') {
+      sqlQuery.value = query.queryText || '';
+      activeTab.value = 'editor';
+    } else if (query.queryType === 'NATURAL_LANGUAGE') {
+      naturalLanguageQuery.value = query.queryText || '';
+      activeTab.value = 'nlq';
+    }
+    
     // 设置版本状态与版本号
     console.log('查询对象属性:', Object.keys(query))
     console.log('查询当前版本信息:', query.currentVersion)
-    console.log('查询当前版本ID:', (query as any).currentVersionId)
     
     // 重置版本相关状态
     availableVersions.value = [];
@@ -901,8 +903,8 @@ const loadQueryById = async (queryId: string) => {
           versionList = versionsResponse.items;
           console.log('获取到版本列表:', versionList);
         }
-      }
-    } catch (error) {
+    }
+  } catch (error) {
       console.warn('获取版本列表失败:', error);
       // 如果无法获取版本列表，使用模拟数据
       versionList = [];
@@ -1047,105 +1049,43 @@ const loadQueryById = async (queryId: string) => {
       currentMaxVersionNumber.value = Math.max(currentMaxVersionNumber.value, 1);
     }
     
-    // 设置当前选中的版本
-    if (window.location.href.includes('/edit') && availableVersions.value.length > 0) {
-      // 编辑页面使用最高版本号
-      selectedVersion.value = availableVersions.value[0]; // 第一个是最高版本
-      queryVersion.value = selectedVersion.value;
-    } else {
-      // 新增页面或其他情况，使用最高版本号
-      // 这里不再使用highestVersionNumber，直接使用V1表示新增查询
-      if (!currentQueryId.value) {
-        // 新增查询时确保显示V1
-        selectedVersion.value = 'V1';
-        queryVersion.value = 'V1';
-      } else {
-        // 编辑现有查询时使用当前版本号
-        const currentVersionFormat = `V${highestVersionNumber}`;
-        selectedVersion.value = currentVersionFormat;
-        queryVersion.value = currentVersionFormat;
+    // 设置当前显示的版本号
+    selectedVersion.value = `V${currentMaxVersionNumber.value}`;
+    queryVersion.value = selectedVersion.value;
+    
+    console.log('查询加载完成，当前版本：', queryVersion.value)
+    
+    // 标记收藏状态
+    isFavorite.value = query.isFavorite || false;
+    
+    // 加载已保存的查询执行计划
+    if (query.id && !query.id.includes('temp-') && !query.id.includes('unsaved-')) {
+      console.log('尝试获取查询执行计划');
+      try {
+        const plan = await queryStore.getQueryExecutionPlan(query.id);
+        console.log('查询执行计划:', plan);
+      } catch (planError) {
+        console.warn('获取执行计划失败:', planError);
       }
+      
+      // 设置为当前查询
+      queryStore.currentQuery = query;
     }
     
-    console.log('最终设置的版本号:', queryVersion.value);
-    console.log('可用版本列表:', availableVersions.value);
-    
-    // 检查是否是收藏的查询
-    isFavorite.value = queryStore.favorites.some(fav => fav.queryId === queryId)
-    
-    // 提取查询SQL内容 - 优先使用当前版本的SQL，其次是queryText
-    let sqlContent = ''
-    if (query.currentVersion?.sql) {
-      sqlContent = query.currentVersion.sql
-      console.log('从query.currentVersion.sql获取SQL内容')
-    } else if (query.queryText) {
-      sqlContent = query.queryText
-      console.log('从query.queryText获取SQL内容')
-    } else {
-      // 尝试其他可能的字段名
-      const possibleFields = ['sql', 'queryContent', 'sqlContent']
-      for (const field of possibleFields) {
-        if ((query as any)[field]) {
-          sqlContent = (query as any)[field]
-          console.log(`从query.${field}获取SQL内容`)
-          break
-        }
-      }
-    }
-    
-    console.log(`SQL内容: ${sqlContent ? `获取到内容，长度 ${sqlContent.length}` : '未找到内容'}`)
-    
-    // 根据查询类型设置对应的查询内容
-    if (query.queryType === 'SQL' || !query.queryType) {
-      activeTab.value = 'editor'
-      sqlQuery.value = sqlContent
-      console.log('设置SQL查询内容:', sqlContent.substring(0, 100) + (sqlContent.length > 100 ? '...' : ''))
-    } else if (query.queryType === 'NATURAL_LANGUAGE') {
-      activeTab.value = 'nlq'
-      naturalLanguageQuery.value = sqlContent
-      console.log('设置自然语言查询内容:', sqlContent.substring(0, 100) + (sqlContent.length > 100 ? '...' : ''))
-    }
-    
-    // 保存到本地存储以便于恢复
-    try {
-      localStorage.setItem('last_loaded_query_id', query.id);
-      localStorage.setItem('last_loaded_query_text', sqlContent || '');
-      localStorage.setItem('last_loaded_query_timestamp', new Date().toISOString());
-    } catch (storageError) {
-      console.warn('无法保存查询到本地存储:', storageError);
-    }
-    
-    statusMessage.value = '查询加载成功'
+    message.success('查询加载成功');
+    statusMessage.value = '查询加载成功';
     setTimeout(() => {
-      if (!isComponentMounted) return
-      statusMessage.value = null
-    }, 3000)
-    
-    // 如果查询有执行结果，获取结果
-    if (query.status === 'COMPLETED' && query.resultCount) {
-      // 如果需要，可以通过executeQuery重新执行查询
-      // await executeQuery(query.queryType)
-    }
+      statusMessage.value = null;
+    }, 3000);
   } catch (error) {
-    console.error('加载查询失败:', error)
-    queryError.value = error instanceof Error ? error.message : '加载查询失败'
-    statusMessage.value = '加载查询失败'
+    console.error('加载查询失败:', error);
+    message.error('加载查询失败: ' + (error instanceof Error ? error.message : String(error)));
+    statusMessage.value = '加载查询失败';
     setTimeout(() => {
-      if (!isComponentMounted) return
-      statusMessage.value = null
-    }, 5000)
+      statusMessage.value = null;
+    }, 5000);
   } finally {
-    isLoadingQuery.value = false
-    
-    // 确保新增查询场景默认版本号为V1
-    if (!currentQueryId.value || !window.location.href.includes('/edit')) {
-      console.log('确认新增查询版本号为V1');
-      selectedVersion.value = 'V1';
-      queryVersion.value = 'V1';
-      if (!availableVersions.value.includes('V1')) {
-        availableVersions.value = ['V1'];
-      }
-    }
+    isLoadingQuery.value = false;
   }
 }
 
@@ -1160,6 +1100,23 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   // 清除之前的错误信息
   queryError.value = null
   statusMessage.value = null
+  
+  // 记录选中的数据源ID，用于调试
+  console.log('执行查询时的数据源ID:', selectedDataSourceId.value);
+  console.log('可用数据源列表:', dataSourceStore.dataSources.map(ds => ({ id: ds.id, name: ds.name })));
+  
+  // 如果selectedDataSourceId未设置，尝试获取当前选择的数据源
+  if (!selectedDataSourceId.value && dataSourceStore.dataSources.length > 0) {
+    const selectElement = document.querySelector('select[v-model="selectedDataSourceId"]') as HTMLSelectElement;
+    if (selectElement && selectElement.value) {
+      console.log('从DOM元素获取数据源ID:', selectElement.value);
+      selectedDataSourceId.value = selectElement.value;
+    } else {
+      console.log('尝试使用第一个可用数据源');
+      selectedDataSourceId.value = dataSourceStore.dataSources.find(ds => ds.status === 'ACTIVE')?.id || '';
+    }
+    console.log('更新后的数据源ID:', selectedDataSourceId.value);
+  }
   
   // 基本验证
   if (!selectedDataSourceId.value) {
@@ -1215,11 +1172,21 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
     console.log(`开始执行${queryType}查询...`, queryParams)
     statusMessage.value = '正在执行查询...'
     
+    // 确保数据源ID正确设置
+    if (queryParams.dataSourceId !== selectedDataSourceId.value) {
+      console.warn('数据源ID不一致，使用selectedDataSourceId.value的值');
+      queryParams.dataSourceId = selectedDataSourceId.value;
+    }
+    
     // 根据查询类型执行不同的查询
     const result = queryType === 'SQL'
-      ? await queryStore.executeQuery(queryParams)
+      ? await queryStore.executeQuery({
+          dataSourceId: selectedDataSourceId.value, // 明确传递数据源ID
+          queryText: queryText, // 确保使用正确的字段名
+          queryType: 'SQL'
+        })
       : await queryStore.executeNaturalLanguageQuery({
-          dataSourceId: selectedDataSourceId.value,
+          dataSourceId: selectedDataSourceId.value, // 明确传递数据源ID
           question: queryText
         })
     
@@ -1588,7 +1555,7 @@ const handleSaveQuery = async (saveData: any) => {
     }
     
     // 构造符合接口要求的对象
-    const queryData: Record<string, any> = {
+    const queryData: SaveQueryParams = {
       name: saveData.name,
       dataSourceId: selectedDataSourceId.value,
       sql: queryText,
@@ -1620,9 +1587,9 @@ const handleSaveQuery = async (saveData: any) => {
       if (!route.query.id) {
         const newQuery = { ...route.query, id: result.id };
         router.replace({ query: newQuery });
-      }
-      
-      setTimeout(() => {
+    }
+    
+    setTimeout(() => {
         statusMessage.value = null;
       }, 3000);
     } else {

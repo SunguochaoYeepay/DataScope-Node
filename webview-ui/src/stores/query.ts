@@ -26,6 +26,7 @@ import { getErrorMessage } from '@/utils/error'
 export interface FetchQueryParams {
   dataSourceId?: string
   status?: QueryStatus
+  serviceStatus?: string
   queryType?: string
   search?: string
   page?: number
@@ -794,21 +795,27 @@ export const useQueryStore = defineStore('query', () => {
   }
   
   // 获取查询列表
-  const fetchQueries = async (params?: FetchQueryParams) => {
+  const fetchQueries = async (params?: FetchQueryParams): Promise<Query[]> => {
     try {
-      loading.show('加载查询列表...')
+      loading.show('正在加载查询列表...')
+      error.value = null
+      
+      console.log('Store查询参数:', params);
       
       // 使用queryService.getQueries获取标准化查询列表
       const result = await queryService.getQueries({
-        page: params?.page,
-        size: params?.size,
+        page: params?.page || 1,
+        size: params?.size || 20,
         queryType: params?.queryType,
         status: params?.status,
+        serviceStatus: params?.serviceStatus, // 添加serviceStatus参数
         searchTerm: params?.search,
-        sortBy: params?.sortBy,
-        sortDir: params?.sortDir,
+        sortBy: params?.sortBy || 'updatedAt',
+        sortDir: params?.sortDir || 'desc',
         includeDrafts: true
       });
+      
+      console.log('API响应:', result);
       
       // 更新store状态
       queryHistory.value = result.items;
@@ -835,6 +842,60 @@ export const useQueryStore = defineStore('query', () => {
       loading.hide()
     }
   };
+  
+  // 更新查询状态
+  const updateQueryStatus = async (id: string, status: QueryStatus) => {
+    try {
+      loading.show(`正在${status === 'PUBLISHED' ? '启用' : '禁用'}查询...`)
+      
+      // 从当前数据中获取查询详情
+      const query = queries.value.find(q => q.id === id)
+      if (!query) {
+        throw new Error('找不到要更新的查询')
+      }
+      
+      // 调用updateQuery接口更新状态
+      const updatedQuery = await queryService.updateQuery(id, {
+        status,
+        name: query.name,
+        sql: query.sql,
+        description: query.description,
+        tags: query.tags,
+        dataSourceId: query.dataSourceId
+      })
+      
+      // 更新本地状态
+      if (updatedQuery) {
+        // 更新查询列表中的状态
+        const index = queries.value.findIndex(q => q.id === id)
+        if (index !== -1) {
+          queries.value[index] = {
+            ...queries.value[index],
+            status: status,
+            // 如果后端返回了serviceStatus字段，也更新它
+            serviceStatus: updatedQuery.serviceStatus || (status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED')
+          }
+        }
+        
+        // 如果当前查询是被更新的查询，也更新当前查询
+        if (currentQuery.value && currentQuery.value.id === id) {
+          currentQuery.value.status = status
+          // 同步serviceStatus字段
+          currentQuery.value.serviceStatus = updatedQuery.serviceStatus || (status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED')
+        }
+        
+        messageService.success(`查询已${status === 'PUBLISHED' ? '启用' : '禁用'}`)
+      }
+      
+      return updatedQuery
+    } catch (err) {
+      error.value = err instanceof Error ? err : new Error(String(err))
+      messageService.error(`${status === 'PUBLISHED' ? '启用' : '禁用'}查询失败: ${error.value.message}`)
+      return null
+    } finally {
+      loading.hide()
+    }
+  }
   
   return {
     // 状态
@@ -882,7 +943,8 @@ export const useQueryStore = defineStore('query', () => {
     getQueryExecutionHistory,
     setCurrentQueryText,
     fetchQueries,
-    deleteQueryHistory
+    deleteQueryHistory,
+    updateQueryStatus
   }
 })
 
