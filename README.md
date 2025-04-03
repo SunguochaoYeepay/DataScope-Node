@@ -176,6 +176,509 @@ GET /api/metadata/datasources/:dataSourceId/stats
 }
 ```
 
+#### 系统集成 API
+
+系统集成API用于将现有查询转化为可复用的数据服务，支持低代码平台和外部系统集成。
+
+##### 获取集成列表
+
+```
+GET /api/v1/low-code/apis
+```
+
+获取所有已配置的系统集成。
+
+**请求头:**
+```
+Authorization: Bearer {token}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "用户查询接口",
+      "description": "查询系统用户信息",
+      "queryId": "123e4567-e89b-12d3-a456-426655440000",
+      "type": "TABLE",
+      "config": {
+        "params": [
+          {
+            "name": "username",
+            "label": "用户名",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "tableConfig": {
+          "columns": [
+            {
+              "key": "id",
+              "dataIndex": "id",
+              "title": "ID"
+            },
+            {
+              "key": "username",
+              "dataIndex": "username",
+              "title": "用户名"
+            }
+          ]
+        }
+      },
+      "status": "ACTIVE",
+      "createdAt": "2023-01-01T00:00:00.000Z",
+      "updatedAt": "2023-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+##### 获取单个集成
+
+```
+GET /api/v1/low-code/apis/:id
+```
+
+获取特定集成的详细信息。
+
+**请求参数:**
+- `id`: 集成ID (路径参数)
+
+**请求头:**
+```
+Authorization: Bearer {token}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "用户查询接口",
+    "description": "查询系统用户信息",
+    "queryId": "123e4567-e89b-12d3-a456-426655440000",
+    "type": "TABLE",
+    "config": {
+      "params": [
+        {
+          "name": "username",
+          "label": "用户名",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "tableConfig": {
+        "columns": [
+          {
+            "key": "id",
+            "dataIndex": "id",
+            "title": "ID"
+          },
+          {
+            "key": "username",
+            "dataIndex": "username",
+            "title": "用户名"
+          }
+        ]
+      }
+    },
+    "status": "ACTIVE",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  }
+}
+```
+
+##### 创建集成
+
+```
+POST /api/v1/low-code/apis
+```
+
+创建新的系统集成配置。
+
+**请求头:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**请求体示例:**
+```json
+{
+  "name": "用户查询接口",
+  "description": "查询系统用户信息",
+  "queryId": "123e4567-e89b-12d3-a456-426655440000",
+  "type": "TABLE",
+  "config": {
+    "params": [
+      {
+        "name": "username",
+        "label": "用户名",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "tableConfig": {
+      "columns": [
+        {
+          "key": "id",
+          "dataIndex": "id",
+          "title": "ID"
+        },
+        {
+          "key": "username",
+          "dataIndex": "username",
+          "title": "用户名"
+        }
+      ]
+    }
+  },
+  "status": "DRAFT"
+}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "用户查询接口",
+    "description": "查询系统用户信息",
+    "queryId": "123e4567-e89b-12d3-a456-426655440000",
+    "type": "TABLE",
+    "config": {
+      "params": [
+        {
+          "name": "username",
+          "label": "用户名",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "tableConfig": {
+        "columns": [
+          {
+            "key": "id",
+            "dataIndex": "id",
+            "title": "ID"
+          },
+          {
+            "key": "username",
+            "dataIndex": "username",
+            "title": "用户名"
+          }
+        ]
+      }
+    },
+    "status": "DRAFT",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  }
+}
+```
+
+##### 更新集成
+
+```
+PUT /api/v1/low-code/apis/:id
+```
+
+更新现有的系统集成配置。
+
+**请求参数:**
+- `id`: 集成ID (路径参数)
+
+**请求头:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**请求体示例:**
+```json
+{
+  "name": "用户查询接口V2",
+  "status": "ACTIVE",
+  "config": {
+    "params": [
+      {
+        "name": "username",
+        "label": "用户名",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "status",
+        "label": "状态",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "tableConfig": {
+      "columns": [
+        {
+          "key": "id",
+          "dataIndex": "id",
+          "title": "ID"
+        },
+        {
+          "key": "username",
+          "dataIndex": "username",
+          "title": "用户名"
+        },
+        {
+          "key": "status",
+          "dataIndex": "status",
+          "title": "状态"
+        }
+      ]
+    }
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "用户查询接口V2",
+    "description": "查询系统用户信息",
+    "queryId": "123e4567-e89b-12d3-a456-426655440000",
+    "type": "TABLE",
+    "config": {
+      "params": [
+        {
+          "name": "username",
+          "label": "用户名",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "tableConfig": {
+        "columns": [
+          {
+            "key": "id",
+            "dataIndex": "id",
+            "title": "ID"
+          },
+          {
+            "key": "username",
+            "dataIndex": "username",
+            "title": "用户名"
+          },
+          {
+            "key": "status",
+            "dataIndex": "status",
+            "title": "状态"
+          }
+        ]
+      }
+    },
+    "status": "ACTIVE",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T01:00:00.000Z"
+  }
+}
+```
+
+##### 删除集成
+
+```
+DELETE /api/v1/low-code/apis/:id
+```
+
+删除系统集成配置。
+
+**请求参数:**
+- `id`: 集成ID (路径参数)
+
+**请求头:**
+```
+Authorization: Bearer {token}
+```
+
+**响应:**
+```
+HTTP/1.1 204 No Content
+```
+
+##### 获取API配置
+
+```
+GET /api/v1/low-code/apis/:id/config
+```
+
+获取集成API的完整配置信息，包括如何调用。
+
+**请求参数:**
+- `id`: 集成ID (路径参数)
+
+**请求头:**
+```
+Authorization: Bearer {token}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "apiEndpoint": "/api/data-service/query",
+    "method": "POST",
+    "requestFormat": {
+      "integrationId": "550e8400-e29b-41d4-a716-446655440000",
+      "params": {
+        "username": "示例值"
+      },
+      "pagination": {
+        "page": 1,
+        "pageSize": 10
+      }
+    },
+    "responseFormat": {
+      "success": true,
+      "data": {
+        "records": [
+          {
+            "id": 1,
+            "username": "user1"
+          }
+        ],
+        "total": 100,
+        "page": 1,
+        "pageSize": 10,
+        "totalPages": 10
+      }
+    },
+    "parameterDocs": [
+      {
+        "name": "username",
+        "description": "用户名",
+        "type": "string",
+        "required": true
+      }
+    ]
+  }
+}
+```
+
+##### 测试集成
+
+```
+POST /api/v1/low-code/apis/:id/test
+```
+
+测试系统集成配置。
+
+**请求参数:**
+- `id`: 集成ID (路径参数)
+
+**请求头:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**请求体示例:**
+```json
+{
+  "params": {
+    "username": "testuser"
+  },
+  "pagination": {
+    "page": 1,
+    "pageSize": 10
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "records": [
+      {
+        "id": 1,
+        "username": "testuser"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 1,
+    "executionTime": "120ms"
+  }
+}
+```
+
+##### 执行查询
+
+```
+POST /api/data-service/query
+```
+
+执行系统集成查询（不需要认证）。
+
+**请求头:**
+```
+Content-Type: application/json
+```
+
+**请求体示例:**
+```json
+{
+  "integrationId": "550e8400-e29b-41d4-a716-446655440000",
+  "params": {
+    "username": "searchuser",
+    "status": "active"
+  },
+  "pagination": {
+    "page": 1,
+    "pageSize": 20
+  },
+  "sorting": {
+    "field": "createdAt",
+    "order": "desc"
+  }
+}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "data": {
+    "records": [
+      {
+        "id": 1,
+        "username": "searchuser",
+        "email": "user@example.com",
+        "status": "active"
+      }
+    ],
+    "total": 42,
+    "page": 1,
+    "pageSize": 20,
+    "totalPages": 3
+  }
+}
+```
+
 #### 数据源管理
 
 数据源API用于创建、更新、删除和查询数据源配置。

@@ -169,6 +169,7 @@ model Query {
   displayConfigs DisplayConfig[]
   queryHistory QueryHistory[]
   queryPlans   QueryPlan[]  // 添加与QueryPlan的关系
+  integrations Integration[] // 添加与Integration的关系
 
   @@map("tbl_query")
 }
@@ -324,6 +325,26 @@ model QueryFavorite {
   createdAt    DateTime @default(now())
 
   @@map("tbl_query_favorite")
+}
+
+// 系统集成模型
+model Integration {
+  id          String    @id @default(uuid())
+  name        String
+  description String?   @db.Text
+  queryId     String
+  type        String    // FORM, TABLE, CHART
+  config      Json
+  status      String    @default("DRAFT") // DRAFT, ACTIVE, INACTIVE
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+  updatedBy   String?
+  
+  // 关联
+  query       Query     @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  @@map("tbl_integration")
 }
 
 model Metadata {

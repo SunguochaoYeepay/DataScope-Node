@@ -2,7 +2,13 @@
  * 集成服务
  * 提供与后端集成API的交互
  */
-import type { IntegrationConfig, ApiConfig } from '@/types/integration';
+import type { 
+  IntegrationConfig, 
+  ApiConfig, 
+  ExecuteQueryRequest, 
+  ExecuteQueryResult, 
+  TestIntegrationParams 
+} from '@/types/integration/api-models';
 import { http } from '@/utils/http';
 
 /**
@@ -67,8 +73,17 @@ export const integrationService = {
    * @param id 集成配置ID
    * @param params 测试参数
    */
-  testIntegration: async (id: string, params: any): Promise<any> => {
+  testIntegration: async (id: string, params: TestIntegrationParams): Promise<ExecuteQueryResult> => {
     const response = await http.post(`/api/v1/low-code/apis/${id}/test`, params);
+    return response.data;
+  },
+
+  /**
+   * 执行查询
+   * @param request 查询请求
+   */
+  executeQuery: async (request: ExecuteQueryRequest): Promise<ExecuteQueryResult> => {
+    const response = await http.post('/api/data-service/query', request);
     return response.data;
   }
 };
