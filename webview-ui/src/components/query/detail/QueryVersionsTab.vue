@@ -1,5 +1,5 @@
 <template>
-  <div class="versions-tab-container">
+  <div>
     <div v-if="isLoading" class="py-12 flex justify-center">
       <div class="flex flex-col items-center">
         <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
@@ -11,26 +11,9 @@
       <i class="fas fa-code-branch text-3xl text-gray-400 mb-3"></i>
       <h3 class="text-lg font-medium text-gray-900 mb-2">暂无版本记录</h3>
       <p class="text-gray-500 mb-4">此查询尚未创建任何版本</p>
-      <button
-        @click="createNewVersion"
-        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-      >
-        <i class="fas fa-plus mr-2"></i>
-        创建新版本
-      </button>
     </div>
     
     <div v-else class="versions-list">
-      <div class="flex justify-end mb-6">
-        <button
-          @click="createNewVersion"
-          class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <i class="fas fa-plus mr-1"></i>
-          新建版本
-        </button>
-      </div>
-      
       <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
         <table class="min-w-full divide-y divide-gray-300">
           <thead class="bg-gray-50">
@@ -75,11 +58,17 @@
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm">
                 <span
-                  v-if="isCurrentVersion(version)"
+                  v-if="version.isActive"
                   class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                 >
                   <i class="fas fa-check-circle mr-1"></i>
-                  当前激活
+                  已激活
+                </span>
+                <span
+                  v-else-if="version.status === 'PUBLISHED'"
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                >
+                  未激活
                 </span>
                 <span v-else class="text-gray-500">-</span>
               </td>
@@ -324,72 +313,38 @@ const hasNoVersions = computed(() => {
 const loadVersions = async () => {
   isLoading.value = true;
   try {
-    // 获取查询详情
-    const query = await queryStore.getQuery(props.queryId);
-    
     console.log('加载版本数据，查询ID:', props.queryId);
     
-    try {
-      // 尝试使用真实API获取版本数据
-      const versionApi = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL || '',
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log(`请求版本列表API: ${versionApi.defaults.baseURL}/api/query/version/management/${props.queryId}`);
-      const response = await versionApi.get(`/api/query/version/management/${props.queryId}`);
-      
-      if (response.data.success && Array.isArray(response.data.data)) {
-        console.log('API返回版本数据:', response.data.data);
-        processVersions(response.data.data);
-        return;
-      } else {
-        console.warn('API返回数据格式不正确:', response.data);
+    const versionApi = axios.create({
+      baseURL: import.meta.env.VITE_API_BASE_URL || '',
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch (apiError) {
-      console.error('API请求失败，使用回退方案:', apiError);
+    });
+    
+    console.log(`请求版本列表API: ${versionApi.defaults.baseURL}/api/query/version/management/${props.queryId}`);
+    const response = await versionApi.get(`/api/query/version/management/${props.queryId}`);
+    
+    if (response.data.success && Array.isArray(response.data.data)) {
+      console.log('API返回版本数据:', response.data.data);
+      versions.value = response.data.data;
+      totalItems.value = versions.value.length;
+      totalPages.value = Math.ceil(totalItems.value / pageSize.value);
+      console.log('处理后的版本数据:', versions.value);
+    } else {
+      console.error('API返回数据格式不正确:', response.data);
+      message.error('获取版本数据失败，请稍后重试');
+      versions.value = [];
+      totalItems.value = 0;
+      totalPages.value = 1;
     }
-    
-    // 如果API请求失败或返回空数据，使用模拟数据作为备选方案
-    console.log('使用模拟数据作为备选');
-    
-    // 模拟数据 - 固定为两个版本
-    const mockData = {
-      items: [
-        {
-          id: `version-${props.queryId}-1`,
-          queryId: props.queryId,
-          versionNumber: 1,
-          status: 'PUBLISHED' as QueryVersionStatus,
-          queryText: query?.queryText || 'SELECT * FROM customers LIMIT 100',
-          createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-          publishedAt: new Date(Date.now() - 6 * 86400000).toISOString(),
-          isActive: true
-        },
-        {
-          id: `version-${props.queryId}-2`,
-          queryId: props.queryId,
-          versionNumber: 2,
-          status: 'DRAFT' as QueryVersionStatus,
-          queryText: query?.queryText ? `${query.queryText} WHERE status = "active"` : 'SELECT * FROM customers WHERE status = "active" LIMIT 100',
-          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 2 * 86400000).toISOString()
-        }
-      ],
-      total: 2,
-      page: 1,
-      size: 10,
-      totalPages: 1
-    };
-    
-    processVersions(mockData.items);
   } catch (error) {
     console.error('加载版本数据失败:', error);
     message.error('无法加载版本数据，请稍后重试');
+    versions.value = [];
+    totalItems.value = 0;
+    totalPages.value = 1;
   } finally {
     isLoading.value = false;
   }
@@ -441,21 +396,26 @@ const publishVersion = (versionId: string) => {
   
   pendingAction.value = async () => {
     try {
-      // 模拟发布版本
-      console.log('模拟发布版本:', versionId);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('正在发布版本:', versionId);
       
-      // 更新本地数据
-      const index = versions.value.findIndex(v => v.id === versionId);
-      if (index !== -1) {
-        versions.value[index] = {
-          ...versions.value[index],
-          status: 'PUBLISHED',
-          publishedAt: new Date().toISOString()
-        };
+      const versionApi = axios.create({
+        baseURL: import.meta.env.VITE_API_BASE_URL || '',
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // 调用发布版本的API
+      const response = await versionApi.post(`/api/query/version/management/${props.queryId}/publish/${versionId}`);
+      
+      if (response.data.success) {
+        // 重新加载版本列表以获取最新状态
+        await loadVersions();
+        message.success('版本已成功发布');
+      } else {
+        throw new Error(response.data.message || '发布版本失败');
       }
-      
-      message.success('版本已成功发布');
     } catch (error) {
       console.error('发布版本失败:', error);
       message.error('发布版本失败，请稍后重试');
@@ -472,21 +432,26 @@ const deprecateVersion = (versionId: string) => {
   
   pendingAction.value = async () => {
     try {
-      // 模拟废弃版本
-      console.log('模拟废弃版本:', versionId);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('正在废弃版本:', versionId);
       
-      // 更新本地数据
-      const index = versions.value.findIndex(v => v.id === versionId);
-      if (index !== -1) {
-        versions.value[index] = {
-          ...versions.value[index],
-          status: 'DEPRECATED',
-          deprecatedAt: new Date().toISOString()
-        };
+      const versionApi = axios.create({
+        baseURL: import.meta.env.VITE_API_BASE_URL || '',
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // 调用废弃版本的API
+      const response = await versionApi.post(`/api/query/version/management/${props.queryId}/deprecate/${versionId}`);
+      
+      if (response.data.success) {
+        // 重新加载版本列表以获取最新状态
+        await loadVersions();
+        message.success('版本已成功废弃');
+      } else {
+        throw new Error(response.data.message || '废弃版本失败');
       }
-      
-      message.success('版本已成功废弃');
     } catch (error) {
       console.error('废弃版本失败:', error);
       message.error('废弃版本失败，请稍后重试');
@@ -495,7 +460,7 @@ const deprecateVersion = (versionId: string) => {
 };
 
 // 激活版本
-const activateVersion = (queryId: string, versionId: string) => {
+const activateVersion = async (queryId: string, versionId: string) => {
   confirmDialogTitle.value = '激活版本';
   confirmDialogMessage.value = '确定要将此版本设为活跃版本吗？';
   confirmButtonText.value = '激活';
@@ -503,16 +468,26 @@ const activateVersion = (queryId: string, versionId: string) => {
   
   pendingAction.value = async () => {
     try {
-      // 模拟激活版本
-      console.log('模拟激活版本:', queryId, versionId);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('正在激活版本:', queryId, versionId);
       
-      // 更新本地数据，将所有版本设为非活跃状态
-      versions.value.forEach(v => {
-        v.isActive = v.id === versionId;
+      const versionApi = axios.create({
+        baseURL: import.meta.env.VITE_API_BASE_URL || '',
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
-      message.success('版本已成功激活');
+      // 调用激活版本的API
+      const response = await versionApi.post(`/api/queries/${queryId}/versions/${versionId}/activate`);
+      
+      if (response.data.success) {
+        // 重新加载版本列表以获取最新状态
+        await loadVersions();
+        message.success('版本已成功激活');
+      } else {
+        throw new Error(response.data.message || '激活版本失败');
+      }
     } catch (error) {
       console.error('激活版本失败:', error);
       message.error('激活版本失败，请稍后重试');
@@ -521,11 +496,12 @@ const activateVersion = (queryId: string, versionId: string) => {
 };
 
 // 处理确认操作
-const handleConfirmAction = () => {
+const handleConfirmAction = async () => {
   if (pendingAction.value) {
-    pendingAction.value();
+    await pendingAction.value();
   }
   confirmDialogVisible.value = false;
+  pendingAction.value = null;
 };
 
 // 取消操作

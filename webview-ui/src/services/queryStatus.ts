@@ -17,73 +17,10 @@ export interface DisableQueryParams {
   reason: string;
 }
 
-// 模拟API
-const mockStatusApi = {
-  // 获取查询服务状态
-  async getQueryStatus(queryId: string): Promise<QueryStatusInfo> {
-    console.log('模拟获取查询服务状态:', queryId);
-    
-    // 模拟延迟
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // 根据查询ID模拟不同状态
-    const isDisabled = queryId.includes('disabled') || Math.random() < 0.3;
-    
-    if (isDisabled) {
-      return {
-        status: 'DISABLED',
-        disabledReason: '此查询服务存在性能问题，已被暂时禁用',
-        disabledAt: new Date(Date.now() - 86400000).toISOString(),
-        disabledBy: 'admin'
-      };
-    } else {
-      return {
-        status: 'ENABLED'
-      };
-    }
-  },
-  
-  // 启用查询服务
-  async enableQuery(queryId: string): Promise<QueryStatusInfo> {
-    console.log('模拟启用查询服务:', queryId);
-    
-    // 模拟延迟
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    return {
-      status: 'ENABLED'
-    };
-  },
-  
-  // 禁用查询服务
-  async disableQuery(params: DisableQueryParams): Promise<QueryStatusInfo> {
-    console.log('模拟禁用查询服务:', params);
-    
-    // 模拟延迟
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    return {
-      status: 'DISABLED',
-      disabledReason: params.reason,
-      disabledAt: new Date().toISOString(),
-      disabledBy: 'current_user'
-    };
-  }
-};
-
-// 使用环境变量判断是否使用模拟API
-export const isUsingMockApi = () => {
-  return import.meta.env.VITE_USE_MOCK_API === 'true';
-};
-
 // 查询状态服务
 export const queryStatusService = {
   // 获取查询服务状态
   async getQueryStatus(queryId: string): Promise<QueryStatusInfo> {
-    if (isUsingMockApi()) {
-      return mockStatusApi.getQueryStatus(queryId);
-    }
-    
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/status`, {
         method: 'GET',
@@ -114,10 +51,6 @@ export const queryStatusService = {
   
   // 启用查询服务
   async enableQuery(queryId: string): Promise<QueryStatusInfo> {
-    if (isUsingMockApi()) {
-      return mockStatusApi.enableQuery(queryId);
-    }
-    
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/enable`, {
         method: 'POST',
@@ -148,10 +81,6 @@ export const queryStatusService = {
   
   // 禁用查询服务
   async disableQuery(params: DisableQueryParams): Promise<QueryStatusInfo> {
-    if (isUsingMockApi()) {
-      return mockStatusApi.disableQuery(params);
-    }
-    
     try {
       const requestBody = {
         reason: params.reason

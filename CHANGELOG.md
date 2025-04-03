@@ -1,3 +1,15 @@
+# 更新日志
+
+## [未发布]
+
+### 修复
+- 彻底清理前端模拟数据，确保使用真实的后端API调用
+- 替换 `QueryVersionDetail.vue` 中使用的模拟数据，包括版本信息、执行历史和版本激活功能
+- 修复 `loadVersionData` 函数，使用 `versionService.getVersion` 获取真实数据
+- 修复 `loadExecutionHistory` 函数，使用 `queryService.getQueryExecutionHistory` 获取真实数据
+- 修复 `handleActivate` 函数，使用 `versionService.activateVersion` 执行真实API调用
+- 修复查询列表页面的启用/禁用功能，使其调用真实的后端API而不是只修改前端状态
+
 ## 2024-03-26
 
 ### 修改
@@ -140,6 +152,10 @@
 - 重新设计查询保存和发布流程，使其更符合直觉
   - 保存时只创建草稿版本，不发布或激活
   - 发布时才发布并激活版本
+- 优化查询详情页面布局
+  - 移除版本列表外层的重复卡片容器
+  - 移除重复的新增版本按钮，统一使用页面顶部的按钮
+  - 简化版本列表的视觉层级
 
 ### Fixed
 - 修复query.ts文件中重复声明totalPages变量导致的编译错误
@@ -193,3 +209,18 @@
 - 移除版本列表中的"查看"按钮，简化版本操作功能
 - 在版本列表中添加眼睛图标按钮，方便用户快速查看版本详情
 - 优化查询列表页操作列，移除收藏和查看版本历史按钮，增加查看详情按钮，使操作更加直观
+
+### 修复
+- 修复了查询列表加载失败的问题
+  - 在 queryService 中添加了 getQueries 方法，用于获取查询列表
+  - 优化了 getQueries 方法的参数处理和返回值处理
+  - 增强了错误处理和日志记录，便于调试和排错
+  - 修复了 fetchQueries 方法中的响应处理逻辑，正确解析 API 返回的分页数据
+- 移除前端模拟数据，使用真实 API
+  - 添加了 getQueryExecutionHistory 方法，用于获取查询执行历史
+  - 修复了 QueryDetail.vue 中使用模拟执行历史数据的问题
+  - 添加了 QueryExecution 类型定义，完善类型系统
+  - 改进了错误处理和日志记录，提高代码健壮性
+  - 添加了 getVersionExecutionResult 和 getQueryResult 方法，用于获取查询结果
+  - 修复了 QueryVersionDetail.vue 中使用模拟数据的问题，包括执行历史、执行计划和查询结果
+  - 重构了查询执行逻辑，使用实际的 API 调用代替模拟延时和假数据

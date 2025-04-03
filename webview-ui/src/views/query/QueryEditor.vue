@@ -53,14 +53,14 @@
             <label for="queryName" class="block text-sm font-medium text-gray-700 mb-1">
               查询名称 <span class="text-red-500">*</span>
             </label>
-            <input 
+          <input 
               id="queryName"
-              v-model="queryName"
-              type="text"
+            v-model="queryName"
+            type="text"
               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm force-border py-2 px-3"
               placeholder="请输入查询名称"
-            />
-          </div>
+          />
+        </div>
           
           <!-- 版本信息 - 使用下拉选择框 -->
           <div>
@@ -83,15 +83,15 @@
               </select>
               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-8 text-gray-500">
                 <i class="fas fa-code-branch mr-1"></i>
-              </div>
-              <button
+      </div>
+        <button
                 v-if="currentQueryId && versionStatus === 'DRAFT'"
                 @click="createNewVersion"
                 class="absolute inset-y-0 right-8 flex items-center px-2 py-1 border-l border-gray-300 bg-gray-100 text-xs font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              >
+        >
                 <i class="fas fa-plus mr-1"></i>
                 新建版本
-              </button>
+        </button>
               
               <!-- 添加静态版本显示，解决初始版本信息不显示问题 -->
               <div v-if="availableVersions.length === 0 || (availableVersions.length === 1 && !availableVersions[0])" class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-700">
@@ -1629,9 +1629,9 @@ const handleSaveQuery = async (saveData: any) => {
       } catch (versionError) {
         console.error('创建草稿版本失败:', versionError);
         // 版本创建失败不影响主流程，只记录日志
-      }
+    }
     
-      setTimeout(() => {
+    setTimeout(() => {
         statusMessage.value = null;
       }, 3000);
     } else {

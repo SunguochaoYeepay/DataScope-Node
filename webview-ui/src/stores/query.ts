@@ -4,35 +4,39 @@ import type {
   Query,
   QueryResult,
   QueryStatus,
+  QueryType,
   ExecuteQueryParams,
   NaturalLanguageQueryParams,
   SaveQueryParams,
   QueryHistoryParams,
   QueryDisplayConfig,
   QueryFavorite,
+  PageResponse,
   QuerySuggestion,
   QueryExecutionPlan,
   QueryVisualization,
   ChartConfig,
-  Pagination,
-  PageResponse
+  FetchQueryParams,
+  PaginatedResponse
 } from '@/types/query'
-import { queryService, isUsingMockApi, getApiBaseUrl } from '@/services/query'
+import type {
+  PaginationParams,
+  PaginationInfo,
+  PaginationResponse,
+  BaseQueryParams
+} from '@/types/common'
+import { queryService, getApiBaseUrl } from '@/services/query'
 import { useMessageService } from '@/services/message'
 import { loading } from '@/services/loading'
 import { getErrorMessage } from '@/utils/error'
 
 // 查询参数接口
-export interface FetchQueryParams {
+interface QueryParams extends BaseQueryParams {
   dataSourceId?: string
   status?: QueryStatus
   serviceStatus?: string
-  queryType?: string
-  search?: string
-  page?: number
-  size?: number
-  sortBy?: string
-  sortDir?: 'asc' | 'desc'
+  queryType?: QueryType
+  includeDrafts?: boolean
 }
 
 // 查询API类型定义
@@ -92,10 +96,10 @@ export const useQueryStore = defineStore('query', () => {
   const suggestions = ref<QuerySuggestion[]>([])
   const visualization = ref<QueryVisualization | null>(null)
   const executionHistory = ref<QueryExecution[]>([])
-  const pagination = ref<Pagination>({
-    total: 0,
+  const pagination = ref<PaginationInfo>({
     page: 1,
-    size: 10,
+    pageSize: 10,
+    total: 0,
     totalPages: 0,
     hasMore: false
   })
@@ -126,19 +130,25 @@ export const useQueryStore = defineStore('query', () => {
       // 更新当前查询结果
       currentQueryResult.value = result
       
-      // 创建未命名查询对象
+      // 创建查询对象，确保包含所有必需属性
       const tempQuery: Query = {
         id: result.id,
         name: 'Query at ' + new Date().toLocaleString(),
+        description: '',
+        folderId: '',
         dataSourceId: params.dataSourceId,
-        queryType: params.queryType,
+        queryType: params.queryType || 'SQL',
         queryText: params.queryText,
-        status: result.status || 'COMPLETED',
+        status: result.status as QueryStatus,
+        serviceStatus: 'ACTIVE',
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        executionTime: result.executionTime,
-        resultCount: result.rowCount,
-        error: result.error
+        executionTime: result.executionTime || 0,
+        resultCount: result.rowCount || 0,
+        error: result.error,
+        isFavorite: false,
+        executionCount: 0,
+        lastExecutedAt: new Date().toISOString()
       }
       
       // 添加到查询历史
@@ -146,7 +156,7 @@ export const useQueryStore = defineStore('query', () => {
       queryHistory.value = [tempQuery, ...queryHistory.value].slice(0, 100)
       
       // 处理数据格式，确保在前端一致展示
-      const processedResult = processQueryResult(result);
+      const processedResult = processQueryResult(result)
       
       messageService.success('查询执行成功')
       return processedResult
@@ -229,17 +239,26 @@ export const useQueryStore = defineStore('query', () => {
       currentQueryResult.value = response.result
       
       // 更新当前查询
-      currentQuery.value = {
+      const tempQuery: Query = {
         id: response.query.id || '',
+        name: 'Natural Language Query at ' + new Date().toLocaleString(),
+        description: '',
+        folderId: '',
         dataSourceId: params.dataSourceId,
         queryType: 'NATURAL_LANGUAGE',
         queryText: params.question,
         status: 'COMPLETED',
+        serviceStatus: 'ACTIVE',
         createdAt: response.query.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        executionTime: response.result.executionTime,
-        resultCount: response.result.rowCount
+        executionTime: response.result.executionTime || 0,
+        resultCount: response.result.rowCount || 0,
+        isFavorite: false,
+        executionCount: 0,
+        lastExecutedAt: new Date().toISOString()
       }
+      
+      currentQuery.value = tempQuery
       
       messageService.success(`查询成功，返回 ${response.result.rowCount} 条记录${response.result.executionTime ? `，执行时间 ${response.result.executionTime}ms` : ''}`)
       fetchQueryHistory()
@@ -774,10 +793,22 @@ export const useQueryStore = defineStore('query', () => {
     error.value = null
     
     try {
-      const response = await queryService.getQueryExecutionHistory(queryId)
-      // 更新执行历史状态
-      executionHistory.value = response || []
-      return response
+      // 使用 fetch 直接调用 API
+      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/execution-history`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`获取执行历史失败: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      executionHistory.value = data || []
+      return data
     } catch (err) {
       console.error('获取执行历史失败:', err)
       error.value = err instanceof Error ? err : new Error(String(err))
@@ -795,52 +826,42 @@ export const useQueryStore = defineStore('query', () => {
   }
   
   // 获取查询列表
-  const fetchQueries = async (params?: FetchQueryParams): Promise<Query[]> => {
+  const fetchQueries = async (params?: QueryParams): Promise<Query[]> => {
     try {
-      loading.show('正在加载查询列表...')
-      error.value = null
+      loading.show('加载查询列表...')
       
-      console.log('Store查询参数:', params);
-      
-      // 使用queryService.getQueries获取标准化查询列表
-      const result = await queryService.getQueries({
-        page: params?.page || 1,
-        size: params?.size || 20,
+      const queryParams = {
         queryType: params?.queryType,
         status: params?.status,
-        serviceStatus: params?.serviceStatus, // 添加serviceStatus参数
+        serviceStatus: params?.serviceStatus,
         searchTerm: params?.search,
-        sortBy: params?.sortBy || 'updatedAt',
-        sortDir: params?.sortDir || 'desc'
-      });
+        sortBy: params?.sortBy,
+        sortDir: params?.sortDir,
+        includeDrafts: params?.includeDrafts,
+        page: params?.page ?? 1,
+        size: params?.size ?? 10
+      }
       
-      console.log('API响应:', result);
+      const response = await queryService.getQueries(queryParams)
       
-      // 更新store状态
-      queryHistory.value = result.items;
-      // 同时更新queries变量，确保保持同步
-      queries.value = result.items;
-      
-      // 更新分页信息
+      queries.value = response.items
       pagination.value = {
-        total: result.total || 0,
-        page: result.page || 1,
-        size: result.size || 10,
-        totalPages: result.totalPages || Math.ceil((result.total || 0) / (result.size || 10)),
-        hasMore: (result.page || 1) < (result.totalPages || 1)
-      };
+        total: response.total,
+        page: response.page,
+        size: response.size,
+        totalPages: response.totalPages,
+        hasMore: response.page < response.totalPages
+      }
       
-      messageService.success(`已加载 ${result.items.length} 个查询`);
-      return result.items;
-    } catch (err) {
-      error.value = err instanceof Error ? err : new Error(String(err))
+      return response.items
+    } catch (error) {
+      console.error('加载查询列表失败:', error)
       messageService.error('加载查询列表失败')
-      console.error('加载查询列表失败:', err)
-      return []
+      throw error
     } finally {
       loading.hide()
     }
-  };
+  }
   
   // 更新查询状态
   const updateQueryStatus = async (id: string, status: QueryStatus) => {
@@ -855,12 +876,12 @@ export const useQueryStore = defineStore('query', () => {
       
       // 调用updateQuery接口更新状态
       const updatedQuery = await queryService.updateQuery(id, {
-        status,
+        id,
         name: query.name,
-        sql: query.sql,
         description: query.description,
-        tags: query.tags,
-        dataSourceId: query.dataSourceId
+        dataSourceId: query.dataSourceId || '',
+        sql: query.queryText || '',
+        status: status
       })
       
       // 更新本地状态
@@ -871,7 +892,6 @@ export const useQueryStore = defineStore('query', () => {
           queries.value[index] = {
             ...queries.value[index],
             status: status,
-            // 如果后端返回了serviceStatus字段，也更新它
             serviceStatus: updatedQuery.serviceStatus || (status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED')
           }
         }
@@ -879,7 +899,6 @@ export const useQueryStore = defineStore('query', () => {
         // 如果当前查询是被更新的查询，也更新当前查询
         if (currentQuery.value && currentQuery.value.id === id) {
           currentQuery.value.status = status
-          // 同步serviceStatus字段
           currentQuery.value.serviceStatus = updatedQuery.serviceStatus || (status === 'PUBLISHED' ? 'ENABLED' : 'DISABLED')
         }
         
@@ -948,49 +967,3 @@ export const useQueryStore = defineStore('query', () => {
 })
 
 export default useQueryStore
-
-// 模拟查询执行历史数据
-function mockQueryExecutionHistory(queryId: string): QueryExecution[] {
-  const now = Date.now()
-  return [
-    {
-      id: `exec-${queryId}-1`,
-      queryId,
-      executedAt: new Date(now - 3600000).toISOString(),
-      executionTime: 1250,
-      status: 'COMPLETED',
-      rowCount: 128
-    },
-    {
-      id: `exec-${queryId}-2`,
-      queryId,
-      executedAt: new Date(now - 7200000).toISOString(),
-      executionTime: 2100,
-      status: 'COMPLETED',
-      rowCount: 256
-    },
-    {
-      id: `exec-${queryId}-3`,
-      queryId,
-      executedAt: new Date(now - 14400000).toISOString(),
-      executionTime: 890,
-      status: 'FAILED',
-      errorMessage: '查询超时或语法错误'
-    },
-    {
-      id: `exec-${queryId}-4`,
-      queryId,
-      executedAt: new Date(now - 86400000).toISOString(),
-      executionTime: 1500,
-      status: 'COMPLETED',
-      rowCount: 64
-    },
-    {
-      id: `exec-${queryId}-5`,
-      queryId,
-      executedAt: new Date(now - 172800000).toISOString(),
-      executionTime: 3200,
-      status: 'CANCELLED'
-    }
-  ]
-}

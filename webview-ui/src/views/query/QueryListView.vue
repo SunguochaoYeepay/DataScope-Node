@@ -699,11 +699,16 @@ const toggleFavorite = async (query: any) => {
 // 修改切换查询状态处理函数
 const toggleQueryStatus = async (query: any) => {
   try {
-    // 直接切换启用/禁用状态
-    query.serviceStatus = query.serviceStatus === 'ENABLED' ? 'DISABLED' : 'ENABLED';
-    messageService.success(`查询已${query.serviceStatus === 'ENABLED' ? '启用' : '禁用'}`);
+    // 设置要更新的查询
+    queryToToggle.value = query;
+    
+    // 根据当前状态设置新状态
+    newStatus.value = query.serviceStatus === 'ENABLED' ? 'DEPRECATED' : 'PUBLISHED';
+    
+    // 显示确认对话框
+    showStatusConfirm.value = true;
   } catch (error) {
-    console.error('更新查询状态失败:', error);
+    console.error('准备更新查询状态失败:', error);
     messageService.error('更新查询状态失败');
   }
 }

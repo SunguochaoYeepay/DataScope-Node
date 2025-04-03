@@ -15,34 +15,13 @@ import type {
   SyncFrequency
 } from '@/types/datasource'
 import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/metadata'
-import { mockDataSourceApi } from '@/mocks/datasource'
 import { getApiBaseUrl } from './query'
-
-// 使用环境变量判断是否使用模拟API
-const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
 
 // API 基础路径
 const API_BASE_URL = `${getApiBaseUrl()}/api/datasources`
 
 // 元数据API基础路径 - 已更新为标准API路径
 const METADATA_API_BASE_URL = `${getApiBaseUrl()}/api/metadata`
-
-// 定义mock API接口
-interface MockDataSourceApi {
-  getDataSources: (params: DataSourceQueryParams) => Promise<PageResponse<DataSource>>;
-  getDataSource: (id: string) => Promise<DataSource>;
-  createDataSource: (data: DataSourceInput) => Promise<DataSource>;
-  updateDataSource: (params: UpdateDataSourceParams) => Promise<DataSource>;
-  deleteDataSource: (id: string) => Promise<void>;
-  testConnection: (data: DataSourceInput) => Promise<ConnectionTestResult>;
-  syncMetadata: (params: SyncMetadataParams) => Promise<MetadataSyncResult>;
-  getTableMetadata: (dataSourceId: string, tableName?: string) => Promise<TableMetadata | Record<string, TableMetadata>>;
-  getTableColumns: (dataSourceId: string, tableName: string) => Promise<ColumnMetadata[]>;
-  getTableRelationships: (dataSourceId: string) => Promise<TableRelationship[]>;
-  getTableDataPreview: (dataSourceId: string, tableName: string, params: any) => Promise<any>;
-  searchMetadata: (dataSourceId: string, keyword: string) => Promise<any>;
-  getDataSourceStats: (id: string) => Promise<DataSourceStats>;
-}
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -89,10 +68,6 @@ const adaptDataSource = (source: any): DataSource => {
 export const dataSourceService = {
   // 获取数据源列表
   async getDataSources(params: DataSourceQueryParams): Promise<PageResponse<DataSource>> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSources(params)
-    }
-
     try {
       // 构建查询参数 - 使用标准参数：page/size
       const queryParams = new URLSearchParams()
@@ -193,10 +168,6 @@ export const dataSourceService = {
   
   // 获取单个数据源详情
   async getDataSource(id: string): Promise<DataSource> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSource(id)
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`)
       if (!response.ok) {
@@ -213,10 +184,6 @@ export const dataSourceService = {
   
   // 创建数据源
   async createDataSource(data: DataSourceInput): Promise<DataSource> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.createDataSource(data)
-    }
-
     try {
       // 构建符合后端期望的请求体
       const requestBody = {
@@ -256,10 +223,6 @@ export const dataSourceService = {
   
   // 更新数据源
   async updateDataSource(params: UpdateDataSourceParams): Promise<DataSource> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.updateDataSource(params)
-    }
-
     try {
       // 构建符合后端期望的请求体
       const requestBody: any = {
@@ -299,11 +262,6 @@ export const dataSourceService = {
   
   // 删除数据源
   async deleteDataSource(id: string): Promise<void> {
-    if (USE_MOCK_API) {
-      await mockDataSourceApi.deleteDataSource(id)
-      return
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`, {
         method: 'DELETE'
@@ -322,19 +280,6 @@ export const dataSourceService = {
   
   // 测试数据源连接
   async testConnection(params: TestConnectionParams): Promise<ConnectionTestResult> {
-    if (USE_MOCK_API) {
-      return {
-        success: true,
-        message: '连接测试成功',
-        details: {
-          databaseType: params.type,
-          databaseVersion: '8.0.27',
-          driverVersion: '8.0.25',
-          pingTime: 20
-        }
-      }
-    }
-
     try {
       // 构建请求体
       const requestBody = {
@@ -393,10 +338,6 @@ export const dataSourceService = {
   
   // 同步数据源元数据
   async syncMetadata(params: SyncMetadataParams): Promise<MetadataSyncResult> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.syncMetadata(params)
-    }
-
     try {
       // 构建符合后端预期的请求体
       const requestBody = {
@@ -475,12 +416,6 @@ export const dataSourceService = {
   
   // 获取表元数据
   async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata[]> {
-    if (USE_MOCK_API) {
-      const result = await mockDataSourceApi.getTableMetadata(dataSourceId, tableName);
-      // 确保返回数组格式
-      return Array.isArray(result) ? result : (tableName ? [result as TableMetadata] : Object.values(result as Record<string, TableMetadata>));
-    }
-
     try {
       // 使用标准API路径
       const url = tableName 
@@ -545,10 +480,6 @@ export const dataSourceService = {
   
   // 获取表字段信息
   async getTableColumns(dataSourceId: string, tableName: string): Promise<ColumnMetadata[]> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableColumns(dataSourceId, tableName)
-    }
-
     try {
       // 使用标准API路径
       const url = `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns`
@@ -568,10 +499,6 @@ export const dataSourceService = {
   
   // 获取表关系
   async getTableRelationships(dataSourceId: string): Promise<TableRelationship[]> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getTableRelationships(dataSourceId)
-    }
-
     try {
       // 构建查询参数获取表关系，根据新API格式
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/relationships`)
@@ -601,32 +528,6 @@ export const dataSourceService = {
       filters?: Record<string, any>
     } = {}
   ) {
-    if (USE_MOCK_API) {
-      return {
-        data: Array(params.size || 10).fill(null).map((_, i) => {
-          // 创建一个模拟行，每行包含5列示例数据
-          return {
-            id: i + 1,
-            name: `示例数据 ${i + 1}`,
-            created_at: new Date(Date.now() - i * 86400000).toISOString(),
-            value: Math.round(Math.random() * 1000) / 10,
-            status: ['活跃', '禁用', '待审核'][i % 3]
-          };
-        }),
-        columns: [
-          { name: 'id', type: 'INTEGER' },
-          { name: 'name', type: 'VARCHAR' },
-          { name: 'created_at', type: 'DATETIME' },
-          { name: 'value', type: 'DECIMAL' },
-          { name: 'status', type: 'VARCHAR' }
-        ],
-        page: params.page || 1,
-        size: params.size || 10,
-        total: 100,
-        totalPages: 10
-      };
-    }
-
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams();
@@ -752,12 +653,6 @@ export const dataSourceService = {
   
   // 使用表格预览功能作为备选方案
   async getTablePreview(dataSourceId: string, tableName: string, limit: number = 10): Promise<any[]> {
-    if (USE_MOCK_API) {
-      // 使用mock api中类似的功能
-      const result = await mockDataSourceApi.getTableDataPreview(dataSourceId, tableName, { size: limit });
-      return result.data || [];
-    }
-
     try {
       const queryParams = new URLSearchParams()
       queryParams.append('limit', limit.toString())
@@ -778,10 +673,6 @@ export const dataSourceService = {
   
   // 搜索数据源元数据
   async searchMetadata(dataSourceId: string, keyword: string): Promise<any> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.searchMetadata(dataSourceId, keyword)
-    }
-
     try {
       const queryParams = new URLSearchParams()
       queryParams.append('keyword', keyword)
@@ -802,10 +693,6 @@ export const dataSourceService = {
   
   // 获取数据源统计信息
   async getDataSourceStats(id: string): Promise<DataSourceStats> {
-    if (USE_MOCK_API) {
-      return mockDataSourceApi.getDataSourceStats(id)
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/${id}/stats`)
       
@@ -841,11 +728,6 @@ export const dataSourceService = {
   
   // 新增: 获取同步历史记录
   async getSyncHistory(dataSourceId: string): Promise<any[]> {
-    if (USE_MOCK_API) {
-      // 模拟数据
-      return []
-    }
-
     try {
       const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/sync-history`)
       
@@ -862,11 +744,6 @@ export const dataSourceService = {
 
   // 新增: 分析表列的详细信息
   async analyzeColumns(dataSourceId: string, tableName: string, columnNames?: string[]): Promise<any> {
-    if (USE_MOCK_API) {
-      // 模拟数据
-      return {}
-    }
-
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams()
@@ -890,14 +767,6 @@ export const dataSourceService = {
 
   // 测试现有数据源连接
   async testExistingConnection(id: string): Promise<ConnectionTestResult> {
-    if (USE_MOCK_API) {
-      return {
-        success: true,
-        message: '连接成功',
-        details: null
-      };
-    }
-
     try {
       // 使用API文档中的正确路径：/datasources/{id}/test
       const response = await fetch(`${API_BASE_URL}/${id}/test`, {
@@ -952,17 +821,6 @@ export const dataSourceService = {
     page?: number,
     size?: number
   }): Promise<any> {
-    if (USE_MOCK_API) {
-      // 模拟数据
-      return {
-        items: [],
-        total: 0,
-        page: params.page || 1,
-        size: params.size || 10,
-        totalPages: 0
-      }
-    }
-
     try {
       // 构建查询参数
       const queryParams = new URLSearchParams();

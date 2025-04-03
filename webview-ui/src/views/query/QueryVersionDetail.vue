@@ -295,19 +295,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { message } from 'ant-design-vue';
-import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion';
-import type { ExecutionHistory, ExecutionStatus } from '@/types/executionHistory';
-import versionService from '@/services/queryVersion';
-// 注释掉或删除不存在的导入
-// import executionService from '@/services/execution';
-import { useQueryStore } from '@/stores/query';
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useMessage } from 'naive-ui'
+import useQueryStore from '@/stores/query'
+import { queryService } from '@/services/query'
+import { versionService } from '@/services/queryVersion'
+import type { Query, QueryVersion as QueryVersionType, QueryExecutionPlan, QuerySuggestion, QueryExecution, QueryStatus } from '@/types/query'
+import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion'
+
+// 执行状态类型
+type ExecutionStatus = 'SUCCESS' | 'ERROR' | 'RUNNING' | 'CANCELLED'
+
+// 查询版本状态类型
+type QueryVersionStatus = 'DRAFT' | 'PUBLISHED' | 'DEPRECATED'
 
 const route = useRoute();
 const router = useRouter();
 const queryStore = useQueryStore();
+const message = useMessage();
 
 // 从路由参数获取查询ID和版本ID
 const queryId = computed(() => route.params.id as string);
@@ -319,9 +325,10 @@ const isLoading = ref(true);
 const isLoadingHistory = ref(false);
 const isLoadingPlan = ref(false);
 const isLoadingResults = ref(false);
+const isExecuting = ref(false);
 const errorMessage = ref('');
 const versionData = ref<QueryVersion | null>(null);
-const executionHistory = ref<ExecutionHistory[]>([]);
+const executionHistory = ref<QueryExecution[]>([]);
 const executionPlan = ref<any>(null);
 const activeTab = ref('execution-history');
 const isActiveVersion = ref(false);
@@ -350,8 +357,6 @@ const loadVersionData = async () => {
   
   try {
     // 获取版本详情
-    // 在实际应用中，这里应该调用API获取数据
-    // 这里使用模拟数据
     console.log(`加载版本数据，查询ID: ${queryId.value}, 版本ID: ${versionId.value}`);
     
     // 获取主查询信息
@@ -362,28 +367,24 @@ const loadVersionData = async () => {
       return;
     }
     
-    // 模拟版本数据
-    // 提取版本号（假设版本ID格式为 version-{queryId}-{number}）
-    const versionIdParts = versionId.value.split('-');
-    const extractedVersionNumber = versionIdParts[versionIdParts.length - 1];
-    versionNumber.value = parseInt(extractedVersionNumber) || 1;
-    
-    // 创建版本数据
-    versionData.value = {
-      id: versionId.value,
-      queryId: queryId.value,
-      versionNumber: versionNumber.value,
-      status: 'PUBLISHED' as QueryVersionStatus,
-      queryText: query.queryText || 'SELECT * FROM customers LIMIT 100',
-      createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-      updatedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-      publishedAt: versionNumber.value === 1 ? new Date(Date.now() - 6 * 86400000).toISOString() : null,
-      isActive: versionNumber.value === 1, // 假设版本1是活跃版本
-      deprecatedAt: null
-    };
-    
-    // 设置是否为活跃版本
-    isActiveVersion.value = versionData.value.isActive || false;
+    // 使用真实API获取版本数据
+    try {
+      const versionResponse = await versionService.getVersion(versionId.value);
+      versionData.value = versionResponse;
+      
+      // 提取版本号
+      versionNumber.value = versionResponse.versionNumber || 1;
+      
+      // 设置是否为活跃版本
+      isActiveVersion.value = versionResponse.isActive || false;
+      
+      console.log('成功获取版本数据:', versionData.value);
+    } catch (versionError) {
+      console.error('获取版本数据失败:', versionError);
+      errorMessage.value = `无法获取版本数据: ${versionError instanceof Error ? versionError.message : String(versionError)}`;
+      isLoading.value = false;
+      return;
+    }
     
     // 加载执行历史
     await loadExecutionHistory();
@@ -402,34 +403,33 @@ const loadVersionData = async () => {
 const loadExecutionHistory = async () => {
   isLoadingHistory.value = true;
   try {
-    // 这里应该调用API获取执行历史数据
-    console.log(`加载执行历史，版本ID: ${versionId.value}`);
+    // 使用真实API获取执行历史数据
+    console.log(`加载执行历史，查询ID: ${queryId.value}, 版本ID: ${versionId.value}`);
     
-    // 模拟执行历史数据
-    executionHistory.value = [
-      {
-        id: `exec-${versionId.value}-1`,
-        queryId: queryId.value,
-        versionId: versionId.value,
-        executedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-        status: 'SUCCESS' as ExecutionStatus,
-        executionTime: 1240, // 毫秒
-        resultRowCount: 150,
-        userId: 'user-1',
-        error: null
-      },
-      {
-        id: `exec-${versionId.value}-2`,
-        queryId: queryId.value,
-        versionId: versionId.value,
-        executedAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-        status: 'ERROR' as ExecutionStatus,
-        executionTime: 320, // 毫秒
-        resultRowCount: 0,
-        userId: 'user-1',
-        error: 'Table not found: customers'
+    if (!queryId.value || !versionId.value) {
+      console.warn('无法加载执行历史：查询ID或版本ID为空');
+      executionHistory.value = [];
+      isLoadingHistory.value = false;
+      return;
+    }
+    
+    try {
+      // 使用查询服务获取执行历史
+      const historyData = await queryService.getQueryExecutionHistory(queryId.value, {
+        versionId: versionId.value
+      });
+      
+      if (historyData && Array.isArray(historyData)) {
+        executionHistory.value = historyData;
+        console.log('成功获取执行历史数据:', executionHistory.value);
+      } else {
+        console.warn('执行历史数据格式不正确或为空');
+        executionHistory.value = [];
       }
-    ];
+    } catch (historyError) {
+      console.error('获取执行历史失败:', historyError);
+      executionHistory.value = [];
+    }
     
     // 加载执行计划
     await loadExecutionPlan();
@@ -445,27 +445,31 @@ const loadExecutionHistory = async () => {
 const loadExecutionPlan = async () => {
   isLoadingPlan.value = true;
   try {
-    // 这里应该调用API获取执行计划数据
-    console.log(`加载执行计划，版本ID: ${versionId.value}`);
+    // 从 queryService 获取执行计划数据
+    console.log(`加载执行计划，查询ID: ${queryId.value}`);
     
-    // 模拟执行计划数据
-    executionPlan.value = {
-      plan: {
-        nodeType: 'Seq Scan',
-        relation: 'customers',
-        alias: 'customers',
-        startupCost: 0.00,
-        totalCost: 22.70,
-        rows: 1270,
-        width: 204
-      },
-      planningTime: 0.052,
-      executionTime: 0.078
-    };
+    if (!queryId.value) {
+      console.warn('无法加载执行计划：查询ID为空');
+      executionPlan.value = null;
+      isLoadingPlan.value = false;
+      return;
+    }
     
-    isLoadingPlan.value = false;
+    // 调用 API 获取执行计划
+    const plan = await queryService.getQueryExecutionPlan(queryId.value);
+    
+    // 检查结果
+    if (plan) {
+      executionPlan.value = plan;
+      console.log('成功获取执行计划:', plan);
+    } else {
+      console.warn('未找到执行计划数据');
+      executionPlan.value = null;
+    }
   } catch (error) {
-    console.error('Failed to load execution plan:', error);
+    console.error('加载执行计划失败:', error);
+    executionPlan.value = null;
+  } finally {
     isLoadingPlan.value = false;
   }
 };
@@ -481,16 +485,25 @@ const handleActivate = async () => {
   try {
     console.log(`设置版本 ${versionId.value} 为活跃版本`);
     
-    // 模拟激活版本
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // 更新本地数据
-    isActiveVersion.value = true;
-    if (versionData.value) {
-      versionData.value.isActive = true;
+    // 使用真实API调用激活版本
+    if (!queryId.value || !versionId.value) {
+      message.error('无法激活版本：查询ID或版本ID为空');
+      return;
     }
     
-    message.success('已将当前版本设置为活跃版本');
+    const result = await versionService.activateVersion(queryId.value, versionId.value);
+    
+    if (result && result.success) {
+      // 更新本地数据
+      isActiveVersion.value = true;
+      if (versionData.value) {
+        versionData.value.isActive = true;
+      }
+      
+      message.success('已将当前版本设置为活跃版本');
+    } else {
+      message.error('设置活跃版本失败，请稍后重试');
+    }
   } catch (error) {
     console.error('Failed to activate version:', error);
     message.error('设置活跃版本失败，请稍后重试');
@@ -545,63 +558,86 @@ const formatExecutionTime = (ms?: number): string => {
 const loadQueryResults = async () => {
   isLoadingResults.value = true;
   try {
-    // 这里应该调用API获取查询结果数据
-    console.log(`加载查询结果，版本ID: ${versionId.value}`);
+    console.log(`加载查询结果，查询ID: ${queryId.value}, 版本ID: ${versionId.value}`);
     
-    // 模拟查询结果数据
-    // 在实际应用中，这里应该从API获取数据
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // 模拟列名
-    queryResultColumns.value = ['id', 'name', 'email', 'phone', 'city'];
-    
-    // 模拟结果数据
-    const mockResults = [];
-    for (let i = 0; i < 25; i++) {
-      mockResults.push({
-        id: i + 1,
-        name: `Customer ${i + 1}`,
-        email: `customer${i+1}@example.com`,
-        phone: `+1 555-${Math.floor(100 + Math.random() * 900)}-${Math.floor(1000 + Math.random() * 9000)}`,
-        city: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'][Math.floor(Math.random() * 5)]
-      });
+    if (!queryId.value) {
+      console.warn('无法加载查询结果：查询ID为空');
+      queryResults.value = [];
+      queryResultColumns.value = [];
+      isLoadingResults.value = false;
+      return;
     }
     
-    // 设置分页相关数据
-    totalResultRows.value = mockResults.length;
+    // 根据是否有版本ID调用不同的API
+    let result;
+    if (versionId.value) {
+      // 如果有版本ID，直接获取该版本的执行结果
+      console.log(`获取特定版本的执行结果: ${versionId.value}`);
+      result = await queryService.getVersionExecutionResult(queryId.value, versionId.value);
+    } else {
+      // 否则获取最新版本的执行结果
+      console.log('获取最新版本的执行结果');
+      result = await queryService.getQueryResult(queryId.value);
+    }
     
-    // 获取当前页数据
-    const startIndex = (currentResultPage.value - 1) * resultPageSize.value;
-    const endIndex = Math.min(startIndex + resultPageSize.value, mockResults.length);
-    queryResults.value = mockResults.slice(startIndex, endIndex);
-    
-    isLoadingResults.value = false;
+    if (result && result.rows) {
+      // 处理列信息
+      queryResultColumns.value = result.columns || [];
+      
+      // 处理行数据
+      queryResults.value = result.rows;
+      totalResultRows.value = result.rows.length;
+      
+      console.log(`成功获取查询结果，列: ${queryResultColumns.value.length}, 行: ${queryResults.value.length}`);
+    } else {
+      console.warn('未找到查询结果数据');
+      queryResults.value = [];
+      queryResultColumns.value = [];
+      totalResultRows.value = 0;
+    }
   } catch (error) {
-    console.error('Failed to load query results:', error);
+    console.error('加载查询结果失败:', error);
+    queryResults.value = [];
+    queryResultColumns.value = [];
+    totalResultRows.value = 0;
+  } finally {
     isLoadingResults.value = false;
   }
 };
 
 // 执行查询
 const executeQuery = async () => {
-  if (!versionData.value || !versionData.value.queryText) {
-    message.error('无法执行查询，查询内容为空');
+  if (!versionData.value || !versionData.value.sql) {
+    console.error('无法执行查询，查询内容为空');
     return;
   }
   
   try {
-    message.loading('正在执行查询...');
+    console.log('正在执行查询...');
+    isExecuting.value = true;
     
-    // 模拟查询执行
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 执行查询
+    const result = await queryService.executeQuery({
+      dataSourceId: versionData.value.dataSourceId,
+      queryText: versionData.value.sql,
+      queryType: 'SQL',
+      maxRows: 1000
+    });
+    
+    console.log('查询执行完成，结果:', result);
     
     // 加载查询结果
     await loadQueryResults();
     
-    message.success('查询执行成功');
+    // 同时更新执行历史
+    await loadExecutionHistory();
+    
+    console.log('查询执行成功');
   } catch (error) {
-    console.error('Failed to execute query:', error);
-    message.error('查询执行失败，请稍后重试');
+    console.error('查询执行失败:', error);
+    // 在这里可以显示错误消息
+  } finally {
+    isExecuting.value = false;
   }
 };
 

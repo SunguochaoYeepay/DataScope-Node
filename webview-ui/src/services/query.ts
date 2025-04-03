@@ -13,15 +13,11 @@ import type {
   QuerySuggestion,
   QueryExecutionPlan,
   QueryVisualization,
-  ChartConfig
+  ChartConfig,
+  FetchQueryParams,
+  QueryExecution
 } from '@/types/query'
-import { mockQueryApi } from '@/mocks/query'
 import axios from 'axios'
-
-// 使用环境变量判断是否使用模拟API - 可导出用于测试
-export const isUsingMockApi = () => {
-  return import.meta.env.VITE_USE_MOCK_API === 'true'
-}
 
 // API 基础路径
 export const getApiBaseUrl = () => {
@@ -35,14 +31,48 @@ export const getQueryPlansApiUrl = () => {
   return `${import.meta.env.VITE_API_BASE_URL || ''}/api/query-plans`;
 }
 
+/**
+ * 格式化执行计划
+ * @param data 原始执行计划数据
+ * @param queryId 查询ID
+ * @returns 格式化后的执行计划
+ */
+function formatExecutionPlan(data: any, queryId: string): QueryExecutionPlan {
+  return {
+    id: data.id || `plan-${queryId}`,
+    queryId,
+    plan: data.plan || data,
+    estimatedCost: data.estimatedCost || 0,
+    estimatedRows: data.estimatedRows || 0,
+    planningTime: data.planningTime,
+    executionTime: data.executionTime,
+    createdAt: data.createdAt || new Date().toISOString()
+  };
+}
+
+/**
+ * 格式化查询建议
+ * @param data 原始建议数据
+ * @param queryId 查询ID
+ * @returns 格式化后的查询建议
+ */
+function formatSuggestion(data: any, queryId: string): QuerySuggestion {
+  return {
+    id: data.id || `suggestion-${queryId}-${Date.now()}`,
+    queryId,
+    type: data.type || 'OPTIMIZATION',
+    title: data.title || '查询优化建议',
+    description: data.description || '',
+    suggestion: data.suggestion || '',
+    impact: data.impact || 'medium',
+    createdAt: data.createdAt || new Date().toISOString()
+  };
+}
+
 // 查询服务
 export const queryService = {
   // 执行SQL查询
   async executeQuery(params: ExecuteQueryParams): Promise<QueryResult> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.executeQuery(params)
-    }
-
     try {
       // 验证查询参数
       if (!params.dataSourceId) {
@@ -63,8 +93,8 @@ export const queryService = {
       const requestBody = {
         dataSourceId: params.dataSourceId,
         sql: params.queryText, // 前端QueryText转为后端的sql
-        limit: params.limit,
-        offset: params.offset,
+        maxRows: params.maxRows,
+        timeout: params.timeout,
         params: params.parameters // 后端API使用params而不是parameters
       }
 
@@ -177,10 +207,6 @@ export const queryService = {
     query: Query;
     result: QueryResult;
   }> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.executeNaturalLanguageQuery(params)
-    }
-
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/natural-language`, {
         method: 'POST',
@@ -203,10 +229,6 @@ export const queryService = {
   
   // 取消查询
   async cancelQuery(id: string): Promise<boolean> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.cancelQuery(id)
-    }
-
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}/cancel`, {
         method: 'POST'
@@ -228,10 +250,6 @@ export const queryService = {
     status: 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
     result?: QueryResult;
   }> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQueryStatus(id)
-    }
-
     try {
       const response = await fetch(`${getApiBaseUrl()}/${id}/status`)
       
@@ -248,10 +266,6 @@ export const queryService = {
   
   // 获取查询历史记录
   async getQueryHistory(params: QueryHistoryParams): Promise<PageResponse<Query>> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQueryHistory(params)
-    }
-
     try {
       const { page = 1, size = 10, dataSourceId, queryType, startDate, endDate, searchTerm, status } = params
       
@@ -404,48 +418,49 @@ export const queryService = {
       
       console.log('最终分页信息:', { currentPage, pageSize, totalItems, totalPages })
       
-      // 将原始数据映射为前端所需的Query对象格式
-      const mappedItems = historyItems.map((item: any) => {
-        // 确保每个字段都有合理的默认值
-        let displayName = '';
-        
-        // 正确处理查询名称显示
-        if (item.queryId) {
-          // 已保存查询，使用名称或者默认名
-          displayName = item.name || `已保存查询`;
-        } else {
-          // 未命名查询，使用SQL前缀
-          const sqlPrefix = (item.sqlContent || item.sql || item.queryText || '').trim().substring(0, 20);
-          displayName = `未命名查询: ${sqlPrefix}${sqlPrefix.length >= 20 ? '...' : ''}`;
-        }
-        
-        const query: Query = {
-          id: item.id,
-          name: item.name || `测试查询: ${item.sqlContent?.substring(0, 20) || ''}`,
+      // 将原始数据转换为前端Query对象
+      const queries: Query[] = historyItems.map((item: any): Query => ({
+        id: item.id,
+        name: item.name || '未命名查询',
+        description: item.description || '',
+        folderId: item.folderId,
+        status: (item.status as QueryStatus) || 'COMPLETED',
+        serviceStatus: item.serviceStatus || 'ENABLED',
+        dataSourceId: item.dataSourceId || null,
+        dataSourceName: item.dataSourceName || null,
+        queryType: (item.queryType as QueryType) || 'SQL',
+        queryText: item.sqlContent || item.sql || item.queryText || '',
+        resultCount: item.resultCount || item.rowCount || 0,
+        executionTime: item.duration || item.executionTime || 0,
+        error: item.error || item.errorMessage,
+        versionStatus: item.versionStatus || 'DRAFT',
+        isActive: item.serviceStatus === 'ENABLED',
+        currentVersion: item.versionNumber ? {
+          id: item.currentVersionId || '',
+          queryId: item.id,
+          versionNumber: item.versionNumber,
+          sql: item.sqlContent || item.sql || item.queryText || '',
           dataSourceId: item.dataSourceId || '',
-          queryType: (item.queryType as QueryType) || 'SQL',
-          queryText: item.sqlContent || item.sql || item.queryText || '',
-          status: (item.status as QueryStatus) || 'COMPLETED',
-          createdAt: item.startTime || item.createdAt || new Date().toISOString(),
-          updatedAt: item.endTime || item.updatedAt || item.createdAt || new Date().toISOString(),
-          executionTime: item.duration || item.executionTime || 0,
-          resultCount: item.rowCount || item.resultCount || 0,
-          error: item.errorMessage || item.error || null,
-          isFavorite: item.isFavorite || false,
-          description: item.description || '',
-          tags: item.tags || []
-        };
-        return query
-      })
+          status: item.status || 'DRAFT',
+          isLatest: true,
+          createdAt: item.createdAt || new Date().toISOString()
+        } : undefined,
+        isFavorite: item.isFavorite || false,
+        createdAt: item.startTime || item.createdAt || new Date().toISOString(),
+        updatedAt: item.endTime || item.updatedAt || item.createdAt || new Date().toISOString(),
+        executionCount: item.executionCount || 0,
+        lastExecutedAt: item.lastExecutedAt,
+        tags: item.tags || []
+      }));
       
-      console.log(`映射后得到 ${mappedItems.length} 条记录`)
-      if (mappedItems.length > 0) {
-        console.log('第一条映射后记录示例:', JSON.stringify(mappedItems[0]).substring(0, 300) + '...')
+      console.log(`映射后得到 ${queries.length} 条记录`)
+      if (queries.length > 0) {
+        console.log('第一条映射后记录示例:', JSON.stringify(queries[0]).substring(0, 300) + '...')
       }
       
       // 返回标准化的分页响应对象
       return {
-        items: mappedItems,
+        items: queries,
         page: currentPage,
         size: pageSize,
         total: totalItems,
@@ -460,10 +475,6 @@ export const queryService = {
   
   // 获取单个查询信息
   async getQuery(id: string): Promise<Query | null> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQuery(id)
-    }
-
     try {
       console.log(`开始获取查询信息，ID: ${id}`)
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}`, {
@@ -495,16 +506,19 @@ export const queryService = {
       return {
         id: result.id,
         name: result.name || `查询 ${result.id.substring(0, 8)}`,
+        description: result.description || '',
         dataSourceId: result.dataSourceId,
         queryType: result.queryType || 'SQL',
-        queryText: sqlContent, // 明确使用提取的SQL内容
+        queryText: sqlContent,
         status: result.status || 'COMPLETED',
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: result.updatedAt || new Date().toISOString(),
-        executionTime: result.executionTime,
+        executionTime: result.executionTime || 0,
         resultCount: result.resultCount || 0,
         error: result.error,
-        isFavorite: result.isFavorite || false
+        isFavorite: result.isFavorite || false,
+        executionCount: result.executionCount || 0,
+        tags: result.tags || []
       }
     } catch (error) {
       console.error('获取查询错误:', error)
@@ -514,10 +528,6 @@ export const queryService = {
   
   // 保存查询
   async saveQuery(params: SaveQueryParams): Promise<Query> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.saveQuery(params)
-    }
-
     try {
       // 构建请求体，适配后端API格式
       const requestBody = {
@@ -611,10 +621,6 @@ export const queryService = {
   
   // 删除查询
   async deleteQuery(id: string): Promise<boolean> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.deleteQuery(id)
-    }
-
     try {
       // 确保使用正确的API路径格式
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}`, {
@@ -637,10 +643,6 @@ export const queryService = {
   
   // 收藏查询
   async favoriteQuery(queryId: string): Promise<QueryFavorite> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.favoriteQuery(queryId)
-    }
-
     try {
       // 使用正确的API路径和请求头
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/favorite`, {
@@ -663,6 +665,7 @@ export const queryService = {
       return {
         id: result.id || `fav-${queryId}`,
         queryId: result.queryId || queryId,
+        userId: result.userId || 'current-user', // 使用当前用户ID
         name: result.name || `收藏的查询 ${queryId.substring(0, 8)}`,
         description: result.description || '',
         createdAt: result.createdAt || new Date().toISOString(),
@@ -676,10 +679,6 @@ export const queryService = {
   
   // 取消收藏查询
   async unfavoriteQuery(queryId: string): Promise<boolean> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.unfavoriteQuery(queryId)
-    }
-
     try {
       // 使用正确的API路径和请求头
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/favorite`, {
@@ -710,10 +709,6 @@ export const queryService = {
   
   // 获取收藏的查询列表
   async getFavorites(): Promise<QueryFavorite[]> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getFavorites()
-    }
-
     try {
       // 使用标准API路径获取收藏列表
       const response = await fetch(`${getApiBaseUrl()}/api/queries/favorites`, {
@@ -753,8 +748,9 @@ export const queryService = {
       return Array.isArray(result) ? result.map((item: any) => ({
         id: item.id,
         queryId: item.queryId,
+        userId: item.userId || 'current-user', // 使用当前用户ID
         name: item.name || `收藏的查询 ${item.queryId.substring(0, 8)}`,
-        description: item.description,
+        description: item.description || '',
         createdAt: item.createdAt || new Date().toISOString(),
         updatedAt: item.updatedAt || new Date().toISOString()
       })) : []
@@ -766,10 +762,6 @@ export const queryService = {
   
   // 保存展示配置
   async saveDisplayConfig(queryId: string, config: Partial<QueryDisplayConfig>): Promise<QueryDisplayConfig> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.saveDisplayConfig(queryId, config)
-    }
-
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/display-config`, {
         method: 'POST',
@@ -792,10 +784,6 @@ export const queryService = {
   
   // 获取展示配置
   async getDisplayConfig(queryId: string): Promise<QueryDisplayConfig | null> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getDisplayConfig(queryId)
-    }
-
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/display-config`)
       
@@ -820,17 +808,10 @@ export const queryService = {
    * @returns 查询执行计划
    */
   async getQueryExecutionPlan(queryId: string): Promise<QueryExecutionPlan | null> {
-    if (isUsingMockApi()) {
-      console.log('使用模拟API获取执行计划');
-      return mockQueryApi.getQueryExecutionPlan(queryId);
-    }
-
     try {
-      console.log(`获取查询执行计划，queryId: ${queryId}`);
-      
-      // 使用正确的API路径获取查询执行计划
+      console.log(`开始获取查询执行计划，queryId: ${queryId}`);
       const url = `${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`;
-      console.log(`执行计划API URL: ${url}`);
+      console.log('执行计划API URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -839,99 +820,47 @@ export const queryService = {
         }
       });
       
-      // 输出响应状态和headers用于调试
-      console.log(`执行计划API响应状态: ${response.status} ${response.statusText}`);
+      // 输出响应状态用于调试
+      console.log('执行计划API响应状态:', response.status, response.statusText);
+      
+      // 如果没有执行计划或请求无效，返回null而不是错误
+      if (response.status === 404 || response.status === 400) {
+        console.log('未找到执行计划或请求无效，返回null');
+        return null;
+      }
       
       if (!response.ok) {
-        // 尝试读取错误响应内容
-        const errorText = await response.text();
-        console.error(`获取查询执行计划失败: ${response.statusText}, 错误内容: ${errorText}`);
-        
-        // 如果返回404或400，表示计划不存在，返回null
-        if (response.status === 404 || response.status === 400) {
-          console.log('未找到执行计划或请求无效，返回null');
-          return null;
-        }
-        
-        // 其他错误继续抛出
         throw new Error(`获取查询执行计划失败: ${response.statusText}`);
       }
       
-      // 尝试获取原始响应文本
+      // 解析响应数据
       const responseText = await response.text();
-      console.log(`执行计划API原始响应: ${responseText.substring(0, 200)}...`);
+      console.log('执行计划API原始响应:', responseText.substring(0, 200));
       
       let responseData;
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
         console.error('解析执行计划响应JSON失败:', e);
-        // 返回null
+        return null; // 返回null而不是抛出错误
+      }
+      
+      const result = responseData.data || responseData;
+      
+      // 确保结果是对象
+      if (typeof result !== 'object' || result === null) {
+        console.log('执行计划响应不是对象，返回null');
         return null;
       }
       
-      // 解析响应数据，支持多种格式
-      const result = responseData.data || responseData; // 兼容不同的响应格式
-      
-      // 确保返回的数据结构符合QueryExecutionPlan
-      const plan: QueryExecutionPlan = {
-        id: result.id || `plan-${queryId}`,
-        queryId: result.queryId || queryId,
-        plan: result.plan || {},
-        estimatedCost: result.estimatedCost || 0,
-        estimatedRows: result.estimatedRows || 0,
-        planningTime: result.planningTime,
-        executionTime: result.executionTime,
-        createdAt: result.createdAt || new Date().toISOString()
-      };
-      
-      console.log('成功解析执行计划:', plan);
-      return plan;
+      // 映射为标准格式
+      const executionPlan = formatExecutionPlan(result, queryId);
+      console.log('成功获取执行计划:', executionPlan);
+      return executionPlan;
     } catch (error) {
-      console.error(`获取查询执行计划错误:`, error);
-      // 返回null，而不是抛出错误
+      console.error('获取查询执行计划失败:', error);
+      // 返回null而不是抛出错误
       return null;
-    }
-  },
-  
-  // 根据计划ID获取查询计划
-  async getQueryPlanById(planId: string): Promise<QueryExecutionPlan> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQueryExecutionPlan(planId)
-    }
-
-    try {
-      // 使用查询计划API地址
-      const response = await fetch(`${getQueryPlansApiUrl()}/${planId}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      })
-      
-      if (!response.ok) {
-        throw new Error(`获取查询计划失败: ${response.statusText}`)
-      }
-      
-      // 处理响应数据
-      const responseData = await response.json()
-      const result = responseData.data || responseData // 兼容不同的响应格式
-      
-      return {
-        id: result.id || `plan-${planId}`,
-        queryId: result.queryId || planId,
-        planDetails: result.planDetails || {
-          steps: [],
-          totalCost: 0,
-          estimatedRows: 0
-        },
-        estimatedCost: result.estimatedCost,
-        estimatedRows: result.estimatedRows,
-        createdAt: result.createdAt || new Date().toISOString()
-      }
-    } catch (error) {
-      console.error(`获取查询计划错误:`, error)
-      throw error
     }
   },
   
@@ -941,25 +870,21 @@ export const queryService = {
    * @returns 查询建议列表
    */
   async getQuerySuggestions(queryId: string): Promise<QuerySuggestion[]> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQuerySuggestions(queryId)
-    }
-
     try {
       // 使用正确的API路径获取查询优化建议
-      console.log(`获取查询优化建议，queryId: ${queryId}`);
+      console.log('获取查询优化建议，queryId:', queryId);
       const url = `${getApiBaseUrl()}/api/queries/${queryId}/suggestions`;
-      console.log(`优化建议API URL: ${url}`);
+      console.log('优化建议API URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
-      })
+      });
       
       // 输出响应状态用于调试
-      console.log(`优化建议API响应状态: ${response.status} ${response.statusText}`);
+      console.log('优化建议API响应状态:', response.status, response.statusText);
       
       // 如果没有优化建议或请求无效，返回空数组而不是错误
       if (response.status === 404 || response.status === 400) {
@@ -968,12 +893,12 @@ export const queryService = {
       }
       
       if (!response.ok) {
-        throw new Error(`获取查询优化建议失败: ${response.statusText}`)
+        throw new Error(`获取查询优化建议失败: ${response.statusText}`);
       }
       
       // 解析响应数据
       const responseText = await response.text();
-      console.log(`优化建议API原始响应: ${responseText.substring(0, 200)}...`);
+      console.log('优化建议API原始响应:', responseText.substring(0, 200));
       
       let responseData;
       try {
@@ -983,7 +908,7 @@ export const queryService = {
         return []; // 返回空数组而不是抛出错误
       }
       
-      const result = responseData.data || responseData
+      const result = responseData.data || responseData;
       
       // 确保结果是数组
       if (!Array.isArray(result)) {
@@ -998,7 +923,7 @@ export const queryService = {
       
       // 映射为标准格式
       const suggestions = result.map(item => formatSuggestion(item, queryId));
-      console.log(`成功获取 ${suggestions.length} 条优化建议`);
+      console.log('成功获取优化建议数量:', suggestions.length);
       return suggestions;
     } catch (error) {
       console.error('获取查询优化建议失败:', error);
@@ -1007,463 +932,319 @@ export const queryService = {
     }
   },
   
-  // 获取查询可视化
-  async getQueryVisualization(queryId: string): Promise<QueryVisualization | null> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQueryVisualization(queryId)
-    }
-
+  /**
+   * 获取查询列表
+   * @param params 查询参数
+   * @returns 分页查询结果
+   */
+  async getQueries(params: QueryHistoryParams = { page: 1, size: 10 }): Promise<PageResponse<Query>> {
     try {
-      // 使用正确的API路径获取查询可视化数据
-      console.log(`获取查询可视化，queryId: ${queryId}`);
-      const url = `${getApiBaseUrl()}/api/queries/${queryId}/visualization`;
-      console.log(`可视化API URL: ${url}`);
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', params.page.toString());
+      queryParams.append('size', params.size.toString());
+
+      if (params.queryType) {
+        queryParams.append('queryType', params.queryType);
+      }
+      if (params.status) {
+        queryParams.append('status', params.status);
+      }
+      if (params.dataSourceId) {
+        queryParams.append('dataSourceId', params.dataSourceId);
+      }
+      if (params.search) {
+        queryParams.append('search', params.search);
+      }
+      if (params.sortBy) {
+        queryParams.append('sortBy', params.sortBy);
+      }
+      if (params.sortDir) {
+        queryParams.append('sortDir', params.sortDir);
+      }
+
+      console.log('获取查询列表，参数:', Object.fromEntries(queryParams.entries()));
+      const url = `${getApiBaseUrl()}/api/queries?${queryParams.toString()}`;
+      console.log('查询列表API URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('获取查询列表失败:', response.status, errorText);
+        throw new Error(`获取查询列表失败: ${response.statusText}`);
+      }
+
+      const responseData = await response.json();
+      console.log('查询列表原始响应:', responseData);
+
+      // 处理响应数据
+      const result = responseData.data || responseData;
+      const items = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
+
+      // 转换为Query对象
+      const queries = items.map((item: any): Query => ({
+        id: item.id,
+        name: item.name || '未命名查询',
+        description: item.description || '',
+        folderId: item.folderId,
+        status: (item.status as QueryStatus) || 'COMPLETED',
+        serviceStatus: item.serviceStatus || 'ENABLED',
+        dataSourceId: item.dataSourceId || null,
+        dataSourceName: item.dataSourceName || null,
+        queryType: (item.queryType as QueryType) || 'SQL',
+        queryText: item.sqlContent || item.sql || item.queryText || '',
+        resultCount: item.resultCount || item.rowCount || 0,
+        executionTime: item.duration || item.executionTime || 0,
+        error: item.error || item.errorMessage,
+        versionStatus: item.versionStatus || 'DRAFT',
+        isActive: item.serviceStatus === 'ENABLED',
+        currentVersion: item.versionNumber ? {
+          id: item.currentVersionId || '',
+          queryId: item.id,
+          versionNumber: item.versionNumber,
+          sql: item.sqlContent || item.sql || item.queryText || '',
+          dataSourceId: item.dataSourceId || '',
+          status: item.status || 'DRAFT',
+          isLatest: true,
+          createdAt: item.createdAt || new Date().toISOString()
+        } : undefined,
+        isFavorite: item.isFavorite || false,
+        createdAt: item.startTime || item.createdAt || new Date().toISOString(),
+        updatedAt: item.endTime || item.updatedAt || item.createdAt || new Date().toISOString(),
+        executionCount: item.executionCount || 0,
+        lastExecutedAt: item.lastExecutedAt,
+        tags: item.tags || []
+      }));
+
+      // 返回标准分页响应
+      return {
+        items: queries,
+        total: result.total || result.totalCount || items.length,
+        page: result.page || result.currentPage || params.page,
+        size: result.size || result.pageSize || params.size,
+        totalPages: result.totalPages || Math.ceil((result.total || items.length) / params.size)
+      };
+    } catch (error) {
+      console.error('获取查询列表错误:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * 获取查询执行历史
+   * @param queryId 查询ID
+   * @returns 查询执行历史列表
+   */
+  async getQueryExecutionHistory(queryId: string): Promise<QueryExecution[]> {
+    try {
+      if (!queryId) {
+        console.error('获取查询执行历史失败: 查询ID为空');
+        return [];
+      }
+      
+      console.log('获取查询执行历史，queryId:', queryId);
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/execution-history`;
+      console.log('执行历史API URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
-      })
+      });
       
       // 输出响应状态用于调试
-      console.log(`可视化API响应状态: ${response.status} ${response.statusText}`);
+      console.log('执行历史API响应状态:', response.status, response.statusText);
       
-      // 如果请求无效或资源不存在，返回null而不是抛出错误
+      // 如果没有执行历史或请求无效，返回空数组而不是错误
       if (response.status === 404 || response.status === 400) {
-        console.log('未找到可视化配置或请求无效，返回null');
-        return null // 没有找到可视化配置
+        console.log('未找到执行历史或请求无效，返回空数组');
+        return [];
       }
       
       if (!response.ok) {
-        throw new Error(`获取查询可视化失败: ${response.statusText}`)
+        throw new Error(`获取查询执行历史失败: ${response.statusText}`);
       }
       
       // 解析响应数据
       const responseText = await response.text();
-      console.log(`可视化API原始响应: ${responseText.substring(0, 200)}...`);
+      console.log('执行历史API原始响应:', responseText.substring(0, 200));
       
       let responseData;
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
-        console.error('解析可视化响应JSON失败:', e);
-        return null; // 返回null而不是抛出错误
+        console.error('解析执行历史响应JSON失败:', e);
+        return []; // 返回空数组而不是抛出错误
       }
       
-      const result = responseData.data || responseData
+      const result = responseData.data || responseData;
       
-      // 确保返回数据符合QueryVisualization格式
-      const visualization = {
-        id: result.id || `visual-${queryId}`,
-        queryId: result.queryId || queryId,
-        nodes: result.nodes || [],
-        displayType: result.displayType || 'TABLE',
-        chartType: result.chartType,
-        title: result.title,
-        description: result.description,
-        config: result.config || {},
-        createdAt: result.createdAt || new Date().toISOString()
-      };
+      // 确保结果是数组
+      if (!Array.isArray(result)) {
+        if (result && typeof result === 'object') {
+          // 如果结果是单个对象，将其包装为数组
+          console.log('执行历史响应是单个对象，包装为数组');
+          return [result];
+        }
+        console.log('执行历史响应不是数组也不是对象，返回空数组');
+        return [];
+      }
       
-      console.log('成功解析可视化配置:', visualization);
-      return visualization;
+      // 确保每个历史记录都有必要的字段
+      const history = result.map(item => ({
+        id: item.id,
+        queryId: item.queryId || queryId,
+        executedAt: item.executedAt || item.startTime || new Date().toISOString(),
+        executionTime: item.executionTime || item.duration || 0,
+        status: item.status || 'COMPLETED',
+        rowCount: item.rowCount || 0,
+        errorMessage: item.errorMessage || item.error
+      }));
+      
+      console.log('成功获取执行历史数量:', history.length);
+      return history;
     } catch (error) {
-      // 如果是404错误，我们返回null而不是抛出错误
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log('404错误，返回null');
-        return null
-      }
-      console.error(`获取查询可视化失败: ${queryId}`, error)
-      throw error
+      console.error('获取查询执行历史失败:', error);
+      // 返回空数组而不是抛出错误
+      return [];
     }
   },
   
-  // 保存查询可视化
-  async saveQueryVisualization(queryId: string, config: ChartConfig): Promise<QueryVisualization> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.saveQueryVisualization(queryId, config)
-    }
-
+  /**
+   * 获取版本执行结果
+   * @param queryId 查询ID
+   * @param versionId 版本ID
+   * @returns 查询结果
+   */
+  async getVersionExecutionResult(queryId: string, versionId: string): Promise<QueryResult | null> {
     try {
-      // 使用正确的API路径和请求头保存查询可视化
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/visualization`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(config)
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to save query visualization: ${response.statusText}`)
+      if (!queryId || !versionId) {
+        console.error('获取版本执行结果失败: 查询ID或版本ID为空');
+        return null;
       }
       
-      return await response.json()
-    } catch (error) {
-      console.error('Error saving query visualization:', error)
-      throw error
-    }
-  },
-
-  // 获取查询计划历史列表
-  async getQueryPlans(params: { page?: number; size?: number; queryId?: string } = {}): Promise<PageResponse<QueryExecutionPlan>> {
-    if (isUsingMockApi()) {
-      // 如果mockQueryApi中有此方法则调用，否则返回空结果
-      return { items: [], total: 0, page: 0, size: 10, totalPages: 0 };
-    }
-
-    try {
-      // 构建查询参数
-      const queryParams = new URLSearchParams();
-      if (params.page !== undefined) queryParams.append('page', params.page.toString());
-      if (params.size !== undefined) queryParams.append('size', params.size.toString());
-      if (params.queryId) queryParams.append('queryId', params.queryId);
-
-      // 使用查询计划API地址
-      const response = await fetch(`${getQueryPlansApiUrl()}?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`获取查询计划历史失败: ${response.statusText}`);
-      }
-
-      // 解析响应数据
-      const responseJson = await response.json();
-      console.log('查询计划历史API响应:', responseJson);
-
-      if (!responseJson.success) {
-        throw new Error(responseJson.message || '获取查询计划历史失败: API返回失败状态');
-      }
-
-      // 使用统一的数据结构格式
-      const data = responseJson.data;
-      const items = data.items || []; // 现在使用统一的items字段
+      console.log('获取版本执行结果，queryId:', queryId, 'versionId:', versionId);
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/versions/${versionId}/results`;
+      console.log('版本执行结果API URL:', url);
       
-      // 处理分页信息
-      const pagination = data.pagination || {};
-      const total = pagination.total || 0;
-      const currentPage = pagination.page !== undefined ? pagination.page : (params.page || 0);
-      const pageSize = pagination.size !== undefined ? pagination.size : (params.size || 10);
-      const totalPages = pagination.totalPages || data.totalPages || Math.ceil(total / pageSize);
-
-      // 转换为标准的QueryExecutionPlan对象数组
-      return {
-        items: items.map((item: any) => ({
-          id: item.id || `plan-${Math.random().toString(36).substring(2, 9)}`,
-          queryId: item.queryId,
-          planDetails: item.planDetails || {
-            steps: [],
-            totalCost: 0,
-            estimatedRows: 0
-          },
-          estimatedCost: item.estimatedCost,
-          estimatedRows: item.estimatedRows,
-          createdAt: item.createdAt || new Date().toISOString()
-        })),
-        total,
-        page: currentPage,
-        size: pageSize,
-        totalPages
-      };
-    } catch (error) {
-      console.error('获取查询计划历史失败:', error);
-      throw error;
-    }
-  },
-
-  // 获取查询列表
-  async getQueries(params: {
-    page?: number;
-    size?: number;
-    queryType?: string;
-    status?: string;
-    serviceStatus?: string;
-    searchTerm?: string;
-    sortBy?: string;
-    sortDir?: string;
-    includeDrafts?: boolean;
-    includeVersionInfo?: boolean;
-  } = {}): Promise<PageResponse<Query>> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.getQueries(params)
-    }
-
-    try {
-      // 规范化查询参数
-      const queryParams = new URLSearchParams()
-      if (params?.page) queryParams.append('page', String(params.page))
-      if (params?.size) queryParams.append('size', String(params.size))
-      if (params?.queryType) queryParams.append('queryType', params.queryType)
-      if (params?.status) queryParams.append('status', params.status)
-      if (params?.serviceStatus) queryParams.append('serviceStatus', params.serviceStatus)
-      if (params?.searchTerm) queryParams.append('searchTerm', params.searchTerm)
-      if (params?.sortBy) queryParams.append('sortBy', params.sortBy)
-      if (params?.sortDir) queryParams.append('sortDir', params.sortDir)
-      if (params?.includeDrafts !== undefined) queryParams.append('includeDrafts', String(params.includeDrafts))
-      if (params?.includeVersionInfo !== undefined) queryParams.append('includeVersionInfo', String(params.includeVersionInfo))
-
-      console.log('获取查询列表参数:', Object.fromEntries(queryParams.entries()));
-      
-      // 构建API请求路径
-      const apiUrl = `${getApiBaseUrl()}/api/queries?${queryParams.toString()}`;
-      console.log('查询列表API URL:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
       });
       
+      // 输出响应状态用于调试
+      console.log('版本执行结果API响应状态:', response.status, response.statusText);
+      
+      // 如果没有执行结果或请求无效，返回null而不是错误
+      if (response.status === 404 || response.status === 400) {
+        console.log('未找到版本执行结果或请求无效，返回null');
+        return null;
+      }
+      
       if (!response.ok) {
-        console.error('API响应错误:', response.status, response.statusText);
-        throw new Error(`获取查询列表失败: ${response.statusText}`);
+        throw new Error(`获取版本执行结果失败: ${response.statusText}`);
       }
       
       // 解析响应数据
       const responseData = await response.json();
-      console.log('查询列表原始响应:', responseData);
+      console.log('版本执行结果API响应:', responseData);
       
-      // 处理标准响应格式: { success: true, data: { items: [], pagination: {} } }
-      // 或其他可能的响应格式
-      let queryItems: any[] = [];
-      let totalItems = 0;
-      let totalPages = 1;
+      // 处理响应数据
+      const result = responseData.data || responseData;
       
-      // 1. 处理标准成功响应格式
-      if (responseData.success === true && responseData.data) {
-        // 提取items数组
-        if (Array.isArray(responseData.data)) {
-          queryItems = responseData.data;
-          totalItems = queryItems.length;
-        } else if (responseData.data.items && Array.isArray(responseData.data.items)) {
-          queryItems = responseData.data.items;
-          
-          // 从pagination对象中提取分页信息
-          if (responseData.data.pagination) {
-            totalItems = responseData.data.pagination.total || queryItems.length;
-            totalPages = responseData.data.pagination.totalPages || 
-                        Math.ceil(totalItems / params.size);
-          }
-        }
-      } 
-      // 2. 处理直接返回数组的格式
-      else if (Array.isArray(responseData)) {
-        queryItems = responseData;
-        totalItems = queryItems.length;
-      } 
-      // 3. 处理其他格式
-      else {
-        // 尝试从各种可能的字段中提取数据
-        if (responseData.items && Array.isArray(responseData.items)) {
-          queryItems = responseData.items;
-        } else if (responseData.queries && Array.isArray(responseData.queries)) {
-          queryItems = responseData.queries;
-        } else if (responseData.data && Array.isArray(responseData.data)) {
-          queryItems = responseData.data;
-        }
-        
-        // 提取分页信息
-        totalItems = responseData.total || responseData.totalCount || queryItems.length;
-        totalPages = responseData.totalPages || 
-                    responseData.pages || 
-                    Math.ceil(totalItems / params.size);
-      }
-      
-      // 将原始数据转换为前端Query对象
-      const queries: Query[] = queryItems.map((item: any): Query => {
-        return {
-          id: item.id,
-          name: item.name || '未命名查询',
-          dataSourceId: item.dataSourceId || null,
-          dataSourceName: item.dataSourceName || null,
-          queryType: (item.queryType as QueryType) || 'SQL',
-          queryText: item.sqlContent || item.sql || item.queryText || '',
-          status: (item.status as QueryStatus) || 'COMPLETED',
-          createdAt: item.startTime || item.createdAt || new Date().toISOString(),
-          updatedAt: item.endTime || item.updatedAt || item.createdAt || new Date().toISOString(),
-          executionTime: item.duration || item.executionTime || 0,
-          resultCount: item.resultCount || item.rowCount || 0,
-          error: item.error || item.errorMessage,
-          isFavorite: item.isFavorite || false,
-          description: item.description || '',
-          tags: item.tags || [],
-          // 增加版本相关信息
-          currentVersionId: item.currentVersionId || null, // 当前版本ID
-          versionStatus: item.status || 'DRAFT', // 版本状态
-          isActive: item.serviceStatus === 'ENABLED', // 是否活跃
-          // 如果有versionNumber字段，构造一个简单的currentVersion对象
-          currentVersion: item.versionNumber ? { 
-            id: item.currentVersionId || '',
-            versionNumber: item.versionNumber,
-            queryId: item.id,
-            status: item.status,
-            isLatest: true
-          } : null,
-          executionCount: item.executionCount || 0 // 执行次数，Query接口必需
-        };
-      });
-      
-      // 创建标准分页响应
-      const pageResponse: PageResponse<Query> = {
-        items: queries,
-        page: Number(params.page || 1),
-        size: Number(params.size || 10),
-        total: totalItems,
-        totalPages: totalPages
+      // 转换为标准格式
+      const queryResult: QueryResult = {
+        id: result.id || `result-${queryId}-${versionId}`,
+        queryId: queryId,
+        status: result.status || 'COMPLETED',
+        createdAt: result.createdAt || new Date().toISOString(),
+        executionTime: result.executionTime || result.duration || 0,
+        rowCount: result.rowCount || (result.rows ? result.rows.length : 0),
+        rows: result.rows || [],
+        columns: result.columns || [],
+        columnTypes: result.columnTypes || [],
+        fields: result.fields || [],
+        error: result.error || result.errorMessage
       };
-
-      return pageResponse;
+      
+      return queryResult;
     } catch (error) {
-      console.error('获取查询列表错误:', error);
-      throw error;
+      console.error('获取版本执行结果失败:', error);
+      return null;
     }
   },
-
-  // 删除查询历史记录
-  async deleteQueryHistory(historyId: string): Promise<boolean> {
-    if (isUsingMockApi()) {
-      // 如果使用模拟API，可以复用删除查询的方法或创建新的模拟方法
-      return mockQueryApi.deleteQuery(historyId)
-    }
-
+  
+  /**
+   * 获取查询结果
+   * @param queryId 查询ID
+   * @returns 查询结果
+   */
+  async getQueryResult(queryId: string): Promise<QueryResult | null> {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/history/${historyId}`, {
-        method: 'DELETE',
+      if (!queryId) {
+        console.error('获取查询结果失败: 查询ID为空');
+        return null;
+      }
+      
+      console.log('获取查询结果，queryId:', queryId);
+      const url = `${getApiBaseUrl()}/api/queries/${queryId}/results`;
+      console.log('查询结果API URL:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Accept': 'application/json'
         }
       });
       
-      if (!response.ok) {
-        throw new Error(`删除查询历史失败: ${response.statusText}`)
+      // 输出响应状态用于调试
+      console.log('查询结果API响应状态:', response.status, response.statusText);
+      
+      // 如果没有执行结果或请求无效，返回null而不是错误
+      if (response.status === 404 || response.status === 400) {
+        console.log('未找到查询结果或请求无效，返回null');
+        return null;
       }
       
-      // 尝试解析响应体
-      try {
-        const result = await response.json();
-        console.log('删除查询历史成功:', result.message);
-      } catch (e) {
-        // 某些API会返回空响应体，这是正常情况
-        console.log('删除查询历史成功');
+      if (!response.ok) {
+        throw new Error(`获取查询结果失败: ${response.statusText}`);
       }
       
-      return true;
-    } catch (error) {
-      console.error('删除查询历史错误:', error)
-      throw error;
-    }
-  },
-
-  // 更新查询
-  async updateQuery(id: string, updateData: Partial<SaveQueryParams>): Promise<Query> {
-    if (isUsingMockApi()) {
-      return mockQueryApi.updateQuery?.(id, updateData) || {
-        ...updateData,
-        id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as Query;
-    }
-
-    try {
-      // 确保使用正确的API路径格式
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          name: updateData.name,
-          sql: updateData.sql,
-          description: updateData.description,
-          tags: updateData.tags,
-          dataSourceId: updateData.dataSourceId,
-          status: updateData.status,
-          isPublic: updateData.isPublic
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `更新查询失败: ${response.statusText}`);
-      }
-
+      // 解析响应数据
       const responseData = await response.json();
-      const result = responseData.success && responseData.data ? responseData.data : responseData;
-
-      return result;
+      console.log('查询结果API响应:', responseData);
+      
+      // 处理响应数据
+      const result = responseData.data || responseData;
+      
+      // 转换为标准格式
+      const queryResult: QueryResult = {
+        id: result.id || `result-${queryId}`,
+        queryId: queryId,
+        status: result.status || 'COMPLETED',
+        createdAt: result.createdAt || new Date().toISOString(),
+        executionTime: result.executionTime || result.duration || 0,
+        rowCount: result.rowCount || (result.rows ? result.rows.length : 0),
+        rows: result.rows || [],
+        columns: result.columns || [],
+        columnTypes: result.columnTypes || [],
+        fields: result.fields || [],
+        error: result.error || result.errorMessage
+      };
+      
+      return queryResult;
     } catch (error) {
-      console.error('更新查询错误:', error);
-      throw error;
+      console.error('获取查询结果失败:', error);
+      return null;
     }
-  },
-
-  /**
-   * 保存查询
-   * @param query 查询对象
-   * @returns 保存的查询对象
-   */
-  async createQueryWithVersion(query: {
-    id?: string;
-    name: string;
-    dataSourceId: string;
-    sql: string;
-    description?: string;
-    tags?: string[];
-    isPublic?: boolean;
-  }): Promise<any> {
-    try {
-      const response = await API.post('/queries', query);
-      return response.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || '保存查询失败';
-      throw new Error(errorMessage);
-    }
-  },
-
-  /**
-   * 一键发布查询
-   * 创建查询，同时创建版本并发布激活该版本
-   * @param query 查询对象
-   * @returns 保存并发布的查询对象
-   */
-  async publishQuery(query: {
-    id?: string;
-    name: string;
-    dataSourceId: string;
-    sql: string;
-    description?: string;
-    tags?: string[];
-  }): Promise<any> {
-    try {
-      const response = await API.post('/queries/publish', query);
-      return response.data;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || '发布查询失败';
-      throw new Error(errorMessage);
-    }
-  },
+  }
 }
-
-// 格式化查询优化建议函数
-function formatSuggestion(data: any, queryId: string): QuerySuggestion {
-  return {
-    id: data.id || `suggestion-${Math.random().toString(36).substring(2, 9)}`,
-    queryId: data.queryId || queryId,
-    type: data.type || 'OPTIMIZATION',
-    title: data.title || '优化建议',
-    description: data.description || data.message || '提高查询性能的建议',
-    suggestedQuery: data.suggestedQuery || data.query || '',
-    impact: data.impact || 'MEDIUM',
-    createdAt: data.createdAt || new Date().toISOString()
-  };
-}
-
-export default queryService

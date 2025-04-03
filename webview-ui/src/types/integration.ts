@@ -295,3 +295,20 @@ export interface Integration {
   updateTime: string;
   queryParams?: QueryParam[]; // 查询参数列表
 }
+
+// 查询结果列定义
+export interface QueryResultColumn {
+  name: string;
+  type: string;
+  label?: string;
+  format?: string;
+}
+
+// 查询结果定义
+export interface QueryResult {
+  columns: QueryResultColumn[];
+  rows: any[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+}

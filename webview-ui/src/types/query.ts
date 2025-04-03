@@ -134,6 +134,7 @@ export interface Query {
   updatedAt?: string;
   executionCount: number;
   lastExecutedAt?: string;
+  tags?: string[];
 }
 
 /**
@@ -206,6 +207,7 @@ export interface SaveQueryParams {
   status?: QueryStatus;
   tags?: string[];
   isPublic?: boolean;
+  queryType?: QueryType;
 }
 
 /**
@@ -225,10 +227,21 @@ export interface QueryResult {
   rowCount?: number;
   rows: any[];
   columns: string[];
+  columnTypes?: string[];
   fields?: any[];
   error?: string;
   warnings?: string[];
   metadata?: Record<string, any>;
+  hasMore?: boolean;
+  data?: {
+    fields: any[];
+    rows: any[];
+    rowCount: number;
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
 }
 
 /**
@@ -241,6 +254,8 @@ export interface ExecuteQueryParams {
   parameters?: Record<string, any>;
   maxRows?: number;
   timeout?: number;
+  limit?: number;
+  offset?: number;
 }
 
 /**
@@ -267,6 +282,10 @@ export interface QueryHistoryParams {
   to?: string;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
+  dataSourceId?: string;
+  startDate?: string;
+  endDate?: string;
+  searchTerm?: string;
 }
 
 /**
@@ -293,7 +312,10 @@ export interface QueryFavorite {
   id: string;
   queryId: string;
   userId: string;
+  name?: string;
+  description?: string;
   createdAt: string;
+  updatedAt?: string;
   query?: Query;
 }
 
@@ -375,6 +397,19 @@ export interface PageResponse<T> {
   page: number;
   size: number;
   totalPages: number;
+}
+
+/**
+ * 查询执行记录
+ */
+export interface QueryExecution {
+  id: string;
+  queryId: string;
+  executedAt: string;
+  executionTime: number;
+  status: QueryStatus;
+  rowCount?: number;
+  errorMessage?: string;
 }
 
 /**

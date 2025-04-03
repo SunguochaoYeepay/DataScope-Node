@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col bg-gray-100">
     <!-- 加载状态 -->
-    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
+    <div v-if="state.isLoading" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center">
         <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
         <span class="text-gray-600">加载查询信息...</span>
@@ -9,11 +9,11 @@
     </div>
     
     <!-- 错误提示 -->
-    <div v-else-if="errorMessage" class="flex-1 flex items-center justify-center">
+    <div v-else-if="state.errorMessage" class="flex-1 flex items-center justify-center">
       <div class="text-center">
         <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
         <h2 class="text-xl font-medium text-gray-800 mb-2">加载失败</h2>
-        <p class="text-gray-600 mb-4">{{ errorMessage }}</p>
+        <p class="text-gray-600 mb-4">{{ state.errorMessage }}</p>
         <div class="flex justify-center space-x-3">
           <button
             @click="loadQueryData"
@@ -34,118 +34,99 @@
     </div>
     
     <!-- 主内容区 -->
-    <div v-else-if="query" class="flex-1 overflow-auto p-6">
+    <div v-else-if="state.query" class="flex-1 overflow-auto p-6">
       <div class="container mx-auto px-4">
         <!-- 标题和按钮 -->
         <div class="flex justify-between items-center mb-6">
-          <h1 class="text-2xl font-medium text-gray-800">{{ query.name || '未命名查询' }} - 详情</h1>
+          <h1 class="text-2xl font-medium text-gray-800">{{ state.query.name || '未命名查询' }} - 详情</h1>
           <div class="flex items-center space-x-4">
             <!-- 编辑按钮 -->
             <button
               @click="editQuery"
-              class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              <i class="fas fa-edit mr-1.5"></i>
+              <i class="fas fa-edit mr-2"></i>
               编辑查询
             </button>
-            
-            <!-- 返回按钮 -->
-            <router-link
-              to="/query/history"
-              class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <i class="fas fa-arrow-left mr-2"></i>
-              返回列表
-            </router-link>
-          </div>
-        </div>
-        
-        <!-- 查询基本信息 -->
-        <div class="mb-6">
-          <div class="bg-white shadow rounded-lg">
-            <!-- 基本信息标题 -->
-            <div class="px-6 py-4 border-b border-gray-200">
-              <h2 class="text-lg font-medium text-gray-900">基本信息</h2>
-            </div>
-            
-            <!-- 基本信息内容 -->
-            <div class="p-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <h3 class="text-sm font-medium text-gray-500">查询名称</h3>
-                  <p class="mt-1 text-sm text-gray-900">{{ query.name || '未命名查询' }}</p>
-                </div>
-                
-                <div>
-                  <h3 class="text-sm font-medium text-gray-500">数据源</h3>
-                  <p class="mt-1 text-sm text-gray-900">{{ getDataSourceName(query.dataSourceId) }}</p>
-                </div>
-                
-                <div>
-                  <h3 class="text-sm font-medium text-gray-500">查询类型</h3>
-                  <p class="mt-1 text-sm text-gray-900">{{ query.queryType === 'SQL' ? 'SQL' : '自然语言' }}</p>
-                </div>
-                
-                <div>
-                  <h3 class="text-sm font-medium text-gray-500">创建时间</h3>
-                  <p class="mt-1 text-sm text-gray-900">{{ formatDateTime(query.createdAt) }}</p>
-                </div>
-                
-                <div>
-                  <h3 class="text-sm font-medium text-gray-500">最后执行</h3>
-                  <p class="mt-1 text-sm text-gray-900">{{ query.lastExecutedAt ? formatDateTime(query.lastExecutedAt) : '-' }}</p>
-                </div>
-                
-                <div>
-                  <h3 class="text-sm font-medium text-gray-500">执行次数</h3>
-                  <p class="mt-1 text-sm text-gray-900">{{ query.executionCount || 0 }}</p>
-                </div>
-              </div>
-              
-              <div class="mt-6">
-                <h3 class="text-sm font-medium text-gray-500">查询内容</h3>
-                <div class="mt-2 p-4 bg-gray-50 rounded border border-gray-200 overflow-auto max-h-40">
-                  <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ query.queryText }}</pre>
-                </div>
-              </div>
-
-              <div v-if="query.description" class="mt-6">
-                <h3 class="text-sm font-medium text-gray-500">描述</h3>
-                <p class="mt-2 text-sm text-gray-900">{{ query.description }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 版本历史部分 -->
-        <div class="bg-white shadow rounded-lg">
-          <!-- 版本历史标题 -->
-          <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 class="text-lg font-medium text-gray-900">版本历史</h2>
+            <!-- 创建新版本按钮 -->
             <button
               @click="createNewVersion"
-              class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              <i class="fas fa-plus mr-1.5"></i>
-              新增版本
+              <i class="fas fa-plus mr-2"></i>
+              创建新版本
             </button>
           </div>
-          
-          <!-- 版本历史内容 -->
+        </div>
+
+        <!-- 基本信息卡片 -->
+        <div class="bg-white shadow rounded-lg mb-6">
           <div class="p-6">
-            <div v-if="isLoading" class="py-6 flex justify-center">
-              <div class="flex flex-col items-center">
-                <div class="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                <span class="text-gray-600">加载版本历史...</span>
+            <h2 class="text-lg font-medium text-gray-900 mb-4">基本信息</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">查询名称</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ state.query.name || '未命名查询' }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">创建时间</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ formatDateTime(state.query.createdAt) }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">最后执行</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ state.query.lastExecutedAt ? formatDateTime(state.query.lastExecutedAt) : '-' }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">执行次数</h3>
+                <p class="mt-1 text-sm text-gray-900">{{ state.query.executionCount || 0 }}</p>
               </div>
             </div>
-            <div v-else>
-              <QueryVersionsTab 
-                :query-id="queryId || ''" 
-                :current-version="activeVersionNumber"
-                class="rounded-lg border border-gray-200"
-              />
+
+            <div v-if="state.query.description" class="mt-6">
+              <h3 class="text-sm font-medium text-gray-500">描述</h3>
+              <p class="mt-2 text-sm text-gray-900">{{ state.query.description }}</p>
             </div>
+          </div>
+        </div>
+
+        <!-- 版本历史卡片 -->
+        <div class="bg-white shadow rounded-lg">
+          <div class="p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">版本历史</h2>
+            <div v-if="state.query.currentVersion" class="mb-6">
+              <h3 class="text-base font-medium text-gray-900 mb-3">当前版本信息</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-gray-50 p-4 rounded-lg">
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">数据源</h4>
+                  <p class="mt-1 text-sm text-gray-900">{{ getDataSourceName(state.query.dataSourceId) }}</p>
+                </div>
+                
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">查询类型</h4>
+                  <p class="mt-1 text-sm text-gray-900">{{ state.query.queryType === 'SQL' ? 'SQL' : '自然语言' }}</p>
+                </div>
+
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">版本号</h4>
+                  <p class="mt-1 text-sm text-gray-900">v{{ state.query.currentVersion }}</p>
+                </div>
+
+                <div class="col-span-full">
+                  <h4 class="text-sm font-medium text-gray-500">查询内容</h4>
+                  <div class="mt-2 p-4 bg-white rounded border border-gray-200 overflow-auto max-h-40">
+                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ state.query.queryText }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <QueryVersionsTab 
+              :query-id="queryId" 
+              :active-version-number="activeVersionNumber"
+            />
           </div>
         </div>
       </div>
@@ -154,11 +135,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
 import { useDataSourceStore } from '@/stores/datasource'
 import type { Query, QueryStatus, QueryVisualization, QueryExecutionPlan, QuerySuggestion, QueryVersion } from '@/types/query'
+import type { DataSource } from '@/types/datasource'
 
 // 导入组件
 import QueryDetailHeader from '@/components/query/detail/QueryDetailHeader.vue'
@@ -171,10 +153,27 @@ const route = useRoute()
 const queryStore = useQueryStore()
 const dataSourceStore = useDataSourceStore()
 
-// 基础变量
-const isLoading = ref(true)
-const errorMessage = ref('')
-const showExportOptions = ref(false) // 是否显示导出选项
+// 从路由参数获取查询ID
+const queryId = computed(() => route.params.id as string)
+
+// 状态变量
+const state = reactive({
+  isLoading: true,
+  errorMessage: '',
+  query: null as Query | null,
+  showExportOptions: false,
+  activeVersionStatus: '' as QueryStatus,
+  activeVersionPublishedAt: '',
+  activeVersionUpdatedAt: '',
+  isLoadingHistory: false,
+  executionHistory: [] as any[]
+})
+
+// 计算当前激活版本号
+const activeVersionNumber = computed(() => {
+  if (!state.query?.currentVersion) return undefined;
+  return parseInt(state.query.currentVersion.toString());
+});
 
 // 加载状态变量
 const isLoadingExecutionPlan = ref(false)
@@ -182,38 +181,11 @@ const isLoadingSuggestions = ref(false)
 const isLoadingResults = ref(false)
 const isLoadingVisualization = ref(false)
 
-// 版本信息变量
-const activeVersionNumber = ref<number | null>(null)
-const activeVersionStatus = ref<string>('DRAFT')
-const activeVersionPublishedAt = ref<string>('')
-const activeVersionUpdatedAt = ref<string>('')
-
-// 保留以下变量，避免重复声明
-// const query = ref<Query | null>(null)
-// const queryId = ref<string | null>(null)
-// const isError = ref(false)
-
 // 添加之前移除但还在被引用的变量
 const activeTab = ref('versions')
 
 // 保存来源路径用于返回按钮
 const previousPath = ref('')
-
-// 执行历史数据
-const executionHistory = ref<Array<{
-  id: string;
-  executedAt: string;
-  executionTime: number;
-  status: QueryStatus;
-  rowCount?: number;
-  errorMessage?: string;
-}>>([])
-const isLoadingHistory = ref(false)
-
-// 从URL参数获取查询ID
-const queryId = computed(() => {
-  return route.params.id as string
-})
 
 // 获取完整查询数据
 const query = computed(() => {
@@ -365,8 +337,8 @@ onMounted(() => {
   
   // 点击外部时关闭导出选项下拉菜单
   document.addEventListener('click', (e) => {
-    if (showExportOptions.value) {
-      showExportOptions.value = false
+    if (state.showExportOptions) {
+      state.showExportOptions = false
     }
   })
   
@@ -379,47 +351,48 @@ watch(activeTab, (newTabId) => {
   loadTabData(newTabId)
 })
 
-// 加载查询及相关数据
+// 获取查询详情
 const loadQueryData = async () => {
-  isLoading.value = true;
-  errorMessage.value = '';
+  if (!queryId.value) {
+    state.errorMessage = '查询ID不能为空';
+    return;
+  }
+
+  state.isLoading = true;
+  state.errorMessage = '';
   
   try {
-    // 加载查询详情
-    const result = await queryStore.getQuery(queryId.value);
-    
-    // 检查是否获取到查询数据
-    if (!result || !queryStore.currentQuery) {
-      errorMessage.value = '找不到指定ID的查询，该查询可能已被删除或不存在';
-      isLoading.value = false;
-      console.error(`查询ID ${queryId.value} 不存在`);
-      return;
-    }
-    
-    // 加载版本数据
-    await loadVersionsData();
-    
-    // 根据选中的标签页加载其他数据
-    await loadTabData(activeTab.value);
-    
-    // 确保查询内容被正确加载
-    if (query.value && !query.value.queryText && result.queryText) {
-      // 如果查询结果中有查询文本但store中没有，手动设置
-      console.log('设置查询文本:', result.queryText);
-      if (queryStore.currentQuery) {
-        queryStore.currentQuery.queryText = result.queryText;
+    const queryData = await queryStore.getQuery(queryId.value);
+    if (queryData) {
+      state.query = queryData;
+      
+      // 设置版本信息
+      if (state.query) {
+        state.activeVersionStatus = state.query.status || 'DRAFT';
+        const updatedTime = state.query.updatedAt || new Date().toISOString();
+        state.activeVersionPublishedAt = updatedTime;
+        state.activeVersionUpdatedAt = updatedTime;
       }
+      
+      console.log('当前激活版本号:', activeVersionNumber.value);
+    } else {
+      state.errorMessage = '未找到查询数据';
     }
-    
-    isLoading.value = false;
   } catch (error) {
-    console.error('Failed to load query data:', error);
-    errorMessage.value = error instanceof Error 
-      ? `无法加载查询信息: ${error.message}` 
-      : '无法加载查询信息，请检查查询ID是否有效';
-    isLoading.value = false;
+    console.error('加载查询数据失败:', error);
+    state.errorMessage = '加载查询数据失败，请稍后重试';
+  } finally {
+    state.isLoading = false;
   }
 };
+
+// 监听查询ID变化
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    queryId.value = newId.toString();
+    loadQueryData();
+  }
+});
 
 // 根据标签页加载相应数据
 const loadTabData = async (tabId: string) => {
@@ -531,16 +504,16 @@ const loadVersionsData = async () => {
     await queryStore.getQuery(queryId.value);
     
     // 使用当前查询数据，避免访问可能不存在的属性
-    if (query.value) {
-      console.log('查询详情数据:', query.value);
+    if (state.query) {
+      console.log('查询详情数据:', state.query);
       
       // 设置版本信息，使用安全的方式访问属性
-      activeVersionNumber.value = query.value.currentVersion ? 
-        parseInt(query.value.currentVersion.toString()) : null;
-      activeVersionStatus.value = query.value.status || 'DRAFT';
+      activeVersionNumber.value = state.query.currentVersion ? 
+        parseInt(state.query.currentVersion.toString()) : null;
+      activeVersionStatus.value = state.query.status || 'DRAFT';
       
       // 使用更新时间作为发布时间和更新时间
-      const updatedTime = query.value.updatedAt || new Date().toISOString();
+      const updatedTime = state.query.updatedAt || new Date().toISOString();
       activeVersionPublishedAt.value = updatedTime;
       activeVersionUpdatedAt.value = updatedTime;
       
@@ -557,16 +530,14 @@ const loadVersionsData = async () => {
 
 // 编辑查询
 const editQuery = () => {
-  router.push({
-    path: '/query/editor',
-    query: { id: queryId.value }
-  })
-}
+  if (!queryId.value) return;
+  router.push(`/query/editor/${queryId.value}`);
+};
 
 // 处理收藏操作
 const handleFavorite = async (id: string) => {
   try {
-    if (query.value?.isFavorite) {
+    if (state.query?.isFavorite) {
       await queryStore.unfavoriteQuery(id)
     } else {
       await queryStore.favoriteQuery(id)
@@ -607,7 +578,7 @@ const applyQuerySuggestion = (suggestedQuery: string) => {
 const exportResults = (format: 'csv' | 'excel' | 'json') => {
   if (!queryResults.value) return
   
-  showExportOptions.value = false
+  state.showExportOptions = false
   
   // 这里应该调用queryStore中的导出方法
   queryStore.exportQueryResults(queryId.value, format)
@@ -621,63 +592,31 @@ const exportResults = (format: 'csv' | 'excel' | 'json') => {
 
 // 加载执行历史
 const loadExecutionHistory = async () => {
-  if (!queryId.value) return
+  if (!queryId.value) return;
   
-  isLoadingHistory.value = true
+  state.isLoadingHistory = true;
   
   try {
     console.log('正在加载查询执行历史...');
     
-    // 实现尚未提供API接口，仅使用模拟数据
-    // 在真实环境中，这里应该调用查询服务的API
+    // 调用store中的执行历史API
+    const history = await queryStore.getQueryExecutionHistory(queryId.value);
     
-    // 使用模拟数据
-    const now = Date.now()
-    if (query.value) {
-      // 生成模拟的执行历史数据
-      executionHistory.value = [
-        {
-          id: `exec-${queryId.value}-1`,
-          executedAt: new Date(now - 3600000).toISOString(),
-          executionTime: 1250,
-          status: 'COMPLETED' as QueryStatus,
-          rowCount: 128
-        },
-        {
-          id: `exec-${queryId.value}-2`,
-          executedAt: new Date(now - 7200000).toISOString(),
-          executionTime: 2100,
-          status: 'COMPLETED' as QueryStatus,
-          rowCount: 256
-        },
-        {
-          id: `exec-${queryId.value}-3`,
-          executedAt: new Date(now - 14400000).toISOString(),
-          executionTime: 890,
-          status: 'FAILED' as QueryStatus,
-          errorMessage: '查询超时或语法错误'
-        },
-        {
-          id: `exec-${queryId.value}-4`,
-          executedAt: new Date(now - 86400000).toISOString(),
-          executionTime: 1500,
-          status: 'COMPLETED' as QueryStatus,
-          rowCount: 64
-        },
-        {
-          id: `exec-${queryId.value}-5`,
-          executedAt: new Date(now - 172800000).toISOString(),
-          executionTime: 3200,
-          status: 'CANCELLED' as QueryStatus
-        }
-      ]
+    // 更新本地状态
+    if (Array.isArray(history)) {
+      state.executionHistory = history;
+      console.log(`成功加载查询执行历史，数量: ${history.length}`);
+    } else {
+      console.warn('执行历史API返回非数组结果:', history);
+      state.executionHistory = [];
     }
   } catch (error) {
-    console.error('Failed to load execution history:', error)
+    console.error('加载执行历史失败:', error);
+    state.executionHistory = [];
   } finally {
-    isLoadingHistory.value = false
+    state.isLoadingHistory = false;
   }
-}
+};
 
 // 查看执行结果
 const viewExecutionResults = (executionId: string) => {
@@ -760,19 +699,16 @@ const getStatusDisplay = (status: QueryStatus | undefined) => {
 }
 
 // 格式化日期时间
-const formatDateTime = (dateString: string | undefined) => {
-  if (!dateString) return '-'
-  
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN', {
+const formatDateTime = (dateString: string | undefined): string => {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
+    minute: '2-digit'
+  });
+};
 
 // 格式化执行时间
 const formatExecutionTime = (ms: number | undefined) => {
@@ -791,59 +727,63 @@ const formatExecutionTime = (ms: number | undefined) => {
 
 // 执行当前查询
 const executeCurrentQuery = async () => {
-  console.log('执行查询，查询对象:', query.value);
+  console.log('执行查询，查询对象:', state.query);
   
-  if (!query.value) {
+  if (!state.query) {
     console.error('查询对象为空');
-    errorMessage.value = '查询对象为空，无法执行';
+    state.errorMessage = '查询对象为空，无法执行';
     return;
   }
-  
-  if (!query.value.dataSourceId) {
+
+  if (!state.query.dataSourceId) {
     console.error('数据源ID为空');
-    errorMessage.value = '请选择数据源后再执行查询';
+    state.errorMessage = '请选择数据源后再执行查询';
     return;
   }
-  
-  if (!query.value.queryText || query.value.queryText.trim() === '') {
+
+  if (!state.query.queryText || state.query.queryText.trim() === '') {
     console.error('查询内容为空');
-    errorMessage.value = '查询内容为空，无法执行';
+    state.errorMessage = '查询内容为空，无法执行';
     return;
   }
-  
+
   try {
-    isLoading.value = true;
-    console.log('开始执行查询，类型:', query.value.queryType);
+    state.isLoading = true;
+    console.log('开始执行查询，类型:', state.query.queryType);
     
     // 执行查询
-    if (query.value.queryType === 'SQL') {
-      console.log('执行SQL查询:', query.value.queryText);
+    if (state.query.queryType === 'SQL') {
+      console.log('执行SQL查询:', state.query.queryText);
       await queryStore.executeQuery({
-        dataSourceId: query.value.dataSourceId,
-        queryText: query.value.queryText,
+        dataSourceId: state.query.dataSourceId,
+        queryText: state.query.queryText,
         queryType: 'SQL'
       });
     } else {
-      console.log('执行自然语言查询:', query.value.queryText);
+      console.log('执行自然语言查询:', state.query.queryText);
       await queryStore.executeNaturalLanguageQuery({
-        dataSourceId: query.value.dataSourceId,
-        question: query.value.queryText
+        dataSourceId: state.query.dataSourceId,
+        question: state.query.queryText
       });
     }
-    
+
+    // 更新执行次数和最后执行时间
+    state.query = {
+      ...state.query,
+      executionCount: (state.query.executionCount || 0) + 1,
+      lastExecutedAt: new Date().toISOString()
+    };
+
     console.log('查询执行成功');
-    
-    // 如果执行成功，自动切换到结果标签页
-    activeTab.value = 'results';
-    await loadResultsData();
-    
+    // 显示成功消息
+    // TODO: 实现查询结果展示
   } catch (error) {
     console.error('查询执行失败:', error);
-    errorMessage.value = error instanceof Error ? error.message : '执行查询时出错';
+    state.errorMessage = '查询执行失败，请检查查询内容或数据源配置';
   } finally {
-    isLoading.value = false;
+    state.isLoading = false;
   }
-}
+};
 
 // 计算属性：是否可以执行查询
 const canExecuteQuery = computed(() => {
@@ -863,17 +803,21 @@ const handleCancelQuery = async (execId: string) => {
     
   } catch (error) {
     console.error('取消查询失败:', error);
-    errorMessage.value = error instanceof Error ? error.message : '取消查询时出错';
+    state.errorMessage = error instanceof Error ? error.message : '取消查询时出错';
   }
 }
 
-// 添加获取数据源名称的方法
-const getDataSourceName = (dataSourceId?: string): string => {
-  if (!dataSourceId) return '未指定数据源'
-  
-  const dataSource = dataSourceStore.dataSources.find(ds => ds.id === dataSourceId)
-  return dataSource ? dataSource.name : dataSourceId
-}
+// 获取数据源名称
+const getDataSourceName = async (id: string | undefined): Promise<string> => {
+  if (!id) return '-';
+  try {
+    const dataSource = await dataSourceStore.getDataSourceById(id);
+    return dataSource?.name ?? '-';
+  } catch (error) {
+    console.error('获取数据源信息失败:', error);
+    return '-';
+  }
+};
 
 // 格式化版本状态显示
 const formatVersionStatus = (status: string): string => {
@@ -898,14 +842,15 @@ const formatDate = (dateString: string): string => {
 
 // 添加新版本创建方法
 const createNewVersion = () => {
+  if (!queryId.value) return;
   router.push({
     path: '/query/editor',
     query: { 
       id: queryId.value,
       createVersion: 'true'
     }
-  })
-}
+  });
+};
 </script>
 
 <style scoped>
