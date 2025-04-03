@@ -2,8 +2,37 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api } from '@/services/api';
 
+// 表单字段类型
+interface FormField {
+  id: string;
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+}
+
+// 表单类型
+interface Form {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  status: string;
+  fields: FormField[];
+  createTime: string;
+  updateTime: string;
+}
+
+// 筛选条件类型
+interface FormFilters {
+  type?: string;
+  status?: string;
+  search?: string;
+  [key: string]: any;
+}
+
 // 模拟表单数据
-const mockForms = [
+const mockForms: Form[] = [
   {
     id: 'form-001',
     name: '客户反馈表单',
@@ -59,17 +88,17 @@ const mockForms = [
 ];
 
 // 使用模拟数据
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 export const useSystemStore = defineStore('system', () => {
   // 状态
-  const forms = ref([]);
-  const currentForm = ref(null);
+  const forms = ref<Form[]>([]);
+  const currentForm = ref<Form | null>(null);
   const loading = ref(false);
-  const error = ref(null);
+  const error = ref<string | null>(null);
   
   // 获取表单列表
-  const fetchForms = async (filters = {}) => {
+  const fetchForms = async (filters: FormFilters = {}) => {
     loading.value = true;
     error.value = null;
     
@@ -106,7 +135,7 @@ export const useSystemStore = defineStore('system', () => {
         forms.value = result.data;
         return result.data;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('获取表单列表失败', err);
       error.value = err.message || '获取表单列表失败';
       throw err;
@@ -116,7 +145,7 @@ export const useSystemStore = defineStore('system', () => {
   };
   
   // 获取单个表单
-  const fetchFormById = async (id) => {
+  const fetchFormById = async (id: string) => {
     loading.value = true;
     error.value = null;
     
@@ -140,7 +169,7 @@ export const useSystemStore = defineStore('system', () => {
         currentForm.value = result.data;
         return result.data;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('获取表单失败', err);
       error.value = err.message || '获取表单失败';
       throw err;
