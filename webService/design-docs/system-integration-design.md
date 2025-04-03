@@ -700,7 +700,718 @@ router.post(
 export default router;
 ```
 
-## 5. 测试与验证
+## 5. 接口实现规范
+
+### 5.1 集成管理接口
+
+#### 5.1.1 获取集成列表
+
+**请求方法：** GET
+
+**路径：** `/api/v1/low-code/apis`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid-example-1",
+      "name": "用户查询接口",
+      "description": "查询系统用户信息",
+      "queryId": "uuid-query-1",
+      "type": "TABLE",
+      "config": {...},
+      "status": "ACTIVE",
+      "createdAt": "2023-01-01T00:00:00.000Z",
+      "updatedAt": "2023-01-01T00:00:00.000Z"
+    },
+    ...
+  ]
+}
+```
+
+#### 5.1.2 获取单个集成
+
+**请求方法：** GET
+
+**路径：** `/api/v1/low-code/apis/:id`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-example-1",
+    "name": "用户查询接口",
+    "description": "查询系统用户信息",
+    "queryId": "uuid-query-1",
+    "type": "TABLE",
+    "config": {
+      "params": [
+        {
+          "name": "username",
+          "label": "用户名",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "tableConfig": {
+        "columns": [
+          {
+            "key": "id",
+            "dataIndex": "id",
+            "title": "ID"
+          },
+          {
+            "key": "username",
+            "dataIndex": "username",
+            "title": "用户名"
+          }
+        ]
+      }
+    },
+    "status": "ACTIVE",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### 5.1.3 创建集成
+
+**请求方法：** POST
+
+**路径：** `/api/v1/low-code/apis`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**请求体：**
+```json
+{
+  "name": "用户查询接口",
+  "description": "查询系统用户信息",
+  "queryId": "uuid-query-1",
+  "type": "TABLE",
+  "config": {
+    "params": [
+      {
+        "name": "username",
+        "label": "用户名",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "tableConfig": {
+      "columns": [
+        {
+          "key": "id",
+          "dataIndex": "id",
+          "title": "ID"
+        },
+        {
+          "key": "username",
+          "dataIndex": "username",
+          "title": "用户名"
+        }
+      ]
+    }
+  },
+  "status": "DRAFT"
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-example-1",
+    "name": "用户查询接口",
+    "description": "查询系统用户信息",
+    "queryId": "uuid-query-1",
+    "type": "TABLE",
+    "config": {...},
+    "status": "DRAFT",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  }
+}
+```
+
+#### 5.1.4 更新集成
+
+**请求方法：** PUT
+
+**路径：** `/api/v1/low-code/apis/:id`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**请求体：**
+```json
+{
+  "name": "更新后的用户查询接口",
+  "description": "查询系统用户信息（已更新）",
+  "config": {
+    "params": [
+      {
+        "name": "username",
+        "label": "用户名",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "status",
+        "label": "状态",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "tableConfig": {...}
+  },
+  "status": "ACTIVE"
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-example-1",
+    "name": "更新后的用户查询接口",
+    "description": "查询系统用户信息（已更新）",
+    "queryId": "uuid-query-1",
+    "type": "TABLE",
+    "config": {...},
+    "status": "ACTIVE",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T01:00:00.000Z"
+  }
+}
+```
+
+#### 5.1.5 更新集成状态
+
+**请求方法：** PATCH
+
+**路径：** `/api/v1/low-code/apis/:id/status`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**请求体：**
+```json
+{
+  "status": "ACTIVE"
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-example-1",
+    "status": "ACTIVE",
+    "updatedAt": "2023-01-01T01:00:00.000Z"
+  }
+}
+```
+
+#### 5.1.6 删除集成
+
+**请求方法：** DELETE
+
+**路径：** `/api/v1/low-code/apis/:id`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**响应格式：**
+```
+HTTP/1.1 204 No Content
+```
+
+#### 5.1.7 获取API配置
+
+**请求方法：** GET
+
+**路径：** `/api/v1/low-code/apis/:id/config`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "apiEndpoint": "/api/data-service/query",
+    "method": "POST",
+    "requestFormat": {
+      "integrationId": "uuid-example-1",
+      "params": {
+        "username": "示例值"
+      },
+      "pagination": {
+        "page": 1,
+        "pageSize": 10
+      }
+    },
+    "responseFormat": {
+      "success": true,
+      "data": {
+        "records": [
+          {
+            "id": 1,
+            "username": "user1"
+          }
+        ],
+        "total": 100,
+        "page": 1,
+        "pageSize": 10,
+        "totalPages": 10
+      }
+    },
+    "parameterDocs": [
+      {
+        "name": "username",
+        "description": "用户名",
+        "type": "string",
+        "required": true
+      }
+    ]
+  }
+}
+```
+
+#### 5.1.8 测试集成
+
+**请求方法：** POST
+
+**路径：** `/api/v1/low-code/apis/:id/test`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**请求体：**
+```json
+{
+  "params": {
+    "username": "testuser"
+  },
+  "pagination": {
+    "page": 1,
+    "pageSize": 10
+  }
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "records": [
+      {
+        "id": 1,
+        "username": "testuser"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 1,
+    "executionTime": "120ms"
+  }
+}
+```
+
+### 5.2 数据查询接口
+
+#### 5.2.1 执行集成查询
+
+**请求方法：** POST
+
+**路径：** `/api/data-service/query`
+
+**请求头：**
+```
+Content-Type: application/json
+```
+
+**请求体：**
+```json
+{
+  "integrationId": "uuid-example-1",
+  "params": {
+    "username": "searchuser",
+    "status": "active"
+  },
+  "pagination": {
+    "page": 1,
+    "pageSize": 20
+  },
+  "sorting": [
+    {
+      "field": "createdAt",
+      "order": "desc"
+    }
+  ]
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "records": [
+      {
+        "id": 1,
+        "username": "searchuser",
+        "email": "user@example.com",
+        "status": "active",
+        "lastLogin": "2023-01-01T00:00:00.000Z"
+      },
+      // ...更多记录
+    ],
+    "total": 42,
+    "page": 1,
+    "pageSize": 20,
+    "totalPages": 3
+  }
+}
+```
+
+**错误响应示例：**
+```json
+{
+  "success": false,
+  "error": {
+    "code": 400,
+    "type": "BAD_REQUEST",
+    "message": "参数username为必填项",
+    "timestamp": "2023-01-01T00:00:00.000Z",
+    "path": "/api/data-service/query",
+    "requestId": "req-uuid-123"
+  }
+}
+```
+
+### 5.3 API密钥管理接口（可选）
+
+#### 5.3.1 创建API密钥
+
+**请求方法：** POST
+
+**路径：** `/api/keys`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**请求体：**
+```json
+{
+  "name": "外部系统集成密钥",
+  "description": "用于ERP系统集成",
+  "expiresAt": "2024-12-31T23:59:59.999Z"
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "key-id-1",
+    "name": "外部系统集成密钥",
+    "description": "用于ERP系统集成",
+    "key": "sk_test_abcdefghijklmnopqrstuvwxyz123456",
+    "enabled": true,
+    "expiresAt": "2024-12-31T23:59:59.999Z",
+    "createdAt": "2023-01-01T00:00:00.000Z"
+  },
+  "message": "API密钥已创建，请保存密钥值，它不会再次显示"
+}
+```
+
+#### 5.3.2 获取API密钥列表
+
+**请求方法：** GET
+
+**路径：** `/api/keys`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "key-id-1",
+      "name": "外部系统集成密钥",
+      "description": "用于ERP系统集成",
+      "enabled": true,
+      "expiresAt": "2024-12-31T23:59:59.999Z",
+      "createdAt": "2023-01-01T00:00:00.000Z",
+      "lastUsed": "2023-01-02T00:00:00.000Z"
+    },
+    // ...更多API密钥
+  ]
+}
+```
+
+#### 5.3.3 更新API密钥状态
+
+**请求方法：** PUT
+
+**路径：** `/api/keys/:id/status`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**路径参数：**
+- `id`: API密钥ID
+
+**请求体：**
+```json
+{
+  "enabled": false
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "key-id-1",
+    "enabled": false,
+    "updatedAt": "2023-01-03T00:00:00.000Z"
+  }
+}
+```
+
+#### 5.3.4 删除API密钥
+
+**请求方法：** DELETE
+
+**路径：** `/api/keys/:id`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**路径参数：**
+- `id`: API密钥ID
+
+**响应格式：**
+```
+HTTP/1.1 204 No Content
+```
+
+### 5.4 集成访问权限控制接口（可选）
+
+#### 5.4.1 设置集成访问权限
+
+**请求方法：** PUT
+
+**路径：** `/api/v1/low-code/apis/:id/access`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**请求体：**
+```json
+{
+  "publicAccess": false,
+  "allowedApiKeys": ["key-id-1", "key-id-2"],
+  "requireAuthentication": true
+}
+```
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-example-1",
+    "publicAccess": false,
+    "allowedApiKeys": ["key-id-1", "key-id-2"],
+    "requireAuthentication": true,
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### 5.5 统计与监控接口（可选）
+
+#### 5.5.1 获取集成使用统计
+
+**请求方法：** GET
+
+**路径：** `/api/v1/low-code/apis/stats`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**查询参数：**
+- `startDate`: 开始日期（ISO格式）
+- `endDate`: 结束日期（ISO格式）
+- `integrationId`: 集成ID（可选）
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "totalCalls": 1245,
+    "uniqueUsers": 42,
+    "averageResponseTime": 150,
+    "errorRate": 0.02,
+    "topIntegrations": [
+      {
+        "id": "uuid-example-1",
+        "name": "用户查询接口",
+        "calls": 523
+      },
+      {
+        "id": "uuid-example-2",
+        "name": "订单查询接口",
+        "calls": 412
+      }
+    ],
+    "dailyStats": [
+      {
+        "date": "2023-01-01",
+        "calls": 120,
+        "errors": 2
+      },
+      {
+        "date": "2023-01-02",
+        "calls": 145,
+        "errors": 3
+      }
+    ]
+  }
+}
+```
+
+#### 5.5.2 获取集成访问日志
+
+**请求方法：** GET
+
+**路径：** `/api/v1/low-code/apis/:id/logs`
+
+**请求头：**
+```
+Authorization: Bearer {token}
+```
+
+**路径参数：**
+- `id`: 集成ID (UUID格式)
+
+**查询参数：**
+- `page`: 页码（默认1）
+- `pageSize`: 每页记录数（默认20）
+- `startDate`: 开始日期（ISO格式）
+- `endDate`: 结束日期（ISO格式）
+
+**响应格式：**
+```json
+{
+  "success": true,
+  "data": {
+    "logs": [
+      {
+        "id": "log-id-1",
+        "timestamp": "2023-01-01T12:34:56.789Z",
+        "ip": "192.168.1.1",
+        "method": "POST",
+        "path": "/api/data-service/query",
+        "status": 200,
+        "responseTime": 120,
+        "user": "user@example.com",
+        "apiKey": "key-id-1"
+      },
+      // ...更多日志
+    ],
+    "total": 156,
+    "page": 1,
+    "pageSize": 20,
+    "totalPages": 8
+  }
+}
+```
+
+## 6. 测试与验证
 
 1. **单元测试**
    - 为所有服务方法创建单元测试
@@ -713,7 +1424,7 @@ export default router;
 3. **前端测试**
    - 验证前端页面与新后端接口的交互
 
-## 6. 部署与上线
+## 7. 部署与上线
 
 1. **数据库迁移**
    - 执行数据库迁移脚本创建新表
@@ -725,7 +1436,7 @@ export default router;
    - 设置监控告警
    - 确保日志记录完整
 
-## 7. 优势与价值
+## 8. 优势与价值
 
 1. **简化集成**：外部系统可以简单地通过API访问数据，无需了解SQL
 2. **代码复用**：复用现有查询服务和权限系统
@@ -733,7 +1444,7 @@ export default router;
 4. **低代码方案**：通过UI配置实现，无需编写代码
 5. **安全可控**：通过权限系统控制访问，防止滥用
 
-## 8. 项目计划
+## 9. 项目计划
 
 1. **设计与准备** (1天)
    - 完善数据库设计
