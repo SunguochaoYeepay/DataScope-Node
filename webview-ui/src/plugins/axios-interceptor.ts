@@ -36,7 +36,30 @@ export function setupAxiosInterceptor() {
       // GET请求返回数据源列表
       if (method === 'get') {
         console.log('[Mock Axios] 返回模拟数据源列表');
-        return { success: true, data: mockDataSources };
+        
+        // 获取查询参数
+        const params = new URLSearchParams(data?.params || '');
+        const page = parseInt(params.get('page') || '1', 10);
+        const size = parseInt(params.get('size') || '10', 10);
+        
+        // 应用分页
+        const start = (page - 1) * size;
+        const end = start + size;
+        const paginatedItems = mockDataSources.slice(start, Math.min(end, mockDataSources.length));
+        
+        // 返回标准格式的分页响应
+        return { 
+          success: true, 
+          data: {
+            items: paginatedItems,
+            pagination: {
+              total: mockDataSources.length,
+              totalPages: Math.ceil(mockDataSources.length / size),
+              page,
+              size
+            }
+          }
+        };
       }
       
       // POST请求创建新数据源
@@ -47,17 +70,18 @@ export function setupAxiosInterceptor() {
           id: newId,
           name: data?.name || `新数据源`,
           description: data?.description || '',
-          type: data?.type || 'MYSQL',
+          type: (data?.type || 'mysql').toLowerCase(),
           host: data?.host || 'localhost',
           port: data?.port || 3306,
           databaseName: data?.databaseName || `test_db`,
           database: data?.database || data?.databaseName || `test_db`,
           username: data?.username || 'user',
-          status: 'ACTIVE',
-          syncFrequency: data?.syncFrequency || 'MANUAL',
+          status: 'active',
+          syncFrequency: (data?.syncFrequency || 'manual').toLowerCase(),
           lastSyncTime: null,
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          isActive: true
         };
         
         return { success: true, data: newDataSource };

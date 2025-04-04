@@ -111,6 +111,166 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
           return;
         }
         
+        // 添加数据源状态检查端点: GET /api/datasources/{id}/check-status
+        const checkStatusMatch = req.url.match(/\/api\/datasources\/([^\/\?]+)\/check-status/);
+        if (checkStatusMatch && method === 'GET') {
+          const dataSourceId = checkStatusMatch[1];
+          console.log('[Server Mock] 检查数据源状态:', dataSourceId);
+          
+          // 查找数据源
+          const dataSource = mockDataSources.find(ds => ds.id === dataSourceId);
+          
+          if (!dataSource) {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ 
+              success: false, 
+              error: {
+                statusCode: 404,
+                message: `未找到ID为${dataSourceId}的数据源`,
+                code: 'NOT_FOUND',
+                details: null
+              }
+            }));
+            return;
+          }
+          
+          // 返回状态检查结果
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ 
+            success: true, 
+            data: {
+              id: dataSource.id,
+              status: dataSource.status,
+              isActive: dataSource.isActive,
+              lastCheckedAt: new Date().toISOString(),
+              message: dataSource.status === 'error' ? '连接失败' : '连接正常',
+              details: {
+                responseTime: Math.floor(Math.random() * 100) + 10,
+                activeConnections: Math.floor(Math.random() * 5) + 1,
+                connectionPoolSize: 10
+              }
+            }
+          }));
+          return;
+        }
+        
+        // 添加元数据同步端点: POST /api/metadata/datasources/{dataSourceId}/sync
+        const metadataSyncMatch = req.url.match(/\/api\/metadata\/datasources\/([^\/\?]+)\/sync/);
+        if (metadataSyncMatch && method === 'POST') {
+          const dataSourceId = metadataSyncMatch[1];
+          console.log('[Server Mock] 同步数据源元数据:', dataSourceId);
+          
+          // 查找数据源
+          const dataSource = mockDataSources.find(ds => ds.id === dataSourceId);
+          
+          if (!dataSource) {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ 
+              success: false, 
+              error: {
+                statusCode: 404,
+                message: `未找到ID为${dataSourceId}的数据源`,
+                code: 'NOT_FOUND',
+                details: null
+              }
+            }));
+            return;
+          }
+          
+          // 获取请求数据
+          let requestBody = '';
+          req.on('data', (chunk) => {
+            requestBody += chunk.toString();
+          });
+          
+          req.on('end', () => {
+            let filters = {};
+            try {
+              if (requestBody) {
+                const data = JSON.parse(requestBody);
+                filters = data.filters || {};
+                console.log('[Server Mock] 同步元数据过滤器:', filters);
+              }
+            } catch (e) {
+              console.error('[Server Mock] 解析同步参数失败:', e);
+            }
+            
+            // 返回同步结果
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ 
+              success: true, 
+              data: {
+                success: true,
+                syncId: `sync-${Date.now()}`,
+                dataSourceId: dataSource.id,
+                startTime: new Date().toISOString(),
+                endTime: new Date(Date.now() + 5000).toISOString(),
+                tablesCount: Math.floor(Math.random() * 20) + 5,
+                viewsCount: Math.floor(Math.random() * 10) + 1,
+                syncDuration: Math.floor(Math.random() * 5000) + 1000,
+                status: 'completed',
+                message: '同步完成',
+                errors: []
+              }
+            }));
+          });
+          return;
+        }
+        
+        // 添加数据源统计信息端点: GET /api/datasources/{id}/stats
+        const statsMatch = req.url.match(/\/api\/datasources\/([^\/\?]+)\/stats/);
+        if (statsMatch && method === 'GET') {
+          const dataSourceId = statsMatch[1];
+          console.log('[Server Mock] 获取数据源统计信息:', dataSourceId);
+          
+          // 查找数据源
+          const dataSource = mockDataSources.find(ds => ds.id === dataSourceId);
+          
+          if (!dataSource) {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ 
+              success: false, 
+              error: {
+                statusCode: 404,
+                message: `未找到ID为${dataSourceId}的数据源`,
+                code: 'NOT_FOUND',
+                details: null
+              }
+            }));
+            return;
+          }
+          
+          // 返回统计信息
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ 
+            success: true, 
+            data: {
+              dataSourceId: dataSource.id,
+              tablesCount: Math.floor(Math.random() * 50) + 5,
+              viewsCount: Math.floor(Math.random() * 10) + 1,
+              totalRows: Math.floor(Math.random() * 1000000) + 1000,
+              totalSize: `${(Math.random() * 100 + 10).toFixed(2)} MB`,
+              lastUpdate: new Date().toISOString(),
+              queriesCount: Math.floor(Math.random() * 500) + 10,
+              connectionPoolSize: Math.floor(Math.random() * 10) + 5,
+              activeConnections: Math.floor(Math.random() * 5) + 1,
+              avgQueryTime: `${(Math.random() * 100 + 10).toFixed(2)}ms`,
+              totalTables: Math.floor(Math.random() * 50) + 5,
+              totalViews: Math.floor(Math.random() * 10) + 1,
+              totalQueries: Math.floor(Math.random() * 500) + 10,
+              avgResponseTime: Math.floor(Math.random() * 100) + 10,
+              peakConnections: Math.floor(Math.random() * 20) + 5
+            }
+          }));
+          return;
+        }
+        
         // 执行查询: POST /api/queries/{id}/execute
         const executeQueryMatch = req.url.match(/\/api\/queries\/([^\/\?]+)\/execute/);
         if (executeQueryMatch && method === 'POST') {
