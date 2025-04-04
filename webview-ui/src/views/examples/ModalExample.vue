@@ -150,7 +150,7 @@ const handleCustomModalCancel = () => {
         </button>
         
         <ConfirmModal
-          v-model:visible="localModalVisible"
+          v-model:open="localModalVisible"
           :config="localModalConfig"
           @ok="handleCustomModalOk"
           @cancel="handleCustomModalCancel"

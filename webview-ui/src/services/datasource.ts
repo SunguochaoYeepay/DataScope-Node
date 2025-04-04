@@ -16,12 +16,45 @@ import type {
 } from '@/types/datasource'
 import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/metadata'
 import { getApiBaseUrl } from './query'
+import { http } from '@/utils/http'
+
+// 表数据预览结果接口
+interface TableDataPreviewResult {
+  data: any[];
+  columns: { name: string, type: string }[];
+  page: number;
+  size: number;
+  total: number;
+  totalPages: number;
+}
+
+// 检查是否启用mock模式
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true'
+console.log('数据源服务 - Mock模式:', USE_MOCK ? '已启用' : '已禁用')
 
 // API 基础路径
 const API_BASE_URL = `${getApiBaseUrl()}/api/datasources`
 
 // 元数据API基础路径 - 已更新为标准API路径
 const METADATA_API_BASE_URL = `${getApiBaseUrl()}/api/metadata`
+
+// 模拟数据源列表
+const mockDataSources: DataSource[] = Array.from({ length: 5 }, (_, i) => ({
+  id: `ds-${i+1}`,
+  name: `模拟数据源 ${i+1}`,
+  description: `这是一个模拟的数据源，用于开发测试 ${i+1}`,
+  type: (i % 3 === 0 ? 'MYSQL' : (i % 3 === 1 ? 'POSTGRESQL' : 'ORACLE')) as DataSourceType,
+  host: 'localhost',
+  port: 3306 + i,
+  databaseName: `test_db_${i+1}`,
+  database: `test_db_${i+1}`,
+  username: 'user',
+  status: (i === 4 ? 'ERROR' : 'ACTIVE') as DataSourceStatus,
+  syncFrequency: 'MANUAL' as SyncFrequency,
+  lastSyncTime: i === 0 ? new Date().toISOString() : (i === 4 ? null : null),
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+}))
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -69,6 +102,50 @@ export const dataSourceService = {
   // 获取数据源列表
   async getDataSources(params: DataSourceQueryParams): Promise<PageResponse<DataSource>> {
     try {
+      // 如果启用了Mock模式，返回模拟数据
+      if (USE_MOCK) {
+        console.log('返回模拟数据源列表数据');
+        
+        // 应用过滤
+        let filteredItems = [...mockDataSources];
+        
+        if (params.name) {
+          const keyword = params.name.toLowerCase();
+          filteredItems = filteredItems.filter(ds => 
+            ds.name.toLowerCase().includes(keyword) || 
+            ds.description.toLowerCase().includes(keyword)
+          );
+        }
+        
+        if (params.type) {
+          filteredItems = filteredItems.filter(ds => 
+            ds.type.toLowerCase() === params.type?.toLowerCase()
+          );
+        }
+        
+        if (params.status) {
+          filteredItems = filteredItems.filter(ds => 
+            ds.status === params.status
+          );
+        }
+        
+        // 应用分页
+        const page = params.page || 1;
+        const size = params.size || 10;
+        const start = (page - 1) * size;
+        const end = start + size;
+        const paginatedItems = filteredItems.slice(start, Math.min(end, filteredItems.length));
+        
+        // 返回模拟分页响应
+        return {
+          items: paginatedItems,
+          page: page,
+          size: size,
+          total: filteredItems.length,
+          totalPages: Math.ceil(filteredItems.length / size)
+        };
+      }
+      
       // 构建查询参数 - 使用标准参数：page/size
       const queryParams = new URLSearchParams()
       
@@ -87,15 +164,8 @@ export const dataSourceService = {
       queryParams.append('page', String(params.page || 1));
       queryParams.append('size', String(params.size || 10));
       
-      // 发送请求
-      const response = await fetch(`${API_BASE_URL}?${queryParams.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error(`获取数据源列表失败: ${response.statusText}`);
-      }
-      
-      // 处理响应数据
-      const responseData = await response.json();
+      // 使用http工具函数发送请求
+      const responseData = await http.get(`/api/datasources?${queryParams.toString()}`);
       console.log('数据源列表原始响应:', responseData);
       
       // 处理不同响应格式
@@ -169,6 +239,18 @@ export const dataSourceService = {
   // 获取单个数据源详情
   async getDataSource(id: string): Promise<DataSource> {
     try {
+      // 如果启用了Mock模式，返回模拟数据
+      if (USE_MOCK) {
+        console.log('返回模拟数据源详情数据, id:', id);
+        const mockDataSource = mockDataSources.find(ds => ds.id === id);
+        
+        if (!mockDataSource) {
+          throw new Error(`未找到ID为${id}的数据源`);
+        }
+        
+        return mockDataSource;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/${id}`)
       if (!response.ok) {
         throw new Error(`获取数据源详情失败: ${response.statusText}`)
@@ -185,6 +267,35 @@ export const dataSourceService = {
   // 创建数据源
   async createDataSource(data: DataSourceInput): Promise<DataSource> {
     try {
+      // 如果启用了Mock模式，返回模拟数据
+      if (USE_MOCK) {
+        console.log('创建模拟数据源:', data);
+        
+        // 创建新的模拟数据源
+        const newId = `ds-${mockDataSources.length + 1}`;
+        const newDataSource: DataSource = {
+          id: newId,
+          name: data.name,
+          description: data.description || '',
+          type: data.type,
+          host: data.host,
+          port: data.port,
+          databaseName: data.databaseName,
+          database: data.database || data.databaseName,
+          username: data.username,
+          status: 'ACTIVE',
+          syncFrequency: data.syncFrequency,
+          lastSyncTime: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // 将新数据源添加到模拟列表
+        mockDataSources.push(newDataSource);
+        
+        return newDataSource;
+      }
+      
       // 构建符合后端期望的请求体
       const requestBody = {
         name: data.name,
@@ -224,6 +335,30 @@ export const dataSourceService = {
   // 更新数据源
   async updateDataSource(params: UpdateDataSourceParams): Promise<DataSource> {
     try {
+      // 如果启用了Mock模式，返回模拟数据
+      if (USE_MOCK) {
+        console.log('更新模拟数据源:', params);
+        
+        // 查找要更新的数据源
+        const index = mockDataSources.findIndex(ds => ds.id === params.id);
+        
+        if (index === -1) {
+          throw new Error(`未找到ID为${params.id}的数据源`);
+        }
+        
+        // 更新数据源
+        const updatedDataSource = {
+          ...mockDataSources[index],
+          ...params,
+          updatedAt: new Date().toISOString()
+        };
+        
+        // 替换原有数据源
+        mockDataSources[index] = updatedDataSource;
+        
+        return updatedDataSource;
+      }
+      
       // 构建符合后端期望的请求体
       const requestBody: any = {
         id: params.id,
@@ -263,6 +398,23 @@ export const dataSourceService = {
   // 删除数据源
   async deleteDataSource(id: string): Promise<void> {
     try {
+      // 如果启用了Mock模式
+      if (USE_MOCK) {
+        console.log('删除模拟数据源, id:', id);
+        
+        // 查找要删除的数据源索引
+        const index = mockDataSources.findIndex(ds => ds.id === id);
+        
+        if (index === -1) {
+          throw new Error(`未找到ID为${id}的数据源`);
+        }
+        
+        // 从模拟列表中删除
+        mockDataSources.splice(index, 1);
+        
+        return;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/${id}`, {
         method: 'DELETE'
       })
@@ -281,6 +433,24 @@ export const dataSourceService = {
   // 测试数据源连接
   async testConnection(params: TestConnectionParams): Promise<ConnectionTestResult> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log('使用模拟数据返回连接测试结果');
+        // 模拟1秒的延迟，模拟真实连接测试的时间
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 始终返回成功的连接测试结果
+        return {
+          success: true,
+          message: '连接测试成功',
+          details: {
+            connectionTime: '100ms',
+            serverVersion: `Mock ${params.type?.toUpperCase() || 'DATABASE'} Server 5.7.0`,
+            dbName: params.databaseName || params.database || 'mock_database'
+          }
+        };
+      }
+      
       // 构建请求体
       const requestBody = {
         type: params.type,
@@ -339,6 +509,31 @@ export const dataSourceService = {
   // 同步数据源元数据
   async syncMetadata(params: SyncMetadataParams): Promise<MetadataSyncResult> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据返回元数据同步结果，数据源ID: ${params.id}`);
+        
+        // 模拟2秒的延迟，模拟真实同步的时间
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // 查找mock数据源
+        const mockDataSource = mockDataSources.find(ds => ds.id === params.id);
+        if (!mockDataSource) {
+          throw new Error(`未找到ID为${params.id}的数据源`);
+        }
+        
+        // 返回成功的同步结果
+        return {
+          success: true,
+          message: '元数据同步成功',
+          tablesCount: 25,
+          viewsCount: 8,
+          syncDuration: 1856, // 毫秒
+          lastSyncTime: new Date().toISOString(),
+          syncHistoryId: `sync-${Date.now()}`
+        };
+      }
+      
       // 构建符合后端预期的请求体
       const requestBody = {
         filters: {
@@ -417,6 +612,51 @@ export const dataSourceService = {
   // 获取表元数据
   async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata[]> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据返回表元数据，数据源ID: ${dataSourceId}${tableName ? ', 表名: ' + tableName : ''}`);
+        
+        // 模拟获取表元数据的延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 查找模拟数据源
+        const mockDataSource = mockDataSources.find(ds => ds.id === dataSourceId);
+        if (!mockDataSource) {
+          throw new Error(`未找到ID为${dataSourceId}的数据源`);
+        }
+        
+        // 模拟表元数据，确保符合TableMetadata接口定义
+        const mockTables: TableMetadata[] = Array.from({ length: 15 }, (_, i) => ({
+          name: `mock_table_${i+1}`,
+          schema: 'public',
+          type: i % 3 === 0 ? 'TABLE' : (i % 3 === 1 ? 'VIEW' : 'MATERIALIZED_VIEW'),
+          comment: `这是一个模拟的${i % 3 === 0 ? '表' : '视图'} ${i+1}`,
+          // 确保符合ColumnMetadata接口定义的列数据
+          columns: Array.from({ length: 5 + i }, (_, j) => ({
+            name: `column_${j+1}`,
+            type: j % 5 === 0 ? 'INTEGER' : (j % 5 === 1 ? 'VARCHAR' : (j % 5 === 2 ? 'TIMESTAMP' : (j % 5 === 3 ? 'BOOLEAN' : 'DECIMAL'))),
+            nullable: j % 2 === 0,
+            primaryKey: j === 0,
+            foreignKey: j === 1,
+            unique: j === 2,
+            autoIncrement: j === 0,
+            comment: j === 0 ? `这是表${i+1}的主键列` : `这是表${i+1}的列${j+1}`,
+            defaultValue: undefined,
+            size: j % 5 === 1 ? 255 : undefined,
+            scale: j % 5 === 4 ? 2 : undefined
+          })),
+          primaryKey: ['column_1']
+        }));
+        
+        // 如果指定了表名，返回该表的元数据
+        if (tableName) {
+          const mockTable = mockTables.find(t => t.name === tableName);
+          return mockTable ? [mockTable] : [];
+        }
+        
+        return mockTables;
+      }
+      
       // 使用标准API路径
       const url = tableName 
         ? `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}`
@@ -481,6 +721,33 @@ export const dataSourceService = {
   // 获取表字段信息
   async getTableColumns(dataSourceId: string, tableName: string): Promise<ColumnMetadata[]> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据返回表列信息，数据源ID: ${dataSourceId}, 表名: ${tableName}`);
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 生成模拟列数据，符合ColumnMetadata接口
+        const mockColumns: ColumnMetadata[] = Array.from({ length: 10 }, (_, i) => ({
+          name: `column_${i+1}`,
+          type: i % 5 === 0 ? 'INTEGER' : (i % 5 === 1 ? 'VARCHAR' : (i % 5 === 2 ? 'TIMESTAMP' : (i % 5 === 3 ? 'BOOLEAN' : 'DECIMAL'))),
+          nullable: i % 2 === 0,
+          primaryKey: i === 0,
+          foreignKey: i === 1,
+          unique: i === 2,
+          autoIncrement: i === 0,
+          comment: i === 0 ? `这是表${tableName}的主键列` : `这是表${tableName}的列${i+1}`,
+          defaultValue: undefined,
+          size: i % 5 === 1 ? 255 : undefined,
+          scale: i % 5 === 4 ? 2 : undefined,
+          referencedTable: i === 1 ? 'mock_reference_table' : undefined,
+          referencedColumn: i === 1 ? 'id' : undefined
+        }));
+        
+        return mockColumns;
+      }
+      
       // 使用标准API路径
       const url = `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns`
       
@@ -519,8 +786,8 @@ export const dataSourceService = {
   // 获取表数据预览
   async getTableDataPreview(
     dataSourceId: string, 
-    tableName: string, 
-    params: {
+    tableName: string,
+    params: { 
       page?: number, 
       size?: number, 
       sort?: string, 
@@ -529,17 +796,75 @@ export const dataSourceService = {
     } = {}
   ) {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据返回表数据预览，数据源ID: ${dataSourceId}, 表名: ${tableName}, 参数:`, params);
+        
+        // 模拟数据加载延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 生成随机数据行数（10-50之间）
+        const totalRows = 45;
+        
+        // 计算当前页的数据
+        const page = params.page || 1;
+        const size = params.size || 10;
+        const startIndex = (page - 1) * size;
+        const endIndex = Math.min(startIndex + size, totalRows);
+        const totalPages = Math.ceil(totalRows / size);
+        
+        // 创建列定义
+        const columns = [
+          { name: 'id', type: 'INTEGER' },
+          { name: 'name', type: 'VARCHAR' },
+          { name: 'description', type: 'TEXT' },
+          { name: 'price', type: 'DECIMAL' },
+          { name: 'quantity', type: 'INTEGER' },
+          { name: 'created_at', type: 'TIMESTAMP' },
+          { name: 'is_active', type: 'BOOLEAN' }
+        ];
+        
+        // 生成当前页的行数据
+        const rows = Array.from({ length: endIndex - startIndex }, (_, i) => {
+          const rowIndex = startIndex + i + 1;
+          return {
+            id: rowIndex,
+            name: `Item ${rowIndex}`,
+            description: `Description for item ${rowIndex}`,
+            price: parseFloat((Math.random() * 1000).toFixed(2)),
+            quantity: Math.floor(Math.random() * 100),
+            created_at: new Date(Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000)).toISOString(),
+            is_active: Math.random() > 0.2
+          };
+        });
+        
+        return {
+          data: rows,
+          columns: columns,
+          page: page,
+          size: size,
+          total: totalRows,
+          totalPages: totalPages
+        };
+      }
+      
       // 构建查询参数
       const queryParams = new URLSearchParams();
-      if (params.page) queryParams.append('page', params.page.toString());
-      if (params.size) queryParams.append('size', params.size.toString());
-      if (params.sort) queryParams.append('sort', params.sort);
-      if (params.order) queryParams.append('order', params.order);
+      queryParams.append('page', (params.page || 1).toString());
+      queryParams.append('size', (params.size || 10).toString());
       
-      // 处理过滤条件
-      if (params.filters) {
-        for (const [key, value] of Object.entries(params.filters)) {
-          if (value !== undefined && value !== null) {
+      if (params.sort) {
+        queryParams.append('sort', params.sort);
+        if (params.order) {
+          queryParams.append('order', params.order);
+        }
+      }
+      
+      // 添加过滤条件
+      if (params.filters && typeof params.filters === 'object') {
+        for (const key in params.filters) {
+          const value = params.filters[key];
+          if (value !== undefined && value !== null && value !== '') {
             queryParams.append(`filter[${key}]`, value.toString());
           }
         }
@@ -768,6 +1093,28 @@ export const dataSourceService = {
   // 测试现有数据源连接
   async testExistingConnection(id: string): Promise<ConnectionTestResult> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log('使用模拟数据返回现有数据源连接测试结果');
+        
+        // 查找模拟数据源
+        const mockDataSource = mockDataSources.find(ds => ds.id === id);
+        
+        // 模拟1秒的延迟，模拟真实连接测试的时间
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 始终返回成功的连接测试结果
+        return {
+          success: true,
+          message: '连接测试成功',
+          details: {
+            connectionTime: '120ms',
+            serverVersion: `Mock ${mockDataSource?.type?.toUpperCase() || 'DATABASE'} Server 5.7.0`,
+            dbName: mockDataSource?.database || 'mock_database'
+          }
+        };
+      }
+      
       // 使用API文档中的正确路径：/datasources/{id}/test
       const response = await fetch(`${API_BASE_URL}/${id}/test`, {
         method: 'POST',

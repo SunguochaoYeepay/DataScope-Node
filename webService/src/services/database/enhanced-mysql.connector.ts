@@ -11,7 +11,7 @@ import {
   QueryPlan as DBQueryPlan,
   QueryPlanNode as DBQueryPlanNode
 } from './dbInterface';
-import { DataSourceConnectionError, QueryExecutionError } from '../../utils/error';
+import { DataSourceConnectionError, QueryExecutionError, ApiError } from '../../utils/error';
 import { QueryPlan, QueryPlanNode } from '../../types/query-plan';
 import { MySQLQueryPlanConverter } from './query-plan-conversion/mysql-query-plan-converter';
 import logger from '../../utils/logger';
@@ -29,22 +29,6 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
   /**
    * 构造函数
    * @param dataSourceId 数据源ID
-   * @param config 连接配置对象
-   */
-  constructor(
-    dataSourceId: string, 
-    config: {
-      host: string;
-      port: number;
-      user: string;
-      password: string;
-      database: string;
-    }
-  );
-  
-  /**
-   * 重载构造函数，支持传递单独的参数
-   * @param dataSourceId 数据源ID
    * @param host 主机名
    * @param port 端口号
    * @param username 用户名
@@ -53,7 +37,7 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
    */
   constructor(
     dataSourceId: string,
-    hostOrConfig: string | { host: string; port: number; user: string; password: string; database: string },
+    hostOrConfig: string | { host: string; port: number; user: string; password: string; database: string; username?: string; [key: string]: any },
     port?: number,
     username?: string,
     password?: string,
@@ -80,10 +64,45 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
       };
     } else {
       // 使用配置对象模式
-      this.config = {
+      // 优先使用username字段，如果不存在则使用user字段
+      const effectiveUsername = hostOrConfig.username || hostOrConfig.user;
+      
+      // 记录连接器配置 - 原始对象
+      logger.debug('MySQL连接器配置 - 原始对象', {
+        dataSourceId,
+        configType: typeof hostOrConfig,
+        configKeys: Object.keys(hostOrConfig),
+        configValues: {
+          host: hostOrConfig.host,
+          port: hostOrConfig.port,
+          user: hostOrConfig.user,
+          username: hostOrConfig.username,
+          database: hostOrConfig.database
+        }
+      });
+      
+      logger.debug('MySQL连接器配置', {
+        dataSourceId,
         host: hostOrConfig.host,
         port: hostOrConfig.port,
         user: hostOrConfig.user,
+        username: hostOrConfig.username,
+        effectiveUsername: effectiveUsername,
+        database: hostOrConfig.database,
+        configKeys: Object.keys(hostOrConfig),
+        configString: JSON.stringify({
+          host: hostOrConfig.host,
+          port: hostOrConfig.port,
+          user: hostOrConfig.user,
+          username: hostOrConfig.username,
+          database: hostOrConfig.database
+        })
+      });
+      
+      this.config = {
+        host: hostOrConfig.host,
+        port: hostOrConfig.port,
+        user: effectiveUsername, // 使用有效的用户名
         password: hostOrConfig.password,
         database: hostOrConfig.database,
         waitForConnections: true,
@@ -92,6 +111,14 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
       };
     }
     
+    // 记录最终配置（不包含密码）
+    const configDebug = {
+      host: this.config.host,
+      port: this.config.port,
+      user: this.config.user,
+      database: this.config.database
+    };
+    
     // 创建连接池
     this.pool = mysql.createPool(this.config);
     
@@ -99,7 +126,9 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
       dataSourceId, 
       host: this.config.host, 
       port: this.config.port, 
-      database: this.config.database 
+      user: this.config.user,
+      database: this.config.database,
+      config: JSON.stringify(configDebug)
     });
   }
   
@@ -122,7 +151,10 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
     } catch (error: any) {
       logger.error('测试MySQL连接失败', { 
         error: error?.message || '未知错误', 
-        dataSourceId: this._dataSourceId 
+        dataSourceId: this._dataSourceId,
+        host: this.config.host,
+        user: this.config.user,
+        database: this.config.database
       });
       throw new DataSourceConnectionError(
         `测试MySQL连接失败: ${error?.message || '未知错误'}`, 
@@ -137,24 +169,224 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
   
   /**
    * 执行SQL查询
+   * @param sql SQL查询语句
+   * @param params 参数数组
+   * @param queryId 查询ID
+   * @param options 查询选项
+   * @returns 查询结果
    */
   async executeQuery(sql: string, params: any[] = [], queryId?: string, options?: QueryOptions): Promise<QueryResult> {
     let connection;
+    let directConnection;
+    const startTime = Date.now();
+    let internalQueryId = queryId;
+    
     try {
-      connection = await this.pool.getConnection();
+      // 添加更多日志记录连接器状态
+      logger.debug('MySQL连接器executeQuery状态', {
+        dataSourceId: this._dataSourceId,
+        configUser: this.config.user,
+        configDatabase: this.config.database,
+        host: this.config.host,
+        port: this.config.port,
+        allConfigKeys: Object.keys(this.config)
+      });
       
-      // 如果提供了queryId，则记录连接ID用于查询取消
-      if (queryId) {
-        // 安全类型处理
-        const [threadIdResult] = await connection.query('SELECT CONNECTION_ID() as connectionId') as any;
-        if (Array.isArray(threadIdResult) && threadIdResult.length > 0 && threadIdResult[0].connectionId) {
-          const connectionId = threadIdResult[0].connectionId;
-          this.activeQueries.set(queryId, connectionId);
-          logger.info('记录活动查询', { queryId, connectionId, dataSourceId: this._dataSourceId });
+      // 修改连接池配置
+      try {
+        // @ts-ignore - 尝试直接修改连接池配置
+        if (this.pool.config && this.pool.config.connectionConfig) {
+          // @ts-ignore
+          const poolConfig = this.pool.config.connectionConfig;
+          
+          logger.debug('连接池配置状态 - 修改前', {
+            poolUser: poolConfig.user,
+            poolDatabase: poolConfig.database,
+            configUser: this.config.user,
+            configDatabase: this.config.database,
+            // @ts-ignore - 记录所有属性
+            poolConfigKeys: Object.keys(poolConfig)
+          });
+          
+          // @ts-ignore - 强制设置用户名和数据库名
+          poolConfig.user = this.config.user;
+          // @ts-ignore
+          poolConfig.database = this.config.database;
+          // @ts-ignore
+          poolConfig.password = this.config.password;
+          
+          logger.info('强制修改连接池配置', {
+            user: this.config.user,
+            database: this.config.database
+          });
         }
+      } catch (poolFixError) {
+        logger.warn('修改连接池配置失败', { error: poolFixError });
       }
       
-      const startTime = Date.now();
+      // 记录连接配置
+      logger.info('执行查询配置信息', {
+        user: this.config.user || '<空>',
+        database: this.config.database || '<空>',
+        host: this.config.host,
+        port: this.config.port,
+        hasPassword: !!this.config.password,
+        dataSourceId: this._dataSourceId
+      });
+      
+      try {
+        // 创建一个直接连接，尝试避开pool可能的问题
+        directConnection = await mysql.createConnection({
+          host: this.config.host,
+          port: this.config.port,
+          user: this.config.user,
+          password: this.config.password,
+          database: this.config.database
+        });
+        
+        logger.info('创建直接数据库连接成功', {
+          host: this.config.host,
+          port: this.config.port,
+          user: this.config.user,
+          database: this.config.database
+        });
+        
+        // 验证直接连接的用户和数据库名
+        try {
+          const [directInfoResult] = await directConnection.query('SELECT USER() as currentUser, DATABASE() as currentDb') as [any[], mysql.FieldPacket[]];
+          if (Array.isArray(directInfoResult) && directInfoResult.length > 0) {
+            logger.info('直接连接信息', {
+              currentUser: directInfoResult[0].currentUser,
+              currentDatabase: directInfoResult[0].currentDb,
+              configuredUser: this.config.user,
+              configuredDatabase: this.config.database
+            });
+          }
+        } catch (directInfoError) {
+          logger.warn('无法获取直接连接信息', { error: directInfoError });
+        }
+        
+        // 使用直接连接执行查询
+        // 执行查询(可能已修改为分页查询)
+        const [directRows, directFields] = await directConnection.query(sql, params) as [any, mysql.FieldPacket[]];
+        const directEndTime = Date.now();
+        
+        logger.info('使用直接连接执行SQL查询成功', {
+          dataSourceId: this._dataSourceId,
+          executionTime: directEndTime - startTime,
+          rowCount: Array.isArray(directRows) ? directRows.length : 0
+        });
+        
+        // 处理不同类型的查询结果
+        if (Array.isArray(directRows)) {
+          // SELECT 查询
+          const queryResult: QueryResult = {
+            fields: directFields.map(f => ({
+              name: f.name,
+              type: f.type ? f.type.toString() : 'unknown',
+              table: f.table,
+              schema: f.db
+            })),
+            rows: directRows,
+            rowCount: directRows.length
+          };
+          
+          // 添加分页信息（如果有的话）
+          if (options) {
+            const page = options.pageNumber || (options as any).page || 1;
+            const pageSize = options.pageSize || (options as any).limit || 50;
+            
+            queryResult.page = page;
+            queryResult.pageSize = pageSize;
+          }
+          
+          // 使用直接连接成功，不需要尝试池连接
+          return queryResult;
+        } else {
+          // INSERT, UPDATE, DELETE 等
+          const result = directRows as mysql.ResultSetHeader;
+          return {
+            fields: [],
+            rows: [],
+            rowCount: 0,
+            affectedRows: result.affectedRows,
+            lastInsertId: result.insertId
+          };
+        }
+      } catch (directConnError: any) {
+        logger.warn('使用直接连接执行查询失败，尝试使用连接池', {
+          error: directConnError?.message,
+          code: directConnError?.code,
+          sqlState: directConnError?.sqlState
+        });
+        
+        // 直接连接失败，尝试使用连接池
+      }
+      
+      // 获取连接池连接
+      logger.info('尝试使用连接池连接');
+      connection = await this.pool.getConnection();
+      
+      // 修改连接配置
+      try {
+        // @ts-ignore - 检查并修改连接配置
+        if (connection.connection && connection.connection.config) {
+          // @ts-ignore
+          const connectionConfig = connection.connection.config;
+          // @ts-ignore - 记录当前连接配置状态
+          logger.debug('连接池连接配置状态 - 修改前', {
+            connectionUser: connectionConfig.user,
+            connectionDatabase: connectionConfig.database,
+            configUser: this.config.user,
+            configDatabase: this.config.database
+          });
+          
+          // @ts-ignore - 强制设置用户名和数据库名
+          connectionConfig.user = this.config.user;
+          // @ts-ignore
+          connectionConfig.database = this.config.database;
+          // @ts-ignore
+          connectionConfig.password = this.config.password;
+          
+          logger.info('强制设置连接池连接配置', {
+            user: this.config.user,
+            database: this.config.database
+          });
+        }
+      } catch (fixError) {
+        logger.warn('无法修改连接池连接配置', { error: fixError });
+      }
+      
+      // 验证连接信息，确保我们使用正确的用户和数据库
+      try {
+        const [infoResult] = await connection.query('SELECT USER() as currentUser, DATABASE() as currentDb') as [any[], mysql.FieldPacket[]];
+        if (Array.isArray(infoResult) && infoResult.length > 0) {
+          logger.info('连接池连接信息', {
+            currentUser: infoResult[0].currentUser,
+            currentDatabase: infoResult[0].currentDb,
+            configuredUser: this.config.user,
+            configuredDatabase: this.config.database
+          });
+        }
+      } catch (infoError) {
+        logger.warn('无法获取连接池连接信息', { error: infoError });
+      }
+      
+      // 如果提供了queryId，则记录连接ID用于查询取消
+      if (!internalQueryId) {
+        internalQueryId = `query-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      }
+      
+      // 安全类型处理
+      const [threadIdResult] = await connection.query('SELECT CONNECTION_ID() as connectionId') as any;
+      if (Array.isArray(threadIdResult) && threadIdResult.length > 0 && threadIdResult[0].connectionId) {
+        const connectionId = threadIdResult[0].connectionId;
+        this.activeQueries.set(internalQueryId, connectionId);
+        logger.info('记录活动查询', { queryId: internalQueryId, connectionId, dataSourceId: this._dataSourceId });
+      }
+      
+      // 记录SQL执行
+      logger.debug('执行SQL: ' + sql);
       
       // 处理分页查询
       let originalSql = sql;
@@ -206,10 +438,11 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
       }
       
       // 执行查询(可能已修改为分页查询)
+      logger.info('使用连接池连接执行SQL查询', { sql: modifiedSql, paramsCount: params.length });
       const [rows, fields] = await connection.query(modifiedSql, params) as [any, mysql.FieldPacket[]];
       const endTime = Date.now();
       
-      logger.info('MySQL查询执行成功', {
+      logger.info('使用连接池连接执行SQL查询成功', {
         dataSourceId: this._dataSourceId,
         executionTime: endTime - startTime,
         rowCount: Array.isArray(rows) ? rows.length : 0
@@ -256,11 +489,20 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
         };
       }
     } catch (error: any) {
-      logger.error('执行MySQL查询失败', {
-        error: error?.message || '未知错误',
-        dataSourceId: this._dataSourceId,
-        sql
+      logger.error('数据库查询失败', { 
+        error, 
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        sqlState: error?.sqlState,
+        configUser: this.config.user,
+        configDatabase: this.config.database,
+        dataSourceId: this._dataSourceId
       });
+      
+      if (error instanceof QueryExecutionError) {
+        throw error;
+      }
+      
       throw new QueryExecutionError(
         `执行MySQL查询失败: ${error?.message || '未知错误'}`,
         this._dataSourceId,
@@ -268,13 +510,23 @@ export class EnhancedMySQLConnector implements DatabaseConnector {
       );
     } finally {
       // 如果提供了queryId，清理活动查询记录
-      if (queryId) {
-        this.activeQueries.delete(queryId);
-        logger.debug('删除活动查询记录', { queryId, dataSourceId: this._dataSourceId });
+      if (internalQueryId && this.activeQueries.has(internalQueryId)) {
+        this.activeQueries.delete(internalQueryId);
+        logger.debug('删除活动查询记录', { queryId: internalQueryId, dataSourceId: this._dataSourceId });
       }
       
+      // 释放连接池连接
       if (connection) {
         connection.release();
+      }
+      
+      // 关闭直接连接
+      if (directConnection) {
+        try {
+          await directConnection.end();
+        } catch (closeError) {
+          logger.warn('关闭直接连接失败', { error: closeError });
+        }
       }
     }
   }

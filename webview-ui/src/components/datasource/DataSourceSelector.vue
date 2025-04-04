@@ -121,6 +121,32 @@ const handleDataSourceChange = (event: Event) => {
   const target = event.target as HTMLSelectElement
   selectedDataSourceId.value = target.value
 }
+
+// 添加下拉状态
+const isDropdownOpen = ref(false);
+
+// 切换下拉菜单状态
+const toggleDropdown = () => {
+  if (!props.disabled && !loading.value) {
+    isDropdownOpen.value = !isDropdownOpen.value;
+  }
+};
+
+// 选择数据源
+const selectDataSource = (dataSourceId) => {
+  selectedDataSourceId.value = dataSourceId;
+  isDropdownOpen.value = false;
+};
+
+// 点击外部关闭下拉菜单
+onMounted(() => {
+  document.addEventListener('click', (event) => {
+    const dropdownEl = document.querySelector('.data-source-selector .input-with-dropdown');
+    if (dropdownEl && !dropdownEl.contains(event.target)) {
+      isDropdownOpen.value = false;
+    }
+  });
+});
 </script>
 
 <template>
@@ -131,62 +157,75 @@ const handleDataSourceChange = (event: Event) => {
     </label>
     
     <div class="relative">
-      <div v-if="loading" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-        <i class="fas fa-circle-notch fa-spin text-gray-400"></i>
-      </div>
-      
-      <select
-        :value="selectedDataSourceId"
-        @change="handleDataSourceChange"
-        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        :class="{ 'pr-10': loading, 'border-red-300': props.error }"
-        :placeholder="props.placeholder || '请选择数据源'"
-        :disabled="props.disabled || loading"
-      >
-        <option value="">请选择数据源</option>
-        <option 
-          v-for="dataSource in filteredDataSources" 
-          :key="dataSource.id" 
-          :value="dataSource.id"
-        >
-          {{ dataSource.name }}
-        </option>
-      </select>
-      
-      <div v-if="!loading" class="absolute inset-y-0 right-0 pr-3 flex items-center">
-        <button 
-          type="button" 
-          @click="refreshDataSources"
-          class="text-gray-400 hover:text-gray-500 focus:outline-none"
-          title="刷新数据源列表"
-        >
-          <i class="fas fa-sync-alt"></i>
-        </button>
+      <div class="input-with-dropdown">
+        <input
+          :value="filteredDataSources.find(ds => ds.id === selectedDataSourceId)?.name || ''"
+          type="text"
+          readonly
+          class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm cursor-pointer"
+          :class="{ 'border-red-300': props.error }"
+          :placeholder="props.placeholder || '请选择数据源'"
+          :disabled="props.disabled || loading"
+          @click="toggleDropdown"
+        />
+        <div class="absolute inset-y-0 right-2 flex items-center">
+          <div v-if="loading" class="pointer-events-none">
+            <i class="fas fa-circle-notch fa-spin text-gray-400"></i>
+          </div>
+          <button 
+            v-else
+            type="button" 
+            class="text-gray-400 hover:text-gray-500 focus:outline-none mr-1"
+            @click="refreshDataSources"
+            title="刷新数据源列表"
+          >
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <i class="fas fa-chevron-down text-gray-400"></i>
+        </div>
+        
+        <div v-if="isDropdownOpen" class="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+          <div v-if="filteredDataSources.length === 0" class="p-3 text-sm text-gray-500 text-center">
+            {{ loading ? '加载中...' : '暂无数据源' }}
+          </div>
+          <ul v-else class="py-1">
+            <li
+              v-for="dataSource in filteredDataSources"
+              :key="dataSource.id"
+              class="px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+              :class="{ 'bg-indigo-50': dataSource.id === selectedDataSourceId }"
+              @click="selectDataSource(dataSource.id)"
+            >
+              {{ dataSource.name }}
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
     
     <div v-if="props.error" class="mt-1 text-sm text-red-600">
       {{ props.error }}
     </div>
-    
-    <div v-if="selectedDataSourceId && dataSources.length > 0" class="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
-      <div v-if="filteredDataSources.find(ds => ds.id === selectedDataSourceId)" class="text-sm">
-        <div class="font-medium text-gray-700">
-          {{ filteredDataSources.find(ds => ds.id === selectedDataSourceId)?.name }}
-        </div>
-        <div v-if="filteredDataSources.find(ds => ds.id === selectedDataSourceId)?.description" class="text-gray-500 mt-1">
-          {{ filteredDataSources.find(ds => ds.id === selectedDataSourceId)?.description }}
-        </div>
-        <div class="text-xs text-gray-500 mt-2">
-          ID: {{ selectedDataSourceId }}
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .data-source-selector {
-  margin-bottom: 1rem;
+  margin-bottom: 0;
+  position: relative;
+}
+
+.input-with-dropdown {
+  position: relative;
+}
+
+input[readonly] {
+  cursor: pointer;
+  background-color: #fff;
+}
+
+input[readonly]:disabled {
+  background-color: #f9fafb;
+  cursor: not-allowed;
 }
 </style>

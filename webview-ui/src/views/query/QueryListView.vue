@@ -911,7 +911,7 @@ const formatVersionId = (query: any) => {
 const checkQueryStatus = async (queryId: string) => {
   try {
     console.log(`正在检查查询状态: ${queryId}`);
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/${queryId}`);
+    const response = await fetch(`/api/queries/${queryId}?_t=${Date.now()}`);
     if (!response.ok) {
       throw new Error(`API响应错误: ${response.status}`);
     }

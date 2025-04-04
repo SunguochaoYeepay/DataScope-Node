@@ -72,19 +72,43 @@
             </div>
           </div>
           
-          <!-- 查询数据源选择 -->
-          <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              选择查询数据源 <span class="text-red-500">*</span>
-            </label>
-            <QuerySelectorEnhanced
-              v-model="integration.queryId"
-              :show-preview="true"
-              @update:modelValue="handleQueryChange"
-            />
-            <p v-if="!integration.queryId && showValidationErrors" class="mt-1 text-sm text-red-600">
-              请选择查询数据源
-            </p>
+          <!-- 数据源与查询选择 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- 数据源选择 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                选择数据源 <span class="text-red-500">*</span>
+              </label>
+              <DataSourceSelector
+                v-model="integration.dataSourceId"
+                placeholder="请选择数据源"
+                :required="true"
+                @selected="handleDataSourceSelected"
+              />
+              <p v-if="!integration.dataSourceId && showValidationErrors" class="mt-1 text-sm text-red-600">
+                请选择数据源
+              </p>
+            </div>
+
+            <!-- 查询选择 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                选择数据查询 <span class="text-red-500">*</span>
+              </label>
+              <QuerySelectorEnhanced
+                v-model="integration.queryId"
+                placeholder="请选择数据查询"
+                :show-preview="true"
+                :data-source-id="integration.dataSourceId"
+                @update:modelValue="handleQueryChange"
+              />
+              <p v-if="!integration.queryId && showValidationErrors" class="mt-1 text-sm text-red-600">
+                请选择数据查询
+              </p>
+              <p v-if="integration.dataSourceId && !integration.queryId" class="mt-1 text-sm text-indigo-600">
+                <i class="fas fa-info-circle mr-1"></i> 查询选择会自动筛选当前数据源的查询
+              </p>
+            </div>
           </div>
           
           <!-- 集成类型选择 -->
@@ -1032,11 +1056,14 @@ import draggable from 'vuedraggable';
 import { transformFrontendIntegrationToApi } from '@/utils/apiTransformer';
 import { ChartType, ChartTheme } from '@/types/integration';
 import ChartPreview from '@/components/integration/chartmode/ChartPreview.vue';
+import DataSourceSelector from '@/components/datasource/DataSourceSelector.vue';
+import { useQueryStore } from '@/stores/query';
 
 const route = useRoute();
 const router = useRouter();
 const integrationStore = useIntegrationStore();
 const messageStore = useMessageStore();
+const queryStore = useQueryStore();
 
 // 不再使用简化模式
 const isSimpleMode = ref(false); // 始终为false以保持完整模式
@@ -1279,10 +1306,10 @@ const handleQueryChange = async (queryId: string) => {
   if (queryId) {
     integration.queryId = queryId;
     
-    // 可选：自动加载参数，取消下面的注释即可实现自动加载
-    // if (queryParams.value.length === 0) {
-    //   loadParamsFromQuery();
-    // }
+    // 自动加载参数（取消注释，启用自动加载）
+    if (queryParams.value.length === 0) {
+      loadParamsFromQuery();
+    }
   }
 };
 
@@ -1325,7 +1352,7 @@ const saveIntegration = async () => {
       messageStore.error('集成名称不能为空');
       hasErrors = true;
     }
-
+    
     if (!integration.queryId) {
       messageStore.error('请选择查询数据源');
       hasErrors = true;
@@ -1340,7 +1367,7 @@ const saveIntegration = async () => {
       
       if (chartType.value === 'pie') {
         if (!chartNameField.value || !chartValueField.value) {
-          messageStore.error('饷形图需要设置名称字段和数值字段');
+          messageStore.error('饼形图需要设置名称字段和数值字段');
           hasErrors = true;
         }
       } else {
@@ -1355,7 +1382,7 @@ const saveIntegration = async () => {
     if (hasErrors) {
       return;
     }
-
+    
     // 保存集成
     messageStore.info('正在保存集成...');
     
@@ -1370,8 +1397,33 @@ const saveIntegration = async () => {
     });
     console.log('[DEBUG] 参数配置已设置到集成对象:', integration.queryParams);
     
+    // 准备API所需的数据结构
+    const apiData: any = {
+      name: integration.name,
+      description: integration.description || '',
+      queryId: integration.queryId,
+      dataSourceId: integration.dataSourceId,
+      type: integration.type,
+      status: 'DRAFT',
+      config: {}
+    };
+    
+    // 根据集成类型准备对应的配置
+    if (integration.type === 'FORM' && integration.formConfig) {
+      apiData.config.formConfig = integration.formConfig;
+    } else if (integration.type === 'TABLE' && integration.tableConfig) {
+      apiData.config.tableConfig = integration.tableConfig;
+    } else if (integration.type === 'CHART' && integration.chartConfig) {
+      apiData.config.chartConfig = integration.chartConfig;
+    }
+    
+    // 添加查询参数到config
+    if (integration.queryParams && integration.queryParams.length > 0) {
+      apiData.config.params = integration.queryParams;
+    }
+    
     if (isCreateMode.value) {
-      const result = await integrationStore.createIntegration(integration);
+      const result = await integrationStore.createIntegration(apiData);
       messageStore.success('集成创建成功');
       // 创建成功后跳转到编辑页
       if (result && result.id) {
@@ -1380,7 +1432,7 @@ const saveIntegration = async () => {
         router.push('/integration');
       }
     } else {
-      await integrationStore.updateIntegration(integration.id, integration);
+      await integrationStore.updateIntegration(integration.id, apiData);
       messageStore.success('集成更新成功');
       // 更新后跳转到集成列表页面
       router.push('/integration');
@@ -1697,50 +1749,11 @@ const loadParamsFromQuery = async () => {
   }
   
   try {
-    // 模拟从服务器获取查询参数
-    // 实际环境中应该调用API获取
-    const mockQueryParameters = [
-      {
-        name: 'startDate',
-        type: 'date',
-        format: 'date',
-        formType: 'date',
-        required: true,
-        defaultValue: new Date().toISOString().split('T')[0],
-        description: '查询开始日期',
-        isNewParam: false
-      },
-      {
-        name: 'endDate',
-        type: 'date',
-        format: 'date-time',
-        formType: 'date',
-        required: true,
-        defaultValue: new Date().toISOString().split('T')[0],
-        description: '查询结束日期',
-        isNewParam: false
-      },
-      {
-        name: 'status',
-        type: 'string',
-        format: 'enum',
-        formType: 'select',
-        required: false,
-        defaultValue: 'active',
-        description: '记录状态',
-        isNewParam: false
-      },
-      {
-        name: 'minAmount',
-        type: 'number',
-        format: 'decimal',
-        formType: 'text',
-        required: false,
-        defaultValue: 0,
-        description: '最小金额',
-        isNewParam: false
-      }
-    ];
+    // 显示加载状态
+    messageStore.info('正在从查询加载参数...');
+    
+    // 调用API获取查询参数
+    const parameters = await queryStore.getQueryParameters(integration.queryId);
     
     // 确认是否覆盖现有参数
     if (queryParams.value.length > 0) {
@@ -1749,8 +1762,14 @@ const loadParamsFromQuery = async () => {
       }
     }
     
+    // 如果没有参数
+    if (!parameters || parameters.length === 0) {
+      messageStore.info('该查询中未检测到参数');
+      return;
+    }
+    
     // 更新参数列表
-    queryParams.value = mockQueryParameters.map((param, index) => ({
+    queryParams.value = parameters.map((param, index) => ({
       ...param,
       displayOrder: index
     }));
@@ -1758,21 +1777,16 @@ const loadParamsFromQuery = async () => {
     // 更新参数值
     const initialValues: Record<string, any> = {};
     queryParams.value.forEach(param => {
-      // 设置枚举选项
-      if (param.format === 'enum') {
-        // 为status参数添加默认选项
-        if (param.name === 'status') {
-          param.options = [
-            { label: '激活', value: 'active' },
-            { label: '禁用', value: 'inactive' },
-            { label: '挂起', value: 'pending' }
-          ];
-        }
-        // 简单设置初始值，不再使用数组
-      initialValues[param.name] = param.defaultValue;
-      } else {
-        initialValues[param.name] = param.defaultValue;
+      // 如果是枚举类型且名为status，添加默认选项
+      if (param.format === 'enum' && param.name === 'status') {
+        param.options = [
+          { label: '激活', value: 'active' },
+          { label: '禁用', value: 'inactive' },
+          { label: '挂起', value: 'pending' }
+        ];
       }
+      // 设置初始值
+      initialValues[param.name] = param.defaultValue;
     });
     paramValues.value = initialValues;
     
@@ -1780,10 +1794,10 @@ const loadParamsFromQuery = async () => {
     validationErrors.value = {};
     paramsValid.value = true;
     
-    messageStore.success('成功从查询加载参数配置');
+    messageStore.success(`成功从查询加载${parameters.length}个参数配置`);
   } catch (error) {
     console.error('加载查询参数失败', error);
-    messageStore.error('加载查询参数失败');
+    messageStore.error(`加载查询参数失败: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
@@ -1944,6 +1958,22 @@ const previewIntegration = async () => {
     console.log('正在跳转到预览页面:', previewUrl, '集成ID:', integration.id);
     router.push(previewUrl);
   }
+};
+
+// 添加数据源选择处理函数
+const handleDataSourceSelected = (id: string, dataSource: any) => {
+  console.log(`数据源已选择: ${id}`, dataSource);
+  
+  // 如果当前选择的查询不属于新选择的数据源，清空查询选择
+  if (integration.queryId) {
+    // 如果已有查询，检查是否需要清空
+    // 实际应用中可能需要验证查询是否属于该数据源，这里简单处理为选择数据源时清空查询
+    integration.queryId = '';
+  }
+  
+  // 清空参数
+  queryParams.value = [];
+  paramValues.value = {};
 };
 </script>
 

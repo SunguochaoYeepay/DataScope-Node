@@ -80,7 +80,7 @@ class MetadataController {
       next(error);
     }
   }
-
+  
   /**
    * 获取数据源的元数据结构
    */
@@ -144,15 +144,15 @@ class MetadataController {
         
         // 预览表数据
         const data = await connector.previewTableData(schemaName, tableName, limit);
-        
-        res.status(200).json({
-          success: true,
+      
+      res.status(200).json({
+        success: true,
           data
-        });
-      } catch (error: any) {
-        next(error);
-      }
+      });
+    } catch (error: any) {
+      next(error);
     }
+  }
   ];
 
   /**
@@ -326,8 +326,8 @@ class MetadataController {
       }
       
       // 返回结构
-      res.status(200).json({
-        success: true,
+        res.status(200).json({
+          success: true,
         data: structure
       });
     } catch (error) {
@@ -424,7 +424,7 @@ class MetadataController {
       
       // 返回表详情
       res.status(200).json({
-        success: true,
+              success: true,
         data: {
           name: table,
           schema: schema || null,
@@ -484,7 +484,7 @@ class MetadataController {
       success: true,
         data: tables
       });
-    } catch (error) {
+          } catch (error) {
       logger.error('获取表列表失败', { error });
       return next(error);
     }
@@ -514,14 +514,14 @@ class MetadataController {
       const structure = await metadataService.getTableStructure(dataSourceId, tableName);
       
       res.status(200).json({
-        success: true,
+          success: true,
         data: structure
-      });
+        });
     } catch (error: any) {
       next(error);
     }
   }
-
+  
   /**
    * 获取数据源的统计信息
    */
@@ -643,8 +643,8 @@ class MetadataController {
         const [columns] = await connection.query(`SHOW COLUMNS FROM ${tableName}`);
         
         res.json({
-          success: true,
-          data: {
+        success: true,
+        data: {
             items: rows,
             columns,
             pagination: {
@@ -798,7 +798,7 @@ class QueryController {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
           return res.status(400).json({
-            success: false,
+        success: false,
             message: '请求参数验证失败',
             errors: errors.array()
           });
@@ -840,9 +840,43 @@ class QueryController {
    */
   async executeQuery(req: Request, res: Response) {
     try {
-      logger.debug('收到执行查询请求', { ...req.body });
+      logger.debug('收到执行查询请求', { body: req.body, params: req.params });
 
-      const { dataSourceId, sql, params = [], explainQuery } = req.body;
+      // 检查是否是通过ID执行查询
+      const { id } = req.params;
+      let dataSourceId, sql, params = [];
+
+      if (id) {
+        // 如果是通过ID执行，先获取查询详情
+        logger.info(`通过ID执行查询: ${id}`);
+        try {
+          const query = await queryService.getQueryById(id);
+          if (!query) {
+            return res.status(404).json({
+              success: false,
+              message: `查询不存在: ${id}`
+            });
+          }
+          
+          dataSourceId = query.dataSourceId;
+          sql = query.sqlContent;
+          params = req.body.params || [];
+          
+          logger.info(`成功获取查询: ${id}`, { 
+            queryName: query.name,
+            dataSourceId
+          });
+        } catch (error: any) {
+          logger.error(`获取查询失败: ${id}`, { error });
+          return res.status(404).json({
+            success: false,
+            message: `获取查询失败: ${error.message}`
+          });
+        }
+      } else {
+        // 直接执行方式
+        ({ dataSourceId, sql, params = [] } = req.body);
+      }
       
       // 验证必要参数
       if (!dataSourceId || !sql) {
@@ -861,6 +895,7 @@ class QueryController {
       const order = req.body.order;
 
       // 如果是执行计划请求
+      const explainQuery = req.body.explainQuery;
       if (explainQuery === true) {
         const plan = await queryService.explainQuery(dataSourceId, sql, params);
         return res.status(200).json({
@@ -877,7 +912,7 @@ class QueryController {
         limit,
         sort,
         order,
-        queryId: req.body.queryId,
+        queryId: id || req.body.queryId,
         createHistory: req.body.createHistory !== false // 默认创建历史记录
       };
 
@@ -931,7 +966,7 @@ class QueryController {
       logger.error('获取查询列表失败', { error });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+            success: false,
         message: error.message || '获取查询列表失败'
       });
     }
@@ -969,7 +1004,7 @@ class QueryController {
       logger.error('保存查询失败', { error });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+            success: false,
         message: error.message || '保存查询失败'
       });
     }
@@ -1050,7 +1085,28 @@ class QueryController {
   async updateQuery(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { name, sql, description, tags, isPublic, dataSourceId, status, serviceStatus } = req.body;
+      // 兼容处理不同的参数名
+      const {
+        name,
+        sql, sqlContent, 
+        description,
+        tags,
+        isPublic,
+        dataSourceId,
+        status,
+        serviceStatus
+      } = req.body;
+
+      // 添加ID格式调试信息
+      console.log(`[调试] 接收到更新请求: ID=${id}`, {
+        idLength: id.length,
+        isUUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id),
+        params: req.params,
+        route: req.route,
+        path: req.path,
+        originalUrl: req.originalUrl,
+        bodyKeys: Object.keys(req.body || {})
+      });
       
       if (!id) {
         return res.status(400).json({
@@ -1059,26 +1115,33 @@ class QueryController {
         });
       }
       
-      const updatedQuery = await queryService.updateQuery(id, {
-        name,
-        sql,
-        description,
-        tags,
-        isPublic,
-        dataSourceId,
-        status,
-        serviceStatus
-      });
+      // 获取用户ID，如果不存在则使用system
+      const userId = (req as any).user?.id || 'system';
       
+      // 处理SQL字段的兼容性问题
+      const finalSql = sql || sqlContent;
+      
+        const updatedQuery = await queryService.updateQuery(id, {
+          name,
+        sql: finalSql,
+          description,
+        tags: Array.isArray(tags) ? tags : (tags ? [tags] : undefined),
+          isPublic,
+          dataSourceId,
+          status,
+        serviceStatus,
+        updatedBy: userId
+        });
+
       res.status(200).json({
-        success: true,
-        data: updatedQuery
-      });
-    } catch (error: any) {
+          success: true,
+          data: updatedQuery
+        });
+      } catch (error: any) {
       logger.error('更新查询失败', { error, id: req.params.id });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+          success: false,
         message: error.message || '更新查询失败'
       });
     }
@@ -1108,7 +1171,7 @@ class QueryController {
       logger.error('删除查询失败', { error, id: req.params.id });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+            success: false,
         message: error.message || '删除查询失败'
       });
     }
@@ -1129,9 +1192,9 @@ class QueryController {
       );
       
       res.status(200).json({
-        success: true,
+          success: true,
         data: history
-      });
+        });
     } catch (error: any) {
       logger.error('获取查询历史记录失败', { error });
       
@@ -1181,7 +1244,7 @@ class QueryController {
       
       if (!id) {
         return res.status(400).json({
-          success: false,
+            success: false,
           message: '查询历史记录ID不能为空'
         });
       }
@@ -1196,7 +1259,7 @@ class QueryController {
       logger.error('删除查询历史记录失败', { error, id: req.params.id });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+          success: false,
         message: error.message || '删除查询历史记录失败'
       });
     }
@@ -1222,7 +1285,7 @@ class QueryController {
       logger.error('清除临时查询历史记录失败', { error });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+          success: false,
         message: error.message || '清除临时查询历史记录失败'
       });
     }
@@ -1253,7 +1316,7 @@ class QueryController {
       logger.error('取消查询失败', { error, id: req.params.id });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+            success: false,
         message: error.message || '取消查询失败'
       });
     }
@@ -1320,7 +1383,7 @@ class QueryController {
       logger.error('获取查询执行计划历史失败', { error });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+          success: false,
         message: error.message || '获取查询执行计划历史失败'
       });
     }
@@ -1350,7 +1413,7 @@ class QueryController {
       logger.error('解释查询失败', { error });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+            success: false,
         message: error.message || '解释查询失败'
       });
     }
@@ -1441,8 +1504,123 @@ class QueryController {
       logger.error('获取收藏查询列表失败', { error });
       
       res.status(error.statusCode || 500).json({
-        success: false,
+          success: false,
         message: error.message || '获取收藏查询列表失败'
+      });
+    }
+  }
+
+  /**
+   * 获取查询的参数列表
+   * @param req 请求对象
+   * @param res 响应对象
+   */
+  async getQueryParameters(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      logger.info(`获取查询参数: ${id}`);
+
+      // 1. 获取查询详情
+      const query = await prisma.query.findUnique({
+        where: { id }
+      });
+
+      if (!query) {
+        return res.status(404).json({
+          success: false,
+          message: `查询ID为 ${id} 的记录不存在`
+        });
+      }
+
+      // 2. 获取当前版本的SQL内容
+      let sqlContent = query.sqlContent;
+      
+      // 如果存在当前版本ID，则优先使用当前版本的SQL
+      if (query.currentVersionId) {
+        const currentVersion = await prisma.queryVersion.findUnique({
+          where: { id: query.currentVersionId }
+        });
+        
+        if (currentVersion) {
+          sqlContent = currentVersion.sqlContent;
+        }
+      }
+
+      // 3. 分析SQL中的参数 - 查找:paramName格式的参数
+      const paramRegex = /:[a-zA-Z][a-zA-Z0-9_]*/g;
+      const matches = sqlContent.match(paramRegex) || [];
+      const uniqueParams = [...new Set(matches)];
+
+      // 4. 构建参数列表
+      const parameters = uniqueParams.map(param => {
+        // 去掉参数名前面的冒号
+        const paramName = param.substring(1);
+        
+        // 判断参数类型 (基于简单的名称规则推断)
+        let paramType = 'string';
+        let paramFormat = 'string';
+        
+        if (paramName.toLowerCase().includes('date')) {
+          paramType = 'date';
+          paramFormat = 'date';
+        } else if (paramName.toLowerCase().includes('time')) {
+          paramType = 'date';
+          paramFormat = 'date-time';
+        } else if (
+          paramName.toLowerCase().includes('count') ||
+          paramName.toLowerCase().includes('id') ||
+          paramName.toLowerCase().includes('number')
+        ) {
+          paramType = 'number';
+          paramFormat = 'int';
+        } else if (
+          paramName.toLowerCase().includes('amount') ||
+          paramName.toLowerCase().includes('price') ||
+          paramName.toLowerCase().includes('cost')
+        ) {
+          paramType = 'number';
+          paramFormat = 'decimal';
+        } else if (
+          paramName.toLowerCase().includes('is') ||
+          paramName.toLowerCase().includes('has') ||
+          paramName.toLowerCase().includes('enable')
+        ) {
+          paramType = 'boolean';
+          paramFormat = 'boolean';
+        } else if (
+          paramName.toLowerCase().includes('status') ||
+          paramName.toLowerCase().includes('type') ||
+          paramName.toLowerCase().includes('category')
+        ) {
+          paramType = 'string';
+          paramFormat = 'enum';
+        }
+        
+        return {
+          name: paramName,
+          type: paramType,
+          format: paramFormat,
+          formType: paramType === 'date' ? 'date' : 
+                    paramFormat === 'enum' ? 'select' : 'text',
+          required: true, // 默认所有参数都是必需的
+          description: `${paramName.charAt(0).toUpperCase() + paramName.slice(1).replace(/([A-Z])/g, ' $1')}`,
+          isNewParam: false,
+          defaultValue: paramType === 'date' ? new Date().toISOString().split('T')[0] :
+                        paramType === 'number' ? 0 :
+                        paramType === 'boolean' ? false : '',
+          displayOrder: 0
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: parameters
+      });
+    } catch (error) {
+      logger.error('获取查询参数失败', error);
+      return res.status(500).json({
+        success: false,
+        message: '获取查询参数失败'
       });
     }
   }

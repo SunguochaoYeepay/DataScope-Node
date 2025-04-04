@@ -32,6 +32,9 @@ const loading = ref(false);
 const searchText = ref('');
 const selectedQueryId = ref(props.modelValue || '');
 
+// 添加下拉状态
+const isDropdownOpen = ref(false);
+
 // 计算属性
 const filteredQueries = computed(() => {
   let result = queries.value;
@@ -91,8 +94,16 @@ watch(() => props.dataSourceId, (newValue, oldValue) => {
 }, { immediate: false });
 
 // 生命周期钩子
-onMounted(async () => {
-  await loadQueries();
+onMounted(() => {
+  document.addEventListener('click', (event) => {
+    const dropdownEl = document.querySelector('.query-selector .input-with-dropdown');
+    if (dropdownEl && !dropdownEl.contains(event.target as Node)) {
+      isDropdownOpen.value = false;
+    }
+  });
+  
+  // 原有的加载查询
+  loadQueries();
 });
 
 // 加载查询列表
@@ -150,10 +161,17 @@ const refreshQueries = async () => {
   await loadQueries();
 };
 
-// 查询选择变更处理
-const handleQueryChange = (event: Event) => {
-  const target = event.target as HTMLSelectElement;
-  selectedQueryId.value = target.value;
+// 切换下拉菜单状态
+const toggleDropdown = () => {
+  if (!props.disabled && !loading.value && !(props.dataSourceId && filteredQueries.value.length === 0)) {
+    isDropdownOpen.value = !isDropdownOpen.value;
+  }
+};
+
+// 选择查询
+const selectQuery = (queryId: string) => {
+  selectedQueryId.value = queryId;
+  isDropdownOpen.value = false;
 };
 </script>
 
@@ -165,56 +183,75 @@ const handleQueryChange = (event: Event) => {
     </label>
     
     <div class="relative">
-      <div v-if="loading" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-        <i class="fas fa-circle-notch fa-spin text-gray-400"></i>
-      </div>
-      
-      <select
-        :value="selectedQueryId"
-        @change="handleQueryChange"
-        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        :class="{ 'pr-10': loading, 'border-red-300': props.error }"
-        :placeholder="props.placeholder || '请选择数据查询'"
-        :disabled="!!props.disabled || loading || !!(props.dataSourceId && filteredQueries.length === 0)"
-      >
-        <option value="">{{ props.dataSourceId && filteredQueries.length === 0 ? '当前数据源没有可用查询' : '请选择数据查询' }}</option>
-        <option 
-          v-for="query in filteredQueries" 
-          :key="query.id" 
-          :value="query.id"
-        >
-          {{ query.name }}
-        </option>
-      </select>
-      
-      <div v-if="!loading" class="absolute inset-y-0 right-0 pr-3 flex items-center">
-        <button 
-          type="button" 
-          @click="refreshQueries"
-          class="text-gray-400 hover:text-gray-500 focus:outline-none"
-          title="刷新查询列表"
-        >
-          <i class="fas fa-sync-alt"></i>
-        </button>
+      <div class="input-with-dropdown">
+        <input
+          :value="filteredQueries.find(q => q.id === selectedQueryId)?.name || ''"
+          type="text"
+          readonly
+          class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm cursor-pointer"
+          :class="{ 'border-red-300': props.error }"
+          :placeholder="props.placeholder || '请选择数据查询'"
+          :disabled="!!props.disabled || loading || !!(props.dataSourceId && filteredQueries.length === 0)"
+          @click="toggleDropdown"
+        />
+        <div class="absolute inset-y-0 right-2 flex items-center">
+          <div v-if="loading" class="pointer-events-none">
+            <i class="fas fa-circle-notch fa-spin text-gray-400"></i>
+          </div>
+          <button 
+            v-else
+            type="button" 
+            class="text-gray-400 hover:text-gray-500 focus:outline-none mr-1"
+            @click="refreshQueries"
+            title="刷新查询列表"
+          >
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <i class="fas fa-chevron-down text-gray-400"></i>
+        </div>
+        
+        <div v-if="isDropdownOpen" class="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+          <div v-if="filteredQueries.length === 0" class="p-3 text-sm text-gray-500 text-center">
+            {{ loading ? '加载中...' : props.dataSourceId ? '当前数据源没有可用查询' : '请先选择数据源' }}
+          </div>
+          <ul v-else class="py-1">
+            <li
+              v-for="query in filteredQueries"
+              :key="query.id"
+              class="px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+              :class="{ 'bg-indigo-50': query.id === selectedQueryId }"
+              @click="selectQuery(query.id)"
+            >
+              {{ query.name }}
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
     
     <div v-if="props.error" class="mt-1 text-sm text-red-600">
       {{ props.error }}
     </div>
-    
-    <div v-if="selectedQueryId && queries.length > 0" class="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
-      <div v-if="filteredQueries.find(q => q.id === selectedQueryId)" class="text-sm">
-        <div class="font-medium text-gray-700">
-          {{ filteredQueries.find(q => q.id === selectedQueryId)?.name }}
-        </div>
-        <div v-if="filteredQueries.find(q => q.id === selectedQueryId)?.description" class="text-gray-500 mt-1">
-          {{ filteredQueries.find(q => q.id === selectedQueryId)?.description }}
-        </div>
-        <div class="text-xs text-gray-500 mt-2">
-          ID: {{ selectedQueryId }}
-        </div>
-      </div>
-    </div>
   </div>
 </template>
+
+<style scoped>
+.query-selector {
+  margin-bottom: 0;
+  position: relative;
+}
+
+.input-with-dropdown {
+  position: relative;
+}
+
+input[readonly] {
+  cursor: pointer;
+  background-color: #fff;
+}
+
+input[readonly]:disabled {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+}
+</style>

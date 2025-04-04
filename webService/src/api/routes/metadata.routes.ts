@@ -113,6 +113,15 @@ router.post(
   metadataController.syncMetadata
 );
 
+// 添加一个根路由，返回健康状态
+router.get('/', (req, res) => {
+  return res.json({
+    success: true,
+    message: '元数据服务正常运行',
+    status: 'healthy'
+  });
+});
+
 /**
  * @swagger
  * /api/metadata/datasources/{dataSourceId}/structure:

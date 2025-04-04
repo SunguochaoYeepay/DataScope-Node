@@ -918,6 +918,21 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
   
+  /**
+   * 获取查询参数列表
+   * @param queryId - 查询ID
+   * @returns 查询参数列表
+   */
+  const getQueryParameters = async (queryId: string): Promise<any[]> => {
+    try {
+      return await queryService.getQueryParameters(queryId);
+    } catch (error) {
+      console.error('获取查询参数失败:', error);
+      messageService.error(`获取查询参数失败: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    }
+  };
+  
   return {
     // 状态
     queries,
@@ -965,7 +980,8 @@ export const useQueryStore = defineStore('query', () => {
     setCurrentQueryText,
     fetchQueries,
     deleteQueryHistory,
-    updateQueryStatus
+    updateQueryStatus,
+    getQueryParameters
   }
 })
 

@@ -26,8 +26,8 @@ const createConfirm = (config: ConfirmModalConfig, type: string) => {
   
   // 创建组件
   const vnode = createVNode(ConfirmModal, {
-    visible: visible.value,
-    'onUpdate:visible': (value: boolean) => {
+    open: visible.value,
+    'onUpdate:open': (value: boolean) => {
       visible.value = value
       if (!value) {
         setTimeout(() => {

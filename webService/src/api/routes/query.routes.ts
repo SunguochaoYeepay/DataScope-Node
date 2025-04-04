@@ -6,6 +6,10 @@ import { QueryPlanController } from '../controllers/query-plan.controller';
 import planVisualizationController from '../controllers/plan-visualization.controller';
 import { validate } from '../../utils/validate';
 import { authenticate } from '../../middleware/auth';
+import { param } from 'express-validator';
+import * as queryVersionService from '../../services/query.service.version';
+import { asyncHandler } from '../../middlewares/async-handler';
+import logger from '../../utils/logger';
 
 const router = Router();
 const queryPlanController = new QueryPlanController();
@@ -549,6 +553,62 @@ router.get('/:id', queryController.getQueryById);
 
 /**
  * @swagger
+ * /api/queries/{id}/execute:
+ *   post:
+ *     summary: 执行特定查询
+ *     description: 执行指定ID的已保存查询
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 查询ID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               params:
+ *                 type: object
+ *                 description: 查询参数
+ *               page:
+ *                 type: integer
+ *                 description: 页码(从1开始)
+ *               pageSize:
+ *                 type: integer
+ *                 description: 每页记录数
+ *               offset:
+ *                 type: integer
+ *                 description: 偏移量(可替代page)
+ *               limit:
+ *                 type: integer
+ *                 description: 限制数量(可替代pageSize)
+ *               sort:
+ *                 type: string
+ *                 description: 排序字段
+ *               order:
+ *                 type: string
+ *                 enum: [asc, desc]
+ *                 description: 排序方向
+ *     responses:
+ *       200:
+ *         description: 查询执行结果
+ *       400:
+ *         description: 参数错误
+ *       404:
+ *         description: 查询不存在
+ *       500:
+ *         description: 服务器错误
+ */
+router.post('/:id/execute', [
+  check('id').not().isEmpty().withMessage('查询ID不能为空'),
+], queryController.executeQuery);
+
+/**
+ * @swagger
  * /api/queries/{id}/cancel:
  *   post:
  *     summary: 取消正在执行的查询
@@ -566,13 +626,9 @@ router.get('/:id', queryController.getQueryById);
  *       404:
  *         description: 查询不存在
  */
-router.post(
-  '/:id/cancel',
-  [
-    check('id').not().isEmpty().withMessage('查询ID不能为空'),
-  ],
-  queryController.cancelQuery
-);
+router.post('/:id/cancel', [
+  check('id').not().isEmpty().withMessage('查询ID不能为空'),
+], queryController.cancelQuery);
 
 /**
  * @swagger
@@ -773,5 +829,204 @@ router.post('/:id/favorite', queryController.favoriteQuery);
  *         description: 查询不存在
  */
 router.delete('/:id/favorite', queryController.unfavoriteQuery);
+
+/**
+ * @swagger
+ * /api/queries/{id}/parameters:
+ *   get:
+ *     summary: 获取查询的参数列表
+ *     tags: [Queries]
+ *     description: 返回指定查询的参数列表，包括参数名、类型、描述等信息
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: 查询ID
+ *     responses:
+ *       200:
+ *         description: 成功获取查询参数
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                         description: 参数名称
+ *                       type:
+ *                         type: string
+ *                         description: 参数类型
+ *                       format:
+ *                         type: string
+ *                         description: 参数格式
+ *                       required:
+ *                         type: boolean
+ *                         description: 是否必填
+ *                       description:
+ *                         type: string
+ *                         description: 参数描述
+ *       404:
+ *         description: 查询不存在
+ *       401:
+ *         description: 未授权访问
+ *       500:
+ *         description: 服务器错误
+ */
+router.get(
+  '/:id/parameters',
+  validate([
+    param('id').notEmpty().withMessage('查询ID不能为空'),
+  ]),
+  queryController.getQueryParameters
+);
+
+/**
+ * @swagger
+ * /api/queries/{id}/versions:
+ *   post:
+ *     summary: 创建查询版本
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: 查询ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               sqlContent:
+ *                 type: string
+ *                 description: SQL查询语句
+ *               dataSourceId:
+ *                 type: string
+ *                 description: 数据源ID
+ *               description:
+ *                 type: string
+ *                 description: 版本描述
+ *             required:
+ *               - sqlContent
+ *               - dataSourceId
+ *     responses:
+ *       200:
+ *         description: 创建的版本信息
+ *       404:
+ *         description: 查询不存在
+ *       400:
+ *         description: 请求参数错误
+ */
+router.post('/:queryId/versions', asyncHandler(async (req: Request, res: Response) => {
+  const { queryId } = req.params;
+  const versionData = req.body;
+  
+  logger.info(`创建查询版本，查询ID: ${queryId}`, { 
+    body: req.body,
+    url: req.originalUrl
+  });
+  
+  try {
+    // 验证必要参数
+    if (!versionData.sqlContent) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少必要参数: SQL内容是必需的' 
+      });
+    }
+    
+    if (!versionData.dataSourceId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少必要参数: 数据源ID是必需的' 
+      });
+    }
+    
+    // 创建新版本
+    const newVersion = await queryVersionService.createVersion(queryId, versionData);
+    
+    logger.info(`版本创建成功，查询ID: ${queryId}, 版本ID: ${newVersion.id}`);
+    return res.status(201).json({ success: true, data: newVersion });
+  } catch (error: any) {
+    logger.error(`创建查询版本失败，查询ID: ${queryId}`, error);
+    
+    if (error.message && error.message.includes('查询不存在')) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `查询不存在: ${queryId}` 
+      });
+    }
+    
+    // 其他错误统一返回500
+    return res.status(500).json({
+      success: false,
+      message: '创建查询版本失败',
+      error: error.message || '未知错误'
+    });
+  }
+}));
+
+/**
+ * @swagger
+ * /api/queries/{id}/versions:
+ *   get:
+ *     summary: 获取查询的所有版本
+ *     tags: [Queries]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: 查询ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: 每页数量
+ *     responses:
+ *       200:
+ *         description: 查询版本列表
+ *       404:
+ *         description: 查询不存在
+ */
+router.get('/:id/versions', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const page = parseInt(req.query.page as string) || 1;
+  const size = parseInt(req.query.size as string) || 50;
+  
+  logger.info(`获取查询版本，查询ID: ${id}，page: ${page}, size: ${size}`);
+  
+  try {
+    const versions = await queryVersionService.getVersionsPaginated(id, { page, size });
+    return res.json({ success: true, data: versions });
+  } catch (error) {
+    logger.error(`获取查询版本失败，查询ID: ${id}`, error);
+    throw error;
+  }
+}));
 
 export default router;

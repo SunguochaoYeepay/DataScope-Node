@@ -3,7 +3,6 @@
  */
 
 import axios from 'axios';
-// 使用兼容Axios 1.x版本的类型定义
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 // 兼容类型声明
@@ -22,10 +21,23 @@ declare module 'axios' {
   }
 }
 
+/**
+ * 获取API基础URL
+ * 如果环境变量中有VITE_API_BASE_URL，则使用环境变量的值
+ * 否则使用默认值 http://localhost:3100
+ */
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3100';
+
+/**
+ * 检查是否启用mock模式
+ */
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+console.log('API Service - Mock模式:', USE_MOCK ? '已启用' : '已禁用', 'API基础URL:', USE_MOCK ? '(使用Mock数据)' : BASE_URL);
+
 // 创建axios实例
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  timeout: 30000,
+  baseURL: USE_MOCK ? '' : BASE_URL,  // Mock模式下不设置baseURL，避免发起真实网络请求
+  timeout: 30000,  // 超时时间: 30秒
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,6 +54,13 @@ instance.interceptors.request.use(
       }
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // 如果启用了Mock模式，添加标记
+    if (USE_MOCK) {
+      config.headers = config.headers || {};
+      config.headers['X-Mock-Request'] = 'true';
+    }
+    
     return config;
   },
   (error) => {

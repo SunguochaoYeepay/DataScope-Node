@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Integration } from '@/types/integration';
+import type { Integration, IntegrationQuery } from '@/types/integration';
 import { api } from '@/services/api';
 import {
   getMockIntegrations,
@@ -254,20 +254,27 @@ export const useIntegrationStore = defineStore('integration', () => {
   };
   
   // 执行集成查询
-  const executeQuery = async (integrationId: string, params?: Record<string, any>) => {
+  const executeQuery = async (integrationId: string, params: Record<string, any> = {}): Promise<any> => {
     loading.value = true;
     error.value = null;
     
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await executeMockQuery(integrationId, params);
+        const mockParams: IntegrationQuery = {
+          sql: params.sql,
+          params: params.params,
+          options: params.options
+        };
+        const result = await executeMockQuery(integrationId, mockParams);
         return result;
       } else {
-        // 调用执行接口
-        const result = await api.post(`/api/data-service/query`, {
-          integrationId,
-          params: params || {}
+        // 调用执行接口 - 修改为正确的API路径和参数格式
+        const result = await api.post(`/api/queries/execute`, {
+          dataSourceId: params.dataSourceId, // 确保包含数据源ID
+          queryId: integrationId,
+          sql: params.sql,
+          params: params.params || []
         });
         
         return result.data;

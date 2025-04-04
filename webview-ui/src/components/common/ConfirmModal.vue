@@ -4,30 +4,30 @@ import type { ConfirmModalConfig } from '@/types/modal'
 
 // 定义组件属性
 const props = withDefaults(defineProps<{
-  visible: boolean
+  open: boolean
   config: ConfirmModalConfig
 }>(), {
-  visible: false
+  open: false
 })
 
 // 定义组件事件
 const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void
+  (e: 'update:open', value: boolean): void
   (e: 'ok'): void
   (e: 'cancel'): void
 }>()
 
 // 显示状态
-const localVisible = ref(props.visible)
+const localVisible = ref(props.open)
 
-// 监听visible属性变化
-watch(() => props.visible, (newVal) => {
+// 监听open属性变化
+watch(() => props.open, (newVal) => {
   localVisible.value = newVal
 })
 
 // 监听内部状态变化，同步到父组件
 watch(localVisible, (newVal) => {
-  emit('update:visible', newVal)
+  emit('update:open', newVal)
 })
 
 // 图标配置

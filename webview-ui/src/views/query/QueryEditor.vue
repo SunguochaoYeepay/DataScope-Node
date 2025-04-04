@@ -2,6 +2,16 @@
   <div class="container mx-auto px-4 py-6">
     <!-- 页面标题和操作按钮区域 -->
     <div class="page-header mb-6">
+      <!-- 错误提示区域 -->
+      <div v-if="errorMessage" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4 flex items-center justify-between">
+        <div class="flex items-center">
+          <i class="fas fa-exclamation-circle mr-2"></i>
+          <span>{{errorMessage}}</span>
+        </div>
+        <button @click="errorMessage = null" class="text-red-700 hover:text-red-900">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
       <div class="flex justify-between items-center">
         <h1 class="text-2xl font-bold text-gray-900">
           {{ currentQueryId ? '编辑查询' : '新增查询' }}
@@ -482,8 +492,8 @@
     <!-- 保存查询对话框 -->
     <SaveQueryModal
       v-if="isComponentMounted && isSaveModalVisible"
-      :visible="isSaveModalVisible"
-      @update:visible="isSaveModalVisible = $event"
+      :open="isSaveModalVisible"
+      @update:open="isSaveModalVisible = $event"
       :query="{
         id: currentQueryId || '',
         name: queryName || '未命名查询',
@@ -556,6 +566,7 @@ const builderQuery = ref('')
 const isExecuting = ref(false)
 const queryError = ref<string | null>(null)
 const statusMessage = ref<string | null>(null)
+const errorMessage = ref<string | null>(null) // 添加错误消息状态
 const currentQueryId = ref<string | null>(null)
 const isSaveModalVisible = ref(false)
 const isLoadingQuery = ref(false)
@@ -616,6 +627,11 @@ onMounted(async () => {
   isComponentMounted = true
   
   console.log('QueryEditor组件已挂载')
+  
+  // 检查URL中是否有错误消息参数
+  if (route.query.error) {
+    errorMessage.value = decodeURIComponent(route.query.error as string);
+  }
   
   // 使用JavaScript监听select元素变化，Vue的v-model可能未正确同步
   const selectElement = document.querySelector('select[v-model="selectedDataSourceId"]') as HTMLSelectElement;
@@ -1089,6 +1105,7 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   // 清除之前的错误信息
   queryError.value = null
   statusMessage.value = null
+  errorMessage.value = null
   
   // 记录选中的数据源ID，用于调试
   console.log('执行查询时的数据源ID:', selectedDataSourceId.value);
@@ -1109,6 +1126,7 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   
   // 基本验证
   if (!selectedDataSourceId.value) {
+    setErrorMessage('请选择数据源后再执行查询');
     message.error('请先选择数据源')
     queryError.value = '未选择数据源'
     statusMessage.value = '执行失败：未选择数据源'
@@ -1119,6 +1137,7 @@ const executeQuery = async (queryType: QueryType = 'SQL') => {
   const queryText = getQueryTextByType(queryType)
   
   if (!queryText || !queryText.trim()) {
+    setErrorMessage('请输入查询语句后再执行');
     message.error('请输入查询语句')
     queryError.value = '查询语句为空'
     statusMessage.value = '执行失败：查询语句为空'
@@ -1315,28 +1334,17 @@ const validateSqlQuery = (queryText: string): string | null => {
 
 // 处理查询错误
 const handleQueryError = (error: any) => {
-  console.error('查询执行失败:', error)
+  console.error('查询执行错误:', error)
+  const errorMsg = error instanceof Error ? error.message : (typeof error === 'string' ? error : '未知错误')
   
-  // 提取错误消息
-  let errorMessage = '执行查询时出错'
+  queryError.value = errorMsg
+  statusMessage.value = `执行失败：${errorMsg}`
   
-  if (error instanceof Error) {
-    errorMessage = error.message
-  } else if (typeof error === 'string') {
-    errorMessage = error
-  } else if (error && typeof error === 'object') {
-    errorMessage = error.message || error.error || JSON.stringify(error)
-  }
+  // 设置顶部错误消息
+  setErrorMessage(`执行查询失败: ${errorMsg}`);
   
-  // 设置错误状态
-  queryError.value = errorMessage
-  statusMessage.value = '查询执行失败'
-  
-  // 显示详细错误提示
-  message.error({
-    content: errorMessage,
-    duration: 5
-  })
+  // 显示错误提示
+  message.error(errorMsg)
 }
 
 // 根据查询类型获取查询文本
@@ -2125,6 +2133,22 @@ const lastDraftSaveTime = computed(() => {
 // 处理发布查询
 const publishQuery = async () => {
   try {
+    // 先清除之前的错误信息
+    errorMessage.value = null;
+    
+    // 验证必填项
+    if (!selectedDataSourceId.value) {
+      setErrorMessage('请选择数据源后再发布查询');
+      return;
+    }
+    
+    // 验证SQL查询或自然语言查询是否填写
+    const queryText = activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value;
+    if (!queryText || queryText.trim() === '') {
+      setErrorMessage('请输入查询内容后再发布');
+      return;
+    }
+    
     if (!currentQueryId.value) {
       message.error('请先保存查询再发布');
       return;
@@ -2206,14 +2230,30 @@ const publishQuery = async () => {
       throw new Error('激活版本失败: 返回数据不符合预期格式');
     }
     
-    // 获取激活后的查询对象
-    const activatedQuery = activateResponse.data;
-    if (!activatedQuery.id) {
-      console.error('激活查询数据格式不正确:', activatedQuery);
-      throw new Error('激活版本失败: 响应数据不符合预期格式');
+    // 兼容不同格式的响应数据
+    let activatedData = activateResponse.data;
+    
+    // 处理可能的包装响应结构
+    if (activateResponse.data.success && activateResponse.data.data) {
+      console.log('从success/data统一响应格式中获取数据');
+      activatedData = activateResponse.data.data;
     }
     
-    console.log('版本激活成功:', activatedQuery);
+    console.log('处理后的激活数据:', activatedData);
+    
+    // 验证数据有效性
+    if (!activatedData || (typeof activatedData === 'object' && !Object.keys(activatedData).length)) {
+      console.error('激活数据无效:', activatedData);
+      throw new Error('激活版本失败: 响应数据为空');
+    }
+    
+    // 确认数据中包含必要的信息
+    if (typeof activatedData === 'object' && !activatedData.id && !activatedData.queryId) {
+      console.error('激活数据格式不正确:', activatedData);
+      throw new Error('激活版本失败: 响应数据不包含必要信息');
+    }
+    
+    console.log('版本激活成功:', activatedData);
     
     message.success('查询发布成功');
     statusMessage.value = '查询发布成功，版本已激活';
@@ -2233,6 +2273,18 @@ const publishQuery = async () => {
     }, 5000);
   }
 };
+
+// 处理清除错误消息
+const clearErrorMessage = () => {
+  errorMessage.value = null;
+}
+
+// 设置错误消息
+const setErrorMessage = (error: string) => {
+  errorMessage.value = error;
+  // 自动在5秒后清除错误
+  setTimeout(clearErrorMessage, 5000);
+}
 
 </script>
 

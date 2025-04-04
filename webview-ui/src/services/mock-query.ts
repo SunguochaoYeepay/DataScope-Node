@@ -1,4 +1,4 @@
-import { Query, QueryResult } from '@/types/query';
+import type { Query, QueryParameter as TypeQueryParameter, QueryResult, QueryStatus, QueryType } from '@/types/query';
 
 // 查询参数类型定义
 export interface QueryParameter {
@@ -147,20 +147,68 @@ export function getMockQueryResult(
   };
 }
 
+// 将内部QueryParameter转换为TypeQueryParameter
+function convertToTypeQueryParameter(param: QueryParameter): TypeQueryParameter {
+  return {
+    id: `param-${Math.random().toString(36).substring(2, 9)}`,
+    name: param.name,
+    type: param.type,
+    required: param.required,
+    defaultValue: param.defaultValue,
+    label: param.description
+  };
+}
+
 // 获取模拟查询详情
 export function getMockQueryDetail(queryId: string): Query {
+  const timestamp = new Date().toISOString();
+  const parameters = getMockQueryParameters(queryId);
+  
   return {
     id: queryId,
     name: `查询 ${queryId}`,
     description: `这是查询 ${queryId} 的详细描述`,
     dataSourceId: 'ds-001',
-    queryType: 'SQL',
+    dataSourceName: '模拟数据源',
+    queryType: 'SQL' as QueryType,
     queryText: 'SELECT * FROM example_table',
-    status: 'COMPLETED',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdBy: 'user1',
-    parameters: getMockQueryParameters(queryId)
+    status: 'COMPLETED' as QueryStatus,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    createdBy: { id: 'user1', name: '测试用户' },
+    updatedBy: { id: 'user1', name: '测试用户' },
+    executionCount: Math.floor(Math.random() * 50),
+    isFavorite: Math.random() > 0.5,
+    isActive: true,
+    lastExecutedAt: timestamp,
+    resultCount: 100,
+    executionTime: Math.floor(Math.random() * 100) + 10,
+    serviceStatus: 'ENABLED',
+    tags: ['模拟', '测试'],
+    currentVersion: {
+      id: `ver-${queryId}-1`,
+      queryId: queryId,
+      versionNumber: 1,
+      name: '当前版本',
+      sql: 'SELECT * FROM example_table',
+      dataSourceId: 'ds-001',
+      status: 'PUBLISHED',
+      isLatest: true,
+      createdAt: timestamp,
+      parameters: parameters.map(convertToTypeQueryParameter)
+    },
+    versions: [{
+      id: `ver-${queryId}-1`,
+      queryId: queryId,
+      versionNumber: 1,
+      name: '当前版本',
+      sql: 'SELECT * FROM example_table',
+      dataSourceId: 'ds-001',
+      status: 'PUBLISHED',
+      isLatest: true,
+      createdAt: timestamp,
+      parameters: parameters.map(convertToTypeQueryParameter)
+    }]
   };
 }
 

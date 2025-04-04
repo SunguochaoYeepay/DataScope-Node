@@ -58,6 +58,24 @@ const loadMetadata = async () => {
   try {
     console.log('开始加载数据源元数据，dataSourceId:', dataSource.value.id)
     
+    // 检查是否处于Mock模式
+    const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true'
+    console.log('数据源详情组件 - Mock模式:', USE_MOCK ? '已启用' : '已禁用')
+    
+    if (USE_MOCK) {
+      console.log('使用Mock模式加载元数据')
+      // 在Mock模式下，使用store方法获取元数据
+      const metadata = await dataSourceStore.getDataSourceMetadata(dataSource.value.id)
+      if (metadata && Array.isArray(metadata.tables)) {
+        tables.value = metadata.tables
+        console.log('从store获取到的元数据:', tables.value.length, '张表')
+      } else {
+        tables.value = []
+        console.log('从store获取的元数据为空')
+      }
+      return
+    }
+    
     // 直接从API获取表列表
     try {
       const response = await fetch(`/api/metadata/${dataSource.value.id}/tables`)

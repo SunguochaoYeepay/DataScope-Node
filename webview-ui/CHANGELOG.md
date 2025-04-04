@@ -17,6 +17,13 @@
   - 所有分页接口使用统一的page/size参数
   - 所有列表响应使用统一的success+data+items+pagination结构
   - 增强字段兼容性，支持多种后端命名约定
+- 实现全局Mock模式
+  - 添加全局fetch拦截器，拦截所有API请求
+  - 添加全局axios拦截器，拦截并模拟所有ajax请求
+  - 防止Object.prototype污染，解决locale方法冲突
+  - 支持Mock模式下前端独立运行，无需后端服务
+  - 完整实现数据源、元数据、查询和集成相关API的Mock数据
+- 修复直接使用fetch函数调用后端API的问题
 
 ### 优化
 - 优化"保存查询"弹窗布局，采用更合理的行式设计
@@ -76,6 +83,49 @@
   - 通过智能字段映射确保不同版本API无缝工作
 
 ### 修复
+- 修复数据源连接测试功能在Mock模式下的问题
+  - 增强testConnection方法，支持Mock模式下的连接测试
+  - 增强testExistingConnection方法，支持Mock模式下的现有数据源连接测试
+  - 添加模拟延迟和服务器版本信息，提供更真实的测试体验
+  - 解决了404 Not Found错误，确保在Mock模式下可以正常工作
+- 修复数据源元数据同步功能在Mock模式下的404错误问题
+  - 增强syncMetadata方法，支持Mock模式下的元数据同步操作
+  - 添加模拟延迟和同步结果数据，提供更真实的同步体验
+  - 解决了同步元数据时出现的404 Not Found和JSON解析错误
+- 修复元数据浏览器组件在Mock模式下的解析错误问题
+  - 增强getTableMetadata方法，支持Mock模式下的表元数据获取
+  - 增强getTableColumns方法，支持Mock模式下的表列信息获取
+  - 解决了"SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON"错误
+  - 添加符合接口定义的模拟数据，确保类型安全
+- 修复表数据预览功能在Mock模式下的JSON解析错误问题
+  - 增强getTableDataPreview方法，支持Mock模式下的数据预览
+  - 添加模拟表格数据、列定义和分页信息
+  - 解决了"SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON"错误
+  - 实现了分页功能，支持动态生成不同页的数据
+- 修复查询版本功能在Mock模式下的404错误问题
+  - 增强versionService.getVersion方法，支持Mock模式下的版本详情获取
+  - 增强versionService中所有方法，包括getVersions、createVersion、updateVersion等
+  - 添加模拟版本数据和生成逻辑，支持版本的创建、更新、发布和废弃操作
+  - 解决了"GET /api/queries/versions/{id} 404 (Not Found)"错误
+- 修复确认对话框属性不匹配问题
+  - 修复ConfirmModal组件缺少required prop "open"的警告
+  - 将modal.ts中createConfirm方法传递的visible属性改为open属性
+  - 确保属性名称与组件期望的prop名称一致
+- 修复模块导入错误
+  - 删除对不存在的PaginatedResponse和PaginatedRequest类型的导入
+  - 解决"The requested module '/src/types/common.ts' does not provide an export named 'PaginatedRequest'"错误
+- 修复查询列表和查询详情页面错误
+  - 解决获取查询列表时出现 "SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON" 错误
+  - 修复查询详情页面加载时显示 "getQueryExecutionHistory is not a function" 的错误
+  - 完善了查询服务(queryService)实现，添加了缺失的 getQueryExecutionHistory 函数
+  - 增强了所有查询相关API在mock模式下的模拟数据支持，包括
+    - getQueries（获取查询列表）
+    - getQuery（获取单个查询详情）
+    - getQueryExecutionHistory（获取查询执行历史）
+    - getQueryPlan（获取查询执行计划）
+    - getQuerySuggestions（获取查询优化建议）
+    - getQueryVisualization（获取查询可视化配置）
+  - 提高了前端代码健壮性，确保在API错误情况下有合理的降级策略
 - 修复查询历史页分页显示问题
 - 修复删除查询后分页计算错误的问题
 - 解决执行查询后结果显示不完整的问题

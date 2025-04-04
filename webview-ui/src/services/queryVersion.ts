@@ -8,11 +8,58 @@ import type {
 import { getApiBaseUrl } from './query';
 import type { PageResponse } from '@/types/query';
 
+// 检查是否启用mock模式
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+console.log('查询版本服务 - Mock模式:', USE_MOCK ? '已启用' : '已禁用');
+
+// 模拟数据：查询版本
+const mockVersions: QueryVersion[] = Array.from({ length: 5 }, (_, i) => ({
+  id: `ver-query-1-${i + 1}`,
+  queryId: 'query-1',
+  versionNumber: i + 1,
+  queryText: `SELECT * FROM users WHERE id > ${i * 10}\nLIMIT 100;`,
+  status: i === 0 ? 'PUBLISHED' : (i === 4 ? 'DEPRECATED' : 'DRAFT') as QueryVersionStatus,
+  isActive: i === 0,
+  createdAt: new Date(Date.now() - (5 - i) * 86400000).toISOString(),
+  updatedAt: new Date(Date.now() - (5 - i) * 86400000 + 3600000).toISOString(),
+  publishedAt: i === 0 ? new Date(Date.now() - (5 - i) * 86400000 + 7200000).toISOString() : undefined,
+  deprecatedAt: i === 4 ? new Date().toISOString() : undefined,
+  dataSourceId: 'ds-1'
+}));
+
 // 版本服务
 export const versionService = {
   // 获取查询服务的版本列表
   async getVersions(params: GetVersionsParams): Promise<PageResponse<QueryVersion>> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据返回查询版本列表，查询ID: ${params.queryId}`);
+        
+        // 过滤版本数据
+        let filteredVersions = [...mockVersions];
+        
+        // 按状态过滤
+        if (params.status) {
+          filteredVersions = filteredVersions.filter(v => v.status === params.status);
+        }
+        
+        // 应用分页
+        const page = params.page || 1;
+        const size = params.size || 10;
+        const startIndex = (page - 1) * size;
+        const endIndex = Math.min(startIndex + size, filteredVersions.length);
+        
+        // 返回分页结果
+        return {
+          items: filteredVersions.slice(startIndex, endIndex),
+          total: filteredVersions.length,
+          page: page,
+          size: size,
+          totalPages: Math.ceil(filteredVersions.length / size)
+        };
+      }
+      
       // 构建查询参数
       const queryParams = new URLSearchParams();
       if (params.page) queryParams.append('page', params.page.toString());
@@ -49,6 +96,25 @@ export const versionService = {
   // 获取单个版本
   async getVersion(versionId: string): Promise<QueryVersion> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据返回查询版本详情，版本ID: ${versionId}`);
+        
+        // 查找模拟版本
+        const mockVersion = mockVersions.find(v => v.id === versionId);
+        
+        // 如果找不到版本，抛出错误
+        if (!mockVersion) {
+          throw new Error(`获取版本详情失败: 未找到版本 ${versionId}`);
+        }
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 返回找到的版本
+        return mockVersion;
+      }
+      
       const url = `${getApiBaseUrl()}/api/queries/versions/${versionId}`;
       
       const response = await fetch(url, {
@@ -83,7 +149,42 @@ export const versionService = {
   // 创建版本
   async createVersion(params: CreateVersionParams): Promise<QueryVersion> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据创建查询版本，查询ID: ${params.queryId}`);
+        
+        // 创建新的版本编号（当前最大版本号+1）
+        const maxVersionNumber = Math.max(...mockVersions
+          .filter(v => v.queryId === params.queryId)
+          .map(v => v.versionNumber), 0);
+        const newVersionNumber = maxVersionNumber + 1;
+        
+        // 创建新的模拟版本
+        const newVersion: QueryVersion = {
+          id: `ver-${params.queryId}-${newVersionNumber}`,
+          queryId: params.queryId,
+          versionNumber: newVersionNumber,
+          queryText: params.sqlContent,
+          status: 'DRAFT',
+          isActive: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          dataSourceId: params.dataSourceId
+        };
+        
+        // 添加到模拟数据中
+        mockVersions.push(newVersion);
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return newVersion;
+      }
+      
       const url = `${getApiBaseUrl()}/api/queries/${params.queryId}/versions`;
+      
+      console.log('创建版本，请求URL:', url);
+      console.log('创建版本，请求参数:', params);
       
       const response = await fetch(url, {
         method: 'POST',
@@ -92,15 +193,20 @@ export const versionService = {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          sqlContent: params.sqlContent
+          sqlContent: params.sqlContent,
+          dataSourceId: params.dataSourceId,
+          description: params.description || ''
         })
       });
       
       if (!response.ok) {
-        throw new Error(`创建版本失败: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('创建版本失败，状态码:', response.status, '错误信息:', errorText);
+        throw new Error(`创建版本失败: ${response.statusText} (${response.status})`);
       }
       
       const result = await response.json();
+      console.log('创建版本成功，返回结果:', result);
       return mapVersionFromApi(result.data);
     } catch (error) {
       console.error('创建版本失败:', error);
@@ -111,6 +217,31 @@ export const versionService = {
   // 更新版本
   async updateVersion(params: UpdateVersionParams): Promise<QueryVersion> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据更新查询版本，版本ID: ${params.id}`);
+        
+        // 查找模拟版本
+        const index = mockVersions.findIndex(v => v.id === params.id);
+        
+        // 如果找不到版本，抛出错误
+        if (index === -1) {
+          throw new Error(`更新版本失败: 未找到版本 ${params.id}`);
+        }
+        
+        // 更新版本
+        if (params.sqlContent) {
+          mockVersions[index].queryText = params.sqlContent;
+        }
+        
+        mockVersions[index].updatedAt = new Date().toISOString();
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return mockVersions[index];
+      }
+      
       const url = `${getApiBaseUrl()}/api/queries/versions/${params.id}`;
       
       const response = await fetch(url, {
@@ -139,6 +270,29 @@ export const versionService = {
   // 发布版本
   async publishVersion(versionId: string): Promise<QueryVersion> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据发布查询版本，版本ID: ${versionId}`);
+        
+        // 查找模拟版本
+        const index = mockVersions.findIndex(v => v.id === versionId);
+        
+        // 如果找不到版本，抛出错误
+        if (index === -1) {
+          throw new Error(`发布版本失败: 未找到版本 ${versionId}`);
+        }
+        
+        // 更新版本状态
+        mockVersions[index].status = 'PUBLISHED';
+        mockVersions[index].publishedAt = new Date().toISOString();
+        mockVersions[index].updatedAt = new Date().toISOString();
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return mockVersions[index];
+      }
+      
       const url = `${getApiBaseUrl()}/api/queries/versions/${versionId}/publish`;
       
       const response = await fetch(url, {
@@ -163,6 +317,34 @@ export const versionService = {
   // 废弃版本
   async deprecateVersion(versionId: string): Promise<QueryVersion> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据废弃查询版本，版本ID: ${versionId}`);
+        
+        // 查找模拟版本
+        const index = mockVersions.findIndex(v => v.id === versionId);
+        
+        // 如果找不到版本，抛出错误
+        if (index === -1) {
+          throw new Error(`废弃版本失败: 未找到版本 ${versionId}`);
+        }
+        
+        // 更新版本状态
+        mockVersions[index].status = 'DEPRECATED';
+        mockVersions[index].deprecatedAt = new Date().toISOString();
+        mockVersions[index].updatedAt = new Date().toISOString();
+        
+        // 如果该版本是活跃版本，取消活跃状态
+        if (mockVersions[index].isActive) {
+          mockVersions[index].isActive = false;
+        }
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return mockVersions[index];
+      }
+      
       const url = `${getApiBaseUrl()}/api/queries/versions/${versionId}/deprecate`;
       
       const response = await fetch(url, {
@@ -187,6 +369,33 @@ export const versionService = {
   // 设置活跃版本
   async activateVersion(queryId: string, versionId: string): Promise<{ success: boolean }> {
     try {
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据设置活跃版本，查询ID: ${queryId}, 版本ID: ${versionId}`);
+        
+        // 查找模拟版本
+        const index = mockVersions.findIndex(v => v.id === versionId);
+        
+        // 如果找不到版本，抛出错误
+        if (index === -1) {
+          throw new Error(`设置活跃版本失败: 未找到版本 ${versionId}`);
+        }
+        
+        // 先取消所有版本的活跃状态
+        mockVersions
+          .filter(v => v.queryId === queryId)
+          .forEach(v => v.isActive = false);
+        
+        // 设置新的活跃版本
+        mockVersions[index].isActive = true;
+        mockVersions[index].updatedAt = new Date().toISOString();
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        return { success: true };
+      }
+      
       const url = `${getApiBaseUrl()}/api/queries/${queryId}/versions/${versionId}/activate`;
       
       const response = await fetch(url, {
@@ -211,7 +420,55 @@ export const versionService = {
   // 执行版本
   async executeVersion(queryId: string, versionId: string, parameters?: any): Promise<any> {
     try {
-      const url = `${getApiBaseUrl()}/api/queries/${queryId}/versions/${versionId}/execute`;
+      // 检查是否使用模拟数据
+      if (USE_MOCK) {
+        console.log(`使用模拟数据执行查询版本，查询ID: ${queryId}, 版本ID: ${versionId}`);
+        
+        // 查找模拟版本
+        const version = mockVersions.find(v => v.id === versionId);
+        
+        // 如果找不到版本，抛出错误
+        if (!version) {
+          throw new Error(`执行版本失败: 未找到版本 ${versionId}`);
+        }
+        
+        // 模拟延迟
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 生成随机查询结果
+        const rowCount = Math.floor(Math.random() * 20) + 5;
+        const rows = Array.from({ length: rowCount }, (_, i) => ({
+          id: i + 1,
+          name: `Item ${i + 1}`,
+          created_at: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+          status: Math.random() > 0.3 ? 'active' : 'inactive',
+          value: Math.floor(Math.random() * 1000)
+        }));
+        
+        return {
+          success: true,
+          data: {
+            id: `execution-${Date.now()}`,
+            queryId: queryId,
+            versionId: versionId,
+            status: 'COMPLETED',
+            rowCount: rowCount,
+            executionTime: 125,
+            rows: rows,
+            columns: ['id', 'name', 'created_at', 'status', 'value'],
+            fields: [
+              { name: 'id', type: 'INTEGER' },
+              { name: 'name', type: 'VARCHAR' },
+              { name: 'created_at', type: 'TIMESTAMP' },
+              { name: 'status', type: 'VARCHAR' },
+              { name: 'value', type: 'INTEGER' }
+            ]
+          }
+        };
+      }
+      
+      // 修改为符合后端API的正确URL和参数格式
+      const url = `${getApiBaseUrl()}/api/queries/execute`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -219,7 +476,12 @@ export const versionService = {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ parameters })
+        body: JSON.stringify({
+          queryId,
+          versionId,
+          dataSourceId: parameters?.dataSourceId, // 确保包含数据源ID
+          params: parameters?.params || [] // 查询参数
+        })
       });
       
       if (!response.ok) {

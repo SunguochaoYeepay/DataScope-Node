@@ -376,10 +376,11 @@ const startResizeResultsPanel = (e: MouseEvent) => {
     <!-- 保存查询对话框 -->
     <SaveQueryModal
       v-if="isSaveModalVisible"
+      :open="isSaveModalVisible"
+      @update:open="isSaveModalVisible = $event"
       :query="activeTab === 'editor' ? sqlQuery : nlQuery"
       :query-type="activeTab === 'editor' ? 'SQL' : 'NATURAL_LANGUAGE'"
       @save="handleSaveQuery"
-      @close="isSaveModalVisible = false"
     />
   </div>
 </template>

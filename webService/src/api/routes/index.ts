@@ -6,6 +6,9 @@ import integrationRoutes from './integration.routes';
 import metadataController from '../controllers/metadata.controller';
 import logger from '../../utils/logger';
 import queryVersionRoutes from '../../routes/query-version.routes';
+import queryController from '../controllers/query.controller';
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
 
 const router = Router();
 
@@ -31,6 +34,11 @@ router.get('/', (req, res) => {
 // Register routes
 logger.info('Loading API routes...');
 
+// 路由注册的正确方式：
+// 1. 在子路由模块中使用相对路径（不包含API前缀）
+// 2. 在这里注册时添加完整前缀
+// 3. 避免路由路径重复定义
+
 // Data source routes - /api/datasources/*
 router.use('/datasources', dataSourceRoutes);
 logger.info('Loaded data source routes');
@@ -39,8 +47,8 @@ logger.info('Loaded data source routes');
 router.use('/queries', queryRoutes);
 logger.info('Loaded query routes');
 
-// Query version routes - /api/queries/:queryId/versions
-router.use('/queries/:queryId/versions', queryVersionRoutes);
+// 查询版本路由 - /api/queries/versions/*
+router.use('/queries/versions', queryVersionRoutes);
 logger.info('Loaded query version routes');
 
 // Metadata routes - /api/metadata/*
@@ -60,7 +68,7 @@ router.get('/', (req, res) => {
 console.log('加载API路由...');
 console.log('- 已加载数据源路由: /api/datasources');
 console.log('- 已加载查询路由: /api/queries');
-console.log('- 已加载查询版本路由: /api/queries/:queryId/versions');
+console.log('- 已加载查询版本路由: 直接注册到 /api/queries/versions');
 console.log('- 已加载元数据路由: /api/metadata');
 console.log('- 已加载系统集成路由: /api/low-code/apis');
 

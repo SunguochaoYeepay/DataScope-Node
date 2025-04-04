@@ -517,22 +517,71 @@ export class DataSourceService {
     // 获取解密后的密码
     const password = this.decryptPassword(dataSource.passwordEncrypted, dataSource.passwordSalt);
     
+    // 记录数据源字段信息
+    logger.debug('数据源对象字段信息', {
+      dataSourceId: dataSource.id,
+      host: dataSource.host,
+      port: dataSource.port,
+      username: dataSource.username,
+      databaseName: dataSource.databaseName,
+      hasPassword: !!password,
+      dataSourceFields: Object.keys(dataSource)
+    });
+    
     // 检查缓存中是否有连接器
     if (connectorCache.has(dataSource.id)) {
       logger.debug('从缓存获取数据库连接器', { dataSourceId: dataSource.id });
       return connectorCache.get(dataSource.id)!;
     }
     
+    // 确保用户名不为空
+    const effectiveUsername = dataSource.username || 'root';
+    if (!dataSource.username) {
+      logger.warn('数据源用户名为空，使用默认值"root"', { 
+        dataSourceId: dataSource.id,
+        host: dataSource.host,
+        effectiveUsername
+      });
+    }
+    
+    // 确保数据库名不为空
+    const effectiveDatabase = dataSource.databaseName || 'mysql';
+    if (!dataSource.databaseName) {
+      logger.warn('数据库名为空，使用默认值"mysql"', {
+        dataSourceId: dataSource.id,
+        host: dataSource.host,
+        effectiveDatabase
+      });
+    }
+    
+    // 创建连接参数对象
+    const connectionParams = {
+      host: dataSource.host,
+      port: dataSource.port,
+      user: effectiveUsername,       // 主要用户名字段
+      username: effectiveUsername,   // 备用用户名字段，确保兼容性
+      password,
+      database: effectiveDatabase,   // 主要数据库名字段
+      databaseName: effectiveDatabase // 备用数据库名字段，确保兼容性
+    };
+    
+    // 记录详细的连接参数（不包含密码）
+    logger.info('创建数据库连接器，详细参数', {
+      dataSourceId: dataSource.id,
+      host: connectionParams.host,
+      port: connectionParams.port,
+      user: connectionParams.user,
+      username: connectionParams.username,
+      database: connectionParams.database,
+      databaseName: connectionParams.databaseName,
+      hasPassword: !!connectionParams.password,
+      databaseType: dataSource.type.toLowerCase()
+    });
+    
     return DatabaseConnectorFactory.createConnector(
       dataSource.id,
       dataSource.type.toLowerCase() as DatabaseType,
-      {
-        host: dataSource.host,
-        port: dataSource.port,
-        user: dataSource.username,
-        password,
-        database: dataSource.databaseName,
-      }
+      connectionParams
     ) as DatabaseConnector;
   }
   

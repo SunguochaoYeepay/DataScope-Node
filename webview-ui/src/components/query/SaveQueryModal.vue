@@ -5,14 +5,14 @@ import type { DataSource } from '@/types/datasource'
 
 // 定义组件属性
 const props = defineProps<{
-  visible: boolean
+  open: boolean
   query?: Partial<Query> | null
   dataSources: DataSource[]
 }>()
 
 // 定义组件事件
 const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void
+  (e: 'update:open', value: boolean): void
   (e: 'save', query: Partial<Query>): void
 }>()
 
@@ -43,9 +43,9 @@ const resetForm = () => {
   formData.description = ''
 }
 
-// 监听 visible 属性变化
-watch(() => props.visible, (visible) => {
-  if (visible) {
+// 监听 open 属性变化
+watch(() => props.open, (open) => {
+  if (open) {
     console.log('SaveQueryModal打开，接收到查询数据:', props.query);
     
     // 清除表单数据，避免旧数据残留
@@ -72,7 +72,7 @@ watch(() => props.visible, (visible) => {
 
 // 关闭对话框
 const handleClose = () => {
-  emit('update:visible', false)
+  emit('update:open', false)
 }
 
 // 验证表单
@@ -129,7 +129,7 @@ const handleSave = () => {
 </script>
 
 <template>
-  <div v-if="visible" class="fixed inset-0 flex items-center justify-center z-50">
+  <div v-if="open" class="fixed inset-0 flex items-center justify-center z-50">
     <!-- 背景遮罩 -->
     <div class="absolute inset-0 bg-black bg-opacity-50" @click="handleClose"></div>
     

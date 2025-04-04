@@ -201,7 +201,7 @@ export class IntegrationService {
   // 获取所有集成
   async getIntegrations() {
     try {
-      return prisma.integration.findMany();
+    return prisma.integration.findMany();
     } catch (error) {
       logger.error('获取集成列表失败', { error });
       throw ApiError.internal('获取集成列表失败', { originalError: error.message });
@@ -212,8 +212,8 @@ export class IntegrationService {
   async getIntegrationById(id: string) {
     try {
       const integration = await prisma.integration.findUnique({
-        where: { id }
-      });
+      where: { id }
+    });
       
       if (!integration) {
         throw ApiError.notFound(`ID为${id}的集成配置不存在`);
@@ -241,9 +241,9 @@ export class IntegrationService {
         throw ApiError.badRequest(`ID为${data.queryId}的查询不存在`);
       }
       
-      return prisma.integration.create({
-        data
-      });
+    return prisma.integration.create({
+      data
+    });
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -270,10 +270,10 @@ export class IntegrationService {
         }
       }
       
-      return prisma.integration.update({
-        where: { id },
-        data
-      });
+    return prisma.integration.update({
+      where: { id },
+      data
+    });
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -289,9 +289,9 @@ export class IntegrationService {
       // 检查集成是否存在
       await this.getIntegrationById(id);
       
-      return prisma.integration.delete({
-        where: { id }
-      });
+    return prisma.integration.delete({
+      where: { id }
+    });
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -304,8 +304,8 @@ export class IntegrationService {
   // 执行集成查询
   async executeQuery(integrationId: string, params: any, pagination?: any, sorting?: any) {
     try {
-      // 1. 获取集成配置
-      const integration = await this.getIntegrationById(integrationId);
+    // 1. 获取集成配置
+    const integration = await this.getIntegrationById(integrationId);
       
       // 2. 获取关联的查询信息
       const query = await prisma.query.findUnique({
@@ -320,8 +320,8 @@ export class IntegrationService {
       }
       
       // 3. 验证参数
-      this.validateParams(integration.config, params);
-      
+    this.validateParams(integration.config, params);
+
       // 4. 准备执行SQL
       // 获取SQL内容和数据源ID
       const sqlContent = query.sqlContent;
@@ -352,7 +352,7 @@ export class IntegrationService {
       }
       logger.error(`执行集成查询失败: ${integrationId}`, { 
         error, 
-        params, 
+      params,
         pagination,
         sorting
       });

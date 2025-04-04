@@ -214,19 +214,35 @@ const saveIntegration = async () => {
   try {
     let result;
     
+    // 准备保存的数据
+    const integrationData: any = {
+      name: integration.name,
+      description: integration.description,
+      queryId: integration.queryId,
+      dataSourceId: integration.dataSourceId || '',
+      type: integration.type,
+      status: integration.status || 'DRAFT',
+      // 使用原始结构，保持与API一致
+      integrationPoint: integration.integrationPoint
+    };
+    
+    // 根据类型添加对应的配置
+    if (integration.type === 'FORM') {
+      integrationData.formConfig = integration.formConfig;
+    } else if (integration.type === 'TABLE') {
+      integrationData.tableConfig = integration.tableConfig;
+    } else if (integration.type === 'CHART' && integration.chartConfig) {
+      integrationData.chartConfig = integration.chartConfig;
+    }
+    
+    // 添加查询参数
+    if (integration.queryParams && integration.queryParams.length > 0) {
+      integrationData.queryParams = integration.queryParams;
+    }
+    
     if (isCreateMode.value) {
       // 创建新集成
-      result = await integrationStore.createIntegration({
-        name: integration.name,
-        description: integration.description,
-        type: integration.type,
-        status: integration.status,
-        queryId: integration.queryId,
-        dataSourceId: integration.dataSourceId,
-        formConfig: integration.type === 'FORM' ? integration.formConfig : undefined,
-        tableConfig: integration.type === 'TABLE' ? integration.tableConfig : undefined,
-        integrationPoint: integration.integrationPoint
-      });
+      result = await integrationStore.createIntegration(integrationData);
       
       if (result) {
         message.success('创建集成成功');
@@ -234,25 +250,16 @@ const saveIntegration = async () => {
       }
     } else {
       // 更新现有集成
-      result = await integrationStore.updateIntegration(integration.id, {
-        name: integration.name,
-        description: integration.description,
-        type: integration.type,
-        status: integration.status,
-        queryId: integration.queryId,
-        dataSourceId: integration.dataSourceId,
-        formConfig: integration.type === 'FORM' ? integration.formConfig : undefined,
-        tableConfig: integration.type === 'TABLE' ? integration.tableConfig : undefined,
-        integrationPoint: integration.integrationPoint
-      });
+      result = await integrationStore.updateIntegration(integration.id, integrationData);
       
       if (result) {
         message.success('更新集成成功');
+        router.push('/integration');
       }
     }
   } catch (error) {
     console.error('保存集成失败', error);
-    message.error('保存集成失败');
+    message.error('保存集成失败，请检查输入并重试');
   }
 };
 
@@ -415,7 +422,7 @@ const handleDebugInfo = (info: any) => {
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <!-- 数据源选择 -->
-            <div class="md:col-span-2">
+            <div class="md:col-span-1">
               <DataSourceSelector
                 v-model="integration.dataSourceId"
                 label="数据源"
@@ -425,12 +432,12 @@ const handleDebugInfo = (info: any) => {
                 @selected="handleDataSourceSelected"
               />
               <div v-if="!integration.dataSourceId" class="mt-2 text-sm text-amber-600">
-                <i class="fas fa-info-circle mr-1"></i> 请先选择数据源，然后再选择查询
+                <i class="fas fa-info-circle mr-1"></i> 请先选择数据源
               </div>
             </div>
             
             <!-- 查询选择 -->
-            <div class="md:col-span-2">
+            <div class="md:col-span-1">
               <QuerySelector
                 v-model="integration.queryId"
                 label="数据查询"
@@ -442,12 +449,12 @@ const handleDebugInfo = (info: any) => {
                 @selected="handleQuerySelected"
               />
               <div v-if="integration.dataSourceId && !integration.queryId" class="mt-2 text-sm text-blue-600">
-                <i class="fas fa-lightbulb mr-1"></i> 提示：只有与所选数据源关联的查询才会显示在列表中
+                <i class="fas fa-lightbulb mr-1"></i> 只显示此数据源的查询
               </div>
             </div>
             
             <!-- 集成类型 -->
-            <div>
+            <div class="md:col-span-2">
               <label class="block text-sm font-medium text-gray-700 mb-1">
                 集成类型
               </label>

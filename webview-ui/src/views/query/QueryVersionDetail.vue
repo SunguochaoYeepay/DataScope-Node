@@ -416,7 +416,7 @@ type VersionStatus = 'DRAFT' | 'PUBLISHED' | 'DEPRECATED'
 const route = useRoute();
 const router = useRouter();
 const queryStore = useQueryStore();
-const message = useMessageStore();
+const messageStore = useMessageStore();
 
 // 从路由参数获取查询ID和版本ID
 const queryId = computed(() => route.params.id as string);
@@ -578,7 +578,10 @@ const loadExecutionPlan = async () => {
 // 查看执行详情
 const viewExecutionDetails = (executionId: string) => {
   console.log(`查看执行详情: ${executionId}`);
-  message.info('执行详情功能开发中...');
+  messageStore.addMessage({
+    type: 'info',
+    content: '执行详情功能开发中...'
+  });
 };
 
 // 设为活跃版本
@@ -588,26 +591,64 @@ const handleActivate = async () => {
     
     // 使用真实API调用激活版本
     if (!queryId.value || !versionId.value) {
-      message.error('无法激活版本：查询ID或版本ID为空');
+      messageStore.addMessage({
+        type: 'error',
+        content: '无法激活版本：查询ID或版本ID为空'
+      });
       return;
     }
     
-    const result = await versionService.activateVersion(queryId.value, versionId.value);
+    // 显示处理中状态
+    isLoading.value = true;
     
-    if (result && result.success) {
+    // 调用修改后的激活版本API，传递queryId和versionId
+    const response = await versionService.activateVersion(queryId.value, versionId.value);
+    
+    console.log('激活版本响应：', response);
+    
+    // 根据响应结果处理
+    if (response && response.success === true) {
       // 更新本地数据
       isActiveVersion.value = true;
       if (versionData.value) {
         versionData.value.isActive = true;
       }
       
-      message.success('已将当前版本设置为活跃版本');
+      messageStore.addMessage({
+        type: 'success',
+        content: '已将当前版本设置为活跃版本'
+      });
+      
+      // 显示提示
+      setTimeout(() => {
+        // 激活成功后跳转到查询列表页面
+        router.push('/queries');
+      }, 1500); // 延迟1.5秒后跳转，让用户能看到成功消息
     } else {
-      message.error('设置活跃版本失败，请稍后重试');
+      // 安全地访问可能不存在的属性
+      let errorMsg = '设置活跃版本失败，请稍后重试';
+      
+      // 检查对象结构和数据类型
+      if (response && typeof response === 'object') {
+        if ('message' in response && typeof response.message === 'string') {
+          errorMsg = response.message;
+        }
+      }
+        
+      messageStore.addMessage({
+        type: 'error',
+        content: `激活版本失败: ${errorMsg}`
+      });
     }
   } catch (error) {
-    console.error('Failed to activate version:', error);
-    message.error('设置活跃版本失败，请稍后重试');
+    console.error('激活版本失败:', error);
+    
+    messageStore.addMessage({
+      type: 'error',
+      content: `激活版本失败: ${error instanceof Error ? error.message : String(error)}`
+    });
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -710,7 +751,10 @@ const loadQueryResults = async () => {
 const executeQuery = async () => {
   if (!versionData.value || !versionData.value.queryText) {
     console.error('无法执行查询，查询内容为空');
-    message.error('无法执行查询，查询内容为空');
+    messageStore.addMessage({
+      type: 'error',
+      content: '无法执行查询，查询内容为空'
+    });
     return;
   }
   
@@ -742,10 +786,16 @@ const executeQuery = async () => {
     // 同时更新执行历史
     await loadExecutionHistory();
     
-    message.success('查询执行成功');
+    messageStore.addMessage({
+      type: 'success',
+      content: '查询执行成功'
+    });
   } catch (error) {
     console.error('查询执行失败:', error);
-    message.error(`查询执行失败: ${error instanceof Error ? error.message : String(error)}`);
+    messageStore.addMessage({
+      type: 'error',
+      content: `查询执行失败: ${error instanceof Error ? error.message : String(error)}`
+    });
   } finally {
     isExecuting.value = false;
   }
@@ -754,11 +804,17 @@ const executeQuery = async () => {
 // 导出结果
 const exportResults = (format: 'csv' | 'excel') => {
   if (!queryResults.value || queryResults.value.length === 0) {
-    message.error('无可导出的查询结果');
+    messageStore.addMessage({
+      type: 'error',
+      content: '无可导出的查询结果'
+    });
     return;
   }
   
-  message.success(`已开始导出查询结果为 ${format.toUpperCase()} 格式`);
+  messageStore.addMessage({
+    type: 'success',
+    content: `已开始导出查询结果为 ${format.toUpperCase()} 格式`
+  });
   
   // 这里应该实现实际的导出逻辑
   console.log(`导出结果为 ${format} 格式`);
@@ -798,11 +854,17 @@ const copyQueryText = () => {
   if (versionData.value?.queryText) {
     navigator.clipboard.writeText(versionData.value.queryText)
       .then(() => {
-        message.success('查询内容已复制到剪贴板');
+        messageStore.addMessage({
+          type: 'success',
+          content: '查询内容已复制到剪贴板'
+        });
       })
       .catch(err => {
         console.error('复制失败:', err);
-        message.error('复制失败，请手动选择并复制');
+        messageStore.addMessage({
+          type: 'error',
+          content: '复制失败，请手动选择并复制'
+        });
       });
   }
 };

@@ -201,12 +201,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { message, Modal } from 'ant-design-vue';
 import type { QueryVersion, QueryVersionStatus } from '@/types/queryVersion';
-import versionService from '@/services/queryVersion';
+import { versionService } from '@/services/versionService';
 import { useQueryStore } from '@/stores/query';
 import type { Query } from '@/types/query';
+import dayjs from 'dayjs';
 import axios from 'axios';
 
 const props = defineProps<{
@@ -315,25 +316,17 @@ const loadVersions = async () => {
   try {
     console.log('加载版本数据，查询ID:', props.queryId);
     
-    const versionApi = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '',
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    // 使用versionService加载版本数据，确保API路径一致
+    const versionsData = await versionService.getVersions(props.queryId);
     
-    console.log(`请求版本列表API: ${versionApi.defaults.baseURL}/api/query/version/management/${props.queryId}`);
-    const response = await versionApi.get(`/api/query/version/management/${props.queryId}`);
-    
-    if (response.data.success && Array.isArray(response.data.data)) {
-      console.log('API返回版本数据:', response.data.data);
-      versions.value = response.data.data;
+    console.log('版本服务返回数据:', versionsData);
+    if (Array.isArray(versionsData)) {
+      versions.value = versionsData;
       totalItems.value = versions.value.length;
       totalPages.value = Math.ceil(totalItems.value / pageSize.value);
       console.log('处理后的版本数据:', versions.value);
     } else {
-      console.error('API返回数据格式不正确:', response.data);
+      console.error('版本服务返回数据格式不正确:', versionsData);
       message.error('获取版本数据失败，请稍后重试');
       versions.value = [];
       totalItems.value = 0;
@@ -398,6 +391,8 @@ const publishVersion = (versionId: string) => {
     try {
       console.log('正在发布版本:', versionId);
       
+      // 这里需要实现versionService.publishVersion方法
+      // TODO: 暂时使用axios直接调用接口，后续应该添加到versionService中
       const versionApi = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '',
         timeout: 10000,
@@ -407,12 +402,17 @@ const publishVersion = (versionId: string) => {
       });
       
       // 调用发布版本的API
-      const response = await versionApi.post(`/api/query/version/management/${props.queryId}/publish/${versionId}`);
+      const response = await versionApi.post(`/api/queries/versions/management/${props.queryId}/publish/${versionId}`);
       
       if (response.data.success) {
         // 重新加载版本列表以获取最新状态
         await loadVersions();
         message.success('版本已成功发布');
+        
+        // 延迟1.5秒后跳转到查询列表页面
+        setTimeout(() => {
+          router.push('/queries');
+        }, 1500);
       } else {
         throw new Error(response.data.message || '发布版本失败');
       }
@@ -434,6 +434,8 @@ const deprecateVersion = (versionId: string) => {
     try {
       console.log('正在废弃版本:', versionId);
       
+      // 这里需要实现versionService.deprecateVersion方法
+      // TODO: 暂时使用axios直接调用接口，后续应该添加到versionService中
       const versionApi = axios.create({
         baseURL: import.meta.env.VITE_API_BASE_URL || '',
         timeout: 10000,
@@ -443,7 +445,7 @@ const deprecateVersion = (versionId: string) => {
       });
       
       // 调用废弃版本的API
-      const response = await versionApi.post(`/api/query/version/management/${props.queryId}/deprecate/${versionId}`);
+      const response = await versionApi.post(`/api/queries/versions/management/${props.queryId}/deprecate/${versionId}`);
       
       if (response.data.success) {
         // 重新加载版本列表以获取最新状态
@@ -470,27 +472,24 @@ const activateVersion = async (queryId: string, versionId: string) => {
     try {
       console.log('正在激活版本:', queryId, versionId);
       
-      const versionApi = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL || '',
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // 使用versionService激活版本
+      const response = await versionService.activateVersion(queryId, versionId);
       
-      // 调用激活版本的API
-      const response = await versionApi.post(`/api/queries/${queryId}/versions/${versionId}/activate`);
-      
-      if (response.data.success) {
+      if (response.success) {
         // 重新加载版本列表以获取最新状态
         await loadVersions();
         message.success('版本已成功激活');
+        
+        // 延迟1.5秒后跳转到查询列表页面
+        setTimeout(() => {
+          router.push('/queries');
+        }, 1500);
       } else {
-        throw new Error(response.data.message || '激活版本失败');
+        throw new Error(response.message || '激活版本失败');
       }
     } catch (error) {
       console.error('激活版本失败:', error);
-      message.error('激活版本失败，请稍后重试');
+      message.error(`激活版本失败: ${error instanceof Error ? error.message : '请稍后重试'}`);
     }
   };
 };

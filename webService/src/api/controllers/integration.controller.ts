@@ -31,7 +31,7 @@ export class IntegrationController {
   /**
    * 获取所有集成
    * @swagger
-   * /low-code/apis:
+   * /api/low-code/apis:
    *   get:
    *     summary: 获取所有集成配置
    *     tags: [Integrations]
@@ -72,7 +72,7 @@ export class IntegrationController {
   /**
    * 获取单个集成
    * @swagger
-   * /low-code/apis/{id}:
+   * /api/low-code/apis/{id}:
    *   get:
    *     summary: 获取单个集成配置
    *     tags: [Integrations]
@@ -124,7 +124,7 @@ export class IntegrationController {
   /**
    * 创建集成
    * @swagger
-   * /low-code/apis:
+   * /api/low-code/apis:
    *   post:
    *     summary: 创建集成配置
    *     tags: [Integrations]
@@ -342,7 +342,7 @@ export class IntegrationController {
   /**
    * 获取API配置
    * @swagger
-   * /low-code/apis/{id}/config:
+   * /api/low-code/apis/{id}/config:
    *   get:
    *     summary: 获取集成API配置
    *     tags: [Integrations]
