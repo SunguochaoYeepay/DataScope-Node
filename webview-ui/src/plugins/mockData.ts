@@ -16,11 +16,12 @@ export const mockDataSources = [
     port: 3306,
     database: 'example_db',
     username: 'user',
-    status: 'ACTIVE',
-    syncFrequency: 'DAILY',
+    status: 'active',
+    syncFrequency: 'daily',
     lastSyncTime: new Date(Date.now() - 86400000).toISOString(),
     createdAt: new Date(Date.now() - 2592000000).toISOString(),
-    updatedAt: new Date(Date.now() - 864000000).toISOString()
+    updatedAt: new Date(Date.now() - 864000000).toISOString(),
+    isActive: true
   },
   {
     id: 'ds-2',
@@ -31,11 +32,12 @@ export const mockDataSources = [
     port: 5432,
     database: 'production_db',
     username: 'admin',
-    status: 'ACTIVE',
-    syncFrequency: 'HOURLY',
+    status: 'active',
+    syncFrequency: 'hourly',
     lastSyncTime: new Date(Date.now() - 3600000).toISOString(),
     createdAt: new Date(Date.now() - 7776000000).toISOString(),
-    updatedAt: new Date(Date.now() - 172800000).toISOString()
+    updatedAt: new Date(Date.now() - 172800000).toISOString(),
+    isActive: true
   },
   {
     id: 'ds-3',
@@ -43,11 +45,12 @@ export const mockDataSources = [
     description: '连接到本地SQLite数据库',
     type: 'sqlite',
     database: '/path/to/local.db',
-    status: 'ACTIVE',
-    syncFrequency: 'MANUAL',
+    status: 'active',
+    syncFrequency: 'manual',
     lastSyncTime: null,
     createdAt: new Date(Date.now() - 1728000000).toISOString(),
-    updatedAt: new Date(Date.now() - 345600000).toISOString()
+    updatedAt: new Date(Date.now() - 345600000).toISOString(),
+    isActive: true
   },
   {
     id: 'ds-4',
@@ -58,11 +61,12 @@ export const mockDataSources = [
     port: 1433,
     database: 'test_db',
     username: 'tester',
-    status: 'INACTIVE',
-    syncFrequency: 'WEEKLY',
+    status: 'inactive',
+    syncFrequency: 'weekly',
     lastSyncTime: new Date(Date.now() - 604800000).toISOString(),
     createdAt: new Date(Date.now() - 5184000000).toISOString(),
-    updatedAt: new Date(Date.now() - 2592000000).toISOString()
+    updatedAt: new Date(Date.now() - 2592000000).toISOString(),
+    isActive: false
   },
   {
     id: 'ds-5',
@@ -73,11 +77,12 @@ export const mockDataSources = [
     port: 1521,
     database: 'enterprise_db',
     username: 'system',
-    status: 'ACTIVE',
-    syncFrequency: 'DAILY',
+    status: 'active',
+    syncFrequency: 'daily',
     lastSyncTime: new Date(Date.now() - 172800000).toISOString(),
     createdAt: new Date(Date.now() - 10368000000).toISOString(),
-    updatedAt: new Date(Date.now() - 1728000000).toISOString()
+    updatedAt: new Date(Date.now() - 1728000000).toISOString(),
+    isActive: true
   }
 ];
 
