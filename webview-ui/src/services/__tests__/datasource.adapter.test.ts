@@ -3,11 +3,23 @@
  * 验证数据源服务是否能够正确与后端API格式进行交互
  */
 
+import { describe, test, expect, vi, beforeAll } from 'vitest';
 import { dataSourceService } from '../datasource';
-import type { CreateDataSourceParams, DataSourceType } from '@/types/datasource';
+import type { CreateDataSourceParams, DataSourceType } from '../../types/datasource';
 
 // 设置环境变量，启用Mock模式
-(window as any).ENV = { VITE_USE_MOCK_API: 'true' };
+beforeAll(() => {
+  // 模拟环境变量
+  vi.mock('@/utils/env', () => ({
+    getEnv: () => ({
+      VITE_USE_MOCK_API: 'true',
+      VITE_API_BASE_URL: 'http://localhost:3100'
+    })
+  }));
+  
+  // 设置全局变量让Mock模式生效
+  vi.stubGlobal('import.meta', { env: { VITE_USE_MOCK_API: 'true' } });
+});
 
 describe('数据源服务适配测试', () => {
   // 测试获取数据源列表

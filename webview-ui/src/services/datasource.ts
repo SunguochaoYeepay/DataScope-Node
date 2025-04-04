@@ -59,12 +59,46 @@ const mockDataSources: DataSource[] = Array.from({ length: 5 }, (_, i) => ({
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
-  const data = await response.json()
-  // 处理后端统一响应格式
-  if (data.success === false) {
-    throw new Error(data.error?.message || '请求失败')
+  try {
+    const data = await response.json();
+    // 处理后端统一响应格式
+    if (data.success === false) {
+      throw {
+        success: false,
+        error: data.error || {
+          statusCode: 400,
+          code: 'API_ERROR',
+          message: data.message || '请求失败',
+          details: null
+        }
+      };
+    }
+    return data.success === undefined ? data : data.data;
+  } catch (error) {
+    console.error('处理API响应错误:', error);
+    throw error;
   }
-  return data.success === undefined ? data : data.data
+}
+
+// 统一错误处理函数
+const handleApiError = (error: any, defaultMessage: string = '操作失败') => {
+  console.error('API错误:', error);
+  
+  // 如果已经是标准格式的错误，直接返回
+  if (error && error.success === false && error.error) {
+    return error;
+  }
+  
+  // 构造标准错误响应
+  return {
+    success: false,
+    error: {
+      statusCode: error?.status || error?.statusCode || 500,
+      code: error?.code || 'UNKNOWN_ERROR',
+      message: error?.message || defaultMessage,
+      details: error?.details || error?.stack
+    }
+  };
 }
 
 // 将后端返回的数据源对象转换为前端所需的格式
@@ -233,8 +267,9 @@ export const dataSourceService = {
         totalPages: totalPages
       };
     } catch (error) {
-      console.error('获取数据源列表错误:', error)
-      throw error
+      console.error('获取数据源列表错误:', error);
+      // 使用统一的错误处理函数
+      throw handleApiError(error, '获取数据源列表失败');
     }
   },
   

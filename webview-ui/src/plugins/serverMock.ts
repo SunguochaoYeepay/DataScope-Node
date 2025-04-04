@@ -326,10 +326,11 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ 
           success: false, 
-          message: `API请求处理失败: ${error instanceof Error ? error.message : String(error)}`,
           error: {
+            statusCode: 500,
             code: 'INTERNAL_ERROR',
-            message: '处理API请求时发生内部错误'
+            message: `处理API请求时发生内部错误: ${error instanceof Error ? error.message : String(error)}`,
+            details: error instanceof Error ? error.stack : undefined
           }
         }));
       }

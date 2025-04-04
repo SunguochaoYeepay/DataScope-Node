@@ -4,7 +4,7 @@
  */
 
 import axios from 'axios';
-import type { InternalAxiosRequestConfig } from 'axios';
+import type { InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { mockDataSources, mockMetadata, mockQueries, mockIntegrations } from './mockData';
 import type { QueryStatus, QueryServiceStatus, QueryType } from '@/types/query';
 
@@ -27,6 +27,30 @@ export function setupAxiosInterceptor() {
     console.log('[Mock] Axios拦截器未启用');
     return;
   }
+
+  // 添加响应拦截器，统一处理错误
+  axios.interceptors.response.use(
+    (response: AxiosResponse) => {
+      // 对成功响应数据做点什么
+      console.log('[Mock Axios] 响应成功:', response.config.url);
+      return response.data;
+    },
+    (error: AxiosError) => {
+      // 对响应错误做点什么
+      console.error('[Mock Axios] 响应错误:', error.message);
+      
+      // 返回统一的错误格式
+      return Promise.reject({
+        success: false,
+        error: {
+          statusCode: error.response?.status || 500,
+          code: 'API_ERROR',
+          message: error.message || '请求失败',
+          details: error.response?.data || error.stack
+        }
+      });
+    }
+  );
 
   // 如果启用了Mock模式，设置axios拦截器
   // 创建全局模拟数据映射
