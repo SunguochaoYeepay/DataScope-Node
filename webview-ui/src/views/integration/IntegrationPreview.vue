@@ -37,6 +37,16 @@ const tableLoading = ref(false);
 const chartData = ref<any[]>([]);
 const chartLoading = ref(false);
 
+// 获取集成类型的显示名称
+const getIntegrationType = (type: string): string => {
+  const typeMap: Record<string, string> = {
+    'TABLE': '高级表格',
+    'SIMPLE_TABLE': '简单表格',
+    'CHART': '图表'
+  };
+  return typeMap[type] || type;
+};
+
 // 需要显示查询条件的集成类型
 const shouldShowQuery = computed(() => {
   return integration.value?.type === 'TABLE'; // 只有复杂表格需要查询条件
@@ -221,8 +231,8 @@ const loadIntegration = async () => {
       // 模拟集成数据
       integration.value = {
         id: route.params.id as string,
-        name: '示例集成',
-        description: '这是一个示例集成',
+        name: '订单系统集成',
+        description: '与企业ERP系统的订单数据集成',
         type: validType, // 使用处理后的类型参数
         status: 'ACTIVE',
         queryId: 'query-001', // 查询ID
@@ -446,40 +456,13 @@ const loadChartData = async () => {
         category: `分类${i + 1}`,
         value: Math.floor(Math.random() * 1000)
       }));
-      
-      // 确保配置正确
-      if (integration.value.chartConfig) {
-        integration.value.chartConfig.dataMapping = {
-          ...integration.value.chartConfig.dataMapping,
-          categoryField: 'category',
-          valueField: 'value'
-        };
-      }
-    } else if (chartType === 'scatter') {
-      // 散点图数据
-      chartData.value = Array.from({ length: dataSize }, (_, i) => ({
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: Math.random() * 20 + 5,
-        series: `系列${Math.floor(Math.random() * 3) + 1}`
-      }));
-      
-      // 确保配置正确
-      if (integration.value.chartConfig) {
-        integration.value.chartConfig.dataMapping = {
-          ...integration.value.chartConfig.dataMapping,
-          xField: 'x',
-          yField: 'y',
-          sizeField: 'size',
-          seriesField: 'series'
-        };
-      }
-      } else {
-      // 柱状图、线图、面积图等类目图表
-      const categories = ['一月', '二月', '三月', '四月', '五月', '六月'];
+    } else if (chartType === 'line' || chartType === 'bar') {
+      // 折线图和柱状图数据
+      const categories = Array.from({ length: dataSize }, (_, i) => `类别${i + 1}`);
       const series = ['系列A', '系列B', '系列C'];
       
       chartData.value = [];
+      
       categories.forEach(category => {
         series.forEach(series => {
           chartData.value.push({
@@ -489,170 +472,177 @@ const loadChartData = async () => {
           });
         });
       });
-      
-      // 确保配置正确
-      if (integration.value.chartConfig) {
-        integration.value.chartConfig.dataMapping = {
-          ...integration.value.chartConfig.dataMapping,
-          xField: 'category',
-          yField: 'value',
-          seriesField: 'series'
-        };
-      }
+    } else {
+      // 其他类型图表
+      chartData.value = Array.from({ length: dataSize }, (_, i) => ({
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        category: `分类${i % 3 + 1}`
+      }));
     }
     
-    console.log('生成的图表数据:', chartData.value);
-    console.log('图表配置:', integration.value.chartConfig);
-    
-    // 手动触发图表重绘
-    nextTick(() => {
-      // 此延迟确保数据已更新且组件已重新渲染
-    setTimeout(() => {
-        // 可以通过添加一个刷新事件来触发图表重绘
-        window.dispatchEvent(new Event('resize'));
-      }, 200);
-    });
+    console.log('图表数据加载完成, 共生成', chartData.value.length, '条数据');
   } catch (error) {
     console.error('加载图表数据失败:', error);
-    messageStore.error('加载图表数据失败');
   } finally {
     chartLoading.value = false;
   }
 };
 
-// 重置查询条件
-const resetQuery = () => {
-  if (integration.value?.queryParams) {
-    initFormValues(integration.value.queryParams);
-  }
-};
-
 // 处理表格操作
-const handleTableAction = (action: any, row: any) => {
-  console.log('表格操作:', action, row);
-  messageStore.info(`执行操作: ${action.label}`);
+const handleTableAction = (action: any, record: any) => {
+  console.log('触发表格操作:', action, record);
+  messageStore.info(`执行操作: ${action.label}, 记录ID: ${record.id}`);
 };
 
-// 处理表格导出
-const handleTableExport = (format: string) => {
-  messageStore.info(`导出表格为 ${format} 格式`);
+// 处理导出
+const handleExport = (format: string) => {
+  console.log('导出数据:', format);
+  messageStore.info(`导出数据至${format}格式`);
 };
 
-// 返回编辑页面
+// 处理分页变化
+const handlePageChange = (page: number) => {
+  console.log('页码变化:', page);
+};
+
+// 返回按钮事件
+const goBack = () => {
+  router.push('/integration/list');
+};
+
+// 编辑按钮事件
 const goToEdit = () => {
-  if (!integration.value) return;
-  router.push(`/integration/edit/${integration.value.id}`);
-};
-
-// 返回列表页面
-const goToList = () => {
-  router.push('/integration');
+  if (integration.value) {
+    router.push(`/integration/edit/${integration.value.id}`);
+  }
 };
 </script>
 
 <template>
-  <div class="container mx-auto px-4 py-6">
-    <!-- 页面头部 -->
-    <a-page-header
-      class="mb-6 px-0"
-      title="预览集成"
-      :back-icon="false"
-    >
-      <template #extra>
-        <a-space>
-          <a-button @click="goToList">
-            <template #icon><ArrowLeftOutlined /></template>
-            返回列表
-          </a-button>
-          <a-button type="primary" @click="goToEdit">
-            <template #icon><EditOutlined /></template>
-            编辑集成
-          </a-button>
-        </a-space>
-      </template>
-    </a-page-header>
-    
-    <!-- 加载中 -->
-    <a-card v-if="loading" class="text-center">
-      <a-spin size="large" tip="正在加载集成数据...">
-        <div class="py-10"></div>
-      </a-spin>
-    </a-card>
-    
-    <!-- 集成内容 -->
-    <div v-else-if="integration" class="space-y-6">
-      <!-- 集成信息头部 -->
-      <a-card>
-        <template #title>
-        <div class="flex items-center">
-            <span class="flex-1">{{ integration.name }}</span>
-            <a-tag 
-              :color="integration.status === 'ACTIVE' ? 'success' : 
-                    integration.status === 'INACTIVE' ? 'default' : 'warning'"
-          >
-            {{ integration.status === 'ACTIVE' ? '已激活' : 
-               integration.status === 'INACTIVE' ? '已停用' : '草稿' }}
-            </a-tag>
-        </div>
-        </template>
-        <p v-if="integration.description" class="text-gray-500">
-          {{ integration.description }}
-        </p>
-      </a-card>
-      
-      <!-- 查询条件表单 - 只有复杂表格才显示 -->
-      <QueryForm 
-        v-if="shouldShowQuery && queryConditions.length > 0"
-        :conditions="queryConditions"
-        v-model="formValues"
-        :loading="tableLoading"
-        @submit="submitQuery"
-        @reset="resetQuery"
-      />
-      
-      <!-- 表格视图 - 对于SIMPLE_TABLE和TABLE类型 -->
-      <TableView
-        v-if="integration.type === 'SIMPLE_TABLE' || integration.type === 'TABLE'"
-        :data="tableData"
-        :columns="tableColumns"
-        :actions="tableActions"
-        :pagination="tablePagination"
-        :export-config="tableExport"
-        :loading="tableLoading"
-        @action="handleTableAction"
-        @export="handleTableExport"
-      />
-      
-      <!-- 图表视图 - 对于CHART类型 -->
-      <ChartView
-        v-else-if="integration.type === 'CHART' && chartConfig"
-        :data="chartData"
-        :config="chartConfig"
-        :loading="chartLoading"
-      />
-      
-      <!-- 未知类型集成 -->
-      <a-result
-        v-else
-        status="warning"
-        title="未知集成类型"
-        :sub-title="`该集成类型 (${integration.type}) 暂不支持预览`"
-      />
-                </div>
-                
-    <!-- 集成不存在 -->
-    <a-result
-                  v-else
-      status="warning"
-      title="集成不存在"
-      sub-title="找不到指定的集成，或集成数据加载失败"
-    >
-      <template #extra>
-        <a-button @click="goToList">
+  <div class="integration-preview">
+    <!-- 头部导航 -->
+    <div class="flex justify-between items-center mb-6">
+      <div class="flex items-center">
+        <a-button type="link" @click="goBack" class="mr-2">
           <template #icon><ArrowLeftOutlined /></template>
-          返回集成列表
+          返回列表
         </a-button>
-                </template>
-    </a-result>
+        <h1 class="text-xl font-semibold mb-0">预览集成</h1>
+      </div>
+      
+      <a-button type="primary" @click="goToEdit">
+        <template #icon><EditOutlined /></template>
+        编辑集成
+      </a-button>
+    </div>
+
+    <!-- 加载中状态 -->
+    <a-spin :spinning="loading" tip="加载中...">
+      <!-- 集成信息和查询表单部分 -->
+      <a-card v-if="integration" class="mb-6">
+        <template #title>
+          <div class="flex justify-between items-center">
+            <span class="text-lg font-medium">{{ integration.name }}</span>
+            <a-tag color="blue">{{ getIntegrationType(integration.type) }}</a-tag>
+          </div>
+        </template>
+        
+        <div class="mb-4">{{ integration.description }}</div>
+        
+        <!-- 集成配置摘要 -->
+        <a-divider>集成配置信息</a-divider>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <a-descriptions :column="1" bordered size="small">
+            <a-descriptions-item label="集成ID">{{ integration?.id }}</a-descriptions-item>
+            <a-descriptions-item label="查询ID">{{ integration?.queryId }}</a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <a-tag :color="integration?.status === 'ACTIVE' ? 'green' : 'red'">
+                {{ integration?.status === 'ACTIVE' ? '已激活' : '未激活' }}
+              </a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{ formatDate(integration?.createTime) }}</a-descriptions-item>
+            <a-descriptions-item label="更新时间">{{ formatDate(integration?.updateTime) }}</a-descriptions-item>
+          </a-descriptions>
+          
+          <!-- 表格配置信息 -->
+          <a-descriptions v-if="integration?.type === 'TABLE' || integration?.type === 'SIMPLE_TABLE'" :column="1" bordered size="small">
+            <a-descriptions-item label="表格列数">{{ tableColumns.length }}</a-descriptions-item>
+            <a-descriptions-item label="操作按钮">{{ tableActions.length }}</a-descriptions-item>
+            <a-descriptions-item label="分页设置">
+              {{ tablePagination.enabled ? `启用 (${tablePagination.pageSize}条/页)` : '禁用' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="导出功能">
+              {{ tableExport.enabled ? `启用 (${tableExport.formats.join(', ')})` : '禁用' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="显示字段">
+              <div class="flex flex-wrap gap-1">
+                <a-tag v-for="column in tableColumns.slice(0, 5)" :key="column.field">
+                  {{ column.label }}
+                </a-tag>
+                <a-tag v-if="tableColumns.length > 5" color="blue">+{{ tableColumns.length - 5 }}</a-tag>
+              </div>
+            </a-descriptions-item>
+          </a-descriptions>
+        </div>
+
+        <!-- 查询表单部分 -->
+        <a-divider v-if="shouldShowQuery">查询参数</a-divider>
+        <query-form
+          v-if="shouldShowQuery && queryConditions.length > 0"
+          :conditions="queryConditions"
+          v-model="formValues"
+          :loading="tableLoading"
+          @submit="submitQuery"
+          @reset="loadTableData"
+        />
+      </a-card>
+
+      <!-- 结果显示区域 -->
+      <a-card v-if="integration" title="结果预览" :bordered="true" class="results-section">
+        <!-- 表格视图 -->
+        <table-view
+          v-if="integration.type === 'TABLE' || integration.type === 'SIMPLE_TABLE'"
+          :data="tableData"
+          :columns="tableColumns"
+          :actions="tableActions"
+          :pagination="tablePagination"
+          :exportConfig="tableExport"
+          :loading="tableLoading"
+          title="数据列表"
+          @action="handleTableAction"
+          @export="handleExport"
+          @page-change="handlePageChange"
+        />
+
+        <!-- 图表视图 -->
+        <chart-view
+          v-else-if="integration.type === 'CHART' && chartConfig"
+          :data="chartData"
+          :config="chartConfig"
+          :loading="chartLoading"
+        />
+      </a-card>
+
+      <!-- 空状态 -->
+      <a-empty v-if="!integration" description="未找到集成数据" />
+    </a-spin>
   </div>
 </template>
+
+<style scoped>
+.integration-preview {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+
+.results-section {
+  margin-top: 20px;
+}
+
+:deep(.ant-descriptions-item-label) {
+  font-weight: 500;
+  color: #5c6b77;
+}
+</style>
