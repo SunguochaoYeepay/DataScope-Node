@@ -90,8 +90,15 @@ const getIntegrationType = (type: string): string => {
 // 需要显示查询条件的集成类型
 const shouldShowQuery = computed(() => {
   // 优先使用URL查询参数的类型，其次使用集成对象的类型
+  console.log('[DEBUG] 计算shouldShowQuery, URL类型:', route.query.type);
+  console.log('[DEBUG] 集成类型:', integration.value?.type);
+  
   const typeParam = route.query.type as string;
   const integrationType = typeParam || integration.value?.type;
+  
+  console.log('[DEBUG] 最终使用的类型:', integrationType);
+  console.log('[DEBUG] 应该显示查询条件:', integrationType === 'TABLE');
+  
   return integrationType === 'TABLE'; // 只有高级表格类型需要查询条件
 });
 
@@ -239,32 +246,39 @@ const loadIntegration = async () => {
       return;
     }
     
+    // 获取类型参数(优先顺序: URL路径参数 > URL查询参数 > 默认类型)
+    // 1. 检查URL路径参数，如 /preview/id/CHART
+    const pathTypeParam = Array.isArray(route.params.type) 
+      ? route.params.type[0] 
+      : route.params.type as string;
+      
+    // 2. 检查URL查询参数，如 /preview/id?type=CHART
+    const queryTypeParam = Array.isArray(route.query.type) 
+      ? route.query.type[0] 
+      : route.query.type as string;
+      
+    // 选择有效的类型参数
+    const typeParam = pathTypeParam || queryTypeParam || 'TABLE';
+    
+    // 确保类型是有效的（TABLE, SIMPLE_TABLE, CHART）
+    const validType = ['CHART', 'TABLE', 'SIMPLE_TABLE'].includes(typeParam) 
+      ? typeParam as 'CHART' | 'TABLE' | 'SIMPLE_TABLE'
+      : 'TABLE';
+      
+    console.log(`[DEBUG] 使用的集成类型: ${validType}, URL路径参数: ${pathTypeParam}, URL查询参数: ${queryTypeParam}`);
+    
     // 从服务端获取集成数据
     try {
       const result = await integrationStore.fetchIntegrationById(integrationId.value);
     
       if (result) {
-        // 获取类型参数(优先顺序: URL路径参数 > URL查询参数 > 服务端返回的类型)
-        // 1. 检查URL路径参数，如 /preview/id/CHART
-        const pathTypeParam = Array.isArray(route.params.type) 
-          ? route.params.type[0] 
-          : route.params.type as string;
-          
-        // 2. 检查URL查询参数，如 /preview/id?type=CHART
-        const queryTypeParam = Array.isArray(route.query.type) 
-          ? route.query.type[0] 
-          : route.query.type as string;
-          
-        // 选择有效的类型参数
-        const urlTypeParam = pathTypeParam || queryTypeParam;
-        
         // 创建集成数据副本
         integration.value = { ...result };
         
         // 如果URL中有指定类型，则优先使用URL中的类型
-        if (urlTypeParam && ['CHART', 'TABLE', 'SIMPLE_TABLE'].includes(urlTypeParam)) {
-          console.log(`[DEBUG] 从URL获取集成类型: ${urlTypeParam}, 覆盖服务端返回的类型: ${result.type}`);
-          integration.value.type = urlTypeParam as 'CHART' | 'TABLE' | 'SIMPLE_TABLE';
+        if (typeParam && ['CHART', 'TABLE', 'SIMPLE_TABLE'].includes(typeParam)) {
+          console.log(`[DEBUG] 从URL获取集成类型: ${typeParam}, 覆盖服务端返回的类型: ${result.type}`);
+          integration.value.type = typeParam as 'CHART' | 'TABLE' | 'SIMPLE_TABLE';
         }
         
         // 日志输出实际使用的类型
@@ -292,32 +306,12 @@ const loadIntegration = async () => {
     } catch (error) {
       console.error('从服务端获取集成数据失败:', error);
       
-      // 获取类型参数(优先顺序: URL路径参数 > URL查询参数 > 默认表格类型)
-      // 1. 检查URL路径参数，如 /preview/id/CHART
-      const pathTypeParam = Array.isArray(route.params.type) 
-        ? route.params.type[0] 
-        : route.params.type as string;
-        
-      // 2. 检查URL查询参数，如 /preview/id?type=CHART
-      const queryTypeParam = Array.isArray(route.query.type) 
-        ? route.query.type[0] 
-        : route.query.type as string;
-        
-      // 选择有效的类型参数
-      const typeParam = pathTypeParam || queryTypeParam || 'TABLE';
-      
-      const validType = ['CHART', 'TABLE', 'SIMPLE_TABLE'].includes(typeParam) 
-        ? typeParam as 'CHART' | 'TABLE' | 'SIMPLE_TABLE'
-        : 'TABLE';
-      
-      console.log(`[DEBUG] 使用模拟数据，类型: ${validType}`);
-        
       // 模拟集成数据
       integration.value = {
         id: route.params.id as string,
         name: '订单系统集成',
         description: '与企业ERP系统的订单数据集成',
-        type: validType, // 使用处理后的类型参数
+        type: validType, // 使用前面确定的类型参数
         status: 'ACTIVE',
         queryId: 'query-001', // 查询ID
         integrationPoint: {
