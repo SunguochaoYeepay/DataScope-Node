@@ -6,81 +6,126 @@
 // 导入mock数据服务
 import { getMockIntegration, getMockIntegrations, executeMockQuery } from '../services/mockData';
 import { mockQueryService } from '../services/mock-query';
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { responseHandler } from './api';
 import type { ApiResponse } from './api';
+import { message } from '@/services/message';
+import type { MessageConfig } from '@/types/message';
 
 // 为Window对象扩展handleMockAxiosRequest方法
 declare global {
   interface Window {
-    handleMockAxiosRequest: (url: string, method?: string, data?: any) => Promise<any>;
+    handleMockAxiosRequest: (url: string, method: string, data?: any) => Promise<any>;
   }
 }
 
-// 从环境变量获取API基础URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// 定义API基础URL和超时时间
+const API_BASE_URL = '/api';
+const USE_MOCK = import.meta.env.VITE_ENABLE_MOCK === 'true';
 
-// 检查是否启用mock模式
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
-console.log('Mock 模式:', USE_MOCK ? '已启用' : '已禁用', 'API基础URL:', API_BASE_URL);
+console.log(`[HTTP] 初始化axios, MOCK模式: ${USE_MOCK}`);
+
+// 创建axios实例
+const http: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 5000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 // 如果启用Mock模式，设置axios拦截器
 if (USE_MOCK) {
   // 请求拦截器
-  axios.interceptors.request.use(
-    function (config) {
+  http.interceptors.request.use(
+    (config: InternalAxiosRequestConfig) => {
       const url = config.url || '';
       console.log('[Mock Axios] 拦截请求:', url, config.method);
       
-      // 所有API请求都转为mock请求处理
-      if (url.includes('/api/')) {
-        // 设置一个标记，表示这是一个被拦截的请求
-        config.headers = config.headers || {};
+      // 为所有API请求添加Mock标记
+      if (url.startsWith('/api/')) {
+        if (!config.headers) {
+          config.headers = {};
+        }
         config.headers['X-Mocked-Request'] = 'true';
       }
       
       return config;
     },
-    function (error) {
+    (error: AxiosError) => {
       return Promise.reject(error);
     }
   );
 
   // 响应拦截器
-  axios.interceptors.response.use(
-    function (response) {
-      return response;
-    },
-    async function (error) {
-      // 只处理API请求的错误和被标记为模拟的请求
-      if (
-        error.config && 
-        error.config.url &&
-        error.config.url.includes('/api/') &&
-        (error.config.headers && error.config.headers['X-Mocked-Request'])
-      ) {
-        console.log('[Mock Axios] 处理失败的请求:', error.config.url);
+  http.interceptors.response.use(
+    (response: AxiosResponse) => {
+      const { config } = response;
+      
+      // 如果是普通的成功请求，直接返回数据
+      if (response.status >= 200 && response.status < 300) {
+        const apiResponse = response.data as ApiResponse;
         
-        try {
-          // 使用与fetch拦截器相同的处理函数来生成模拟响应
-          const mockResponse = await window.handleMockAxiosRequest(
-            error.config.url,
-            error.config.method || 'GET',
-            error.config.data ? JSON.parse(error.config.data) : undefined
-          );
-          
-          return Promise.resolve({
-            data: mockResponse,
-            status: 200,
-            statusText: 'OK',
-            headers: {},
-            config: error.config
-          });
-        } catch (mockError) {
-          console.error('[Mock Axios] 生成模拟响应失败:', mockError);
+        // 使用带key的方式显示消息，避免重复
+        if (apiResponse.success) {
+          // 成功响应检查是否有消息需要显示
+          if (apiResponse.error?.message && apiResponse.error.message.trim() !== '') {
+            message.success(apiResponse.error.message, undefined, false);
+          }
+          return apiResponse.data;
+        } else {
+          // 业务逻辑错误
+          if (apiResponse.error?.message) {
+            message.error(apiResponse.error.message, undefined, false);
+          }
+          return Promise.reject(apiResponse);
         }
       }
       
+      return response.data;
+    },
+    (error: AxiosError) => {
+      // 获取请求配置，用于生成唯一键
+      const requestConfig = error.config;
+      let messageKey = 'network-error';
+      
+      if (requestConfig?.url) {
+        messageKey = `${requestConfig.url}-${error.code || 'unknown'}`;
+      }
+      
+      // 处理网络错误
+      if (error.response) {
+        // 服务器返回了响应，但状态码不在 2xx 范围内
+        const { status, data } = error.response;
+        const errorData = data as ApiResponse;
+        
+        switch (status) {
+          case 400:
+            message.error(`请求错误 (400)${errorData?.error?.message ? ': ' + errorData.error.message : ''}`, undefined, false);
+            break;
+          case 401:
+            message.error('未授权，请重新登录 (401)', undefined, false);
+            break;
+          case 403:
+            message.error('拒绝访问 (403)', undefined, false);
+            break;
+          case 404:
+            message.error(`请求的资源不存在 (404)${errorData?.error?.message ? ': ' + errorData.error.message : ''}`, undefined, false);
+            break;
+          case 500:
+            message.error(`服务器错误 (500)${errorData?.error?.message ? ': ' + errorData.error.message : ''}`, undefined, false);
+            break;
+          default:
+            message.error(`请求错误 (${status})${errorData?.error?.message ? ': ' + errorData.error.message : ''}`, undefined, false);
+        }
+      } else if (error.request) {
+        // 请求已发出，但未收到响应
+        message.error('网络连接失败，请检查网络设置', undefined, false);
+      } else {
+        // 在设置请求时触发错误
+        message.error(`请求配置错误: ${error.message}`, undefined, false);
+      }
+
       return Promise.reject(error);
     }
   );

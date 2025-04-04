@@ -30,6 +30,10 @@ export interface ResponseHandlerOptions {
   successDuration?: number;
   // 错误消息显示时间(毫秒)
   errorDuration?: number;
+  // 是否允许重复消息
+  allowDuplicate?: boolean;
+  // 消息唯一标识，用于去重
+  messageKey?: string;
 }
 
 /**
@@ -51,7 +55,9 @@ export function handleApiResponse<T>(
     successMessage = '操作成功',
     errorMessage = '操作失败',
     successDuration = 3000,
-    errorDuration = 5000
+    errorDuration = 5000,
+    allowDuplicate = false,
+    messageKey = undefined
   } = options;
 
   try {
@@ -60,14 +66,14 @@ export function handleApiResponse<T>(
       if (response.success) {
         // 操作成功
         if (showSuccessMessage) {
-          message.success(successMessage, successDuration);
+          message.success(successMessage, successDuration, allowDuplicate);
         }
         return response.data || null;
       } else {
         // 操作失败
         const errMsg = response.error?.message || errorMessage;
         if (showErrorMessage) {
-          message.error(errMsg, errorDuration);
+          message.error(errMsg, errorDuration, allowDuplicate);
         }
         throw new Error(errMsg);
       }
@@ -75,14 +81,14 @@ export function handleApiResponse<T>(
     
     // 非标准格式，假设成功
     if (showSuccessMessage) {
-      message.success(successMessage, successDuration);
+      message.success(successMessage, successDuration, allowDuplicate);
     }
     return response;
   } catch (error) {
     // 处理异常
     const errMsg = error instanceof Error ? error.message : errorMessage;
     if (showErrorMessage) {
-      message.error(errMsg, errorDuration);
+      message.error(errMsg, errorDuration, allowDuplicate);
     }
     throw error;
   }
@@ -120,6 +126,13 @@ export const responseHandler = {
   all: createResponseHandler({ 
     showSuccessMessage: true, 
     showErrorMessage: true 
+  }),
+
+  // 不允许重复消息的处理器
+  unique: createResponseHandler({
+    showSuccessMessage: true,
+    showErrorMessage: true,
+    allowDuplicate: false
   }),
   
   // 自定义处理器

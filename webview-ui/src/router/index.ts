@@ -218,6 +218,14 @@ const routes: RouteRecordRaw[] = [
         path: 'test',
         name: 'TestView',
         component: () => import('../views/examples/TestView.vue')
+      },
+      {
+        path: 'message-demo',
+        name: 'MessageDemo',
+        component: () => import('../views/examples/MessageDemo.vue'),
+        meta: {
+          title: '消息服务演示'
+        }
       }
     ]
   },

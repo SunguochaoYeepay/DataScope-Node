@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import type { MessageConfig } from '@/types/message'
 
 // 定义组件属性
@@ -52,6 +52,16 @@ const textConfig = {
   info: 'text-blue-700'
 }
 
+// 计算消息显示内容
+const displayContent = computed(() => {
+  const { content, count } = props.config
+  // 如果有计数且大于1，显示计数信息
+  if (count && count > 1) {
+    return `${content} (${count})`
+  }
+  return content
+})
+
 // 关闭消息
 const close = () => {
   visible.value = false
@@ -91,7 +101,7 @@ onBeforeUnmount(() => {
   >
     <div
       v-if="visible"
-      class="rounded-md p-4 shadow-sm border"
+      class="rounded-md p-4 shadow-sm border message-container"
       :class="[bgConfig[config.type]]"
     >
       <div class="flex">
@@ -118,10 +128,10 @@ onBeforeUnmount(() => {
         <!-- 内容 -->
         <div class="ml-3 flex-1">
           <p
-            class="text-sm font-medium"
+            class="text-sm font-medium message-content"
             :class="[textConfig[config.type]]"
           >
-            {{ config.content }}
+            {{ displayContent }}
           </p>
         </div>
 
@@ -129,7 +139,7 @@ onBeforeUnmount(() => {
         <div v-if="config.closable" class="ml-4 flex-shrink-0">
           <button
             type="button"
-            class="inline-flex rounded-md focus:outline-none"
+            class="inline-flex rounded-md focus:outline-none message-close-btn"
             :class="[textConfig[config.type]]"
             @click="close"
           >
@@ -153,3 +163,15 @@ onBeforeUnmount(() => {
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.message-container {
+  max-width: 400px; /* 限制消息最大宽度 */
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.message-content {
+  line-height: 1.5;
+}
+</style>

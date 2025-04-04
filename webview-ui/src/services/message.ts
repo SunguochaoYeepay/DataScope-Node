@@ -1,6 +1,6 @@
 import { createVNode, render } from 'vue'
 import type { App } from 'vue'
-import type { MessageConfig, MessageInstance, MessageService } from '@/types/message'
+import type { MessageConfig, MessageInstance, MessageService, MessageQueueConfig } from '@/types/message'
 import MessageAlert from '@/components/common/MessageAlert.vue'
 
 // 消息容器
@@ -8,6 +8,13 @@ let messageContainer: HTMLDivElement | null = null
 
 // 消息实例列表
 const instances: MessageInstance[] = []
+
+// 消息队列配置
+const queueConfig: MessageQueueConfig = {
+  deduplicationTimeWindow: 3000, // 3秒内的相同消息将被合并
+  maxCount: 10, // 最多显示10条消息
+  defaultDuration: 3000 // 默认显示3秒
+}
 
 // 创建消息容器
 const createMessageContainer = () => {
@@ -30,15 +37,118 @@ const removeInstance = (id: string) => {
   }
 }
 
+// 检查是否为重复消息
+const isDuplicateMessage = (config: MessageConfig): MessageInstance | null => {
+  // 如果明确允许重复，则不检查
+  if (config.allowDuplicate === true) {
+    return null
+  }
+  
+  const now = Date.now()
+  const key = config.key || config.content // 使用key或content作为去重依据
+  
+  // 查找时间窗口内相同类型和内容的消息
+  const duplicate = instances.find(instance => {
+    const sameType = instance.config.type === config.type
+    const sameContent = (instance.config.key || instance.config.content) === key
+    const withinTimeWindow = now - instance.createdAt < queueConfig.deduplicationTimeWindow!
+    return sameType && sameContent && withinTimeWindow
+  })
+  
+  return duplicate || null
+}
+
+// 更新重复消息
+const updateDuplicateMessage = (duplicate: MessageInstance) => {
+  // 将旧消息移到队列顶部
+  const container = duplicate.id && document.getElementById(duplicate.id)
+  if (container && container.parentNode) {
+    container.parentNode.appendChild(container) // 移到末尾显示
+  }
+  
+  // 更新计数
+  const count = (duplicate.config.count || 1) + 1
+  duplicate.config.count = count
+  
+  // 创建或更新消息内容
+  const contentEl = container?.querySelector('.message-content')
+  if (contentEl) {
+    const baseContent = duplicate.config.content.replace(/ \(\d+\)$/, '') // 移除已有的计数
+    contentEl.textContent = `${baseContent} (${count})`
+  }
+  
+  // 重新设置自动关闭计时器
+  const closeButton = container?.querySelector('.message-close-btn')
+  if (closeButton && typeof closeButton.click === 'function') {
+    // 先移除旧的计时器
+    const timerId = parseInt((closeButton as any).dataset.timerId || '0')
+    if (timerId) {
+      clearTimeout(timerId)
+    }
+    
+    // 设置新的计时器
+    const duration = duplicate.config.duration || queueConfig.defaultDuration
+    if (duration && duration > 0) {
+      const newTimerId = window.setTimeout(() => {
+        closeButton.click() // 触发关闭
+      }, duration)
+      
+      // 存储timer ID
+      (closeButton as any).dataset.timerId = newTimerId.toString()
+    }
+  }
+  
+  return duplicate
+}
+
+// 限制消息数量
+const limitMessageCount = () => {
+  const maxCount = queueConfig.maxCount || 10
+  if (instances.length > maxCount) {
+    // 移除最早的消息，直到数量符合限制
+    const removeCount = instances.length - maxCount
+    const earliestInstances = [...instances]
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(0, removeCount)
+    
+    earliestInstances.forEach(instance => {
+      removeInstance(instance.id)
+      
+      // 移除DOM元素
+      const container = document.getElementById(instance.id)
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container)
+      }
+    })
+  }
+}
+
 // 创建消息实例
 const createMessage = (config: MessageConfig) => {
   createMessageContainer()
+  
+  // 检查重复消息
+  const duplicate = isDuplicateMessage(config)
+  if (duplicate) {
+    return updateDuplicateMessage(duplicate)
+  }
+  
+  // 限制消息数量
+  limitMessageCount()
 
   // 生成唯一ID
   const id = `message-${Date.now()}`
+  
+  // 创建容器
+  const container = document.createElement('div')
+  container.id = id
+  
+  // 如果是合并消息，添加计数
+  if (!config.allowDuplicate && config.count === undefined) {
+    config.count = 1
+  }
 
   // 创建消息节点
-  const container = document.createElement('div')
   const vnode = createVNode(MessageAlert, {
     config,
     onClose: () => removeInstance(id)
@@ -50,7 +160,8 @@ const createMessage = (config: MessageConfig) => {
   // 保存实例
   const instance: MessageInstance = {
     id,
-    config
+    config,
+    createdAt: Date.now()
   }
   instances.push(instance)
 
@@ -59,48 +170,55 @@ const createMessage = (config: MessageConfig) => {
 
 // 消息服务实例
 export const message: MessageService = {
-  info(content: string, duration = 3000) {
+  info(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
     createMessage({
       type: 'info',
       content,
       duration,
       showIcon: true,
-      closable: true
+      closable: true,
+      allowDuplicate
     })
   },
 
-  success(content: string, duration = 3000) {
+  success(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
     createMessage({
       type: 'success',
       content,
       duration,
       showIcon: true,
-      closable: true
+      closable: true,
+      allowDuplicate
     })
   },
 
-  warning(content: string, duration = 3000) {
+  warning(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
     createMessage({
       type: 'warning',
       content,
       duration,
       showIcon: true,
-      closable: true
+      closable: true,
+      allowDuplicate
     })
   },
 
-  error(content: string, duration = 3000) {
+  error(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
     createMessage({
       type: 'error',
       content,
       duration,
       showIcon: true,
-      closable: true
+      closable: true,
+      allowDuplicate
     })
   },
 
   show(config: MessageConfig) {
-    createMessage(config)
+    createMessage({
+      ...config,
+      duration: config.duration || queueConfig.defaultDuration
+    })
   },
 
   close(id: string) {
@@ -109,6 +227,10 @@ export const message: MessageService = {
 
   closeAll() {
     instances.forEach(instance => removeInstance(instance.id))
+  },
+  
+  setQueueConfig(config: Partial<MessageQueueConfig>) {
+    Object.assign(queueConfig, config)
   }
 }
 
