@@ -768,9 +768,9 @@ const resetForm = () => {
         <!-- 查询条件表单区域 -->
         <QueryForm 
           v-if="showQueryForm"
-          :form-schema="queryConditions" 
-          :form-values="formValues"
-          @search="loadData"
+          :conditions="queryConditions" 
+          :model-value="formValues"
+          @submit="loadData"
           @reset="resetForm"
           class="query-form-section"
         />
