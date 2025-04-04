@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试Axios拦截器</title>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+  <h1>测试Axios拦截器</h1>
+  <button id="testButton">测试数据源API</button>
+  <pre id="output" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px; min-height: 200px;"></pre>
+
+  <script>
+    // 模拟配置
+    const USE_MOCK = true;
+    console.log('[Test] Mock模式:', USE_MOCK ? '已启用' : '已禁用');
+
+    // 模拟数据
+    const mockDataSources = [
+      {
+        id: 'ds-1',
+        name: '测试数据源',
+        description: '这是一个测试数据源',
+        type: 'mysql',
+        host: 'localhost',
+        port: 3306,
+        status: 'active',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+
+    // 设置拦截器
+    if (USE_MOCK) {
+      // 请求拦截器
+      axios.interceptors.request.use(
+        function (config) {
+          if (config.url?.includes('/api/')) {
+            console.log('[Test] 拦截API请求:', config.url, config.method);
+            config.mockResponse = true;
+          }
+          return config;
+        },
+        function (error) {
+          return Promise.reject(error);
+        }
+      );
+
+      // 响应拦截器
+      axios.interceptors.response.use(
+        function (response) {
+          if (response.config.url?.includes('/api/')) {
+            console.log('[Test] 拦截API响应:', response.config.url);
+            
+            // 如果是数据源请求，返回模拟数据
+            if (response.config.url.includes('/api/datasources')) {
+              console.log('[Test] 生成模拟数据源响应');
+              return {
+                data: {
+                  success: true,
+                  data: {
+                    items: mockDataSources,
+                    pagination: {
+                      total: mockDataSources.length,
+                      totalPages: 1,
+                      page: 1,
+                      size: 10
+                    }
+                  }
+                }
+              };
+            }
+          }
+          return response;
+        },
+        function (error) {
+          if (error.config?.url?.includes('/api/')) {
+            console.log('[Test] 处理API错误:', error.config.url);
+            
+            // 如果是数据源请求，也返回模拟数据
+            if (error.config.url.includes('/api/datasources')) {
+              console.log('[Test] 生成错误情况下的模拟数据源响应');
+              return {
+                data: {
+                  success: true,
+                  data: {
+                    items: mockDataSources,
+                    pagination: {
+                      total: mockDataSources.length,
+                      totalPages: 1,
+                      page: 1,
+                      size: 10
+                    }
+                  }
+                }
+              };
+            }
+          }
+          return Promise.reject(error);
+        }
+      );
+
+      console.log('[Test] Axios拦截器已启用');
+    }
+
+    // 输出函数
+    function log(message) {
+      const output = document.getElementById('output');
+      if (typeof message === 'object') {
+        output.textContent += JSON.stringify(message, null, 2) + '\n';
+      } else {
+        output.textContent += message + '\n';
+      }
+    }
+
+    // 测试按钮点击事件
+    document.getElementById('testButton').addEventListener('click', function() {
+      const output = document.getElementById('output');
+      output.textContent = ''; // 清空输出
+      
+      log('发送API请求...');
+      
+      // 发送请求
+      axios.get('/api/datasources')
+        .then(response => {
+          log('请求成功:');
+          log(response.data);
+        })
+        .catch(error => {
+          log('请求失败:');
+          if (error.response) {
+            log(error.response.data);
+          } else {
+            log(error.message);
+          }
+        });
+    });
+  </script>
+</body>
+</html> 

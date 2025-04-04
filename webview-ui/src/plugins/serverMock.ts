@@ -8,6 +8,12 @@ import { Connect } from 'vite';
 export function createMockServerMiddleware(): Connect.NextHandleFunction {
   console.log('[Server] 创建Mock服务器中间件');
   
+  // 打印mockDataSources内容，以便调试
+  console.log('[Server] mockDataSources长度:', mockDataSources ? mockDataSources.length : 'undefined');
+  if (mockDataSources && mockDataSources.length > 0) {
+    console.log('[Server] 第一个数据源示例:', JSON.stringify(mockDataSources[0], null, 2));
+  }
+  
   return async (req, res, next) => {
     // 只处理API请求
     if (req.url?.includes('/api/')) {
@@ -83,28 +89,38 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
         if (req.url.match(/\/api\/datasources(\?.*)?$/) && method === 'GET') {
           console.log('[Server Mock] 获取数据源列表');
           
-          // 解析查询参数
-          const urlObj = new URL(`http://localhost${req.url}`);
-          const page = parseInt(urlObj.searchParams.get('page') || '1', 10);
-          const size = parseInt(urlObj.searchParams.get('size') || '10', 10);
+          // 简化响应，不进行任何复杂逻辑
+          const mockItems = [
+            {
+              id: 'ds-test-1',
+              name: '测试数据源 1',
+              description: '简化版测试数据源',
+              type: 'mysql',
+              host: 'localhost',
+              port: 3306,
+              database: 'test_db',
+              username: 'user',
+              status: 'active',
+              syncFrequency: 'manual',
+              lastSyncTime: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              isActive: true
+            }
+          ];
           
-          // 应用分页
-          const start = (page - 1) * size;
-          const end = start + size;
-          const paginatedSources = mockDataSources.slice(start, Math.min(end, mockDataSources.length));
-          
-          console.log(`[Server Mock] 返回${paginatedSources.length}个数据源`);
+          console.log('[Server Mock] 返回简化数据源列表');
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ 
             success: true, 
             data: {
-              items: paginatedSources,
+              items: mockItems,
               pagination: {
-                total: mockDataSources.length,
-                totalPages: Math.ceil(mockDataSources.length / size),
-                page,
-                size
+                total: mockItems.length,
+                totalPages: 1,
+                page: 1,
+                size: 10
               }
             }
           }));
@@ -322,6 +338,7 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
       } catch (error) {
         // 处理任何可能发生的错误
         console.error('[Server Mock] 处理API请求时出错:', error);
+        console.error('[Server Mock] 错误堆栈:', error instanceof Error ? error.stack : 'No stack trace');
         res.statusCode = 500;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ 
