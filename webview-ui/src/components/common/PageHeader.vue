@@ -23,8 +23,6 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps } from 'vue';
-
 defineProps<{
   title: string;
   actionItems?: Array<{
