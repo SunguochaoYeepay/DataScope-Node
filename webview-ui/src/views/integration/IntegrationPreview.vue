@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useIntegrationStore } from '@/stores/integration';
 import { useMessageStore } from '@/stores/message';
 import { storeToRefs } from 'pinia';
-import type { Integration, FormConfig, TableConfig, FormCondition, ChartConfig, ChartType } from '@/types/integration';
+import type { Integration, FormConfig, TableConfig, FormCondition, ChartConfig, ChartType, FormComponentType } from '@/types/integration';
 import { ColumnAlign, ColumnDisplayType } from '@/types/integration';
 import { formatDate } from '@/utils/formatter';
 import { 
@@ -54,14 +54,50 @@ const shouldShowQuery = computed(() => {
 
 // 计算查询条件列表
 const queryConditions = computed(() => {
-  if (!integration.value || !integration.value.queryParams) {
-    return [];
+  // 如果存在集成配置中的表单条件，优先使用
+  if (integration.value?.formConfig?.conditions?.length) {
+    return integration.value.formConfig.conditions
+      .filter(condition => condition.visibility !== 'hidden')
+      .map(condition => ({
+        name: condition.field,
+        type: condition.type,
+        format: condition.type === 'SELECT' ? 'enum' : condition.type.toLowerCase(),
+        formType: mapFormComponentType(condition.type),
+        required: condition.required || false,
+        defaultValue: condition.defaultValue,
+        description: condition.label,
+        displayOrder: condition.displayOrder,
+        options: condition.componentProps?.options || [],
+        advancedConfig: condition.componentProps?.advancedConfig
+      }))
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
   }
   
-  return integration.value.queryParams
-    .filter(param => param.description && param.description.trim() !== '')
-    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+  // 其次使用查询参数
+  if (integration.value?.queryParams?.length) {
+    return integration.value.queryParams
+      .filter(param => param.description && param.description.trim() !== '')
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+  }
+  
+  return [];
 });
+
+// 将FormComponentType映射到formType
+const mapFormComponentType = (componentType: string): string => {
+  const typeMap: Record<string, string> = {
+    'INPUT': 'input',
+    'NUMBER': 'number',
+    'DATE': 'date',
+    'DATETIME': 'datetime',
+    'SELECT': 'select',
+    'MULTISELECT': 'multiselect',
+    'CHECKBOX': 'checkbox',
+    'RADIO': 'radio',
+    'TEXTAREA': 'textarea'
+  };
+  return typeMap[componentType] || 'input';
+};
 
 // 计算表格列
 const tableColumns = computed(() => {
@@ -164,7 +200,7 @@ const loadIntegration = async () => {
     try {
       const result = await integrationStore.fetchIntegrationById(integrationId.value);
     
-    if (result) {
+      if (result) {
         // 获取类型参数(优先顺序: URL路径参数 > URL查询参数 > 服务端返回的类型)
         // 1. 检查URL路径参数，如 /preview/id/CHART
         const pathTypeParam = Array.isArray(route.params.type) 
@@ -190,9 +226,14 @@ const loadIntegration = async () => {
         
         // 日志输出实际使用的类型
         console.log(`[DEBUG] 最终使用的集成类型: ${integration.value.type}`);
+        console.log(`[DEBUG] 集成配置数据:`, integration.value);
         
         // 初始化表单值
-        if (integration.value.queryParams) {
+        if (integration.value.formConfig?.conditions?.length) {
+          // 如果有表单配置，优先使用表单配置中的条件
+          initFormValuesFromConfig(integration.value.formConfig.conditions);
+        } else if (integration.value.queryParams) {
+          // 其次使用查询参数
           initFormValues(integration.value.queryParams);
         }
         
@@ -248,6 +289,92 @@ const loadIntegration = async () => {
         },
         createTime: new Date().toISOString(),
         updateTime: new Date().toISOString(),
+        // 添加模拟表单配置
+        formConfig: {
+          layout: 'horizontal',
+          conditions: [
+            { 
+              field: 'startDate', 
+              label: '开始日期', 
+              type: 'DATE' as unknown as FormComponentType, 
+              required: true, 
+              displayOrder: 1,
+              defaultValue: '',
+              visibility: 'visible',
+              componentProps: { 
+                advancedConfig: { 
+                  dateFormat: 'YYYY-MM-DD',
+                  disableFuture: false
+                } 
+              }
+            },
+            { 
+              field: 'endDate', 
+              label: '结束日期', 
+              type: 'DATE' as unknown as FormComponentType, 
+              required: true, 
+              displayOrder: 2,
+              defaultValue: '',
+              visibility: 'visible',
+              componentProps: { 
+                advancedConfig: { 
+                  dateFormat: 'YYYY-MM-DD',
+                  disablePast: false
+                } 
+              }
+            },
+            { 
+              field: 'product', 
+              label: '产品', 
+              type: 'SELECT' as unknown as FormComponentType, 
+              required: false, 
+              displayOrder: 3,
+              defaultValue: '',
+              visibility: 'visible',
+              componentProps: { 
+                options: [
+                  { label: '产品A', value: '产品A' },
+                  { label: '产品B', value: '产品B' },
+                  { label: '产品C', value: '产品C' }
+                ]
+              }
+            },
+            { 
+              field: 'quantity', 
+              label: '数量', 
+              type: 'NUMBER' as unknown as FormComponentType, 
+              required: false, 
+              displayOrder: 4,
+              defaultValue: '',
+              visibility: 'visible',
+              componentProps: { 
+                advancedConfig: { 
+                  minValue: 0,
+                  step: 1
+                } 
+              }
+            },
+            { 
+              field: 'remark', 
+              label: '备注', 
+              type: 'TEXTAREA' as unknown as FormComponentType, 
+              required: false, 
+              displayOrder: 5,
+              defaultValue: '',
+              visibility: 'visible',
+              componentProps: { 
+                advancedConfig: { 
+                  maxLength: 200
+                } 
+              }
+            }
+          ],
+          buttons: [
+            { type: 'submit', label: '查询', style: 'primary' },
+            { type: 'reset', label: '重置', style: 'secondary' }
+          ]
+        },
+        // 添加查询参数定义，可选
         queryParams: [
           { name: 'startDate', type: 'DATE', format: 'date', formType: 'date', required: true, displayOrder: 1, description: '开始日期' },
           { name: 'endDate', type: 'DATE', format: 'date', formType: 'date', required: true, displayOrder: 2, description: '结束日期' },
@@ -283,13 +410,13 @@ const loadIntegration = async () => {
             formats: ['CSV', 'EXCEL'],
             maxRows: 1000
           },
-          batchActions: [], // 批量操作
-          aggregation: {   // 聚合配置
+          batchActions: [],
+          aggregation: {
             enabled: false,
             groupByFields: [],
             aggregationFunctions: []
           },
-          advancedFilters: { // 高级筛选
+          advancedFilters: {
             enabled: false,
             defaultFilters: [],
             savedFilters: []
@@ -297,7 +424,7 @@ const loadIntegration = async () => {
         },
         // 图表配置（仅在CHART类型时使用）
         chartConfig: {
-          type: 'bar' as ChartType, // 可以是 'bar', 'line', 'pie', 'scatter', 'area'
+          type: 'bar' as ChartType,
           title: '销售分析图表',
           description: '按月度显示销售数据',
           height: 400,
@@ -312,11 +439,14 @@ const loadIntegration = async () => {
             colors: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de']
           }
         },
-        // ... 其他属性
       };
       
       // 初始化表单值
-      if (integration.value && integration.value.queryParams) {
+      if (integration.value.formConfig?.conditions?.length) {
+        // 如果有表单配置，优先使用表单配置
+        initFormValuesFromConfig(integration.value.formConfig.conditions);
+      } else if (integration.value.queryParams) {
+        // 其次使用查询参数
         initFormValues(integration.value.queryParams);
       }
       
@@ -337,7 +467,44 @@ const loadIntegration = async () => {
   }
 };
 
-// 初始化表单值
+// 从表单配置初始化值
+const initFormValuesFromConfig = (conditions: any[]) => {
+  formValues.value = {};
+  
+  if (!conditions) return;
+  
+  conditions.forEach(condition => {
+    if (condition.visibility !== 'hidden') {
+      // 根据不同类型设置默认值
+      let defaultValue = condition.defaultValue || '';
+      
+      // 根据组件类型处理默认值
+      if (condition.type === 'DATE') {
+        // 如果默认值为空，检查是否有设置使用当前日期
+        if (!defaultValue && condition.componentProps?.advancedConfig?.useCurrentDate) {
+          defaultValue = new Date().toISOString().split('T')[0];
+        }
+      } else if (condition.type === 'DATETIME') {
+        // 处理日期时间类型
+        if (!defaultValue && condition.componentProps?.advancedConfig?.useCurrentDate) {
+          defaultValue = new Date().toISOString().slice(0, 16);
+        }
+      } else if (condition.type === 'NUMBER') {
+        // 数字类型默认值处理
+        defaultValue = defaultValue === '' ? '' : Number(defaultValue);
+      } else if (condition.type === 'CHECKBOX' || condition.type === 'BOOLEAN') {
+        // 布尔类型转换
+        defaultValue = defaultValue === true || defaultValue === 'true';
+      }
+      
+      formValues.value[condition.field] = defaultValue;
+    }
+  });
+  
+  console.log('[DEBUG] 从表单配置初始化值:', formValues.value);
+};
+
+// 从查询参数初始化表单值
 const initFormValues = (params?: any[]) => {
   formValues.value = {};
   
@@ -369,6 +536,8 @@ const initFormValues = (params?: any[]) => {
     
     formValues.value[param.name] = defaultValue;
   });
+  
+  console.log('[DEBUG] 从查询参数初始化值:', formValues.value);
 };
 
 // 加载表格数据
