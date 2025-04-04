@@ -18,6 +18,7 @@ import {
 import QueryForm from '@/components/integration/preview/QueryForm.vue';
 import TableView from '@/components/integration/preview/TableView.vue';
 import ChartView from '@/components/integration/preview/ChartView.vue';
+import PageHeader from '@/components/common/PageHeader.vue';
 
 // 路由相关
 const route = useRoute();
@@ -36,6 +37,45 @@ const tableData = ref<any[]>([]);
 const tableLoading = ref(false);
 const chartData = ref<any[]>([]);
 const chartLoading = ref(false);
+const queryError = ref<string | null>(null);
+const isLoading = ref(false);
+
+// 页面标题和操作按钮
+const pageTitle = computed(() => integration.value ? `预览: ${integration.value.name}` : '集成预览');
+const actionItems = computed(() => [
+  {
+    icon: ArrowLeftOutlined,
+    text: '返回列表',
+    onClick: goBack
+  },
+  {
+    icon: EditOutlined,
+    text: '编辑集成',
+    type: 'primary',
+    onClick: goToEdit
+  }
+]);
+
+// 集成类型
+const integrationType = computed(() => integration.value?.type || '');
+
+// 表格标题
+const tableTitle = computed(() => integration.value?.tableConfig?.title || '数据列表');
+
+// 是否显示查询表单
+const showQueryForm = computed(() => {
+  return queryConditions.value.length > 0;
+});
+
+// 集成数据
+const integrationData = computed(() => {
+  if (integrationType.value === 'TABLE' || integrationType.value === 'SIMPLE_TABLE') {
+    return tableData.value;
+  } else if (integrationType.value === 'CHART') {
+    return chartData.value;
+  }
+  return [];
+});
 
 // 获取集成类型的显示名称
 const getIntegrationType = (type: string): string => {
@@ -677,141 +717,140 @@ const handlePageChange = (page: number) => {
 
 // 返回按钮事件
 const goBack = () => {
-  router.push('/integration/list');
+  router.push('/integration');
 };
 
 // 编辑按钮事件
 const goToEdit = () => {
-  if (integration.value) {
-    router.push(`/integration/edit/${integration.value.id}`);
+  router.push(`/integration/edit/${integrationId.value}`);
+};
+
+// 加载数据
+const loadData = async () => {
+  isLoading.value = true;
+  queryError.value = null;
+  
+  try {
+    if (integrationType.value === 'TABLE' || integrationType.value === 'SIMPLE_TABLE') {
+      await loadTableData();
+    } else if (integrationType.value === 'CHART') {
+      await loadChartData();
+    }
+  } catch (error) {
+    console.error('加载数据失败:', error);
+    queryError.value = '数据加载失败，请稍后重试';
+  } finally {
+    isLoading.value = false;
   }
+};
+
+// 重置表单
+const resetForm = () => {
+  formValues.value = {};
+  loadData();
 };
 </script>
 
 <template>
-  <div class="integration-preview">
-    <!-- 头部导航 -->
-    <div class="flex justify-between items-center mb-6">
-      <div class="flex items-center">
-        <a-button type="link" @click="goBack" class="mr-2">
-          <template #icon><ArrowLeftOutlined /></template>
-          返回列表
-        </a-button>
-        <h1 class="text-xl font-semibold mb-0">预览集成</h1>
-      </div>
-      
-      <a-button type="primary" @click="goToEdit">
-        <template #icon><EditOutlined /></template>
-        编辑集成
-      </a-button>
-    </div>
-
-    <!-- 加载中状态 -->
-    <a-spin :spinning="loading" tip="加载中...">
-      <!-- 集成信息和查询表单部分 -->
-      <a-card v-if="integration" class="mb-6">
-        <template #title>
-          <div class="flex justify-between items-center">
-            <span class="text-lg font-medium">{{ integration.name }}</span>
-            <a-tag color="blue">{{ getIntegrationType(integration.type) }}</a-tag>
-          </div>
-        </template>
-        
-        <div class="mb-4">{{ integration.description }}</div>
-        
-        <!-- 集成配置摘要 -->
-        <a-divider>集成配置信息</a-divider>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <a-descriptions :column="1" bordered size="small">
-            <a-descriptions-item label="集成ID">{{ integration?.id }}</a-descriptions-item>
-            <a-descriptions-item label="查询ID">{{ integration?.queryId }}</a-descriptions-item>
-            <a-descriptions-item label="状态">
-              <a-tag :color="integration?.status === 'ACTIVE' ? 'green' : 'red'">
-                {{ integration?.status === 'ACTIVE' ? '已激活' : '未激活' }}
-              </a-tag>
-            </a-descriptions-item>
-            <a-descriptions-item label="创建时间">{{ formatDate(integration?.createTime) }}</a-descriptions-item>
-            <a-descriptions-item label="更新时间">{{ formatDate(integration?.updateTime) }}</a-descriptions-item>
-          </a-descriptions>
-          
-          <!-- 表格配置信息 -->
-          <a-descriptions v-if="integration?.type === 'TABLE' || integration?.type === 'SIMPLE_TABLE'" :column="1" bordered size="small">
-            <a-descriptions-item label="表格列数">{{ tableColumns.length }}</a-descriptions-item>
-            <a-descriptions-item label="操作按钮">{{ tableActions.length }}</a-descriptions-item>
-            <a-descriptions-item label="分页设置">
-              {{ tablePagination.enabled ? `启用 (${tablePagination.pageSize}条/页)` : '禁用' }}
-            </a-descriptions-item>
-            <a-descriptions-item label="导出功能">
-              {{ tableExport.enabled ? `启用 (${tableExport.formats.join(', ')})` : '禁用' }}
-            </a-descriptions-item>
-            <a-descriptions-item label="显示字段">
-              <div class="flex flex-wrap gap-1">
-                <a-tag v-for="column in tableColumns.slice(0, 5)" :key="column.field">
-                  {{ column.label }}
-                </a-tag>
-                <a-tag v-if="tableColumns.length > 5" color="blue">+{{ tableColumns.length - 5 }}</a-tag>
-              </div>
-            </a-descriptions-item>
-          </a-descriptions>
+  <div class="preview-container">
+    <!-- 页面标题 -->
+    <PageHeader :title="pageTitle" :action-items="actionItems" />
+    
+    <!-- 预览内容区域 -->
+    <div class="preview-content">
+      <!-- 查询表单和结果内容 -->
+      <a-card class="result-preview-card">
+        <!-- 页面顶部消息 -->
+        <div v-if="!isLoading && queryError" class="error-message">
+          <a-alert type="error" :message="queryError" show-icon />
         </div>
-
-        <!-- 查询表单部分 -->
-        <a-divider v-if="shouldShowQuery">查询参数</a-divider>
-        <query-form
-          v-if="shouldShowQuery && queryConditions.length > 0"
-          :conditions="queryConditions"
-          v-model="formValues"
-          :loading="tableLoading"
-          @submit="submitQuery"
-          @reset="loadTableData"
+        
+        <!-- 查询条件表单区域 -->
+        <QueryForm 
+          v-if="showQueryForm"
+          :form-schema="queryConditions" 
+          :form-values="formValues"
+          @search="loadData"
+          @reset="resetForm"
+          class="query-form-section"
         />
+
+        <!-- 加载状态 -->
+        <div v-if="isLoading" class="loading-container">
+          <a-spin size="large" tip="数据加载中..." />
+        </div>
+        
+        <!-- 结果展示区域 -->
+        <div v-else-if="!queryError" class="result-container">
+          <!-- 图表视图 -->
+          <ChartView
+            v-if="integrationData && integrationType === 'CHART'"
+            :config="chartConfig"
+            :data="integrationData"
+            @refresh="loadData"
+          />
+          
+          <!-- 表格视图 -->
+          <TableView
+            v-else-if="integrationData && integrationType === 'TABLE'"
+            :columns="tableColumns"
+            :data="integrationData" 
+            :pagination="tablePagination"
+            :title="tableTitle"
+            :export-config="{ enabled: true, formats: ['Excel', 'CSV'] }"
+            @refresh="loadData"
+          />
+          
+          <!-- 无数据提示 -->
+          <div v-else class="empty-container">
+            <a-empty description="暂无数据，请修改查询条件后重试">
+              <a-button type="primary" @click="loadData">刷新数据</a-button>
+            </a-empty>
+          </div>
+        </div>
       </a-card>
-
-      <!-- 结果显示区域 -->
-      <a-card v-if="integration" title="结果预览" :bordered="true" class="results-section">
-        <!-- 表格视图 -->
-        <table-view
-          v-if="integration.type === 'TABLE' || integration.type === 'SIMPLE_TABLE'"
-          :data="tableData"
-          :columns="tableColumns"
-          :actions="tableActions"
-          :pagination="tablePagination"
-          :exportConfig="tableExport"
-          :loading="tableLoading"
-          title="数据列表"
-          @action="handleTableAction"
-          @export="handleExport"
-          @page-change="handlePageChange"
-        />
-
-        <!-- 图表视图 -->
-        <chart-view
-          v-else-if="integration.type === 'CHART' && chartConfig"
-          :data="chartData"
-          :config="chartConfig"
-          :loading="chartLoading"
-        />
-      </a-card>
-
-      <!-- 空状态 -->
-      <a-empty v-if="!integration" description="未找到集成数据" />
-    </a-spin>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.integration-preview {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 16px 24px;
+.preview-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-.results-section {
-  margin-top: 20px;
+.preview-content {
+  flex: 1;
+  padding: 16px;
+  overflow: auto;
 }
 
-:deep(.ant-descriptions-item-label) {
-  font-weight: 500;
-  color: #5c6b77;
+.result-preview-card {
+  height: 100%;
+}
+
+.error-message {
+  margin-bottom: 16px;
+}
+
+.query-form-section {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 16px;
+}
+
+.loading-container,
+.empty-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.result-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 </style>

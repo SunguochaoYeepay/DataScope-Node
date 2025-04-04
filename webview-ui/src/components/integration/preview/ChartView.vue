@@ -1,16 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue';
 import * as echarts from 'echarts';
 import { 
   SyncOutlined, 
-  SettingOutlined 
+  SettingOutlined,
+  ReloadOutlined,
+  DownloadOutlined
 } from '@ant-design/icons-vue';
 import type { ChartConfig, ChartDataMapping } from '@/types/integration';
+import { ChartType } from '@/types/integration';
+import { Empty } from 'ant-design-vue';
 
 const props = defineProps<{
-  data: any[];
   config: ChartConfig;
+  data?: any[];
   loading?: boolean;
+}>();
+
+const emit = defineEmits<{
+  refresh: [];
 }>();
 
 const chartRef = ref<HTMLElement | null>(null);
@@ -343,75 +351,126 @@ const configureScatterChart = (option: any) => {
     }];
   }
 };
+
+// 图表类型对应的名称
+const getChartTypeName = (type: string) => {
+  const typeMap: Record<string, string> = {
+    'BAR': '柱状图',
+    'LINE': '折线图',
+    'PIE': '饼图',
+    'SCATTER': '散点图',
+    'HEATMAP': '热力图',
+    'RADAR': '雷达图',
+    'FUNNEL': '漏斗图',
+  };
+  return typeMap[type] || '图表';
+};
+
+// 刷新图表
+const refreshChart = () => {
+  // 添加刷新逻辑
+  emit('refresh');
+};
 </script>
 
 <template>
-  <a-card class="chart-section">
-    <!-- 图表标题 -->
-    <template #title>
-      <div class="flex justify-between items-center">
-        <span>{{ config.title || '图表视图' }}</span>
-        <div>
-          <!-- 图表工具按钮 -->
-          <a-space>
-            <a-tooltip title="刷新图表">
-              <a-button type="text" @click="initChart">
-                <template #icon><SyncOutlined /></template>
-              </a-button>
-            </a-tooltip>
-            <a-tooltip title="图表设置">
-              <a-button type="text">
-                <template #icon><SettingOutlined /></template>
-              </a-button>
-            </a-tooltip>
-          </a-space>
-        </div>
+  <div class="chart-view-container">
+    <div class="chart-header">
+      <div class="title-section">
+        <span class="chart-title">{{ config.title || '数据可视化' }}</span>
+        <a-tag v-if="config.type" color="blue" class="chart-type-tag">
+          {{ getChartTypeName(config.type) }}
+        </a-tag>
       </div>
-    </template>
-    
-    <!-- 图表说明 -->
-    <p v-if="config.description" class="text-gray-500 mb-4">
-      {{ config.description }}
-    </p>
-    
-    <!-- 图表容器 -->
-    <a-spin :spinning="loading">
-      <div v-if="!data || data.length === 0" class="h-80 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
-        <a-empty description="暂无数据" />
+      <div class="chart-actions">
+        <a-button type="text" @click="refreshChart" class="action-btn">
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+        <a-button type="text" class="action-btn">
+          <template #icon><DownloadOutlined /></template>
+        </a-button>
       </div>
-      
-      <div 
-        v-else 
-        ref="chartRef" 
-        class="chart-container" 
-        :style="{ 
-          height: `${config.height || 400}px`, 
-          width: '100%',
-          minHeight: '300px',
-          border: isInitialized ? 'none' : '1px dashed #ccc'
-        }"
-      ></div>
-    </a-spin>
-    
-    <!-- 调试信息 -->
-    <div v-if="data && data.length > 0" class="mt-2 text-xs text-gray-400">
-      <a-collapse ghost>
-        <a-collapse-panel key="1" header="调试信息">
-          <div class="debug-info">
-            <p>数据点数: {{ data.length }}</p>
-            <p>图表类型: {{ config.type }}</p>
-            <p>图表初始化: {{ isInitialized ? '是' : '否' }}</p>
-            <p>数据映射: {{ JSON.stringify(config.dataMapping, null, 2) }}</p>
-            <a-button 
-              size="small"
-              @click="initChart" 
-              class="mt-2"
-            >
-              强制重新初始化
-            </a-button>
-          </div>
-        </a-collapse-panel>
-      </a-collapse>
     </div>
-  </a-card>
+
+    <div v-if="loading" class="chart-loading">
+      <a-spin />
+    </div>
+    <div v-else-if="!data || data.length === 0" class="chart-empty">
+      <a-empty 
+        :image="Empty.PRESENTED_IMAGE_SIMPLE"
+        description="暂无数据"
+      >
+        <template #description>
+          <span class="text-gray-500">
+            暂无图表数据，请调整查询条件后重试
+          </span>
+        </template>
+      </a-empty>
+    </div>
+    <div v-else ref="chartRef" class="chart-container"></div>
+  </div>
 </template>
+
+<style scoped>
+.chart-view-container {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.chart-type-tag {
+  font-size: 12px;
+}
+
+.chart-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  border-radius: 4px;
+}
+
+.action-btn:hover {
+  background-color: #f0f0f0;
+  color: #1890ff;
+}
+
+.chart-container {
+  flex: 1;
+  min-height: 300px;
+}
+
+.chart-loading, .chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+</style>

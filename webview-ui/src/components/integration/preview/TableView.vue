@@ -8,6 +8,7 @@ import {
   FileExcelOutlined, 
   DownOutlined 
 } from '@ant-design/icons-vue';
+import { Empty } from 'ant-design-vue';
 
 const props = defineProps<{
   data: any[];
@@ -185,48 +186,46 @@ const refreshTable = () => {
 </script>
 
 <template>
-  <a-card class="table-section">
+  <div class="table-view-container">
     <!-- 表格标题和操作区 -->
-    <template #title>
-      <div class="flex justify-between items-center">
-        <span>{{ title || '数据列表' }}</span>
-        <div class="flex items-center space-x-2">
-          <!-- 导出按钮 -->
-          <a-dropdown 
-            v-if="exportConfig?.enabled" 
-            :trigger="['click']" 
-            v-model:open="exportVisible"
-          >
-            <a-button>
-              <template #icon><FileExcelOutlined /></template>
-              下载
-              <DownOutlined />
-            </a-button>
-            <template #overlay>
-              <a-menu>
-                <a-menu-item 
-                  v-for="format in exportConfig.formats" 
-                  :key="format"
-                  @click="exportTable(format)"
-                >
-                  导出{{ format }}
-                </a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
-          
-          <!-- 刷新按钮 -->
-          <a-button type="text" @click="refreshTable">
-            <template #icon><ReloadOutlined /></template>
+    <div class="flex justify-between items-center mb-3 header-section">
+      <span class="text-base font-medium">{{ title || '数据列表' }}</span>
+      <div class="flex items-center space-x-2">
+        <!-- 导出按钮 -->
+        <a-dropdown 
+          v-if="exportConfig?.enabled" 
+          :trigger="['click']" 
+          v-model:open="exportVisible"
+        >
+          <a-button>
+            <template #icon><FileExcelOutlined /></template>
+            下载
+            <DownOutlined />
           </a-button>
-          
-          <!-- 列设置按钮 -->
-          <a-button type="text">
-            <template #icon><SettingOutlined /></template>
-          </a-button>
-        </div>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item 
+                v-for="format in exportConfig.formats" 
+                :key="format"
+                @click="exportTable(format)"
+              >
+                导出{{ format }}
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+        
+        <!-- 刷新按钮 -->
+        <a-button type="text" @click="refreshTable" class="action-btn">
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+        
+        <!-- 列设置按钮 -->
+        <a-button type="text" class="action-btn">
+          <template #icon><SettingOutlined /></template>
+        </a-button>
       </div>
-    </template>
+    </div>
 
     <!-- 数据表格 -->
     <a-table
@@ -238,11 +237,72 @@ const refreshTable = () => {
       size="middle"
       row-key="id"
       @change="handleTableChange"
+      class="data-table"
+      :rowClassName="() => 'table-row'"
     >
       <!-- 空状态自定义 -->
       <template #emptyText>
-        <a-empty description="暂无数据" />
+        <div class="empty-state">
+          <a-empty 
+            description="暂无数据" 
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          >
+            <template #description>
+              <span class="text-gray-500">
+                暂无查询结果，请调整查询条件后重试
+              </span>
+            </template>
+          </a-empty>
+        </div>
       </template>
     </a-table>
-  </a-card>
+  </div>
 </template>
+
+<style scoped>
+.table-view-container {
+  background-color: #fff;
+  border-radius: 4px;
+}
+
+.header-section {
+  padding: 0 4px;
+  margin-bottom: 12px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  border-radius: 4px;
+}
+
+.action-btn:hover {
+  background-color: #f0f0f0;
+  color: #1890ff;
+}
+
+.data-table {
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+}
+
+.empty-state {
+  padding: 32px 0;
+}
+
+:deep(.table-row:hover) {
+  background-color: #f5f5f5;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  background-color: #fafafa;
+  font-weight: 500;
+}
+
+:deep(.ant-table-pagination) {
+  margin: 16px;
+}
+</style>
