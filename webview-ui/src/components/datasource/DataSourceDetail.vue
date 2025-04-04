@@ -4,6 +4,7 @@ import type { DataSource } from '@/types/datasource'
 import type { TableMetadata, ColumnMetadata } from '@/types/metadata'
 import { useDataSourceStore } from '@/stores/datasource'
 import { useMessageService } from '@/services/message'
+import { useResponseHandler } from '@/utils/api'
 import TableDataPreview from './TableDataPreview.vue'
 
 // 组件属性
@@ -23,6 +24,7 @@ const dataSourceStore = useDataSourceStore()
 
 // 初始化消息服务
 const messageService = useMessageService()
+const { handleResponse } = useResponseHandler()
 
 // 组件状态
 const isLoading = ref(true)
@@ -201,17 +203,18 @@ const syncMetadata = async () => {
     // 使用store中的方法进行同步，它已经能处理各种异常情况
     const result = await dataSourceStore.syncDataSourceMetadata(dataSource.value.id)
     
-    if (result.success) {
-      messageService.success('元数据同步成功')
-    } else {
-      messageService.error(`元数据同步失败: ${result.message || '未知错误'}`)
-    }
+    // 使用统一的响应处理器处理结果
+    handleResponse(result, {
+      showSuccessMessage: true,
+      successMessage: '元数据同步成功',
+      errorMessage: '元数据同步失败'
+    })
     
     // 重新加载元数据
     await loadMetadata()
   } catch (err) {
     console.error('同步元数据失败:', err)
-    messageService.error('同步元数据失败: ' + (err instanceof Error ? err.message : '未知错误'))
+    // 错误已由响应处理器处理
   } finally {
     isSyncingMetadata.value = false
   }
@@ -409,12 +412,13 @@ onMounted(() => {
             <div class="sm:col-span-1">
               <dt class="text-sm font-medium text-gray-500">状态</dt>
               <dd class="mt-1 text-sm">
-                <span
-                  class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                  :class="dataSource.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
-                >
-                  {{ dataSource.status === 'ACTIVE' ? '活跃' : '未连接' }}
-                </span>
+                <div class="mt-4 flex items-center">
+                  <span class="px-2 py-1 text-xs rounded-full"
+                    :class="dataSource.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                  >
+                    {{ dataSource.status === 'active' ? '活跃' : '未连接' }}
+                  </span>
+                </div>
               </dd>
             </div>
             <div class="sm:col-span-2">

@@ -7,6 +7,8 @@
 import { getMockIntegration, getMockIntegrations, executeMockQuery } from '../services/mockData';
 import { mockQueryService } from '../services/mock-query';
 import axios from 'axios';
+import { responseHandler } from './api';
+import type { ApiResponse } from './api';
 
 // 为Window对象扩展handleMockAxiosRequest方法
 declare global {
@@ -208,18 +210,28 @@ if (USE_MOCK) {
   console.log('[Mock] Axios拦截器已启用');
 }
 
+// 全局默认是否显示成功消息
+const SHOW_SUCCESS_MESSAGE = false;
+
+// 全局默认是否显示错误消息
+const SHOW_ERROR_MESSAGE = true;
+
 /**
  * HTTP请求配置选项
  */
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
   timeout?: number;
+  showSuccessMessage?: boolean;
+  showErrorMessage?: boolean;
+  errorMessage?: string;
+  successMessage?: string;
 }
 
 /**
  * 解析响应
  */
-async function parseResponse(response: Response) {
+async function parseResponse<T = any>(response: Response): Promise<T> {
   const contentType = response.headers.get('content-type');
   
   if (contentType?.includes('application/json')) {
@@ -227,13 +239,13 @@ async function parseResponse(response: Response) {
     
     // 检查API响应格式
     if (data && data.success !== undefined) {
-      return data.data;
+      return data.data as T;
     }
     
-    return data;
+    return data as T;
   }
   
-  return response.text();
+  return response.text() as unknown as T;
 }
 
 /**
@@ -367,10 +379,30 @@ async function handleMockRequest<T>(url: string, options: RequestOptions = {}, d
 async function request<T = any>(url: string, options: RequestOptions = {}): Promise<T> {
   // 如果启用了Mock模式，使用模拟数据
   if (USE_MOCK) {
-    return handleMockRequest<T>(url, options);
+    try {
+      const response = await handleMockRequest<ApiResponse<T>>(url, options);
+      // 使用响应处理器处理响应
+      return responseHandler.silent(response) as T;
+    } catch (error) {
+      // 使用响应处理器处理错误
+      responseHandler.errorOnly({
+        success: false,
+        error: {
+          statusCode: 500,
+          code: 'REQUEST_ERROR',
+          message: error instanceof Error ? error.message : String(error)
+        }
+      });
+      throw error;
+    }
   }
 
-  const { params, timeout, ...fetchOptions } = options;
+  const { params, timeout, showSuccessMessage, showErrorMessage, errorMessage, successMessage, ...fetchOptions } = options as RequestOptions & {
+    showSuccessMessage?: boolean;
+    showErrorMessage?: boolean;
+    errorMessage?: string;
+    successMessage?: string;
+  };
   
   // 构建完整URL
   const fullUrl = buildUrl(`${API_BASE_URL}${url}`, params);
@@ -404,20 +436,83 @@ async function request<T = any>(url: string, options: RequestOptions = {}): Prom
     // 处理HTTP错误
     if (!response.ok) {
       const errorData = await parseResponse(response);
-      throw {
-        status: response.status,
-        statusText: response.statusText,
-        data: errorData
+      const errorResponse = {
+        success: false,
+        error: {
+          statusCode: response.status,
+          code: 'API_ERROR',
+          message: response.statusText || 'API请求失败',
+          details: errorData
+        }
       };
+
+      // 使用响应处理器处理错误
+      responseHandler.custom(errorResponse, {
+        showErrorMessage: showErrorMessage ?? SHOW_ERROR_MESSAGE,
+        errorMessage: errorMessage || '请求失败'
+      });
+
+      throw errorResponse;
     }
     
-    return await parseResponse(response);
+    const responseData = await parseResponse<T>(response);
+    
+    // 使用响应处理器处理成功响应
+    const wrappedResponse = typeof responseData === 'object' && responseData !== null && 'success' in responseData
+      ? responseData as ApiResponse<T>
+      : { success: true, data: responseData } as ApiResponse<T>;
+
+    // 处理响应并返回数据部分
+    const result = responseHandler.custom(wrappedResponse, {
+      showSuccessMessage: showSuccessMessage ?? SHOW_SUCCESS_MESSAGE,
+      showErrorMessage: showErrorMessage ?? SHOW_ERROR_MESSAGE,
+      successMessage: successMessage || '操作成功',
+      errorMessage: errorMessage || '操作失败'
+    });
+    
+    return result as T;
   } catch (error) {
     if ((error as any)?.name === 'AbortError') {
-      throw new Error('请求超时');
+      const timeoutError = {
+        success: false,
+        error: {
+          statusCode: 408,
+          code: 'REQUEST_TIMEOUT',
+          message: '请求超时'
+        }
+      };
+      
+      // 使用响应处理器处理超时错误
+      responseHandler.custom(timeoutError, {
+        showErrorMessage: showErrorMessage ?? SHOW_ERROR_MESSAGE,
+        errorMessage: errorMessage || '请求超时'
+      });
+      
+      throw timeoutError;
     }
     
-    throw error;
+    // 已经被响应处理器处理过的错误直接抛出
+    if (error && typeof error === 'object' && 'success' in error) {
+      throw error;
+    }
+    
+    // 其他类型的错误
+    const unknownError = {
+      success: false,
+      error: {
+        statusCode: 500,
+        code: 'UNKNOWN_ERROR',
+        message: error instanceof Error ? error.message : String(error)
+      }
+    };
+    
+    // 使用响应处理器处理未知错误
+    responseHandler.custom(unknownError, {
+      showErrorMessage: showErrorMessage ?? SHOW_ERROR_MESSAGE,
+      errorMessage: errorMessage || '请求出错'
+    });
+    
+    throw unknownError;
   }
 }
 

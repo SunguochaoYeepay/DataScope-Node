@@ -192,24 +192,24 @@ const handleSyncMetadata = (dataSource: DataSource) => {
 
 // 获取数据源类型显示
 const getDataSourceTypeDisplay = (type: DataSourceType) => {
-  const typeMap: Record<DataSourceType, string> = {
-    'MYSQL': 'MySQL',
-    'POSTGRESQL': 'PostgreSQL',
-    'ORACLE': 'Oracle',
-    'SQLSERVER': 'SQL Server',
-    'MONGODB': 'MongoDB',
-    'ELASTICSEARCH': 'Elasticsearch'
+  const typeMap: Record<string, string> = {
+    'mysql': 'MySQL',
+    'postgresql': 'PostgreSQL',
+    'oracle': 'Oracle',
+    'sqlserver': 'SQL Server',
+    'mongodb': 'MongoDB',
+    'elasticsearch': 'Elasticsearch'
   }
   return typeMap[type] || type
 }
 
 // 获取数据源状态显示
 const getStatusDisplay = (status: DataSourceStatus) => {
-  const statusMap: Record<DataSourceStatus, { text: string, color: string }> = {
-    'ACTIVE': { text: '活跃', color: 'text-green-600' },
-    'INACTIVE': { text: '不活跃', color: 'text-gray-500' },
-    'ERROR': { text: '错误', color: 'text-red-600' },
-    'SYNCING': { text: '同步中', color: 'text-blue-600' }
+  const statusMap: Record<string, { text: string, color: string }> = {
+    'active': { text: '活跃', color: 'text-green-600' },
+    'inactive': { text: '不活跃', color: 'text-gray-500' },
+    'error': { text: '错误', color: 'text-red-600' },
+    'syncing': { text: '同步中', color: 'text-blue-600' }
   }
   return statusMap[status] || { text: status, color: 'text-gray-600' }
 }
@@ -277,12 +277,12 @@ onMounted(() => {
             class="border border-gray-300 rounded-md py-2 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">所有类型</option>
-            <option value="MYSQL">MySQL</option>
-            <option value="POSTGRESQL">PostgreSQL</option>
-            <option value="ORACLE">Oracle</option>
-            <option value="SQLSERVER">SQL Server</option>
-            <option value="MONGODB">MongoDB</option>
-            <option value="ELASTICSEARCH">Elasticsearch</option>
+            <option value="mysql">MySQL</option>
+            <option value="postgresql">PostgreSQL</option>
+            <option value="oracle">Oracle</option>
+            <option value="sqlserver">SQL Server</option>
+            <option value="mongodb">MongoDB</option>
+            <option value="elasticsearch">Elasticsearch</option>
           </select>
         </div>
         
@@ -293,10 +293,10 @@ onMounted(() => {
             class="border border-gray-300 rounded-md py-2 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">所有状态</option>
-            <option value="ACTIVE">活跃</option>
-            <option value="INACTIVE">不活跃</option>
-            <option value="ERROR">错误</option>
-            <option value="SYNCING">同步中</option>
+            <option value="active">活跃</option>
+            <option value="inactive">不活跃</option>
+            <option value="error">错误</option>
+            <option value="syncing">同步中</option>
           </select>
         </div>
         
@@ -412,14 +412,14 @@ onMounted(() => {
                 class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                 :class="[
                   getStatusDisplay(dataSource.status).color,
-                  dataSource.status === 'ERROR' ? 'bg-red-100' : 
-                  dataSource.status === 'ACTIVE' ? 'bg-green-100' : 
-                  dataSource.status === 'SYNCING' ? 'bg-blue-100' : 'bg-gray-100'
+                  dataSource.status === 'error' ? 'bg-red-100' : 
+                  dataSource.status === 'active' ? 'bg-green-100' : 
+                  dataSource.status === 'syncing' ? 'bg-blue-100' : 'bg-gray-100'
                 ]"
               >
                 {{ getStatusDisplay(dataSource.status).text }}
               </span>
-              <div v-if="dataSource.status === 'ERROR'" class="text-xs text-red-500 mt-1 max-w-xs truncate" :title="dataSource.errorMessage">
+              <div v-if="dataSource.status === 'error'" class="text-xs text-red-500 mt-1 max-w-xs truncate" :title="dataSource.errorMessage">
                 {{ dataSource.errorMessage || '未知错误' }}
               </div>
             </td>
@@ -482,7 +482,7 @@ onMounted(() => {
                         @click="handleSyncMetadata(dataSource);closeMenu(dataSource.id)"
                         class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         role="menuitem"
-                        :disabled="dataSource.status === 'SYNCING'"
+                        :disabled="dataSource.status === 'syncing'"
                       >
                         <i class="fas fa-sync-alt mr-2 text-purple-600"></i> 同步元数据
                       </button>

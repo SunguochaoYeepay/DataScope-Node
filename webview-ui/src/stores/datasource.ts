@@ -13,6 +13,7 @@ import type { Metadata, TableMetadata } from '@/types/metadata'
 import { dataSourceService } from '@/services/datasource'
 import { message } from '@/services/message'
 import { loading } from '@/services/loading'
+import { useResponseHandler } from '@/utils/api'
 
 export const useDataSourceStore = defineStore('dataSource', () => {
   // 状态
@@ -36,17 +37,17 @@ export const useDataSourceStore = defineStore('dataSource', () => {
   
   // 计算属性
   const activeDataSources = computed(() => {
-    return dataSources.value.filter(ds => ds.status === 'ACTIVE')
+    return dataSources.value.filter(ds => ds.status === 'active')
   })
   
   const dataSourcesByType = computed(() => {
     const result: Record<DataSourceType, DataSource[]> = {
-      'MYSQL': [],
-      'POSTGRESQL': [],
-      'ORACLE': [],
-      'SQLSERVER': [],
-      'MONGODB': [],
-      'ELASTICSEARCH': []
+      'mysql': [],
+      'postgresql': [],
+      'oracle': [],
+      'sqlserver': [],
+      'mongodb': [],
+      'elasticsearch': []
     }
     
     dataSources.value.forEach(ds => {
@@ -55,6 +56,50 @@ export const useDataSourceStore = defineStore('dataSource', () => {
     
     return result
   })
+  
+  // 查找类型为特定数据源类型的数据源
+  const getDataSourcesByType = computed(() => {
+    const result = {} as Record<DataSourceType, DataSource[]>;
+    
+    // 初始化每种类型的空数组
+    ['mysql', 'postgresql', 'oracle', 'sqlserver', 'mongodb', 'elasticsearch'].forEach(type => {
+      result[type as DataSourceType] = [];
+    });
+    
+    // 按类型分组数据源
+    dataSources.value.forEach(ds => {
+      if (ds.type in result) {
+        result[ds.type].push(ds);
+      }
+    });
+    
+    return result;
+  });
+  
+  // 获取不同状态数据源的数量
+  const getStatusCounts = computed(() => {
+    const counts = {
+      total: dataSources.value.length,
+      active: 0,
+      inactive: 0,
+      error: 0,
+      syncing: 0
+    };
+    
+    dataSources.value.forEach(ds => {
+      if (ds.status === 'active') {
+        counts.active++;
+      } else if (ds.status === 'inactive') {
+        counts.inactive++;
+      } else if (ds.status === 'error') {
+        counts.error++;
+      } else if (ds.status === 'syncing') {
+        counts.syncing++;
+      }
+    });
+    
+    return counts;
+  });
   
   // 获取数据源列表
   const fetchDataSources = async (params: DataSourceQueryParams = {}) => {
@@ -218,9 +263,15 @@ export const useDataSourceStore = defineStore('dataSource', () => {
       const result = await dataSourceService.syncMetadata({ id })
       console.log('元数据同步结果:', result)
       
+      // 使用统一的响应处理器
+      const { handleResponse } = useResponseHandler()
+      handleResponse(result, {
+        showSuccessMessage: true,
+        successMessage: '元数据同步成功',
+        errorMessage: '元数据同步失败'
+      })
+      
       if (result.success) {
-        message.success('元数据同步成功')
-        
         // 更新当前数据源的元数据
         if (currentDataSource.value?.id === id) {
           currentDataSource.value = await getDataSourceById(id)
@@ -232,14 +283,12 @@ export const useDataSourceStore = defineStore('dataSource', () => {
           const updatedDataSource = await dataSourceService.getDataSource(id)
           dataSources.value[index] = updatedDataSource
         }
-      } else {
-        message.error(`元数据同步失败: ${result.message || '未知错误'}`)
       }
       
       return result
     } catch (err) {
       console.error('同步元数据失败:', err)
-      message.error('同步元数据失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      // 错误已由响应处理器处理
       return { 
         success: false, 
         message: err instanceof Error ? err.message : String(err) 
@@ -441,6 +490,8 @@ export const useDataSourceStore = defineStore('dataSource', () => {
     // 计算属性
     activeDataSources,
     dataSourcesByType,
+    getDataSourcesByType,
+    getStatusCounts,
     
     // 方法
     fetchDataSources,
