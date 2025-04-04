@@ -89,7 +89,10 @@ const getIntegrationType = (type: string): string => {
 
 // 需要显示查询条件的集成类型
 const shouldShowQuery = computed(() => {
-  return integration.value?.type === 'TABLE'; // 只有复杂表格需要查询条件
+  // 优先使用URL查询参数的类型，其次使用集成对象的类型
+  const typeParam = route.query.type as string;
+  const integrationType = typeParam || integration.value?.type;
+  return integrationType === 'TABLE'; // 只有高级表格类型需要查询条件
 });
 
 // 计算查询条件列表
@@ -767,7 +770,7 @@ const resetForm = () => {
         
         <!-- 查询条件表单区域 -->
         <QueryForm 
-          v-if="showQueryForm"
+          v-if="shouldShowQuery && queryConditions.length > 0"
           :conditions="queryConditions" 
           :model-value="formValues"
           @submit="loadData"
