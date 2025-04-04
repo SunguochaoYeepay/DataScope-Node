@@ -1,16 +1,16 @@
 import type { Metadata } from './metadata'
 
 // 数据源类型
-export type DataSourceType = 'MYSQL' | 'POSTGRESQL' | 'ORACLE' | 'SQLSERVER' | 'MONGODB' | 'ELASTICSEARCH'
+export type DataSourceType = 'mysql' | 'postgresql' | 'oracle' | 'sqlserver' | 'mongodb' | 'elasticsearch'
 
 // 数据源状态
-export type DataSourceStatus = 'ACTIVE' | 'INACTIVE' | 'ERROR' | 'SYNCING'
+export type DataSourceStatus = 'active' | 'inactive' | 'error' | 'syncing'
 
 // 同步频率类型
-export type SyncFrequency = 'MANUAL' | 'HOURLY' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+export type SyncFrequency = 'manual' | 'hourly' | 'daily' | 'weekly' | 'monthly'
 
 // 数据库连接加密方式
-export type EncryptionType = 'NONE' | 'SSL' | 'TLS'
+export type EncryptionType = 'none' | 'ssl' | 'tls'
 
 // 数据源模型
 export interface DataSource {
@@ -34,6 +34,7 @@ export interface DataSource {
   connectionParams?: Record<string, string>
   encryptionType?: EncryptionType
   encryptionOptions?: Record<string, string>
+  isActive?: boolean
   
   // 元数据信息
   metadata?: Metadata
