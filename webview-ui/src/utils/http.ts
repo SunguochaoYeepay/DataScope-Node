@@ -6,7 +6,8 @@
 // 导入mock数据服务
 import { getMockIntegration, getMockIntegrations, executeMockQuery } from '../services/mockData';
 import { mockQueryService } from '../services/mock-query';
-import axios, { AxiosInstance, AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import type { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { responseHandler } from './api';
 import type { ApiResponse } from './api';
 import { message } from '@/services/message';
@@ -25,19 +26,10 @@ const USE_MOCK = import.meta.env.VITE_ENABLE_MOCK === 'true';
 
 console.log(`[HTTP] 初始化axios, MOCK模式: ${USE_MOCK}`);
 
-// 创建axios实例
-const http: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 5000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
 // 如果启用Mock模式，设置axios拦截器
 if (USE_MOCK) {
   // 请求拦截器
-  http.interceptors.request.use(
+  axios.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
       const url = config.url || '';
       console.log('[Mock Axios] 拦截请求:', url, config.method);
@@ -47,7 +39,8 @@ if (USE_MOCK) {
         if (!config.headers) {
           config.headers = {};
         }
-        config.headers['X-Mocked-Request'] = 'true';
+        // 使用类型断言避免类型错误
+        (config.headers as Record<string, string>)['X-Mocked-Request'] = 'true';
       }
       
       return config;
@@ -58,7 +51,7 @@ if (USE_MOCK) {
   );
 
   // 响应拦截器
-  http.interceptors.response.use(
+  axios.interceptors.response.use(
     (response: AxiosResponse) => {
       const { config } = response;
       
@@ -70,12 +63,16 @@ if (USE_MOCK) {
         if (apiResponse.success) {
           // 成功响应检查是否有消息需要显示
           if (apiResponse.error?.message && apiResponse.error.message.trim() !== '') {
+            // 生成唯一key
+            const messageKey = `success-${config.url}-${JSON.stringify(config.params || {})}-${Date.now()}`;
             message.success(apiResponse.error.message, undefined, false);
           }
           return apiResponse.data;
         } else {
           // 业务逻辑错误
           if (apiResponse.error?.message) {
+            // 生成包含url和错误代码的唯一key
+            const messageKey = `error-${apiResponse.error.code}-${config.url}-${Date.now()}`;
             message.error(apiResponse.error.message, undefined, false);
           }
           return Promise.reject(apiResponse);
@@ -90,7 +87,7 @@ if (USE_MOCK) {
       let messageKey = 'network-error';
       
       if (requestConfig?.url) {
-        messageKey = `${requestConfig.url}-${error.code || 'unknown'}`;
+        messageKey = `${requestConfig.url}-${error.code || 'unknown'}-${Date.now()}`;
       }
       
       // 处理网络错误
@@ -564,7 +561,7 @@ async function request<T = any>(url: string, options: RequestOptions = {}): Prom
 /**
  * HTTP客户端
  */
-export const http = {
+export const httpClient = {
   /**
    * 发送GET请求
    */
@@ -631,4 +628,7 @@ export const http = {
       body: data ? JSON.stringify(data) : undefined
     });
   }
-}; 
+};
+
+// 为了向后兼容，导出http别名
+export { httpClient as http }; 

@@ -61,7 +61,7 @@ const isDuplicateMessage = (config: MessageConfig): MessageInstance | null => {
 // 更新重复消息
 const updateDuplicateMessage = (duplicate: MessageInstance) => {
   // 将旧消息移到队列顶部
-  const container = duplicate.id && document.getElementById(duplicate.id)
+  const container = document.getElementById(duplicate.id)
   if (container && container.parentNode) {
     container.parentNode.appendChild(container) // 移到末尾显示
   }
@@ -71,30 +71,33 @@ const updateDuplicateMessage = (duplicate: MessageInstance) => {
   duplicate.config.count = count
   
   // 创建或更新消息内容
-  const contentEl = container?.querySelector('.message-content')
-  if (contentEl) {
-    const baseContent = duplicate.config.content.replace(/ \(\d+\)$/, '') // 移除已有的计数
-    contentEl.textContent = `${baseContent} (${count})`
-  }
-  
-  // 重新设置自动关闭计时器
-  const closeButton = container?.querySelector('.message-close-btn')
-  if (closeButton && typeof closeButton.click === 'function') {
-    // 先移除旧的计时器
-    const timerId = parseInt((closeButton as any).dataset.timerId || '0')
-    if (timerId) {
-      clearTimeout(timerId)
+  if (container) {
+    const contentEl = container.querySelector('.message-content') as HTMLElement | null
+    if (contentEl) {
+      const baseContent = duplicate.config.content.replace(/ \(\d+\)$/, '') // 移除已有的计数
+      contentEl.textContent = `${baseContent} (${count})`
     }
     
-    // 设置新的计时器
-    const duration = duplicate.config.duration || queueConfig.defaultDuration
-    if (duration && duration > 0) {
-      const newTimerId = window.setTimeout(() => {
-        closeButton.click() // 触发关闭
-      }, duration)
+    // 重新设置自动关闭计时器
+    const closeButton = container.querySelector('.message-close-btn') as HTMLElement | null
+    if (closeButton && typeof closeButton.click === 'function') {
+      // 先移除旧的计时器
+      const oldTimerId = parseInt((closeButton as any).dataset.timerId || '0')
+      if (oldTimerId) {
+        clearTimeout(oldTimerId)
+      }
       
-      // 存储timer ID
-      (closeButton as any).dataset.timerId = newTimerId.toString()
+      // 设置新的计时器
+      const duration = duplicate.config.duration || queueConfig.defaultDuration
+      if (duration && duration > 0) {
+        // 创建新的定时器，确保类型正确
+        const newTimerId = window.setTimeout(() => {
+          closeButton.click() // 触发关闭
+        }, Number(duration))
+        
+        // 存储timer ID
+        (closeButton as any).dataset.timerId = String(newTimerId)
+      }
     }
   }
   
@@ -136,8 +139,8 @@ const createMessage = (config: MessageConfig) => {
   // 限制消息数量
   limitMessageCount()
 
-  // 生成唯一ID
-  const id = `message-${Date.now()}`
+  // 生成唯一ID - 添加随机数避免时间戳相同导致的ID重复
+  const id = `message-${Date.now()}-${Math.floor(Math.random() * 1000)}`
   
   // 创建容器
   const container = document.createElement('div')
@@ -171,46 +174,58 @@ const createMessage = (config: MessageConfig) => {
 // 消息服务实例
 export const message: MessageService = {
   info(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
+    // 为每个消息生成唯一key防止重复
+    const key = `info-${content}-${Date.now()}`
     createMessage({
       type: 'info',
       content,
       duration,
       showIcon: true,
       closable: true,
-      allowDuplicate
+      allowDuplicate,
+      key: allowDuplicate ? key : undefined
     })
   },
 
   success(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
+    // 为每个消息生成唯一key防止重复
+    const key = `success-${content}-${Date.now()}`
     createMessage({
       type: 'success',
       content,
       duration,
       showIcon: true,
       closable: true,
-      allowDuplicate
+      allowDuplicate,
+      key: allowDuplicate ? key : undefined
     })
   },
 
   warning(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
+    // 为每个消息生成唯一key防止重复
+    const key = `warning-${content}-${Date.now()}`
     createMessage({
       type: 'warning',
       content,
       duration,
       showIcon: true,
       closable: true,
-      allowDuplicate
+      allowDuplicate,
+      key: allowDuplicate ? key : undefined
     })
   },
 
   error(content: string, duration = queueConfig.defaultDuration, allowDuplicate = false) {
+    // 为每个消息生成唯一key防止重复
+    const key = `error-${content}-${Date.now()}`
     createMessage({
       type: 'error',
       content,
       duration,
       showIcon: true,
       closable: true,
-      allowDuplicate
+      allowDuplicate,
+      key: allowDuplicate ? key : undefined
     })
   },
 
