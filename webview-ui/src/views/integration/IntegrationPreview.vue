@@ -68,6 +68,8 @@ const showQueryForm = computed(() => {
 
 // 集成数据
 const integrationData = computed(() => {
+  if (!integration.value) return [];
+  
   if (integrationType.value === 'TABLE' || integrationType.value === 'SIMPLE_TABLE') {
     return tableData.value;
   } else if (integrationType.value === 'CHART') {
@@ -100,18 +102,16 @@ const shouldShowQuery = computed(() => {
   
   console.log('[DEBUG] 最终使用的类型:', integrationType);
   
-  // 只有高级表格类型(TABLE)需要显示查询条件，添加查询条件列表的长度检查作为调试信息
-  console.log('[DEBUG] 查询条件数量:', queryConditions.value.length);
-  console.log('[DEBUG] 应该显示查询条件:', integrationType === 'TABLE');
-  
-  // 始终在TABLE类型时显示查询条件，不依赖于查询条件数量
+  // 只有高级表格类型(TABLE)需要显示查询条件
   return integrationType === 'TABLE';
 });
 
 // 计算查询条件列表
 const queryConditions = computed(() => {
+  if (!integration.value) return [];
+  
   // 如果存在集成配置中的表单条件，优先使用
-  if (integration.value?.formConfig?.conditions?.length) {
+  if (integration.value.formConfig?.conditions?.length) {
     return integration.value.formConfig.conditions
       .filter(condition => condition.visibility !== 'hidden')
       .map(condition => ({
@@ -130,7 +130,7 @@ const queryConditions = computed(() => {
   }
   
   // 其次使用查询参数
-  if (integration.value?.queryParams?.length) {
+  if (integration.value.queryParams?.length) {
     return integration.value.queryParams
       .filter(param => param.description && param.description.trim() !== '')
       .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
@@ -227,12 +227,14 @@ const chartConfig = computed(() => {
 
 // 生命周期钩子
 onMounted(async () => {
+  console.log('页面刷新后重新计算shouldShowQuery');
+  
   if (integrationId.value) {
     await loadIntegration();
   }
   
   // 手动触发数据加载
-  loadTableData();
+  await loadTableData();
   
   // 添加全局resize事件监听器，用于处理图表和表格的尺寸变化
   window.addEventListener('resize', handleGlobalResize);
@@ -472,18 +474,44 @@ const loadIntegration = async () => {
           ]
         },
         // 添加查询参数定义，可选
-        queryParams: [
-          { name: 'date', type: 'DATE', format: 'date', formType: 'date', required: true, displayOrder: 1, description: '日期范围' },
-          { name: 'customer', type: 'STRING', format: 'string', formType: 'input', required: false, displayOrder: 2, description: '客户名称' },
-          { name: 'status', type: 'STRING', format: 'enum', formType: 'select', required: false, displayOrder: 3, description: '订单状态', options: [
-            { label: '全部', value: '' },
-            { label: '已完成', value: '已完成' },
-            { label: '进行中', value: '进行中' },
-            { label: '已取消', value: '已取消' }
-          ]},
-          { name: 'minAmount', type: 'NUMBER', format: 'integer', formType: 'number', required: false, displayOrder: 4, description: '最小金额' },
-          { name: 'maxAmount', type: 'NUMBER', format: 'integer', formType: 'number', required: false, displayOrder: 5, description: '最大金额' },
-        ],
+        queryParams: validType === 'TABLE' ? [
+          {
+            name: 'product',
+            type: 'STRING',
+            format: 'string',
+            formType: 'input',
+            required: false,
+            defaultValue: '',
+            description: '产品名称',
+            displayOrder: 1
+          },
+          {
+            name: 'status',
+            type: 'SELECT',
+            format: 'enum',
+            formType: 'select',
+            required: false,
+            defaultValue: '',
+            description: '订单状态',
+            displayOrder: 2,
+            options: [
+              { label: '全部', value: '' },
+              { label: '已完成', value: '已完成' },
+              { label: '进行中', value: '进行中' },
+              { label: '已取消', value: '已取消' }
+            ]
+          },
+          {
+            name: 'dateRange',
+            type: 'DATE',
+            format: 'date',
+            formType: 'date',
+            required: false,
+            defaultValue: '',
+            description: '订单日期',
+            displayOrder: 3
+          }
+        ] : [],
         // 添加表格配置
         tableConfig: {
           columns: [
@@ -521,7 +549,7 @@ const loadIntegration = async () => {
           }
         },
         // 图表配置（仅在CHART类型时使用）
-        chartConfig: {
+        chartConfig: validType === 'CHART' ? {
           type: 'bar' as ChartType,
           title: '销售分析图表',
           description: '按月度显示销售数据',
@@ -536,7 +564,7 @@ const loadIntegration = async () => {
           styleOptions: {
             colors: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de']
           }
-        },
+        } : undefined,
       };
       
       // 初始化表单值
@@ -639,96 +667,54 @@ const initFormValues = (params?: any[]) => {
 };
 
 // 加载表格数据
-const loadTableData = () => {
-  tableLoading.value = true;
-  console.log('[DEBUG] 开始加载表格数据...');
-
-  // 定义表格的列配置
-  if (integration.value && !integration.value.tableConfig?.columns?.length) {
-    integration.value.tableConfig = {
-      ...integration.value?.tableConfig || {},
-      columns: [
-        { field: 'id', label: 'ID', type: 'number', visible: true, sortable: true, displayOrder: 0, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT },
-        { field: 'date', label: '日期', type: 'date', visible: true, sortable: true, displayOrder: 1, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.DATE },
-        { field: 'product', label: '产品', type: 'string', visible: true, sortable: true, displayOrder: 2, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT },
-        { field: 'quantity', label: '数量', type: 'number', visible: true, sortable: true, displayOrder: 3, align: ColumnAlign.RIGHT, displayType: ColumnDisplayType.NUMBER },
-        { field: 'amount', label: '金额', type: 'currency', visible: true, sortable: true, displayOrder: 4, align: ColumnAlign.RIGHT, displayType: ColumnDisplayType.TEXT },
-        { field: 'status', label: '状态', type: 'enum', visible: true, sortable: true, displayOrder: 5, align: ColumnAlign.CENTER, displayType: ColumnDisplayType.TAG },
-        { field: 'customer', label: '客户', type: 'string', visible: true, sortable: true, displayOrder: 6, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT },
-        { field: 'department', label: '部门', type: 'string', visible: true, sortable: true, displayOrder: 7, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT }
-      ]
-    };
-  }
-  
-  // 生成测试数据，确保每次都创建新数据
-  const mockData = Array.from({ length: 50 }, (_, i) => ({
-    id: i + 1,
-    date: formatDate(new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)),
-    product: ['笔记本电脑', '智能手机', '平板电脑', '智能手表', '无线耳机'][Math.floor(Math.random() * 5)],
-    quantity: Math.floor(Math.random() * 100) + 1,
-    amount: (Math.random() * 10000 + 500).toFixed(2),
-    status: ['已完成', '进行中', '已取消'][Math.floor(Math.random() * 3)],
-    customer: ['张三', '李四', '王五', '赵六', '钱七'][Math.floor(Math.random() * 5)],
-    department: ['销售部', '市场部', '技术部', '客服部', '财务部'][Math.floor(Math.random() * 5)]
-  }));
-
-  console.log('生成了测试数据:', mockData.length, '条记录');
-  console.log('样例数据:', mockData[0]);
-  
-  // 直接设置数据
-  tableData.value = mockData;
-  tableLoading.value = false;
-  console.log('[DEBUG] 表格数据加载完成:', tableData.value.length, '条记录');
-};
-
-// 提交查询，用于替代之前的handleSubmit
-const submitQuery = () => {
-  if (integration.value && (integration.value.type === 'TABLE' || integration.value.type === 'SIMPLE_TABLE')) {
+const loadTableData = async () => {
+  try {
     tableLoading.value = true;
-    console.log('[DEBUG] 提交查询参数:', formValues.value);
+    console.log('[DEBUG] 开始加载表格数据...');
+
+    // 显示加载状态的延迟
+    await sleep(300);
     
-    // 模拟API调用获取表格数据
-    setTimeout(() => {
-      // 根据表单值筛选数据
-      console.log('[DEBUG] 生成查询结果...');
-      const mockData = Array.from({ length: 30 }, (_, i) => ({
-        id: `${i + 1}`,
-        date: formatDate(new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)),
-        product: ['产品A', '产品B', '产品C', '产品D', '产品E'][Math.floor(Math.random() * 5)],
-        quantity: Math.floor(Math.random() * 100) + 1,
-        amount: (Math.random() * 10000 + 500).toFixed(2),
-        status: ['已完成', '进行中', '已取消'][Math.floor(Math.random() * 3)],
-        customer: formValues.value.customer || ['客户A', '客户B', '客户C', '客户D', '客户E'][Math.floor(Math.random() * 5)],
-        department: ['销售部', '市场部', '技术部', '客服部', '财务部'][Math.floor(Math.random() * 5)],
-        createTime: formatDate(new Date(Date.now() - Math.random() * 60 * 24 * 60 * 60 * 1000)),
-        updateTime: formatDate(new Date(Date.now() - Math.random() * 15 * 24 * 60 * 60 * 1000))
-      }));
-      
-      // 如果设置了状态筛选，进行筛选
-      if (formValues.value.status && formValues.value.status !== '') {
-        tableData.value = mockData.filter(item => item.status === formValues.value.status);
-      } else {
-        tableData.value = mockData;
-      }
-      
-      // 模拟金额筛选
-      if (formValues.value.minAmount && formValues.value.minAmount !== '') {
-        tableData.value = tableData.value.filter(item => parseFloat(item.amount) >= parseFloat(formValues.value.minAmount));
-      }
-      
-      if (formValues.value.maxAmount && formValues.value.maxAmount !== '') {
-        tableData.value = tableData.value.filter(item => parseFloat(item.amount) <= parseFloat(formValues.value.maxAmount));
-      }
-      
-      // 不要直接修改计算属性
-      const currentPagination = tablePagination.value;
-      if (typeof currentPagination === 'object' && currentPagination !== null) {
-        console.log('[DEBUG] 更新分页信息:', tableData.value.length, '条记录');
-      }
-      
-      tableLoading.value = false;
-      console.log('[DEBUG] 查询结果:', tableData.value);
-    }, 1000);
+    // 定义表格的列配置
+    if (integration.value && !integration.value.tableConfig?.columns?.length) {
+      integration.value.tableConfig = {
+        ...integration.value?.tableConfig || {},
+        columns: [
+          { field: 'id', label: 'ID', type: 'number', visible: true, sortable: true, displayOrder: 0, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT },
+          { field: 'date', label: '日期', type: 'date', visible: true, sortable: true, displayOrder: 1, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.DATE },
+          { field: 'product', label: '产品', type: 'string', visible: true, sortable: true, displayOrder: 2, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT },
+          { field: 'quantity', label: '数量', type: 'number', visible: true, sortable: true, displayOrder: 3, align: ColumnAlign.RIGHT, displayType: ColumnDisplayType.NUMBER },
+          { field: 'amount', label: '金额', type: 'currency', visible: true, sortable: true, displayOrder: 4, align: ColumnAlign.RIGHT, displayType: ColumnDisplayType.TEXT },
+          { field: 'status', label: '状态', type: 'enum', visible: true, sortable: true, displayOrder: 5, align: ColumnAlign.CENTER, displayType: ColumnDisplayType.TAG },
+          { field: 'customer', label: '客户', type: 'string', visible: true, sortable: true, displayOrder: 6, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT },
+          { field: 'department', label: '部门', type: 'string', visible: true, sortable: true, displayOrder: 7, align: ColumnAlign.LEFT, displayType: ColumnDisplayType.TEXT }
+        ]
+      };
+    }
+    
+    // 生成测试数据，确保每次都创建新数据
+    const mockData = Array.from({ length: 50 }, (_, i) => ({
+      id: i + 1,
+      date: formatDate(new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)),
+      product: ['笔记本电脑', '智能手机', '平板电脑', '智能手表', '无线耳机'][Math.floor(Math.random() * 5)],
+      quantity: Math.floor(Math.random() * 100) + 1,
+      amount: (Math.random() * 10000 + 500).toFixed(2),
+      status: ['已完成', '进行中', '已取消'][Math.floor(Math.random() * 3)],
+      customer: ['张三', '李四', '王五', '赵六', '钱七'][Math.floor(Math.random() * 5)],
+      department: ['销售部', '市场部', '技术部', '客服部', '财务部'][Math.floor(Math.random() * 5)]
+    }));
+
+    console.log('生成了测试数据:', mockData.length, '条记录');
+    console.log('样例数据:', mockData[0]);
+    
+    // 直接设置数据
+    tableData.value = mockData;
+    console.log('[DEBUG] 表格数据加载完成:', tableData.value.length, '条记录');
+  } catch (error) {
+    console.error('加载表格数据失败:', error);
+    messageStore.error('加载表格数据失败，请稍后重试');
+  } finally {
+    tableLoading.value = false;
   }
 };
 
@@ -851,6 +837,7 @@ const resetForm = () => {
       <div class="flex justify-between items-center mb-6">
         <div class="flex items-center">
           <h1 class="text-xl font-semibold mb-0">{{ pageTitle }}</h1>
+          <a-tag v-if="integration?.type" color="blue" class="ml-2">{{ getIntegrationType(integration.type) }}</a-tag>
         </div>
         
         <div class="flex items-center space-x-2">
@@ -880,24 +867,25 @@ const resetForm = () => {
         
         <!-- 查询条件表单区域 -->
         <template v-if="shouldShowQuery">
-          <div class="debug-info bg-gray-100 p-2 mb-2" style="font-size: 12px;">
-            <div>Debug - Should Show Query: {{ shouldShowQuery }}</div>
-            <div>Debug - Query Conditions Count: {{ queryConditions.length }}</div>
-            <div>Debug - Integration Type: {{ integration?.type }}</div>
+          <div class="query-info-header mb-4">
+            <div class="flex justify-between items-center">
+              <h3 class="text-base font-medium mb-0">查询条件</h3>
+              <a-tag v-if="integration?.type" color="blue">{{ getIntegrationType(integration.type) }}</a-tag>
+            </div>
           </div>
-          
-          <div v-if="queryConditions.length === 0" class="empty-query-message p-4 mb-4 border border-dashed border-gray-300 rounded">
-            <a-alert type="info" message="无查询条件可用" description="当前集成未配置查询条件，但URL参数指定了需要显示查询表单。" show-icon />
-          </div>
-          
+
           <QueryForm 
-            v-else
+            v-if="queryConditions.length > 0"
             :conditions="queryConditions" 
             :model-value="formValues"
             @submit="loadData"
             @reset="resetForm"
             class="query-form-section"
           />
+
+          <div v-else class="empty-query-message p-4 mb-4 border border-dashed border-gray-300 rounded">
+            <a-alert type="info" message="无查询条件可用" description="当前集成未配置查询条件，您可以继续查看数据或返回编辑集成添加查询条件。" show-icon />
+          </div>
         </template>
 
         <!-- 加载状态 -->
@@ -977,5 +965,10 @@ const resetForm = () => {
   display: flex;
   flex-direction: column;
   flex: 1;
+}
+
+.query-info-header {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
 }
 </style>
