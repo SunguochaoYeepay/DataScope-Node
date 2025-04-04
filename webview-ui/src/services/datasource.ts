@@ -43,17 +43,18 @@ const mockDataSources: DataSource[] = Array.from({ length: 5 }, (_, i) => ({
   id: `ds-${i+1}`,
   name: `模拟数据源 ${i+1}`,
   description: `这是一个模拟的数据源，用于开发测试 ${i+1}`,
-  type: (i % 3 === 0 ? 'MYSQL' : (i % 3 === 1 ? 'POSTGRESQL' : 'ORACLE')) as DataSourceType,
+  type: (i % 3 === 0 ? 'mysql' : (i % 3 === 1 ? 'postgresql' : 'oracle')) as DataSourceType,
   host: 'localhost',
   port: 3306 + i,
   databaseName: `test_db_${i+1}`,
   database: `test_db_${i+1}`,
   username: 'user',
-  status: (i === 4 ? 'ERROR' : 'ACTIVE') as DataSourceStatus,
-  syncFrequency: 'MANUAL' as SyncFrequency,
+  status: (i === 4 ? 'error' : 'active') as DataSourceStatus,
+  syncFrequency: 'manual' as SyncFrequency,
   lastSyncTime: i === 0 ? new Date().toISOString() : (i === 4 ? null : null),
   createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString()
+  updatedAt: new Date().toISOString(),
+  isActive: i !== 4
 }))
 
 // 处理统一响应格式
@@ -77,21 +78,22 @@ const adaptDataSource = (source: any): DataSource => {
     id: source.id,
     name: source.name,
     description: source.description || '',
-    type: (source.type?.toUpperCase() || 'MYSQL') as DataSourceType, // 后端返回小写的类型
+    type: source.type as DataSourceType, // 后端现在返回小写的类型，不需要转换
     host: source.host,
     port: source.port,
     databaseName: source.databaseName || source.database || '', // 优先使用databaseName，其次使用database
     database: source.databaseName || source.database || '', // 同时记录database字段确保两边兼容
     username: source.username,
     // 密码通常不会返回
-    status: (source.status || 'ACTIVE') as DataSourceStatus,
-    syncFrequency: (source.syncFrequency || 'MANUAL') as SyncFrequency,
+    status: source.status as DataSourceStatus,
+    syncFrequency: source.syncFrequency as SyncFrequency,
     lastSyncTime: source.lastSyncTime,
     createdAt: source.createdAt,
     updatedAt: source.updatedAt,
     // 其他可选字段
     errorMessage: source.errorMessage,
     connectionParams: source.connectionParams || {},
+    isActive: source.isActive,
     // 额外字段处理
     metadata: source.metadata
   }
@@ -283,7 +285,7 @@ export const dataSourceService = {
           databaseName: data.databaseName,
           database: data.database || data.databaseName,
           username: data.username,
-          status: 'ACTIVE',
+          status: 'active',
           syncFrequency: data.syncFrequency,
           lastSyncTime: null,
           createdAt: new Date().toISOString(),
@@ -509,103 +511,75 @@ export const dataSourceService = {
   // 同步数据源元数据
   async syncMetadata(params: SyncMetadataParams): Promise<MetadataSyncResult> {
     try {
-      // 检查是否使用模拟数据
       if (USE_MOCK) {
-        console.log(`使用模拟数据返回元数据同步结果，数据源ID: ${params.id}`);
+        console.log('执行模拟元数据同步:', params);
         
-        // 模拟2秒的延迟，模拟真实同步的时间
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // 查找mock数据源
+        // 查找数据源
         const mockDataSource = mockDataSources.find(ds => ds.id === params.id);
         if (!mockDataSource) {
           throw new Error(`未找到ID为${params.id}的数据源`);
         }
         
-        // 返回成功的同步结果
+        // 延迟1-3秒模拟同步过程
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+        
+        // 返回同步结果
         return {
           success: true,
-          message: '元数据同步成功',
-          tablesCount: 25,
-          viewsCount: 8,
-          syncDuration: 1856, // 毫秒
-          lastSyncTime: new Date().toISOString(),
-          syncHistoryId: `sync-${Date.now()}`
+          syncHistoryId: `sync-${Date.now()}`,
+          message: '元数据同步完成',
+          tablesCount: Math.floor(Math.random() * 20) + 5,
+          viewsCount: Math.floor(Math.random() * 10) + 1,
+          syncDuration: Math.floor(Math.random() * 5000) + 1000,
+          lastSyncTime: new Date().toISOString()
         };
       }
       
-      // 构建符合后端预期的请求体
-      const requestBody = {
-        filters: {
-          includeSchemas: params.filters?.includeSchemas || [],
-          excludeSchemas: params.filters?.excludeSchemas || [],
-          includeTables: params.filters?.includeTables || [],
-          excludeTables: params.filters?.excludeTables || []
-        }
-      }
-      
-      console.log(`开始同步元数据，数据源ID: ${params.id}`);
-      console.log('请求体:', JSON.stringify(requestBody, null, 2));
-      
-      // 使用正确的元数据API路径
-      const url = `${METADATA_API_BASE_URL}/sync/${params.id}`;
-      console.log('请求URL:', url);
-      
-      const response = await fetch(url, {
-        method: 'POST', // 明确指定方法为POST
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      })
-      
-      // 获取原始响应文本以便记录
-      const responseText = await response.text();
-      console.log('原始响应:', responseText);
-      
-      let responseJson;
-      try {
-        responseJson = JSON.parse(responseText);
-        console.log('解析后的响应:', JSON.stringify(responseJson, null, 2));
-      } catch (e) {
-        console.error('解析响应JSON失败:', e);
-        return {
-          success: false,
-          message: `解析响应失败: ${responseText.substring(0, 100)}`
-        };
-      }
-      
-      if (!response.ok) {
-        console.error(`同步元数据API返回错误: ${response.status} ${response.statusText}`);
-        return {
-          success: false,
-          message: responseJson?.message || responseJson?.error || `服务器返回错误: ${response.status} ${response.statusText}`
-        };
-      }
-      
-      // 处理可能的嵌套结构
-      const result = {
-        success: responseJson.success === true,
-        message: responseJson.message || '',
-        // 兼容两种响应格式（嵌套和非嵌套）
-        tablesCount: responseJson.data?.tablesCount || responseJson.tablesCount || 0,
-        viewsCount: responseJson.data?.viewsCount || responseJson.viewsCount || 0,
-        syncDuration: responseJson.data?.syncDuration || responseJson.syncDuration || 0,
-        lastSyncTime: responseJson.data?.lastSyncTime || responseJson.lastSyncTime || new Date().toISOString(),
-        syncHistoryId: responseJson.data?.syncHistoryId || responseJson.syncHistoryId || null
+      // 构建请求参数
+      const syncParams = {
+        filters: params.filters || {}
       };
       
-      console.log('处理后的同步结果:', result);
-      return result;
-    } catch (error) {
-      console.error(`同步数据源${params.id}元数据错误:`, error)
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : String(error),
-        tablesCount: 0,
-        viewsCount: 0
+      // 使用新的API路径格式，符合后端规范
+      const url = `${METADATA_API_BASE_URL}/datasources/${params.id}/sync`;
+      console.log('同步元数据请求URL:', url);
+      
+      const response = await http.post(url, syncParams);
+      
+      // 处理响应数据
+      if (response.success === true && response.data) {
+        // 如果是标准响应格式
+        const syncResult = response.data;
+        
+        // 构建标准同步结果
+        return {
+          success: syncResult.success || true,
+          message: syncResult.message || '同步完成',
+          tablesCount: syncResult.tablesCount,
+          viewsCount: syncResult.viewsCount,
+          syncDuration: syncResult.syncDuration,
+          lastSyncTime: syncResult.endTime || new Date().toISOString(),
+          syncHistoryId: syncResult.syncId
+        };
       }
+      
+      // 如果响应本身就是同步结果
+      if (response.success !== undefined) {
+        return {
+          success: response.success,
+          message: response.message || '同步完成',
+          tablesCount: response.tablesCount,
+          viewsCount: response.viewsCount,
+          syncDuration: response.syncDuration,
+          lastSyncTime: response.lastSyncTime || new Date().toISOString(),
+          syncHistoryId: response.syncHistoryId
+        };
+      }
+      
+      throw new Error('同步元数据失败：无效的响应格式');
+    } catch (error) {
+      console.error('同步元数据错误:', error);
+      throw error;
     }
   },
   
@@ -1256,6 +1230,58 @@ export const dataSourceService = {
       console.error('批量获取数据源名称失败:', error);
       // 返回默认值映射
       return ids.reduce((map, id) => ({ ...map, [id]: '未指定' }), {});
+    }
+  },
+
+  // 检查数据源状态
+  async checkDataSourceStatus(id: string): Promise<{
+    id: string,
+    status: DataSourceStatus,
+    isActive: boolean,
+    lastCheckedAt: string,
+    message: string,
+    details?: Record<string, any>
+  }> {
+    try {
+      if (USE_MOCK) {
+        console.log('返回模拟数据源状态检查结果');
+        // 查找数据源
+        const mockDataSource = mockDataSources.find(ds => ds.id === id);
+        
+        if (!mockDataSource) {
+          throw new Error(`未找到ID为${id}的数据源`);
+        }
+        
+        return {
+          id: mockDataSource.id,
+          status: mockDataSource.status,
+          isActive: mockDataSource.isActive || mockDataSource.status !== 'inactive',
+          lastCheckedAt: new Date().toISOString(),
+          message: mockDataSource.status === 'error' ? '连接失败' : '连接正常',
+          details: {
+            responseTime: Math.floor(Math.random() * 100) + 10,
+            activeConnections: Math.floor(Math.random() * 5) + 1,
+            connectionPoolSize: 10
+          }
+        };
+      }
+      
+      const response = await http.get(`/api/datasources/${id}/check-status`);
+      
+      // 处理不同响应格式
+      if (response.success === true && response.data) {
+        return response.data;
+      }
+      
+      // 如果是直接返回状态对象的格式
+      if (response.id && response.status) {
+        return response;
+      }
+      
+      throw new Error('无法获取数据源状态');
+    } catch (error) {
+      console.error('检查数据源状态错误:', error);
+      throw error;
     }
   }
 }
