@@ -82,21 +82,21 @@ const updateDuplicateMessage = (duplicate: MessageInstance) => {
     const closeButton = container.querySelector('.message-close-btn') as HTMLElement | null
     if (closeButton && typeof closeButton.click === 'function') {
       // 先移除旧的计时器
-      const oldTimerId = parseInt((closeButton as any).dataset.timerId || '0')
+      const oldTimerId = (closeButton as any).dataset.timerId
       if (oldTimerId) {
-        clearTimeout(oldTimerId)
+        window.clearTimeout(Number(oldTimerId))
       }
       
       // 设置新的计时器
       const duration = duplicate.config.duration || queueConfig.defaultDuration
       if (duration && duration > 0) {
-        // 创建新的定时器，确保类型正确
-        const newTimerId = window.setTimeout(() => {
+        // 使用window对象显式调用，避免类型问题
+        const tid = window.setTimeout(() => {
           closeButton.click() // 触发关闭
         }, Number(duration))
         
-        // 存储timer ID
-        (closeButton as any).dataset.timerId = String(newTimerId)
+        // 存储timer ID 
+        (closeButton as any).dataset.timerId = tid
       }
     }
   }

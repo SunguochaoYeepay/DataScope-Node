@@ -741,7 +741,7 @@ const confirmStatusChange = async () => {
     await fetchQueries();
     
     // 使用字符串比较而不是类型比较
-    messageService.success(`查询状态已${newStatus.value == 'ENABLED' ? '启用' : '禁用'}`);
+    messageService.success(`查询状态已${newStatus.value == 'ENABLED' ? '启用' : '禁用'}`, undefined, false);
     
     // 关闭确认对话框
     showStatusConfirm.value = false;
