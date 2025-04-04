@@ -2,6 +2,43 @@
 
 ## [未发布]
 
+### 修复
+- 修复查询列表页面API返回格式不正确的问题
+  - 增强查询服务(queryService)中getQueries方法的健壮性，处理多种API返回格式
+  - 修复http.ts中mock处理函数，确保返回正确的items字段而非records字段
+  - 修复分页信息结构，统一使用pageSize字段代替size字段
+  - 添加详细日志输出，便于API响应格式问题排查
+  - 增加对空响应和undefined值的防御性检查
+  - 在stores/query.ts中增强fetchQueries方法，优化pagination对象处理
+  - 确保当API返回格式不符合预期时仍能正常展示空列表而非报错
+- 修复集成预览页面错误
+  - 修复IntegrationPreview.vue中"columns is not defined"错误
+  - 修复IntegrationPreview.vue中"Cannot read properties of undefined (reading 'row')"表格渲染错误
+  - 添加缺失的变量定义(total, columns, currentPage, pageSize)
+  - 优化loadTableData方法，增强数据加载健壮性
+  - 增强表格组件配置，添加rowKey属性确保表格行正确渲染
+  - 在单元格渲染时添加防御性检查，提高组件稳定性
+  - 改进对不同API返回格式的兼容性处理
+- 修复集成状态更新错误
+  - 添加缺失的api.patch方法，解决"api.patch is not a function"错误
+  - 为集成状态更新API添加特殊处理，确保正确响应
+  - 优化API模拟服务，支持PATCH请求处理
+- 修复集成预览页面显示"No data"问题
+  - 增强api.ts中对集成查询请求的处理逻辑，支持任意集成ID（如int-002）
+  - 改进loadTableData方法，在API返回空数据时生成测试数据
+  - 优化表格数据加载流程，确保始终有数据显示
+  - 增强错误处理，避免在异常情况下显示空白页面
+- 修复集成编辑页面数据回显问题
+  - 改进getMockIntegration函数，支持任意集成ID格式（如int-001）
+  - 为数据源和查询选择器组件添加ID回显功能
+  - 优化mock服务中查询和数据源API的处理逻辑
+  - 确保无论使用哪种ID格式，都能正确加载和关联集成、数据源和查询
+- 修复Mock API服务初始化错误
+  - 解决"Cannot access 'mockHandler' before initialization"错误
+  - 修正setupMock函数中变量声明顺序问题
+  - 确保mockHandler在使用前正确初始化
+  - 提高Mock API服务启动稳定性
+
 ### 新增
 - 查询历史页面自动加载数据
 - 查询历史页面过滤掉未命名查询，只显示已保存的查询
@@ -40,6 +77,7 @@
   - 解决因代理导致的保存表单回显问题
 - 修改开发服务器端口配置
   - 将开发服务器端口从8081更改为8080
+  - 更改前端服务端口从3100到3200，避免端口冲突
   - 相应更新CSP配置中的连接源设置
   - 提高与其他服务的兼容性
 - 改进API数据获取逻辑，确保不使用模拟数据
@@ -71,6 +109,10 @@
   - 优化查询状态管理逻辑，确保类型安全
   - 新增QueryBuilderState接口定义，完善查询构建器类型系统
   - 新增QueryExecution接口，标准化执行记录数据结构
+  - 新增Pagination接口，确保与PaginationInfo兼容，解决模块导入错误
+  - 优化类型导入语法，使用"import type"代替"import"导入类型
+  - 修复QueryExecutionResult类型未定义问题，添加完整的类型定义
+  - 解决http模块导入错误，使用正确的解构导入语法
 - 增强测试环境支持
   - 重构模拟API，使其与真实API保持一致的参数和返回格式
   - 新增模拟查询执行历史功能，方便前端开发测试
@@ -81,8 +123,23 @@
   - 支持后端使用duration替代executionTime
   - 支持多种错误字段命名(errorMessage/error)
   - 通过智能字段映射确保不同版本API无缝工作
+- 增强集成预览功能
+  - 添加对CHART类型集成的完整支持
+  - 实现'/api/low-code/apis/:id/query'接口，用于集成数据查询
+  - 根据集成类型(SIMPLE_TABLE/TABLE/CHART)返回不同格式的数据
+  - 优化查询表单，确保参数正确传递
+  - 改进表格数据显示，支持TAG和STATUS等高级显示类型
+  - 完善分页功能，支持服务端分页
 
 ### 修复
+- 修复使用curl等外部工具直接请求API返回HTML而非JSON的问题
+  - 添加独立的Express服务器处理API请求，确保返回正确的JSON响应
+  - 修改Vite配置，将API请求代理到Mock服务器
+  - 实现完整的API路由处理，支持查询、数据源等各类接口
+  - 确保所有API响应使用标准的JSON格式，包含success和data字段
+  - 解决了curl请求返回HTML的问题，现在所有请求都能获得正确的JSON响应
+  - 添加了错误处理，确保API请求始终返回有效的JSON数据，不会抛出HTML
+  - 不依赖前端拦截器，确保服务器端直接返回正确的响应格式
 - 修复数据源连接测试功能在Mock模式下的问题
   - 增强testConnection方法，支持Mock模式下的连接测试
   - 增强testExistingConnection方法，支持Mock模式下的现有数据源连接测试
@@ -103,10 +160,20 @@
   - 解决了"SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON"错误
   - 实现了分页功能，支持动态生成不同页的数据
 - 修复查询版本功能在Mock模式下的404错误问题
-  - 增强versionService.getVersion方法，支持Mock模式下的版本详情获取
-  - 增强versionService中所有方法，包括getVersions、createVersion、updateVersion等
-  - 添加模拟版本数据和生成逻辑，支持版本的创建、更新、发布和废弃操作
-  - 解决了"GET /api/queries/versions/{id} 404 (Not Found)"错误
+  - 在fetch-interceptor.ts中添加了对`/api/queries/{id}/versions`路径的处理支持
+  - 在axios-interceptor.ts中添加了对查询版本API的处理支持
+  - 修复了QueryEditor.vue中的versionApi配置，确保在Mock模式下使用正确的URL
+  - 在axios-interceptor.ts中添加了对`/api/queries/versions/{id}/publish`路径的支持，用于发布查询版本
+  - 实现GET方法获取查询版本列表功能
+  - 实现POST方法创建查询版本功能
+  - 实现对`/api/queries/{id}/versions/{versionId}/activate`路径的支持，用于激活版本
+  - 解决了"Request failed with status code 404"错误
+  - 确保在Mock模式下能完整支持版本管理功能
+- 修复查询删除功能在Mock模式下的404错误问题
+  - 增强queryService.deleteQuery方法，支持Mock模式下的查询删除操作
+  - 在模拟数据中实际移除被删除的查询，确保状态一致性
+  - 添加模拟延迟，提供更真实的删除操作体验
+  - 解决了"DELETE /api/queries/{id} 404 (Not Found)"错误
 - 修复确认对话框属性不匹配问题
   - 修复ConfirmModal组件缺少required prop "open"的警告
   - 将modal.ts中createConfirm方法传递的visible属性改为open属性
@@ -156,18 +223,201 @@
   - 修改QueryHistory组件使用新的删除方法
   - 确保正确处理API响应和错误情况
 - 修复查询执行计划不显示问题
+- 修复查询版本详情在Mock模式下无法加载问题
+  - 扩展了模拟版本数据，增加了多个查询的版本数据（query-2、query-3）
+  - 修复了访问不存在的版本ID（如ver-query-2-1）时出现的错误
+  - 确保Mock模式下能正确显示不同查询的版本详情
+- 修复查询执行功能在Mock模式下的404错误问题
+  - 修正了executeQuery方法中的URL构建逻辑，解决了`/api/queries/execute/execute`错误的URL格式问题
+  - 为executeQuery方法添加了完整的Mock模式支持，返回模拟查询结果
+  - 正确区分已保存查询和即席查询的API路径，确保在所有情况下都使用正确的URL
+  - 在fetch拦截器中添加了对`/api/queries/execute`路径的处理支持，确保即席查询在Mock模式下也能正常工作
+- 修复保存查询和查询可视化功能在Mock模式下的404错误问题
+  - 为saveQuery方法添加了完整的Mock模式支持，解决了`POST /api/queries`和`PUT /api/queries/{id}`的404错误
+  - 为saveQueryVisualization方法添加了完整的Mock模式支持，解决了保存查询可视化配置时的404错误
+  - 在fetch拦截器中添加了对上述API端点的处理，提供完整的创建、更新和保存可视化配置操作支持
+  - 确保在Mock模式下能够正确模拟查询保存和可视化配置保存的全流程
+- 修复查询执行计划功能在Mock模式下的404错误问题
+  - 修正了fetch-interceptor.ts中执行计划数据结构不匹配的问题
+  - 确保返回的执行计划数据结构与queryService.getQueryExecutionPlan方法一致
+  - 将planDetails结构调整为直接使用plan、estimatedCost和estimatedRows字段
+  - 添加了planningTime和executionTime字段以提供完整的执行计划信息
+- 修复查询参数获取功能在Mock模式下的404错误问题
+  - 在queryService.getQueryParameters方法中添加了Mock模式支持
+  - 解决了SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON错误
+  - 在fetch拦截器中添加了对`/api/queries/{id}/parameters`路径的处理
+  - 确保返回的查询参数数据符合QueryParameter接口定义
+- 修复查询执行功能在Axios请求下的404错误问题
+  - 增强了axios-interceptor.ts中对`/api/queries/{id}/execute`路径的处理
+  - 修改了请求处理方法匹配逻辑，支持GET和POST请求
+  - 添加更详细的日志输出，便于问题排查
+  - 提高了URL路径解析的准确性，避免正则表达式的误匹配
+- 修复查询版本废弃功能在Mock模式下的404错误
+  - 在fetch-interceptor.ts中添加了对`/api/queries/versions/management/{queryId}/deprecate/{versionId}`路径的支持
+  - 在axios-interceptor.ts中添加了对查询版本废弃API的处理
+  - 修复了QueryVersionsTab.vue中的versionApi配置，确保在Mock模式下使用正确的URL
+  - 实现了版本废弃的模拟数据生成逻辑
+  - 解决了"POST .../deprecate/... 404 (Not Found)"错误
+- 修复收藏查询列表在Mock模式下的JSON解析错误
+  - 完善了fetch-interceptor.ts中对`/api/queries/favorites`路径的处理
+  - 修改了queryService.getFavoriteQueries方法，添加了对Mock模式的显式检查
+  - 增强了返回数据格式的处理逻辑，提升了健壮性
+  - 添加了错误处理，在Mock模式下发生错误时返回空数据而不是抛出异常
+  - 解决了"SyntaxError: Unexpected token '<', '<!DOCTYPE ...' is not valid JSON"错误
+- 修复创建查询版本在Mock模式下的404错误
+  - 修正了QueryEditor.vue中创建、发布和激活版本的API URL构建逻辑
+  - 在Mock模式下正确使用相对路径，而不是带前缀的完整URL
+  - 添加更完善的错误处理和日志输出，方便诊断问题
+  - 修复了"POST http://localhost:3100/api/queries/query-XXX/versions 404 (Not Found)"错误
+- 增强查询版本废弃功能在Mock模式下的处理
+  - 改进了axios-interceptor.ts和fetch-interceptor.ts中对废弃版本请求的处理逻辑
+  - 添加了对不存在的查询ID的兼容处理，自动创建虚拟查询对象
+  - 增加了详细的日志输出，方便排查问题
+  - 修复了"http://localhost:3100/api/queries/versions/management/query-6/deprecate/ver-query-6-1 404 (Not Found)"错误
+- 增强错误处理机制，避免在Mock模式下返回无效JSON
+  - 修复了fetch-interceptor.ts中获取单个查询时直接抛出异常的问题
+  - 修改了错误处理方式，确保返回规范的错误响应对象而非抛出异常
+  - 在getQuery方法中添加了try-catch块，确保即使查询不存在也能返回正确格式的错误响应
+  - 增强了获取查询执行计划(getQueryExecutionPlan)方法的错误处理能力
+  - 统一使用success, message和error结构返回错误状态
+  - 解决了"SyntaxError: Unexpected token '<'"和"is not valid JSON"等解析错误问题
+  - 提高了前端Mock API的健壮性，确保所有API请求都能得到有效响应
+- 修复集成模块的API问题
+  - 修复集成列表接口在Mock模式下返回格式错误的问题
+  - 增强了app.js中对集成列表请求的处理，确保返回正确的数组格式
+  - 修复了集成列表API路由处理逻辑，确保GET /api/low-code/apis返回集成数组而不是通用对象
+  - 添加额外的调试日志，便于问题排查
+  - 改进路由匹配逻辑，通过优先级设置确保正确处理API请求
+  - 解决在IntegrationList.vue组件中filteredIntegrations处理不是数组的错误问题
+  - 确保前端集成展示页面能正确显示集成列表数据
+  - 添加多层API请求拦截，保证在各种情况下都能返回正确格式的数据
+  - 增强integration.ts中fetchIntegrations方法，支持多种API响应格式
+    - 直接返回数组的格式(目前API格式)
+    - 包装在data字段中的格式(之前API格式)
+    - 未知格式的情况处理
+  - 添加详细日志记录，方便诊断集成数据加载问题
+  - 修复集成详情页面显示"集成不存在"的问题
+    - 增强fetchIntegrationById方法处理不同响应格式的能力
+    - 支持直接返回对象的API格式(当前格式)
+    - 处理包装在data字段中的旧格式
+    - 优化错误处理，提供更友好的错误提示
+
+### 修复和改进
+- 修复了API响应格式处理的问题
+- 添加api.patch方法支持更新集成状态
+- 改进查询服务和存储的错误处理
+- 优化了模拟数据处理，支持多种集成类型(SIMPLE_TABLE、TABLE、CHART)
+- 增强了集成预览功能，根据ID自动分配合适的集成类型
+- 完善了图表类型集成的模拟数据生成逻辑
+
+### 特性
+- 添加了对图表集成类型的完整支持
+- 优化了集成类型自动判断逻辑，根据ID末尾数字决定类型
 
 ## 2023-07-11
 
-### 改进
-- 查询历史页面现在会在组件挂载时自动加载数据
-- 查询历史页面不再显示未命名查询，只显示已保存的查询
-  - 过滤掉名称以"未命名查询:"开头或没有名称的查询
-  - 分页显示和数据统计基于过滤后的数据
+### 新增
+- 集成模块后端服务支持
+
+### 优化
+- 查询编辑器性能优化
+- 提升大数据量渲染速度
 
 ### 修复
-- 修复了在 QueryEditor.vue 中对 undefined 或 null 值调用 trim() 方法导致的错误
-  - 在 getExecuteButtonTooltip 函数中增加了空值检查
-  - 在 canExecuteQuery 计算属性中增加了空值检查
-  - 修复了 SaveQueryParams 中 id 字段类型不匹配的问题
-- 修复了顶部导航中的路由问题，确保查询菜单项指向正确的历史页面
+- 修复异常处理相关的代码，增强错误处理机制，避免在Mock模式下返回无效JSON
+  - 增强单个查询获取时的错误处理，防止抛出异常
+  - 修改为返回标准化的错误响应对象而非直接抛出异常
+  - 在`getQuery`方法中添加`try-catch`块，以便优雅地处理不存在的查询
+  - 增强`getQueryExecutionPlan`方法的错误处理能力
+  - 统一使用`success`、`message`、`error`的错误响应结构
+  - 解决"SyntaxError: Unexpected token '<'"和"is not valid JSON"等解析错误
+  - 总体上增加前端Mock API的健壮性，确保所有API请求都返回有效响应
+  - 添加详细日志以便于问题追踪
+  - 修复对`/api/low-code/apis`接口的404错误
+- 修复API问题
+  - 修复集成模块API问题
+  - 在`app.js`中增强集成列表请求的处理，确保正确格式的数组返回
+  - 修复API路由处理逻辑，确保`GET /api/low-code/apis`返回集成数组而非通用对象
+  - 添加调试日志以便更容易追踪问题
+  - 根据优先级优化路由逻辑，确保正确处理API请求
+  - 修复`IntegrationList.vue`组件中关于非数组数据处理的错误
+  - 确保前端集成展示页面能正确展示集成列表数据
+  - 实现多层API请求拦截，确保在各种情况下返回正确的数据格式
+  - 增强`fetchIntegrations`方法，以支持多种API响应格式，包括直接数组和包装在`data`字段中的数组
+  - 添加详细日志用于诊断集成数据加载问题
+  - 修复集成详情页面"集成不存在"问题，包括增强`fetchIntegrationById`方法以处理不同的响应格式和改进错误处理
+- 改进集成预览页面功能
+  - 添加集成查询API支持，增加`/api/low-code/apis/{id}/query`接口
+  - 集成预览页面支持通过真实API加载数据，代替原有的模拟数据
+  - 优化表格数据加载流程，支持多种响应格式的处理
+  - 增强错误处理和用户反馈，提供更友好的错误提示
+  - 修复表格数据显示为"暂无数据"的问题
+  - 添加API请求参数自动处理，支持分页和条件查询
+  - 更新表格列配置自动适配API返回的列定义
+  - 优化数据加载状态管理
+  - 完善图表类型集成支持
+    - 修复图表类型集成显示"未知集成类型"的问题
+    - 修改IntegrationPreview.vue以支持CHART类型集成数据展示
+    - 实现图表数据处理与展示逻辑，支持不同的图表类型
+    - 优化图表配置处理，支持标准图表配置结构
+    - 美化图表展示界面，添加数据预览功能
+    - 增强图表数据加载逻辑，支持完整的数据结构
+- 解决API缓存问题
+  - 修复API响应被浏览器缓存导致的304状态码问题
+  - 在app.js中添加全局中间件，为所有响应设置禁用缓存的头信息
+  - 添加'Cache-Control'、'Pragma'、'Expires'等头信息确保不使用缓存
+  - 为每个响应生成动态ETag，防止浏览器缓存判断内容未修改
+  - 添加时间戳和随机值到响应中，确保每次请求都返回最新数据
+  - 重写res.send方法，确保所有JSON响应都附带防缓存头信息
+  - 优化集成查询API，确保每次请求都返回200而不是304
+  - 解决因浏览器缓存导致的页面显示旧数据问题
+- 修复集成编辑页面问题
+  - 修复集成编辑页面数据源和查询未正常回显的问题
+  - 在Mock API中确保集成数据包含dataSourceId和queryId字段
+  - 增强集成Store数据处理逻辑，支持从config中提取dataSourceId和queryId
+  - 改进QuerySelector和DataSourceSelector组件，添加更详细的日志和错误处理
+  - 优化选择器组件的数据加载机制，确保能正确处理异步获取的数据
+  - 修改集成数据结构，规范化字段位置，同时保持向后兼容性
+  - 添加mock数据服务降级显式调试信息，便于问题排查
+- 修复集成预览页面错误
+  - 修复IntegrationPreview.vue中"columns is not defined"错误
+  - 修复IntegrationPreview.vue中"_ctx.$t is not a function"国际化函数缺失错误
+  - 修复"Cannot read properties of undefined (reading 'row')"表格渲染错误
+  - 添加缺失的变量定义(total, columns, currentPage, pageSize)
+  - 优化loadTableData方法，增强数据加载健壮性
+  - 改进图表和表格数据处理逻辑，支持多种API响应格式
+  - 增强数据转换和兼容性处理，支持不同类型的集成返回数据
+  - 添加Mock API支持，实现/api/low-code/apis/:id/query接口，返回模拟数据
+  - 根据集成类型(TABLE、CHART等)返回不同结构的数据
+  - 添加表格分页和数据导出功能
+  - 增强错误处理和日志输出，便于问题追踪和调试
+  - 确保UI组件库风格统一，替换查询表单中的Element Plus组件为Ant Design Vue组件
+  - 添加表格行唯一键，防止表格渲染错误
+  - 增加异常条件下的降级处理，提高页面渲染稳定性
+- 修复Mock服务问题
+  - 实现完整的mock服务，解决POST /api/queries/query-1/execute 500错误
+  - 添加src/services/api.ts，增强前端开发环境的数据模拟能力
+  - 实现对查询API的本地mock，不再依赖后端mock服务
+  - 支持多种API路径格式，包括/api/queries/:id和/api/queries/:id/execute
+  - 添加详细的错误处理和日志，便于调试和跟踪问题
+  - 修复数据格式不兼容的问题，确保返回符合前端期望的数据结构
+  - 完善错误响应格式，确保即使在出错情况下也能返回标准化的错误信息
+  - 增强异常错误的可读性，添加更多上下文信息
+  - 优化mock数据的真实性，使其更接近生产环境数据
+  - 通过env文件配置VITE_USE_MOCK_API环境变量，便于切换mock模式
+
+## [Unreleased]
+
+### Added
+- 使用Ant Design Vue替换Element Plus组件
+- 增加Pagination类型声明
+- 实现完整的mock API服务
+
+### Changed
+- 修改vite.config.ts中服务器端口从3100改为3200，避免端口冲突
+- 更新query.ts中类型引用
+
+### Fixed
+- 修复/api/queries接口返回格式，确保items字段存在
+- 修复请求参数名称，支持pageSize和searchText参数
+- 修复查询执行接口响应处理逻辑

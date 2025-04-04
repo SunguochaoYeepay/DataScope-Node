@@ -6,6 +6,7 @@
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { mockDataSources, mockMetadata, mockQueries, mockIntegrations } from './mockData';
+import type { QueryStatus, QueryServiceStatus, QueryType } from '@/types/query';
 
 // 扩展Axios配置类型，添加mockResponse属性
 declare module 'axios' {
@@ -146,6 +147,157 @@ export function setupAxiosInterceptor() {
       return { success: false, message: '不支持的请求方法' };
     },
     
+    // 查询版本相关API - 添加支持查询版本API的处理程序
+    '/api/queries/.*/versions': (method: string, data?: any, url?: string) => {
+      // 解析URL，获取查询ID
+      const urlParts = url?.split('/') || [];
+      const queryIdIndex = urlParts.findIndex(part => part === 'queries') + 1;
+      const queryId = queryIdIndex > 0 && queryIdIndex < urlParts.length ? urlParts[queryIdIndex] : '';
+      
+      console.log('[Mock Axios] 处理查询版本API请求:', url, '方法:', method, '查询ID:', queryId);
+      
+      // 检查是否包含version ID（用于激活版本等操作）
+      const hasVersionId = urlParts.length > queryIdIndex + 2 && urlParts[queryIdIndex + 2] !== '';
+      const versionId = hasVersionId ? urlParts[queryIdIndex + 2] : '';
+      
+      // 检查是否是激活版本操作
+      const isActivateOperation = hasVersionId && urlParts.includes('activate');
+      
+      // 处理版本激活请求
+      if (isActivateOperation && method.toLowerCase() === 'post') {
+        console.log('[Mock Axios] 处理激活查询版本请求，版本ID:', versionId);
+        
+        // 返回已激活的版本数据
+        return {
+          success: true,
+          data: {
+            id: versionId,
+            queryId: queryId,
+            versionNumber: parseInt(versionId.split('-').pop() || '1', 10),
+            queryText: "SELECT * FROM example_table LIMIT 10",
+            status: 'PUBLISHED',
+            isActive: true,
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            updatedAt: new Date().toISOString(),
+            publishedAt: new Date().toISOString(),
+            dataSourceId: "ds-1"
+          }
+        };
+      }
+      
+      // 处理获取版本列表请求
+      if (method.toLowerCase() === 'get') {
+        console.log('[Mock Axios] 处理获取查询版本列表请求');
+        
+        // 查找查询
+        const query = mockQueries.find(q => q.id === queryId);
+        if (!query) {
+          console.warn(`[Mock Axios] 未找到ID为${queryId}的查询，返回空版本列表`);
+          return { success: true, data: [] };
+        }
+        
+        // 生成3个模拟版本记录
+        const versions = Array.from({ length: 3 }, (_, i) => {
+          const versionNumber = 3 - i; // 最新的版本在前面
+          return {
+            id: `ver-${queryId}-${versionNumber}`,
+            queryId: queryId,
+            versionNumber: versionNumber,
+            queryText: query.queryText || `SELECT * FROM example_table WHERE id > ${i} LIMIT 10`,
+            status: i === 0 ? 'PUBLISHED' : (i === 1 ? 'DRAFT' : 'DEPRECATED'),
+            isActive: i === 0, // 第一个版本是活跃的
+            createdAt: new Date(Date.now() - i * 86400000).toISOString(),
+            updatedAt: new Date(Date.now() - i * 86400000).toISOString(),
+            dataSourceId: query.dataSourceId
+          };
+        });
+        
+        console.log(`[Mock Axios] 返回${versions.length}个版本`);
+        return { success: true, data: versions };
+      }
+      
+      // 处理创建版本请求
+      if (method.toLowerCase() === 'post') {
+        console.log('[Mock Axios] 处理创建查询版本请求');
+        
+        try {
+          // 解析请求数据
+          const sqlContent = data?.sqlContent || '';
+          const dataSourceId = data?.dataSourceId || '';
+          const description = data?.description || '';
+          
+          console.log('[Mock Axios] 创建版本请求数据:', { sqlContent, dataSourceId, description });
+          
+          // 确定新版本号
+          const versionNumber = Math.floor(Math.random() * 100) + 1;
+          
+          // 创建新版本
+          const newVersion = {
+            id: `ver-${queryId}-${versionNumber}`,
+            queryId: queryId,
+            versionNumber: versionNumber,
+            queryText: sqlContent,
+            status: 'DRAFT',
+            isActive: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            dataSourceId: dataSourceId,
+            description: description
+          };
+          
+          console.log('[Mock Axios] 返回新创建的查询版本:', newVersion);
+          return { success: true, data: newVersion };
+        } catch (error) {
+          console.error('[Mock Axios] 创建查询版本失败:', error);
+          return { 
+            success: false, 
+            message: `创建查询版本失败: ${error instanceof Error ? error.message : String(error)}` 
+          };
+        }
+      }
+      
+      return { success: false, message: '不支持的请求方法' };
+    },
+    
+    // 版本发布和激活
+    '/api/queries/versions/.*/publish': (method: string, data?: any, url?: string) => {
+      // 解析URL，获取版本ID
+      const urlParts = url?.split('/') || [];
+      const versionIndex = urlParts.findIndex(part => part === 'versions') + 1;
+      const versionId = versionIndex > 0 && versionIndex < urlParts.length ? urlParts[versionIndex] : '';
+      
+      console.log('[Mock Axios] 处理版本发布请求:', url, '方法:', method, '版本ID:', versionId);
+      
+      if (method.toLowerCase() === 'post') {
+        try {
+          // 返回已发布的版本数据
+          const publishedVersion = {
+            id: versionId,
+            queryId: versionId.startsWith('ver-') ? versionId.split('-')[1] : 'query-1',
+            versionNumber: parseInt(versionId.split('-').pop() || '1', 10),
+            queryText: "SELECT * FROM example_table LIMIT 10",
+            status: 'PUBLISHED',
+            isActive: false,
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            updatedAt: new Date().toISOString(),
+            publishedAt: new Date().toISOString(),
+            dataSourceId: "ds-1"
+          };
+          
+          console.log('[Mock Axios] 返回已发布的版本:', publishedVersion);
+          return { success: true, data: publishedVersion };
+        } catch (error) {
+          console.error('[Mock Axios] 发布版本失败:', error);
+          return { 
+            success: false, 
+            message: `发布版本失败: ${error instanceof Error ? error.message : String(error)}` 
+          };
+        }
+      }
+      
+      return { success: false, message: '不支持的请求方法' };
+    },
+    
     // 获取查询执行计划
     '/api/queries/.*/execution-plan': (method: string, data?: any, url?: string) => {
       if (method === 'get') {
@@ -207,11 +359,92 @@ export function setupAxiosInterceptor() {
       return { success: false, message: '不支持的请求方法' };
     },
     
+    // 废弃查询版本 - 处理 /api/queries/versions/management/{queryId}/deprecate/{versionId} 路径
+    '/api/queries/versions/management/.*/deprecate/.*': (method: string, data?: any, url?: string) => {
+      console.log('[Mock Axios] 尝试匹配废弃版本请求:', url, '方法:', method);
+      
+      // 从URL中提取查询ID和版本ID
+      // URL格式: /api/queries/versions/management/{queryId}/deprecate/{versionId}
+      const urlParts = url?.split('/') || [];
+      
+      console.log('[Mock Axios] URL分解部分:', urlParts);
+      
+      // 查找management和deprecate索引位置
+      const managementIndex = urlParts.findIndex(part => part === 'management');
+      const deprecateIndex = urlParts.findIndex(part => part === 'deprecate');
+      
+      console.log('[Mock Axios] Management索引:', managementIndex, 'Deprecate索引:', deprecateIndex);
+      
+      // 提取queryId和versionId
+      const queryId = managementIndex >= 0 && managementIndex + 1 < urlParts.length ? urlParts[managementIndex + 1] : '';
+      const versionId = deprecateIndex >= 0 && deprecateIndex + 1 < urlParts.length ? urlParts[deprecateIndex + 1] : '';
+      
+      console.log('[Mock Axios] 处理废弃版本请求:', url, '方法:', method);
+      console.log('[Mock Axios] 解析后的查询ID:', queryId, '版本ID:', versionId);
+      
+      if (method.toLowerCase() === 'post') {
+        try {
+          // 创建一个虚拟查询，以防在mockQueries中找不到
+          let query = mockQueries.find(q => q.id === queryId);
+          
+          if (!query) {
+            console.warn(`[Mock Axios] 未找到ID为${queryId}的查询，创建虚拟查询对象`);
+            query = {
+              id: queryId,
+              name: `查询 ${queryId}`,
+              description: '虚拟创建的查询',
+              queryText: "SELECT * FROM example_table LIMIT 10",
+              dataSourceId: "ds-1",
+              status: 'PUBLISHED' as QueryStatus,
+              createdAt: new Date(Date.now() - 86400000).toISOString(),
+              updatedAt: new Date().toISOString(),
+              isFavorite: false,
+              executionCount: 0,
+              executionTime: 0,
+              resultCount: 0,
+              isActive: true,
+              serviceStatus: 'ENABLED' as QueryServiceStatus,
+              queryType: 'SQL' as QueryType,
+            };
+          }
+          
+          // 模拟废弃版本
+          const deprecatedVersion = {
+            id: versionId,
+            queryId: queryId,
+            versionNumber: parseInt(versionId.split('-').pop() || '1'),
+            queryText: query.queryText || "SELECT * FROM example_table LIMIT 10",
+            status: 'DEPRECATED',
+            isActive: false,
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            updatedAt: new Date().toISOString(),
+            deprecatedAt: new Date().toISOString(),
+            dataSourceId: query.dataSourceId || "ds-1"
+          };
+          
+          console.log('[Mock Axios] 返回已废弃的版本:', deprecatedVersion);
+          return { success: true, data: deprecatedVersion };
+        } catch (error) {
+          console.error('[Mock Axios] 废弃版本失败:', error);
+          return { 
+            success: false, 
+            message: `废弃版本失败: ${error instanceof Error ? error.message : String(error)}` 
+          };
+        }
+      }
+      
+      return { success: false, message: '不支持的请求方法' };
+    },
+    
     // 执行查询
     '/api/queries/.*/execute': (method: string, data?: any, url?: string) => {
-      if (method === 'post') {
-        const queryId = url?.split('/')[3] || '';
-        console.log('[Mock Axios] 执行查询:', queryId, '完整URL:', url);
+      if (method === 'post' || method === 'get') {
+        // 从URL中提取查询ID
+        // 路径模式: /api/queries/{queryId}/execute
+        const urlParts = url?.split('/') || [];
+        const queryId = urlParts.length >= 4 ? urlParts[3] : '';
+        
+        console.log('[Mock Axios] 执行查询:', queryId, '完整URL:', url, '方法:', method);
         
         try {
           // 定义字段信息，供字段映射使用

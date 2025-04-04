@@ -9,7 +9,9 @@ DataScope 是一个用于数据库查询和分析的工具，本项目是其前�
 - Vite 4.4.5
 - Vue Router
 - Pinia (状态管理)
+- Ant Design Vue (UI组件)
 - TailwindCSS (样式)
+- ECharts (图表可视化)
 
 ## 项目结构
 ```
@@ -18,6 +20,7 @@ src/
   ├── components/    # 组件
   │   ├── common/    # 通用组件
   │   ├── datasource/# 数据源相关组件
+  │   ├── integration/# 集成相关组件
   │   ├── layout/    # 布局组件
   │   └── query/     # 查询相关组件
   ├── router/        # 路由配置
@@ -27,8 +30,32 @@ src/
   ├── utils/         # 工具函数
   └── views/         # 页面视图
       ├── datasource/# 数据源相关页面
+      ├── integration/# 集成相关页面
       └── query/     # 查询相关页面
 ```
+
+## 功能模块
+
+### 查询模块
+- 支持SQL查询编辑和执行
+- 查询结果展示和导出
+- 查询历史记录管理
+- 查询模板保存和复用
+
+### 数据源模块
+- 数据源连接管理
+- 数据源类型支持(MySQL, PostgreSQL等)
+- 数据源测试和监控
+- 数据源权限控制
+
+### 集成模块
+- 支持多种集成类型：
+  - 简单表格(SIMPLE_TABLE)：用于展示简单列表数据
+  - 高级表格(TABLE)：支持分页、筛选、排序的复杂表格
+  - 图表(CHART)：支持柱状图、折线图、饼图等多种图表类型
+- 集成配置和管理
+- 与外部系统的API集成
+- 数据可视化和分析
 
 ## 通用组件
 项目中包含以下通用组件：
@@ -38,6 +65,7 @@ src/
 - `Pagination`: 分页组件，支持自定义页码显示和页面跳转
 - `StatusBadge`: 状态徽章组件，用于显示不同状态
 - `DateRangePicker`: 日期范围选择器，支持预设时间段和自定义日期范围
+- `ChartView`: 图表展示组件，支持多种图表类型和配置
 
 ## API响应格式
 所有后端API响应都遵循统一的格式：
@@ -61,51 +89,19 @@ src/
 }
 ```
 
-## 开发规范
+## 开发指南
 
-### 命名规范
-- 组件文件名：使用PascalCase，如`DataTable.vue`
-- 页面文件名：使用PascalCase，如`QueryHistory.vue`
-- 工具文件名：使用camelCase，如`formatters.ts`
-- CSS类名：使用kebab-case，如`query-list`
-- 变量名：使用camelCase，如`queryResult`
-- 常量名：使用UPPER_SNAKE_CASE，如`API_BASE_URL`
-- 接口名：使用PascalCase，前缀为I，如`IQueryResult`
-- 类型名：使用PascalCase，如`QueryResult`
+### 模拟数据开发
+项目支持使用模拟数据进行开发和测试。模拟数据配置在以下文件：
+- `src/services/mockData.ts`: 定义了各种模拟数据对象
+- `src/services/api.ts`: 实现了模拟API响应处理
 
-### TypeScript规范
-- 所有代码必须使用TypeScript编写
-- 所有函数都要有返回类型声明
-- 所有变量都要有类型声明
-- 避免使用`any`类型，尽量使用具体类型或泛型
-- 使用接口（interface）定义对象结构
-- 使用类型别名（type）定义联合类型或交叉类型
+修改模拟数据时注意保持数据结构的一致性，特别是：
+1. 集成类型(SIMPLE_TABLE、TABLE、CHART)需要配置相应的字段
+2. 图表类型集成需要提供有效的chartConfig配置
+3. 查询接口需要返回正确的数据格式
 
-### 组件规范
-- 使用Vue 3的Composition API
-- 组件的props必须定义类型和默认值
-- 组件的emits必须声明
-- 组件的方法和计算属性应该有明确的命名
-- 组件的样式应该使用scoped或module模式
-- 组件应该有必要的注释说明其功能和用法
-
-### 提交规范
-- 提交信息应该清晰表明本次修改的内容
-- 提交前应该运行linter确保代码质量
-- 每次提交应该专注于一个功能或修复
-- 提交信息格式：`类型(范围): 描述`，如`fix(query): 修复查询历史不显示的问题`
-
-## 开发与构建
-
-### 安装依赖
-```bash
-npm install
-```
-
-### 开发环境启动
-```bash
-npm run dev
-```
+要启用模拟数据，请在`src/stores`中相关store文件中将`USE_MOCK`设置为`true`。
 
 ### 使用真实API数据
 默认情况下，前端项目配置为使用模拟数据（mock data）。如果要使用真实的后端API数据，需要修改配置：
@@ -122,6 +118,18 @@ VITE_USE_MOCK_API=false
 ```
 
 如果在开发过程中遇到API请求问题，可以查看浏览器控制台的日志输出，获取详细的请求和响应信息以便调试。
+
+## 开发与构建
+
+### 安装依赖
+```bash
+npm install
+```
+
+### 开发环境启动
+```bash
+npm run dev
+```
 
 ### 构建生产版本
 ```bash

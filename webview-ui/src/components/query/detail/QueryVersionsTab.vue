@@ -434,18 +434,28 @@ const deprecateVersion = (versionId: string) => {
     try {
       console.log('正在废弃版本:', versionId);
       
+      // 检查是否使用模拟数据
+      const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+      
       // 这里需要实现versionService.deprecateVersion方法
       // TODO: 暂时使用axios直接调用接口，后续应该添加到versionService中
       const versionApi = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL || '',
+        baseURL: '', // 设置为空，让拦截器处理
         timeout: 10000,
         headers: {
           'Content-Type': 'application/json'
         }
       });
       
+      // 确定请求的URL
+      const apiUrl = USE_MOCK 
+        ? `/api/queries/versions/management/${props.queryId}/deprecate/${versionId}`
+        : `${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/versions/management/${props.queryId}/deprecate/${versionId}`;
+      
+      console.log(`废弃版本请求URL:`, apiUrl, '模拟模式:', USE_MOCK ? '是' : '否');
+      
       // 调用废弃版本的API
-      const response = await versionApi.post(`/api/queries/versions/management/${props.queryId}/deprecate/${versionId}`);
+      const response = await versionApi.post(apiUrl);
       
       if (response.data.success) {
         // 重新加载版本列表以获取最新状态

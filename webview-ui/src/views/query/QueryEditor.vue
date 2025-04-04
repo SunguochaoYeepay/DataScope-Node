@@ -1592,15 +1592,30 @@ const handleSaveQuery = async (saveData: any) => {
         
         // 调用版本API
         const versionApi = axios.create({
-          baseURL: import.meta.env.VITE_API_BASE_URL || '',
+          baseURL: '', // 设置为空，让拦截器处理
           timeout: 10000,
           headers: {
             'Content-Type': 'application/json'
           }
         });
         
-        console.log(`创建查询草稿版本: ${versionApi.defaults.baseURL}/api/queries/${result.id}/versions`);
-        const versionResponse = await versionApi.post(`/api/queries/${result.id}/versions`, {
+        // 检查是否使用模拟数据
+        const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+        
+        // 确定请求的URL
+        const apiUrl = USE_MOCK 
+          ? `/api/queries/${result.id}/versions` 
+          : `${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/${result.id}/versions`;
+        
+        console.log(`创建查询草稿版本:`, apiUrl, '模拟模式:', USE_MOCK ? '是' : '否');
+        
+        // 添加请求拦截器，以便于调试
+        versionApi.interceptors.request.use((config) => {
+          console.log('版本API请求配置:', config);
+          return config;
+        });
+        
+        const versionResponse = await versionApi.post(apiUrl, {
           sqlContent: queryText,
           dataSourceId: selectedDataSourceId.value,
           description: saveData.description || ''
@@ -1609,11 +1624,15 @@ const handleSaveQuery = async (saveData: any) => {
         if (versionResponse.data.success) {
           console.log('草稿版本创建成功:', versionResponse.data);
           statusMessage.value = '查询保存成功，并创建了草稿版本';
+        } else {
+          console.warn('创建草稿版本响应数据异常:', versionResponse.data);
+          statusMessage.value = '查询保存成功，但草稿版本创建失败';
         }
       } catch (versionError) {
         console.error('创建草稿版本失败:', versionError);
         // 版本创建失败不影响主流程，只记录日志
-    }
+        statusMessage.value = '查询保存成功，但创建草稿版本失败';
+      }
     
     setTimeout(() => {
         statusMessage.value = null;
@@ -2158,16 +2177,20 @@ const publishQuery = async () => {
     
     // 查询当前草稿版本
     const versionApi = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '',
+      baseURL: '', // 设置为空，让拦截器处理
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json'
       }
     });
     
+    // 检查是否使用模拟数据
+    const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+    
     // 获取查询详情，查看是否有草稿版本
-    console.log(`获取查询详情: ${versionApi.defaults.baseURL}/api/queries/${currentQueryId.value}`);
-    const queryResponse = await versionApi.get(`/api/queries/${currentQueryId.value}`);
+    const apiBaseUrl = USE_MOCK ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+    console.log(`获取查询详情: ${apiBaseUrl}/api/queries/${currentQueryId.value}，模拟模式: ${USE_MOCK ? '是' : '否'}`);
+    const queryResponse = await versionApi.get(`${apiBaseUrl}/api/queries/${currentQueryId.value}`);
     
     if (!queryResponse.data.success || !queryResponse.data.data) {
       throw new Error('获取查询详情失败');
@@ -2184,76 +2207,113 @@ const publishQuery = async () => {
       // 获取当前查询文本
       const queryText = activeTab.value === 'editor' ? sqlQuery.value : naturalLanguageQuery.value;
       
-      // 创建草稿版本
-      const createResponse = await versionApi.post(`/api/queries/${currentQueryId.value}/versions`, {
-        sqlContent: queryText,
-        dataSourceId: selectedDataSourceId.value,
-        description: query.description || ''
-      });
-      
-      if (!createResponse.data.success || !createResponse.data.data) {
-        throw new Error('创建版本失败');
+      try {
+        // 创建草稿版本
+        const apiUrl = USE_MOCK 
+          ? `/api/queries/${currentQueryId.value}/versions` 
+          : `${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/${currentQueryId.value}/versions`;
+          
+        console.log(`创建查询草稿版本: ${apiUrl}，模拟模式: ${USE_MOCK ? '是' : '否'}`);
+        
+        // 确保versionApi能正确处理请求
+        versionApi.interceptors.request.use((config) => {
+          console.log('版本API请求配置:', config);
+          return config;
+        });
+        
+        // 发起版本创建请求
+        const createResponse = await versionApi.post(apiUrl, {
+          sqlContent: queryText,
+          dataSourceId: selectedDataSourceId.value,
+          description: query.description || ''
+        });
+        
+        if (!createResponse.data.success || !createResponse.data.data) {
+          console.error('创建版本响应数据:', createResponse.data);
+          throw new Error(createResponse.data?.message || '创建版本失败');
+        }
+        
+        draftVersionId = createResponse.data.data.id;
+        console.log('草稿版本创建成功:', draftVersionId, createResponse.data.data);
+      } catch (createError) {
+        console.error('创建草稿版本失败:', createError);
+        throw new Error(`创建草稿版本失败: ${createError instanceof Error ? createError.message : String(createError)}`);
       }
-      
-      draftVersionId = createResponse.data.data.id;
-      console.log('草稿版本创建成功:', draftVersionId);
     }
     
     // 发布版本
-    console.log(`发布版本: ${versionApi.defaults.baseURL}/api/queries/versions/${draftVersionId}/publish`);
-    const publishResponse = await versionApi.post(`/api/queries/versions/${draftVersionId}/publish`);
-    
-    // 适配后端统一的API响应格式
-    if (!publishResponse.data || !publishResponse.data.success) {
-      console.error('发布响应数据:', publishResponse.data);
-      const errorMsg = publishResponse.data?.error?.message || '发布版本失败';
-      throw new Error(errorMsg);
+    try {
+      const publishUrl = USE_MOCK 
+        ? `/api/queries/versions/${draftVersionId}/publish` 
+        : `${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/versions/${draftVersionId}/publish`;
+        
+      console.log(`发布版本: ${publishUrl}，模拟模式: ${USE_MOCK ? '是' : '否'}`);
+      const publishResponse = await versionApi.post(publishUrl);
+      
+      // 适配后端统一的API响应格式
+      if (!publishResponse.data || !publishResponse.data.success) {
+        console.error('发布响应数据:', publishResponse.data);
+        const errorMsg = publishResponse.data?.message || publishResponse.data?.error?.message || '发布版本失败';
+        throw new Error(errorMsg);
+      }
+      
+      // 从统一的success/data格式中获取版本数据
+      const publishedVersion = publishResponse.data.data;
+      if (!publishedVersion || (!publishedVersion.status && !publishedVersion.versionStatus) || 
+          (publishedVersion.status !== 'PUBLISHED' && publishedVersion.versionStatus !== 'PUBLISHED')) {
+        console.error('发布版本数据格式不正确:', publishedVersion);
+        throw new Error('发布版本失败: 响应数据不符合预期格式');
+      }
+      
+      console.log('版本发布成功:', publishedVersion);
+    } catch (publishError) {
+      console.error('发布版本失败:', publishError);
+      throw new Error(`发布版本失败: ${publishError instanceof Error ? publishError.message : String(publishError)}`);
     }
-    
-    // 从统一的success/data格式中获取版本数据
-    const publishedVersion = publishResponse.data.data;
-    if (!publishedVersion || (!publishedVersion.status && !publishedVersion.versionStatus) || 
-        (publishedVersion.status !== 'PUBLISHED' && publishedVersion.versionStatus !== 'PUBLISHED')) {
-      console.error('发布版本数据格式不正确:', publishedVersion);
-      throw new Error('发布版本失败: 响应数据不符合预期格式');
-    }
-    
-    console.log('版本发布成功:', publishedVersion);
-    
+
     // 激活版本
-    console.log(`激活版本: ${versionApi.defaults.baseURL}/api/queries/${query.id}/versions/${draftVersionId}/activate`);
-    const activateResponse = await versionApi.post(`/api/queries/${query.id}/versions/${draftVersionId}/activate`);
-    
-    // 适配后端统一的API响应格式
-    if (!activateResponse.data) {
-      console.error('激活响应数据:', activateResponse.data);
-      throw new Error('激活版本失败: 返回数据不符合预期格式');
+    try {
+      const activateUrl = USE_MOCK 
+        ? `/api/queries/${query.id}/versions/${draftVersionId}/activate` 
+        : `${import.meta.env.VITE_API_BASE_URL || ''}/api/queries/${query.id}/versions/${draftVersionId}/activate`;
+        
+      console.log(`激活版本: ${activateUrl}，模拟模式: ${USE_MOCK ? '是' : '否'}`);
+      const activateResponse = await versionApi.post(activateUrl);
+      
+      // 适配后端统一的API响应格式
+      if (!activateResponse.data) {
+        console.error('激活响应数据:', activateResponse.data);
+        throw new Error('激活版本失败: 返回数据不符合预期格式');
+      }
+      
+      // 兼容不同格式的响应数据
+      let activatedData = activateResponse.data;
+      
+      // 处理可能的包装响应结构
+      if (activateResponse.data.success && activateResponse.data.data) {
+        console.log('从success/data统一响应格式中获取数据');
+        activatedData = activateResponse.data.data;
+      }
+      
+      console.log('处理后的激活数据:', activatedData);
+      
+      // 验证数据有效性
+      if (!activatedData || (typeof activatedData === 'object' && !Object.keys(activatedData).length)) {
+        console.error('激活数据无效:', activatedData);
+        throw new Error('激活版本失败: 响应数据为空');
+      }
+      
+      // 确认数据中包含必要的信息
+      if (typeof activatedData === 'object' && !activatedData.id && !activatedData.queryId) {
+        console.error('激活数据格式不正确:', activatedData);
+        throw new Error('激活版本失败: 响应数据不包含必要信息');
+      }
+      
+      console.log('版本激活成功:', activatedData);
+    } catch (activateError) {
+      console.error('激活版本失败:', activateError);
+      throw new Error(`激活版本失败: ${activateError instanceof Error ? activateError.message : String(activateError)}`);
     }
-    
-    // 兼容不同格式的响应数据
-    let activatedData = activateResponse.data;
-    
-    // 处理可能的包装响应结构
-    if (activateResponse.data.success && activateResponse.data.data) {
-      console.log('从success/data统一响应格式中获取数据');
-      activatedData = activateResponse.data.data;
-    }
-    
-    console.log('处理后的激活数据:', activatedData);
-    
-    // 验证数据有效性
-    if (!activatedData || (typeof activatedData === 'object' && !Object.keys(activatedData).length)) {
-      console.error('激活数据无效:', activatedData);
-      throw new Error('激活版本失败: 响应数据为空');
-    }
-    
-    // 确认数据中包含必要的信息
-    if (typeof activatedData === 'object' && !activatedData.id && !activatedData.queryId) {
-      console.error('激活数据格式不正确:', activatedData);
-      throw new Error('激活版本失败: 响应数据不包含必要信息');
-    }
-    
-    console.log('版本激活成功:', activatedData);
     
     message.success('查询发布成功');
     statusMessage.value = '查询发布成功，版本已激活';

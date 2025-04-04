@@ -13,19 +13,50 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
 console.log('查询版本服务 - Mock模式:', USE_MOCK ? '已启用' : '已禁用');
 
 // 模拟数据：查询版本
-const mockVersions: QueryVersion[] = Array.from({ length: 5 }, (_, i) => ({
-  id: `ver-query-1-${i + 1}`,
-  queryId: 'query-1',
-  versionNumber: i + 1,
-  queryText: `SELECT * FROM users WHERE id > ${i * 10}\nLIMIT 100;`,
-  status: i === 0 ? 'PUBLISHED' : (i === 4 ? 'DEPRECATED' : 'DRAFT') as QueryVersionStatus,
-  isActive: i === 0,
-  createdAt: new Date(Date.now() - (5 - i) * 86400000).toISOString(),
-  updatedAt: new Date(Date.now() - (5 - i) * 86400000 + 3600000).toISOString(),
-  publishedAt: i === 0 ? new Date(Date.now() - (5 - i) * 86400000 + 7200000).toISOString() : undefined,
-  deprecatedAt: i === 4 ? new Date().toISOString() : undefined,
-  dataSourceId: 'ds-1'
-}));
+const mockVersions: QueryVersion[] = [
+  // 查询1的版本
+  ...Array.from({ length: 5 }, (_, i) => ({
+    id: `ver-query-1-${i + 1}`,
+    queryId: 'query-1',
+    versionNumber: i + 1,
+    queryText: `SELECT * FROM users WHERE id > ${i * 10}\nLIMIT 100;`,
+    status: i === 0 ? 'PUBLISHED' : (i === 4 ? 'DEPRECATED' : 'DRAFT') as QueryVersionStatus,
+    isActive: i === 0,
+    createdAt: new Date(Date.now() - (5 - i) * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - (5 - i) * 86400000 + 3600000).toISOString(),
+    publishedAt: i === 0 ? new Date(Date.now() - (5 - i) * 86400000 + 7200000).toISOString() : undefined,
+    deprecatedAt: i === 4 ? new Date().toISOString() : undefined,
+    dataSourceId: 'ds-1'
+  })),
+  
+  // 查询2的版本
+  ...Array.from({ length: 3 }, (_, i) => ({
+    id: `ver-query-2-${i + 1}`,
+    queryId: 'query-2',
+    versionNumber: i + 1,
+    queryText: `SELECT * FROM products WHERE category_id = ${i + 1}\nORDER BY price DESC\nLIMIT 50;`,
+    status: i === 0 ? 'PUBLISHED' : 'DRAFT' as QueryVersionStatus,
+    isActive: i === 0,
+    createdAt: new Date(Date.now() - (3 - i) * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - (3 - i) * 86400000 + 3600000).toISOString(),
+    publishedAt: i === 0 ? new Date(Date.now() - (3 - i) * 86400000 + 7200000).toISOString() : undefined,
+    dataSourceId: 'ds-1'
+  })),
+  
+  // 查询3的版本
+  ...Array.from({ length: 2 }, (_, i) => ({
+    id: `ver-query-3-${i + 1}`,
+    queryId: 'query-3',
+    versionNumber: i + 1,
+    queryText: `SELECT o.id, o.order_date, c.name as customer_name, SUM(oi.quantity * oi.price) as total_amount\nFROM orders o\nJOIN customers c ON o.customer_id = c.id\nJOIN order_items oi ON o.id = oi.order_id\nWHERE o.order_date > '2023-01-01'\nGROUP BY o.id, o.order_date, c.name\nORDER BY total_amount DESC\nLIMIT ${(i + 1) * 10};`,
+    status: i === 0 ? 'PUBLISHED' : 'DRAFT' as QueryVersionStatus,
+    isActive: i === 0,
+    createdAt: new Date(Date.now() - (2 - i) * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - (2 - i) * 86400000 + 3600000).toISOString(),
+    publishedAt: i === 0 ? new Date(Date.now() - (2 - i) * 86400000 + 7200000).toISOString() : undefined,
+    dataSourceId: 'ds-2'
+  }))
+];
 
 // 版本服务
 export const versionService = {

@@ -69,13 +69,55 @@ watch(selectedQueryId, (newValue) => {
 });
 
 // 监听modelValue变化
-watch(() => props.modelValue, (newValue) => {
+watch(() => props.modelValue, (newValue, oldValue) => {
+  console.log(`[QuerySelector] modelValue变更: ${oldValue} -> ${newValue}`);
   selectedQueryId.value = newValue;
+  
+  // 如果有新值，尝试从查询列表中找到相应的数据
+  if (newValue) {
+    const query = queries.value.find(q => q.id === newValue);
+    if (query) {
+      console.log(`[QuerySelector] 根据modelValue找到查询: ${query.name}, dataSourceId=${query.dataSourceId}`);
+    } else {
+      console.log(`[QuerySelector] 根据modelValue(${newValue})未找到匹配的查询，可能需要加载查询列表`);
+      loadQueries();
+    }
+  }
+}, { immediate: true });
+
+// 监听组件props变更
+watch([
+  () => props.dataSourceId,
+  () => props.disabled
+], ([newDataSourceId, newDisabled], [oldDataSourceId, oldDisabled]) => {
+  console.log(`[QuerySelector] props变更: 
+    dataSourceId: ${oldDataSourceId} -> ${newDataSourceId}
+    disabled: ${oldDisabled} -> ${newDisabled}`);
+  
+  if (newDataSourceId !== oldDataSourceId) {
+    console.log(`[QuerySelector] 数据源ID变更，重新加载查询列表`);
+    // 数据源ID变更，重新加载查询列表
+    loadQueries();
+    
+    // 检查当前选择的查询是否属于新的数据源
+    if (selectedQueryId.value) {
+      const currentQuery = queries.value.find(q => q.id === selectedQueryId.value);
+      console.log(`[QuerySelector] 检查当前选择的查询: `, currentQuery);
+      
+      if (currentQuery && currentQuery.dataSourceId !== newDataSourceId) {
+        console.log(`[QuerySelector] 当前查询的数据源(${currentQuery.dataSourceId})与新选择的数据源(${newDataSourceId})不匹配，清空选择`);
+        selectedQueryId.value = '';
+        emit('update:modelValue', '');
+      } else if (!currentQuery) {
+        console.log(`[QuerySelector] 未找到当前选择的查询(${selectedQueryId.value})，保持选择不变，等待查询列表加载`);
+      }
+    }
+  }
 });
 
 // 监听dataSourceId变化，重新加载查询
 watch(() => props.dataSourceId, (newValue, oldValue) => {
-  console.log(`数据源ID变更: ${oldValue} -> ${newValue}`);
+  console.log(`[QuerySelector] 数据源ID变更(独立watch): ${oldValue} -> ${newValue}`);
   
   if (newValue) {
     // 如果数据源ID变更，重新加载查询列表
@@ -85,13 +127,13 @@ watch(() => props.dataSourceId, (newValue, oldValue) => {
     if (selectedQueryId.value) {
       const currentQuery = queries.value.find(q => q.id === selectedQueryId.value);
       if (currentQuery && currentQuery.dataSourceId !== newValue) {
-        console.log(`已选择的查询(${selectedQueryId.value})不属于新数据源(${newValue})，清空选择`);
+        console.log(`[QuerySelector] 已选择的查询(${selectedQueryId.value})不属于新数据源(${newValue})，清空选择`);
         selectedQueryId.value = '';
         emit('update:modelValue', '');
       }
     }
   }
-}, { immediate: false });
+}, { immediate: true });
 
 // 生命周期钩子
 onMounted(() => {
@@ -111,7 +153,7 @@ const loadQueries = async () => {
   loading.value = true;
   
   try {
-    console.log('开始获取查询列表数据...');
+    console.log('[QuerySelector] 开始获取查询列表数据...');
     
     // 如果指定了数据源ID，则在请求中包含该参数
     const params: QueryHistoryParams = { 
@@ -122,19 +164,20 @@ const loadQueries = async () => {
     
     if (props.dataSourceId) {
       params.dataSourceId = props.dataSourceId;
-      console.log(`使用数据源ID筛选查询: ${props.dataSourceId}`);
+      console.log(`[QuerySelector] 使用数据源ID(${props.dataSourceId})筛选查询`);
     }
     
     const result = await queryService.getQueries(params);
     
-    console.log('获取到的查询列表数据:', result);
+    console.log('[QuerySelector] 获取到的查询列表数据:', result);
     
     if (result) {
       // 确保我们正确处理API返回的分页结果，取出items
       const queryItems = Array.isArray(result) ? result : result.items || [];
       
+      const oldLength = queries.value.length;
       queries.value = queryItems.map(query => {
-        console.log('处理查询数据:', query.id, query.name, query.dataSourceId);
+        console.log('[QuerySelector] 处理查询数据:', query.id, query.name, query.dataSourceId);
         return {
           id: query.id,
           name: query.name || `查询 ${query.id}`,
@@ -144,12 +187,22 @@ const loadQueries = async () => {
         };
       });
       
-      console.log('处理后的查询列表:', queries.value);
-      console.log(`与数据源 ${props.dataSourceId} 关联的查询数量:`, 
+      console.log(`[QuerySelector] 处理后的查询列表: ${queries.value.length}项 (原${oldLength}项)`);
+      console.log(`[QuerySelector] 与数据源 ${props.dataSourceId} 关联的查询数量:`, 
         props.dataSourceId ? queries.value.filter(q => q.dataSourceId === props.dataSourceId).length : queries.value.length);
+      
+      // 如果有已选择的查询ID，检查是否存在
+      if (selectedQueryId.value) {
+        const selectedExists = queries.value.some(q => q.id === selectedQueryId.value);
+        console.log(`[QuerySelector] 检查已选查询(${selectedQueryId.value})是否存在: ${selectedExists}`);
+        
+        if (!selectedExists) {
+          console.log(`[QuerySelector] 已选查询不存在于返回的查询列表中`);
+        }
+      }
     }
   } catch (error) {
-    console.error('加载查询列表失败', error);
+    console.error('[QuerySelector] 加载查询列表失败', error);
     message.error('加载查询列表失败');
   } finally {
     loading.value = false;
@@ -185,7 +238,7 @@ const selectQuery = (queryId: string) => {
     <div class="relative">
       <div class="input-with-dropdown">
         <input
-          :value="filteredQueries.find(q => q.id === selectedQueryId)?.name || ''"
+          :value="filteredQueries.find(q => q.id === selectedQueryId)?.name || (selectedQueryId ? `查询 (ID: ${selectedQueryId})` : '')"
           type="text"
           readonly
           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm cursor-pointer"

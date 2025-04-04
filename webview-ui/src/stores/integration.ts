@@ -12,7 +12,7 @@ import {
 } from '@/services/mockData';
 
 // 是否使用模拟数据
-const USE_MOCK = false;
+const USE_MOCK = true;
 
 // 集成状态类型
 type IntegrationStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
@@ -39,11 +39,25 @@ export const useIntegrationStore = defineStore('integration', () => {
         // 调用接口获取集成列表
         const result = await api.get('/api/low-code/apis');
         
-        if (result && result.data) {
-          integrations.value = result.data;
-        }
+        console.log('[集成Store] 获取到集成数据:', result);
         
-        return result.data;
+        // 处理不同格式的响应
+        if (Array.isArray(result)) {
+          // 直接是数组 - 这是我们现在的API格式
+          console.log('[集成Store] 收到数组格式数据, 长度:', result.length);
+          integrations.value = result;
+          return result;
+        } else if (result && result.data) {
+          // 包装在data字段中 - 之前的API格式
+          console.log('[集成Store] 收到对象格式数据, 数据长度:', Array.isArray(result.data) ? result.data.length : '非数组');
+          integrations.value = result.data;
+          return result.data;
+        } else {
+          // 未知格式，记录日志并返回空数组
+          console.error('[集成Store] 未知的API响应格式:', result);
+          integrations.value = [];
+          return [];
+        }
       }
     } catch (err: any) {
       console.error('获取集成列表失败', err);
@@ -60,25 +74,74 @@ export const useIntegrationStore = defineStore('integration', () => {
     error.value = null;
     
     try {
+      console.log('[集成Store] 开始获取单个集成, ID:', id);
+      
       if (USE_MOCK) {
         // 使用模拟数据
         const result = await getMockIntegration(id);
         if (result) {
           currentIntegration.value = result;
+          console.log('[集成Store] Mock模式 - 获取到集成数据:', result);
         }
         return result;
       } else {
         // 调用接口获取单个集成
-        const result = await api.get(`/api/low-code/apis/${id}`);
+        const response = await api.get(`/api/low-code/apis/${id}`);
         
-        if (result && result.data) {
-          currentIntegration.value = result.data;
+        console.log('[集成Store] 获取到单个集成原始数据:', response);
+        
+        let result = null;
+        // 处理不同格式的响应
+        if (response && typeof response === 'object' && !Array.isArray(response)) {
+          // 直接是对象 - 这是我们当前的API格式
+          if (response.id && response.name) {
+            console.log('[集成Store] 收到对象格式数据(直接是集成对象)');
+            result = response;
+            
+            // 检查并确保集成对象包含必要字段
+            if (!result.dataSourceId && result.config && result.config.dataSourceId) {
+              console.log('[集成Store] 从config中提取dataSourceId:', result.config.dataSourceId);
+              result.dataSourceId = result.config.dataSourceId;
+            }
+            
+            if (!result.queryId && result.config && result.config.queryId) {
+              console.log('[集成Store] 从config中提取queryId:', result.config.queryId);
+              result.queryId = result.config.queryId;
+            }
+          }
+        } 
+        
+        if (!result && response && response.data) {
+          // 包装在data字段中 - 之前的API格式
+          console.log('[集成Store] 收到对象格式数据(包装在data字段中)');
+          result = response.data;
+          
+          // 检查并确保集成对象包含必要字段
+          if (!result.dataSourceId && result.config && result.config.dataSourceId) {
+            console.log('[集成Store] 从包装数据的config中提取dataSourceId:', result.config.dataSourceId);
+            result.dataSourceId = result.config.dataSourceId;
+          }
+          
+          if (!result.queryId && result.config && result.config.queryId) {
+            console.log('[集成Store] 从包装数据的config中提取queryId:', result.config.queryId);
+            result.queryId = result.config.queryId;
+          }
+        } 
+        
+        if (!result) {
+          // 其他格式的响应
+          console.error('[集成Store] 未知的单个集成API响应格式:', response);
+          return null;
         }
         
-        return result.data;
+        // 打印关键字段
+        console.log(`[集成Store] 处理后的集成数据: ID=${result.id}, 名称=${result.name}, 数据源=${result.dataSourceId}, 查询=${result.queryId}`);
+        
+        currentIntegration.value = result;
+        return result;
       }
     } catch (err: any) {
-      console.error('获取集成失败', err);
+      console.error('[集成Store] 获取集成失败', err);
       error.value = err.message || '获取集成失败';
       throw err;
     } finally {

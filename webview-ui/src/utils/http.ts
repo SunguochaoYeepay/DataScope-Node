@@ -303,13 +303,25 @@ async function handleMockRequest<T>(url: string, options: RequestOptions = {}, d
     
     if (url === '/api/queries') {
       // 获取查询列表
+      const pageNumber = Number(options.params?.page) || 1;
+      const pageSize = Number(options.params?.size) || 10;
+      const mockQueries = Array.from({ length: 20 }, (_, i) => mockQueryService.getQueryById(`query-${i+1}`));
+      const total = mockQueries.length;
+      const totalPages = Math.ceil(total / pageSize);
+      const start = (pageNumber - 1) * pageSize;
+      const end = Math.min(start + pageSize, total);
+      const paginatedQueries = mockQueries.slice(start, end);
+      
+      // 使用正确的结构返回数据
       return { 
         success: true, 
         data: {
-          records: Array.from({ length: 10 }, (_, i) => mockQueryService.getQueryById(`query-${i+1}`)),
-          total: 100,
-          page: options.params?.page || 1,
-          pageSize: options.params?.size || 10
+          items: paginatedQueries,
+          total: total,
+          page: pageNumber,
+          size: pageSize,
+          totalPages: totalPages,
+          hasMore: pageNumber < totalPages
         } 
       } as any;
     }

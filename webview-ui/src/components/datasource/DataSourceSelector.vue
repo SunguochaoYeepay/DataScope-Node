@@ -58,34 +58,54 @@ const filteredDataSources = computed(() => {
 })
 
 // 监听选中值变化
-watch(selectedDataSourceId, (newValue) => {
-  emit('update:modelValue', newValue)
+watch(selectedDataSourceId, (newValue, oldValue) => {
+  console.log(`[DataSourceSelector] 选中的数据源ID变更: ${oldValue} -> ${newValue}`);
+  emit('update:modelValue', newValue);
   
   // 查找选中的数据源数据
-  const selectedDataSource = dataSources.value.find(ds => ds.id === newValue)
+  const selectedDataSource = dataSources.value.find(ds => ds.id === newValue);
   if (selectedDataSource) {
-    emit('selected', newValue, selectedDataSource)
+    console.log(`[DataSourceSelector] 找到选中的数据源: ${selectedDataSource.name}, 类型: ${selectedDataSource.type}`);
+    emit('selected', newValue, selectedDataSource);
+  } else if (newValue) {
+    console.log(`[DataSourceSelector] 未找到选中的数据源(ID: ${newValue})，可能需要重新加载数据源列表`);
+    loadDataSources();
   }
-})
+});
 
 // 监听modelValue变化
-watch(() => props.modelValue, (newValue) => {
-  selectedDataSourceId.value = newValue
-})
+watch(() => props.modelValue, (newValue, oldValue) => {
+  console.log(`[DataSourceSelector] modelValue变更: ${oldValue} -> ${newValue}`);
+  selectedDataSourceId.value = newValue;
+  
+  // 如果有新的modelValue但在当前数据源列表中不存在，尝试加载数据源列表
+  if (newValue && dataSources.value.length > 0 && !dataSources.value.some(ds => ds.id === newValue)) {
+    console.log(`[DataSourceSelector] 当前modelValue(${newValue})不在已加载的数据源列表中，重新加载`);
+    loadDataSources();
+  }
+}, { immediate: true });
 
 // 生命周期钩子
 onMounted(async () => {
-  await loadDataSources()
-})
+  console.log(`[DataSourceSelector] 组件挂载，初始modelValue: ${props.modelValue}`);
+  await loadDataSources();
+  
+  // 首次加载后，检查是否已有选中值
+  if (props.modelValue && !dataSources.value.some(ds => ds.id === props.modelValue)) {
+    console.log(`[DataSourceSelector] 初始modelValue(${props.modelValue})不在已加载的数据源列表中`);
+  }
+});
 
 // 加载数据源列表
 const loadDataSources = async () => {
-  loading.value = true
+  loading.value = true;
+  console.log('[DataSourceSelector] 开始加载数据源列表...');
   
   try {
-    const result = await dataSourceService.getDataSources({ status: 'ACTIVE' })
+    const result = await dataSourceService.getDataSources({ status: 'ACTIVE' });
     
     if (result) {
+      const oldLength = dataSources.value.length;
       dataSources.value = result.items.map(dataSource => ({
         id: dataSource.id,
         name: dataSource.name || `数据源 ${dataSource.id}`,
@@ -101,20 +121,37 @@ const loadDataSources = async () => {
         lastSyncTime: dataSource.lastSyncTime,
         createdAt: dataSource.createdAt,
         updatedAt: dataSource.updatedAt
-      }))
+      }));
+      
+      console.log(`[DataSourceSelector] 成功加载${dataSources.value.length}个数据源(原${oldLength}个)`);
+      
+      // 如果有指定数据源类型，过滤并记录日志
+      if (props.dataSourceType) {
+        const filteredCount = dataSources.value.filter(ds => ds.type === props.dataSourceType).length;
+        console.log(`[DataSourceSelector] 按类型(${props.dataSourceType})过滤后剩余${filteredCount}个数据源`);
+      }
+      
+      // 检查当前选中的数据源是否在列表中
+      if (selectedDataSourceId.value) {
+        const selectedExists = dataSources.value.some(ds => ds.id === selectedDataSourceId.value);
+        console.log(`[DataSourceSelector] 检查当前选中的数据源(${selectedDataSourceId.value})是否存在: ${selectedExists}`);
+      }
+    } else {
+      console.warn('[DataSourceSelector] 数据源服务返回空结果');
     }
   } catch (error) {
-    console.error('加载数据源列表失败', error)
-    message.error('加载数据源列表失败')
+    console.error('[DataSourceSelector] 加载数据源列表失败', error);
+    message.error('加载数据源列表失败');
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // 刷新数据源列表
 const refreshDataSources = async () => {
-  await loadDataSources()
-}
+  console.log('[DataSourceSelector] 手动刷新数据源列表');
+  await loadDataSources();
+};
 
 // 数据源选择变更处理
 const handleDataSourceChange = (event: Event) => {
@@ -159,7 +196,7 @@ onMounted(() => {
     <div class="relative">
       <div class="input-with-dropdown">
         <input
-          :value="filteredDataSources.find(ds => ds.id === selectedDataSourceId)?.name || ''"
+          :value="filteredDataSources.find(ds => ds.id === selectedDataSourceId)?.name || (selectedDataSourceId ? `数据源 (ID: ${selectedDataSourceId})` : '')"
           type="text"
           readonly
           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm cursor-pointer"

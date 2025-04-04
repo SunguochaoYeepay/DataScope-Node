@@ -660,33 +660,16 @@ export const useQueryStore = defineStore('query', () => {
     try {
       console.log(`开始获取查询执行计划，查询ID: ${queryId}`)
       
-      const response = await fetch(`${getApiBaseUrl()}/api/queries/${queryId}/execution-plan`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      })
+      // 调用查询服务获取执行计划
+      const plan = await queryService.getQueryExecutionPlan(queryId)
       
-      console.log(`执行计划API响应状态: ${response.status} ${response.statusText}`)
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error?.message || response.statusText
-        console.log(`获取查询执行计划失败: ${response.statusText}, 错误内容:`, JSON.stringify(errorData))
-        
-        // 如果是特定错误（例如计划不存在），则返回null并不抛出错误
-        if (errorData.error?.code === 10006 || errorMessage.includes('不存在')) {
-          console.log('执行计划暂不可用:', errorMessage)
-          return null
-        }
-        
-        throw new Error(`获取查询执行计划失败: ${response.statusText}`)
+      if (plan) {
+        console.log('成功获取查询执行计划:', plan)
+        executionPlan.value = plan
+      } else {
+        console.log('查询执行计划暂不可用')
       }
       
-      const plan = await response.json()
-      console.log('成功获取查询执行计划:', plan)
-      executionPlan.value = plan
       return plan
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
@@ -837,21 +820,53 @@ export const useQueryStore = defineStore('query', () => {
       }
       
       const response = await queryService.getQueries(queryParams)
+      console.log('查询列表获取结果:', response);
       
-      queries.value = response.items
-      pagination.value = {
-        total: response.total,
-        page: response.page,
-        size: response.size,
-        totalPages: response.totalPages,
-        hasMore: response.page < response.totalPages
+      // 检查响应格式
+      if (!response) {
+        console.error('fetchQueries: API返回空响应');
+        queries.value = [];
+        pagination.value = {
+          page: 1,
+          pageSize: 10,
+          total: 0,
+          totalPages: 0,
+          hasMore: false
+        };
+        return [];
       }
       
-      return response.items
+      // 确保response.items存在
+      const items = response.items || [];
+      queries.value = items;
+      
+      // 更新分页信息
+      if (response.pagination) {
+        pagination.value = {
+          page: response.pagination.page,
+          pageSize: response.pagination.pageSize,
+          total: response.pagination.total,
+          totalPages: response.pagination.totalPages,
+          hasMore: response.pagination.hasMore
+        };
+      } else {
+        // 如果响应中没有分页信息，使用默认值
+        pagination.value = {
+          page: queryParams.page,
+          pageSize: queryParams.size,
+          total: items.length,
+          totalPages: Math.ceil(items.length / queryParams.size),
+          hasMore: queryParams.page * queryParams.size < items.length
+        };
+      }
+      
+      console.log(`查询列表更新: ${items.length}条数据, 总计${pagination.value.total}条`);
+      return items;
     } catch (error) {
       console.error('加载查询列表失败:', error)
-      messageService.error('加载查询列表失败')
-      throw error
+      messageService.error('加载查询列表失败: ' + (error instanceof Error ? error.message : String(error)))
+      queries.value = []
+      return []
     } finally {
       loading.hide()
     }

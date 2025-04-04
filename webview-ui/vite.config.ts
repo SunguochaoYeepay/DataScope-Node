@@ -21,13 +21,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: '0.0.0.0',
-      port: 3100, // 修改为固定端口3100
+      port: 3200, // 修改为3200端口，避免与现有服务冲突
       strictPort: true, // 强制使用指定端口，如果被占用则退出
       cors: true, // 启用CORS
-      proxy: useMockApi ? undefined : {
-        // 配置代理，仅在非Mock模式下启用
+      proxy: {
+        // API请求代理配置
         '/api': {
-          target: 'http://localhost:3100',
+          // 在Mock模式下，将API请求代理到本地接口
+          target: useMockApi ? 'http://localhost:4000' : 'http://localhost:3100',
           changeOrigin: true,
           secure: false
         }

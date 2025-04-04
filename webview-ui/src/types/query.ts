@@ -433,3 +433,20 @@ export interface FetchQueryParams {
   sortDir?: string;
   includeDrafts?: boolean;
 }
+
+import { PaginationInfo } from '@/types/common';
+
+// 改用PaginationInfo而不是Pagination
+export interface QueryParams {
+  page?: number;
+  size?: number;
+  dataSourceId?: string;
+  queryType?: string;
+  status?: string;
+  serviceStatus?: string;
+  search?: string;
+  searchTerm?: string;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+  includeDrafts?: boolean;
+}

@@ -93,48 +93,65 @@ const statusOptions = [
 
 // 生命周期钩子
 onMounted(async () => {
+  console.log('[IntegrationEdit] 组件挂载，集成ID:', integrationId.value, '创建模式:', isCreateMode.value);
+  
   if (!isCreateMode.value && integrationId.value) {
     await loadIntegration(integrationId.value);
+  } else {
+    console.log('[IntegrationEdit] 创建模式，使用默认空数据');
   }
 });
 
 // 加载集成
 const loadIntegration = async (id: string) => {
   try {
+    console.log('[IntegrationEdit] 开始加载集成数据, ID:', id);
     const result = await integrationStore.fetchIntegrationById(id);
     
     if (result) {
+      console.log('[IntegrationEdit] 获取到集成数据:', result);
+      
       // 复制数据到本地状态
       integration.id = result.id;
       integration.name = result.name;
       integration.description = result.description || '';
       integration.type = result.type;
       integration.status = result.status;
-      integration.queryId = result.queryId;
-      integration.dataSourceId = result.dataSourceId || '';
+      
+      // 特别关注这两个关键字段
+      integration.queryId = result.queryId || result.config?.queryId || '';
+      integration.dataSourceId = result.dataSourceId || result.config?.dataSourceId || '';
+      
+      console.log('[IntegrationEdit] 设置数据源ID:', integration.dataSourceId);
+      console.log('[IntegrationEdit] 设置查询ID:', integration.queryId);
+      
       integration.createTime = result.createTime;
       integration.updateTime = result.updateTime;
       
       // 表单配置
       if (result.formConfig) {
         integration.formConfig = { ...result.formConfig };
+        console.log('[IntegrationEdit] 加载表单配置:', integration.formConfig);
       }
       
       // 表格配置
       if (result.tableConfig) {
         integration.tableConfig = { ...result.tableConfig };
+        console.log('[IntegrationEdit] 加载表格配置:', integration.tableConfig);
       }
       
       // 集成点配置
       if (result.integrationPoint) {
         integration.integrationPoint = { ...result.integrationPoint };
+        console.log('[IntegrationEdit] 加载集成点配置:', integration.integrationPoint);
       }
     } else {
+      console.error('[IntegrationEdit] 未找到集成项');
       message.error('未找到集成项');
       router.push('/integration');
     }
   } catch (error) {
-    console.error('加载集成项失败', error);
+    console.error('[IntegrationEdit] 加载集成项失败', error);
     message.error('加载集成项失败');
     router.push('/integration');
   }
@@ -279,16 +296,17 @@ const cancelEdit = () => {
 
 // 数据源选择变更处理
 const handleDataSourceSelected = (id: string, data: any) => {
-  console.log('选择的数据源:', data);
+  console.log('[IntegrationEdit] 选择的数据源:', { id, data });
   // 当数据源变化时，清空已选的查询
   if (integration.queryId && integration.dataSourceId !== id) {
+    console.log('[IntegrationEdit] 数据源变更，清空原查询ID:', integration.queryId);
     integration.queryId = '';
   }
 };
 
 // 查询选择变更处理
 const handleQuerySelected = (id: string, data: any) => {
-  console.log('选择的查询:', data);
+  console.log('[IntegrationEdit] 选择的查询:', { id, data });
 };
 
 // 集成类型变更处理

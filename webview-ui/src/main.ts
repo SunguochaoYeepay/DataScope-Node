@@ -4,6 +4,9 @@ import { createPinia } from 'pinia'
 // 最优先导入dayjs配置（包含locale和plugins），必须在其他所有导入之前
 import './plugins/dayjs'
 
+// 在API服务之前引入Mock服务
+import setupMock from './services/api'
+
 import App from './App.vue'
 import router from './router'
 
@@ -29,6 +32,9 @@ import { installMessageService } from './services/message'
 
 // 初始化查询模板
 initQueryTemplates()
+
+// 初始化Mock API服务
+setupMock()
 
 // 创建应用实例
 const app = createApp(App)

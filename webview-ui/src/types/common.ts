@@ -18,6 +18,13 @@ export interface PaginationInfo {
 }
 
 /**
+ * 分页接口 - 兼容命名
+ */
+export interface Pagination extends PaginationInfo {
+  // 与PaginationInfo相同，仅为兼容不同命名规范
+}
+
+/**
  * 分页响应
  */
 export interface PaginationResponse<T> {

@@ -85,5 +85,25 @@ export const integrationService = {
   executeQuery: async (request: ExecuteQueryRequest): Promise<ExecuteQueryResult> => {
     const response = await http.post('/api/data-service/query', request);
     return response.data;
+  },
+  
+  /**
+   * 查询集成数据
+   * @param id 集成ID
+   * @param params 查询参数，包括分页、过滤条件等
+   */
+  queryIntegration: async (id: string, params: any): Promise<any> => {
+    try {
+      const response = await http.post(`/api/low-code/apis/${id}/query`, params);
+      return response;
+    } catch (error) {
+      console.error('查询集成数据失败:', error);
+      // 返回一个模拟的错误响应，供前端处理
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '查询集成数据失败',
+        data: null
+      };
+    }
   }
 };
