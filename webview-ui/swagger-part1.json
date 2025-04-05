@@ -1,0 +1,570 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DataScope API",
+    "description": "DataScope系统当前API规范文档，基于前端已实现的页面和Mock数据",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3200/api",
+      "description": "开发服务器"
+    }
+  ],
+  "tags": [
+    {
+      "name": "查询管理",
+      "description": "查询的创建、执行、收藏和历史记录"
+    },
+    {
+      "name": "数据源管理",
+      "description": "数据源的连接、测试和同步"
+    },
+    {
+      "name": "元数据管理",
+      "description": "数据源元数据的提取和查询"
+    },
+    {
+      "name": "集成管理",
+      "description": "低代码平台集成配置"
+    },
+    {
+      "name": "版本管理",
+      "description": "查询版本管理和历史"
+    }
+  ],
+  "paths": {
+    "/queries": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询列表",
+        "description": "获取所有查询的分页列表，支持多种过滤和排序选项",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，从1开始",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页记录数",
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "search",
+            "in": "query", 
+            "description": "关键词搜索，匹配查询名称和描述",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "queryType",
+            "in": "query",
+            "description": "按查询类型过滤",
+            "schema": { "type": "string", "enum": ["SQL", "NATURAL_LANGUAGE"] }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "按状态过滤",
+            "schema": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "DEPRECATED", "ARCHIVED"] }
+          },
+          {
+            "name": "serviceStatus",
+            "in": "query",
+            "description": "按服务状态过滤",
+            "schema": { "type": "string", "enum": ["ENABLED", "DISABLED"] }
+          },
+          {
+            "name": "dataSourceId",
+            "in": "query",
+            "description": "按数据源ID过滤",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "排序字段",
+            "schema": { "type": "string", "enum": ["name", "createdAt", "updatedAt", "executionCount", "lastExecutedAt"] }
+          },
+          {
+            "name": "sortDir",
+            "in": "query",
+            "description": "排序方向",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+          },
+          {
+            "name": "includeDrafts",
+            "in": "query",
+            "description": "是否包含草稿状态的查询",
+            "schema": { "type": "boolean", "default": false }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回查询列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Query" }
+                        },
+                        "total": { "type": "integer", "example": 20 },
+                        "page": { "type": "integer", "example": 1 },
+                        "size": { "type": "integer", "example": 10 },
+                        "totalPages": { "type": "integer", "example": 2 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "创建新查询",
+        "description": "创建一个新的查询，可以是SQL查询或自然语言查询",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SaveQueryParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Query" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询详情",
+        "description": "根据ID获取查询的详细信息，包括所有版本",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回查询详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Query" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "查询不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": false },
+                    "message": { "type": "string", "example": "查询不存在" },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string", "example": "NOT_FOUND" },
+                        "message": { "type": "string", "example": "未找到ID为query-123的查询" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["查询管理"],
+        "summary": "更新查询信息",
+        "description": "更新已有查询的基本信息和内容",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SaveQueryParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Query" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["查询管理"],
+        "summary": "删除查询",
+        "description": "根据ID删除查询",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功删除查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "查询已成功删除" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}/execute": {
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "执行查询",
+        "description": "执行指定的查询，可选择性地传入参数和分页信息",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parameters": {
+                    "type": "object",
+                    "description": "查询参数键值对",
+                    "additionalProperties": true
+                  },
+                  "limit": { 
+                    "type": "integer", 
+                    "description": "结果集限制条数",
+                    "default": 1000 
+                  },
+                  "offset": { 
+                    "type": "integer", 
+                    "description": "结果集起始位置",
+                    "default": 0 
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "查询执行成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryResult" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/favorites": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取收藏的查询列表",
+        "description": "获取当前用户收藏的查询列表",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，从1开始",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页记录数",
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "按状态过滤",
+            "schema": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "DEPRECATED", "ARCHIVED"] }
+          },
+          {
+            "name": "dataSourceId",
+            "in": "query",
+            "description": "按数据源ID过滤",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "关键词搜索",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回收藏查询列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Query" }
+                        },
+                        "total": { "type": "integer", "example": 5 },
+                        "page": { "type": "integer", "example": 1 },
+                        "size": { "type": "integer", "example": 10 },
+                        "totalPages": { "type": "integer", "example": 1 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}/favorite": {
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "收藏查询",
+        "description": "将查询添加到收藏列表",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功收藏查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "查询已添加到收藏" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["查询管理"],
+        "summary": "取消收藏查询",
+        "description": "将查询从收藏列表中移除",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取消收藏",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "查询已从收藏中移除" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/nl-to-sql": {
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "自然语言转SQL",
+        "description": "将自然语言描述转换为SQL查询语句",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NaturalLanguageQueryParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功转换为SQL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sql": { "type": "string", "example": "SELECT * FROM users ORDER BY created_at DESC LIMIT 10" },
+                        "explanation": { "type": "string", "example": "此SQL语句查询用户表中最近创建的10条记录" },
+                        "tables": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "example": ["users"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}/history": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询执行历史",
+        "description": "获取查询的执行历史记录",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，从1开始",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页记录数",
+            "schema": { "type": "integer", "default": 10 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回执行历史",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ExecutionHistory" }
+                        },
+                        "total": { "type": "integer", "example": 15 },
+                        "page": { "type": "integer", "example": 1 },
+                        "size": { "type": "integer", "example": 10 },
+                        "totalPages": { "type": "integer", "example": 2 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

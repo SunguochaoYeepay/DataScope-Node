@@ -1,0 +1,483 @@
+{
+  "components": {
+    "schemas": {
+      "Query": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "query-1" },
+          "name": { "type": "string", "example": "最近用户查询" },
+          "description": { "type": "string", "example": "查询最近注册的用户" },
+          "folderId": { "type": "string", "example": "folder-1" },
+          "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "DEPRECATED", "ARCHIVED"], "example": "PUBLISHED" },
+          "serviceStatus": { "type": "string", "enum": ["ENABLED", "DISABLED"], "example": "ENABLED" },
+          "dataSourceId": { "type": "string", "example": "ds-1" },
+          "dataSourceName": { "type": "string", "example": "MySQL示例数据库" },
+          "queryType": { "type": "string", "enum": ["SQL", "NATURAL_LANGUAGE"], "example": "SQL" },
+          "queryText": { "type": "string", "example": "SELECT * FROM users ORDER BY created_at DESC LIMIT 10" },
+          "resultCount": { "type": "integer", "example": 10 },
+          "executionTime": { "type": "number", "example": 45.5 },
+          "error": { "type": "string" },
+          "versionStatus": { "type": "string", "example": "CURRENT" },
+          "isActive": { "type": "boolean", "example": true },
+          "isFavorite": { "type": "boolean", "example": false },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "user1" },
+              "name": { "type": "string", "example": "测试用户" },
+              "email": { "type": "string", "example": "user@example.com" },
+              "avatar": { "type": "string" }
+            }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "user1" },
+              "name": { "type": "string", "example": "测试用户" },
+              "email": { "type": "string" },
+              "avatar": { "type": "string" }
+            }
+          },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "executionCount": { "type": "integer", "example": 25 },
+          "lastExecutedAt": { "type": "string", "format": "date-time" },
+          "tags": { "type": "array", "items": { "type": "string" }, "example": ["用户", "最近"] },
+          "currentVersion": { "$ref": "#/components/schemas/QueryVersion" },
+          "versions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/QueryVersion" }
+          }
+        }
+      },
+      "QueryVersion": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "ver-query-1-1" },
+          "queryId": { "type": "string", "example": "query-1" },
+          "versionNumber": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "当前版本" },
+          "description": { "type": "string" },
+          "sql": { "type": "string", "example": "SELECT * FROM users ORDER BY created_at DESC LIMIT 10" },
+          "dataSourceId": { "type": "string", "example": "ds-1" },
+          "dataSource": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "ds-1" },
+              "name": { "type": "string", "example": "MySQL示例数据库" },
+              "type": { "type": "string", "example": "mysql" },
+              "icon": { "type": "string" }
+            }
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "label": { "type": "string" },
+                "defaultValue": { "type": "string" },
+                "required": { "type": "boolean" }
+              }
+            }
+          },
+          "status": { "type": "string", "example": "PUBLISHED" },
+          "isLatest": { "type": "boolean", "example": true },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "user1" },
+              "name": { "type": "string", "example": "测试用户" }
+            }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "comment": { "type": "string" },
+          "changes": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "color": { "type": "string" }
+              }
+            }
+          },
+          "executionHistory": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ExecutionHistory" }
+          },
+          "lastExecution": { "$ref": "#/components/schemas/ExecutionHistory" }
+        }
+      },
+      "ExecutionHistory": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "exec-1" },
+          "queryId": { "type": "string", "example": "query-1" },
+          "versionId": { "type": "string", "example": "ver-query-1-1" },
+          "executedBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "user1" },
+              "name": { "type": "string", "example": "测试用户" }
+            }
+          },
+          "executedAt": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["success", "error", "running", "cancelled"], "example": "success" },
+          "duration": { "type": "number", "example": 45.5 },
+          "rowCount": { "type": "integer", "example": 10 },
+          "parameters": { "type": "object" },
+          "resultId": { "type": "string" }
+        }
+      },
+      "SaveQueryParams": {
+        "type": "object",
+        "required": ["name", "dataSourceId", "sql"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string", "example": "最近用户查询" },
+          "dataSourceId": { "type": "string", "example": "ds-1" },
+          "sql": { "type": "string", "example": "SELECT * FROM users ORDER BY created_at DESC LIMIT 10" },
+          "description": { "type": "string", "example": "查询最近注册的用户" },
+          "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "DEPRECATED", "ARCHIVED"], "example": "PUBLISHED" },
+          "serviceStatus": { "type": "string", "enum": ["ENABLED", "DISABLED"], "example": "ENABLED" },
+          "tags": { "type": "array", "items": { "type": "string" }, "example": ["用户", "最近"] },
+          "isPublic": { "type": "boolean", "example": true },
+          "queryType": { "type": "string", "enum": ["SQL", "NATURAL_LANGUAGE"], "example": "SQL" }
+        }
+      },
+      "QueryResult": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "result-1" },
+          "queryId": { "type": "string", "example": "query-1" },
+          "status": { "type": "string", "enum": ["success", "error", "running", "cancelled"], "example": "success" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "executionTime": { "type": "number", "example": 45.5 },
+          "rowCount": { "type": "integer", "example": 10 },
+          "rows": {
+            "type": "array",
+            "items": { "type": "object" },
+            "example": [
+              {"id": 1, "username": "user1", "email": "user1@example.com", "created_at": "2023-01-01T12:00:00Z"},
+              {"id": 2, "username": "user2", "email": "user2@example.com", "created_at": "2023-01-02T12:00:00Z"}
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["id", "username", "email", "created_at"]
+          },
+          "columnTypes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["integer", "string", "string", "datetime"]
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            },
+            "example": [
+              {"name": "id", "type": "integer", "label": "用户ID"},
+              {"name": "username", "type": "string", "label": "用户名"},
+              {"name": "email", "type": "string", "label": "电子邮件"},
+              {"name": "created_at", "type": "datetime", "label": "创建时间"}
+            ]
+          },
+          "error": { "type": "string" },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "hasMore": { "type": "boolean", "example": false }
+        }
+      },
+      "NaturalLanguageQueryParams": {
+        "type": "object",
+        "required": ["dataSourceId", "question"],
+        "properties": {
+          "dataSourceId": { "type": "string", "example": "ds-1" },
+          "question": { "type": "string", "example": "查询最近10个注册用户" },
+          "contextTables": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["users"]
+          },
+          "maxRows": { "type": "integer", "example": 1000 },
+          "timeout": { "type": "integer", "example": 30000 }
+        }
+      },
+      "DataSource": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "ds-1" },
+          "name": { "type": "string", "example": "MySQL示例数据库" },
+          "description": { "type": "string", "example": "连接到示例MySQL数据库" },
+          "type": { "type": "string", "enum": ["mysql", "postgresql", "oracle", "sqlserver", "mongodb", "elasticsearch"], "example": "mysql" },
+          "host": { "type": "string", "example": "localhost" },
+          "port": { "type": "integer", "example": 3306 },
+          "databaseName": { "type": "string", "example": "example_db" },
+          "database": { "type": "string", "example": "example_db" },
+          "schema": { "type": "string" },
+          "username": { "type": "string", "example": "user" },
+          "status": { "type": "string", "enum": ["active", "inactive", "error", "syncing"], "example": "active" },
+          "syncFrequency": { "type": "string", "enum": ["manual", "hourly", "daily", "weekly", "monthly"], "example": "daily" },
+          "lastSyncTime": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "errorMessage": { "type": "string" },
+          "connectionParams": { "type": "object" },
+          "encryptionType": { "type": "string", "enum": ["none", "ssl", "tls"], "example": "none" },
+          "encryptionOptions": { "type": "object" },
+          "isActive": { "type": "boolean", "example": true }
+        }
+      },
+      "CreateDataSourceParams": {
+        "type": "object",
+        "required": ["name", "type", "host", "port", "databaseName", "username", "password", "syncFrequency"],
+        "properties": {
+          "name": { "type": "string", "example": "MySQL示例数据库" },
+          "description": { "type": "string", "example": "连接到示例MySQL数据库" },
+          "type": { "type": "string", "enum": ["mysql", "postgresql", "oracle", "sqlserver", "mongodb", "elasticsearch"], "example": "mysql" },
+          "host": { "type": "string", "example": "localhost" },
+          "port": { "type": "integer", "example": 3306 },
+          "databaseName": { "type": "string", "example": "example_db" },
+          "database": { "type": "string", "example": "example_db" },
+          "schema": { "type": "string" },
+          "username": { "type": "string", "example": "user" },
+          "password": { "type": "string", "example": "password" },
+          "syncFrequency": { "type": "string", "enum": ["manual", "hourly", "daily", "weekly", "monthly"], "example": "daily" },
+          "connectionParams": { "type": "object" },
+          "encryptionType": { "type": "string", "enum": ["none", "ssl", "tls"], "example": "none" },
+          "encryptionOptions": { "type": "object" }
+        }
+      },
+      "UpdateDataSourceParams": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "example": "ds-1" },
+          "name": { "type": "string", "example": "MySQL示例数据库" },
+          "description": { "type": "string", "example": "连接到示例MySQL数据库" },
+          "host": { "type": "string", "example": "localhost" },
+          "port": { "type": "integer", "example": 3306 },
+          "databaseName": { "type": "string", "example": "example_db" },
+          "database": { "type": "string", "example": "example_db" },
+          "username": { "type": "string", "example": "user" },
+          "password": { "type": "string", "example": "password" },
+          "syncFrequency": { "type": "string", "enum": ["manual", "hourly", "daily", "weekly", "monthly"], "example": "daily" },
+          "connectionParams": { "type": "object" },
+          "encryptionType": { "type": "string", "enum": ["none", "ssl", "tls"], "example": "none" },
+          "encryptionOptions": { "type": "object" }
+        }
+      },
+      "DataSourceStats": {
+        "type": "object",
+        "properties": {
+          "dataSourceId": { "type": "string", "example": "ds-1" },
+          "tablesCount": { "type": "integer", "example": 15 },
+          "viewsCount": { "type": "integer", "example": 5 },
+          "totalRows": { "type": "integer", "example": 10000 },
+          "totalSize": { "type": "string", "example": "2.5 MB" },
+          "lastUpdate": { "type": "string", "format": "date-time" },
+          "queriesCount": { "type": "integer", "example": 50 },
+          "connectionPoolSize": { "type": "integer", "example": 10 },
+          "activeConnections": { "type": "integer", "example": 3 },
+          "avgQueryTime": { "type": "string", "example": "45ms" },
+          "totalTables": { "type": "integer", "example": 15 },
+          "totalViews": { "type": "integer", "example": 5 },
+          "totalQueries": { "type": "integer", "example": 50 },
+          "avgResponseTime": { "type": "number", "example": 45 },
+          "peakConnections": { "type": "integer", "example": 8 }
+        }
+      },
+      "Integration": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "int-001" },
+          "name": { "type": "string", "example": "客户数据集成" },
+          "description": { "type": "string", "example": "与CRM系统的客户数据集成" },
+          "type": { "type": "string", "enum": ["SIMPLE_TABLE", "TABLE", "CHART"], "example": "TABLE" },
+          "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "DRAFT"], "example": "ACTIVE" },
+          "queryId": { "type": "string", "example": "query-001" },
+          "dataSourceId": { "type": "string", "example": "ds-001" },
+          "integrationPoint": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "ip-001" },
+              "name": { "type": "string", "example": "CRM API 集成点" },
+              "type": { "type": "string", "example": "URL" },
+              "urlConfig": {
+                "type": "object",
+                "properties": {
+                  "url": { "type": "string", "example": "https://api.example.com/crm" },
+                  "method": { "type": "string", "example": "GET" },
+                  "headers": { "type": "object", "example": { "Content-Type": "application/json" } }
+                }
+              }
+            }
+          },
+          "chartConfig": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["bar", "line", "pie", "scatter"], "example": "bar" },
+              "title": { "type": "string", "example": "月度销售分析" },
+              "description": { "type": "string", "example": "各产品线月度销售额分析" },
+              "height": { "type": "integer", "example": 400 },
+              "showLegend": { "type": "boolean", "example": true },
+              "dataMapping": {
+                "type": "object",
+                "properties": {
+                  "xField": { "type": "string", "example": "month" },
+                  "yField": { "type": "string", "example": "sales" },
+                  "seriesField": { "type": "string", "example": "product" }
+                }
+              },
+              "styleOptions": {
+                "type": "object",
+                "properties": {
+                  "colors": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "example": ["#5470c6", "#91cc75", "#fac858", "#ee6666", "#73c0de"]
+                  }
+                }
+              }
+            }
+          },
+          "createTime": { "type": "string", "format": "date-time" },
+          "updateTime": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateIntegrationParams": {
+        "type": "object",
+        "required": ["name", "type", "queryId", "dataSourceId"],
+        "properties": {
+          "name": { "type": "string", "example": "客户数据集成" },
+          "description": { "type": "string", "example": "与CRM系统的客户数据集成" },
+          "type": { "type": "string", "enum": ["SIMPLE_TABLE", "TABLE", "CHART"], "example": "TABLE" },
+          "queryId": { "type": "string", "example": "query-001" },
+          "dataSourceId": { "type": "string", "example": "ds-001" },
+          "integrationPoint": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "example": "CRM API 集成点" },
+              "type": { "type": "string", "example": "URL" },
+              "urlConfig": {
+                "type": "object",
+                "properties": {
+                  "url": { "type": "string", "example": "https://api.example.com/crm" },
+                  "method": { "type": "string", "example": "GET" },
+                  "headers": { "type": "object", "example": { "Content-Type": "application/json" } }
+                }
+              }
+            }
+          },
+          "chartConfig": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["bar", "line", "pie", "scatter"], "example": "bar" },
+              "title": { "type": "string", "example": "月度销售分析" },
+              "description": { "type": "string", "example": "各产品线月度销售额分析" },
+              "height": { "type": "integer", "example": 400 },
+              "showLegend": { "type": "boolean", "example": true },
+              "dataMapping": {
+                "type": "object",
+                "properties": {
+                  "xField": { "type": "string", "example": "month" },
+                  "yField": { "type": "string", "example": "sales" },
+                  "seriesField": { "type": "string", "example": "product" }
+                }
+              },
+              "styleOptions": {
+                "type": "object",
+                "properties": {
+                  "colors": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "UpdateIntegrationParams": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "example": "int-001" },
+          "name": { "type": "string", "example": "客户数据集成" },
+          "description": { "type": "string", "example": "与CRM系统的客户数据集成" },
+          "type": { "type": "string", "enum": ["SIMPLE_TABLE", "TABLE", "CHART"], "example": "TABLE" },
+          "queryId": { "type": "string", "example": "query-001" },
+          "dataSourceId": { "type": "string", "example": "ds-001" },
+          "integrationPoint": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "example": "CRM API 集成点" },
+              "type": { "type": "string", "example": "URL" },
+              "urlConfig": {
+                "type": "object",
+                "properties": {
+                  "url": { "type": "string", "example": "https://api.example.com/crm" },
+                  "method": { "type": "string", "example": "GET" },
+                  "headers": { "type": "object", "example": { "Content-Type": "application/json" } }
+                }
+              }
+            }
+          },
+          "chartConfig": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["bar", "line", "pie", "scatter"], "example": "bar" },
+              "title": { "type": "string", "example": "月度销售分析" },
+              "description": { "type": "string", "example": "各产品线月度销售额分析" },
+              "height": { "type": "integer", "example": 400 },
+              "showLegend": { "type": "boolean", "example": true },
+              "dataMapping": {
+                "type": "object",
+                "properties": {
+                  "xField": { "type": "string", "example": "month" },
+                  "yField": { "type": "string", "example": "sales" },
+                  "seriesField": { "type": "string", "example": "product" }
+                }
+              },
+              "styleOptions": {
+                "type": "object",
+                "properties": {
+                  "colors": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

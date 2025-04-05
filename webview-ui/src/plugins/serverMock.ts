@@ -1,12 +1,48 @@
+/**
+ * 备份文件 - 此Mock服务已被禁用，使用src/mock替代
+ * 
+ * 此文件保留作为参考，但为避免与主Mock服务冲突，已完全禁用
+ */
+
 import { mockQueries, mockDataSources } from './mockData';
 import { Connect } from 'vite';
 
 /**
  * 创建一个Vite服务器中间件，用于处理API请求
  * 主要针对curl等外部工具发送的请求，返回JSON而不是HTML
+ * 
+ * 注意：此中间件已被禁用，返回一个空中间件不处理任何请求
  */
 export function createMockServerMiddleware(): Connect.NextHandleFunction {
+  console.log('[ServerMock] 此Mock服务已废弃，使用src/mock替代');
+  
+  // 直接返回一个空中间件，不处理任何请求
+  return (req, res, next) => {
+    next();
+  };
+}
+
+// 导出备份数据，以便在需要时可以查看
+export { mockQueries, mockDataSources };
+
+/*
+ * 原始实现已被注释掉，避免与主Mock服务冲突
+ *
+export function createMockServerMiddleware(): Connect.NextHandleFunction {
   console.log('[Server] 创建Mock服务器中间件');
+  
+  // 强制禁用Mock API
+  const useMockApi = false;
+  
+  console.log('[Server] Mock API状态:', useMockApi ? '启用' : '禁用');
+  
+  // 如果未启用，则不处理任何请求
+  if (!useMockApi) {
+    console.log('[Server] Mock服务器已禁用，所有请求将直接传递到后端');
+    return (req, res, next) => {
+      next();
+    };
+  }
   
   // 打印mockDataSources内容，以便调试
   console.log('[Server] mockDataSources长度:', mockDataSources ? mockDataSources.length : 'undefined');
@@ -15,6 +51,11 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
   }
   
   return async (req, res, next) => {
+    // 如果请求URL包含/api/但不是API请求，直接传递
+    if (!useMockApi || !req.url?.includes('/api/')) {
+      return next();
+    }
+    
     // 只处理API请求
     if (req.url?.includes('/api/')) {
       console.log('[Server Mock] 拦截API请求:', req.url, req.method);
@@ -358,3 +399,4 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
     next();
   };
 }
+*/

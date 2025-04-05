@@ -34,6 +34,23 @@ src/
       └── query/     # 查询相关页面
 ```
 
+## API文档
+
+项目根目录下提供了基于前端功能和Mock数据生成的完整Swagger API文档：
+- `swagger-updated-full.json`: 包含所有当前实现的API端点和数据模型定义
+
+文档包含以下主要模块：
+- 查询管理 API - 涵盖查询的创建、执行、收藏和历史
+- 数据源管理 API - 包括数据源连接、测试和同步
+- 元数据管理 API - 专注于元数据的提取和查询
+- 集成管理 API - 包含集成的创建、配置和预览
+- 查询版本管理 API - 包括版本的创建、发布、废弃和激活
+
+可以使用Swagger UI或其他Swagger文档查看工具查看此文档。该文档可用于：
+1. 比较当前前端API与新后端架构设计的差异
+2. 作为前端适配新后端架构的参考
+3. 作为团队成员开发文档
+
 ## 功能模块
 
 ### 查询模块
@@ -41,6 +58,7 @@ src/
 - 查询结果展示和导出
 - 查询历史记录管理
 - 查询模板保存和复用
+- 查询版本管理
 
 ### 数据源模块
 - 数据源连接管理
@@ -106,10 +124,71 @@ src/
 - `src/services/datasource.ts`：数据源服务适配
 - `src/services/query.ts`：查询服务适配
 - `src/services/integration.ts`：集成服务适配
+- `src/services/queryVersion.ts`：查询版本服务适配
 
 通过适配层，无论后端API如何变化，前端组件都能获得一致的数据接口，降低前后端耦合度。
 
 ## 开发指南
+
+### 运行开发服务器
+
+有以下几种方式启动开发服务器（所有方式均使用固定端口8080）：
+
+1. 标准方式:
+```bash
+npm run dev
+```
+
+2. 有需要连接其它设备访问时:
+```bash
+npm run dev:network
+```
+
+以上命令会自动检测并释放端口8080，确保开发服务器能够正常启动。
+
+### 开发工具
+
+在开发过程中，你可以使用以下命令：
+
+```bash
+# 清理可能被占用的8080端口
+npm run clean:ports
+
+# 构建生产版本
+npm run build
+
+# 预览构建结果
+npm run preview
+```
+
+### PM2进程管理优势
+
+- 自动管理端口：在启动前自动检测并关闭占用端口的进程
+- 进程监控：服务崩溃时自动重启
+- 性能监控：监控CPU和内存使用情况
+- 日志管理：提供详细的运行日志
+- 负载均衡：可配置为集群模式
+
+### 查看PM2运行状态
+
+```bash
+# 查看所有PM2管理的进程
+npx pm2 list
+# 或
+npx pm2 ls
+
+# 查看详细日志
+npx pm2 logs
+
+# 查看特定应用的日志
+npx pm2 logs datascope-ui-dev
+
+# 监控进程状态
+npx pm2 monit
+
+# 完全停止PM2守护进程
+npx pm2 kill
+```
 
 ### 模拟数据开发
 项目支持使用模拟数据进行开发和测试。模拟数据配置在以下文件：
@@ -146,11 +225,6 @@ VITE_USE_MOCK_API=false
 npm install
 ```
 
-### 开发环境启动
-```bash
-npm run dev
-```
-
 ### 构建生产版本
 ```bash
 npm run build
@@ -170,3 +244,104 @@ npm run lint
 
 ## 许可证
 [MIT License](LICENSE)
+
+# DataScope UI
+
+DataScope是一个数据分析与可视化平台，用于连接、查询和分析各种数据源。
+
+## 快速开始
+
+```bash
+# 安装依赖
+npm install
+
+# 开发环境启动
+npm run dev
+
+# 构建生产版本
+npm run build
+```
+
+## 项目架构
+
+```
+webview-ui/              # 前端项目根目录
+├── public/              # 静态资源
+├── src/                 # 源代码
+│   ├── assets/          # 资源文件
+│   ├── components/      # 通用组件
+│   ├── config/          # 配置文件
+│   ├── mock/            # Mock服务（新）
+│   ├── plugins/         # 插件
+│   ├── router/          # 路由配置
+│   ├── services/        # API服务
+│   ├── stores/          # 状态管理
+│   ├── types/           # 类型定义
+│   ├── utils/           # 工具函数
+│   ├── views/           # 页面组件
+│   ├── App.vue          # 主应用组件
+│   └── main.ts          # 入口文件
+├── .env                 # 环境变量
+├── .env.development     # 开发环境变量
+├── vite.config.ts       # Vite配置
+└── package.json         # 项目依赖
+```
+
+## Mock服务重构计划
+
+由于项目历史原因，当前的Mock服务分散在多个文件中，导致管理困难且容易引起冲突。我们计划进行重构，但需要保证现有功能不受影响。
+
+### 现有Mock系统的分布
+
+Mock相关代码主要分布在以下位置：
+
+1. `src/services/api.ts` - 提供了Mock API服务及setupMock函数
+2. `src/plugins/serverMock.ts` - 提供Vite服务器中间件实现
+3. `src/services/datasource.ts` - 包含数据源模拟数据和处理逻辑
+4. `src/utils/http.ts` - 包含HTTP请求的Mock处理
+5. `src/services/mockData.ts` - 包含各种模拟数据
+6. `src/plugins/fetch-interceptor.ts` - 拦截fetch请求
+
+### 重构策略 (谨慎渐进式)
+
+为确保不破坏现有功能，我们采用以下策略：
+
+1. **创建统一的Mock模块**
+   - 在`src/mock/`目录下建立新的模块化结构
+   - 不立即删除现有代码，而是逐步迁移功能
+
+2. **确保兼容性**
+   - 创建兼容层，保证旧Mock代码可以在需要时正常工作
+   - 保留关键变量如`USE_MOCK`，确保开关逻辑一致  
+
+3. **分阶段迁移**
+   - 第一阶段：建立基础架构，创建统一配置
+   - 第二阶段：迁移数据模型和服务到新结构
+   - 第三阶段：迁移拦截器和中间件
+   - 第四阶段：切换入口点，启用新系统
+   - 最终阶段：移除旧代码（仅当确认新系统完全可用）
+
+4. **测试保证**
+   - 每个迁移步骤都需要进行功能测试
+   - 确保新旧系统可以并存运行
+
+### Mock数据保留策略
+
+在迁移过程中，确保以下数据不会丢失：
+
+1. `mockDataSources` - 数据源模拟数据
+2. Mock处理逻辑（路由、响应格式等）
+3. `setupMock`函数的核心功能
+4. 中间件响应处理逻辑
+5. 请求拦截和响应处理机制
+
+### 注意事项
+
+- **不要直接删除**旧的Mock代码，直到新系统完全验证通过
+- 确保环境变量和开关保持一致，避免配置冲突
+- 保持API响应格式一致，避免前端组件出现兼容性问题
+
+## 环境变量
+
+- `VITE_API_BASE_URL` - API基础路径
+- `VITE_USE_MOCK_API` - 是否启用Mock服务

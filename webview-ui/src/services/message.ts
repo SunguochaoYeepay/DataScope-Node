@@ -59,50 +59,29 @@ const isDuplicateMessage = (config: MessageConfig): MessageInstance | null => {
 }
 
 // 更新重复消息
-const updateDuplicateMessage = (duplicate: MessageInstance) => {
-  // 将旧消息移到队列顶部
-  const container = document.getElementById(duplicate.id)
-  if (container && container.parentNode) {
-    container.parentNode.appendChild(container) // 移到末尾显示
-  }
-  
-  // 更新计数
-  const count = (duplicate.config.count || 1) + 1
-  duplicate.config.count = count
-  
-  // 创建或更新消息内容
-  if (container) {
-    const contentEl = container.querySelector('.message-content') as HTMLElement | null
-    if (contentEl) {
-      const baseContent = duplicate.config.content.replace(/ \(\d+\)$/, '') // 移除已有的计数
-      contentEl.textContent = `${baseContent} (${count})`
-    }
-    
-    // 重新设置自动关闭计时器
-    const closeButton = container.querySelector('.message-close-btn') as HTMLElement | null
-    if (closeButton && typeof closeButton.click === 'function') {
-      // 先移除旧的计时器
-      const oldTimerId = (closeButton as any).dataset.timerId
-      if (oldTimerId) {
-        window.clearTimeout(Number(oldTimerId))
-      }
+const updateDuplicateMessage = (id: string) => {
+  try {
+    const messageIndex = instances.findIndex(msg => msg.id === id);
+    if (messageIndex !== -1) {
+      instances[messageIndex].duplicateCount = (instances[messageIndex].duplicateCount || 0) + 1;
       
-      // 设置新的计时器
-      const duration = duplicate.config.duration || queueConfig.defaultDuration
-      if (duration && duration > 0) {
-        // 使用window对象显式调用，避免类型问题
-        const tid = window.setTimeout(() => {
-          closeButton.click() // 触发关闭
-        }, Number(duration))
-        
-        // 存储timer ID 
-        (closeButton as any).dataset.timerId = tid
+      // 使用带错误处理的setTimeout包装
+      try {
+        window.setTimeout(() => {
+          removeInstance(id);
+        }, instances[messageIndex].config.duration || 3000);
+      } catch (error) {
+        console.error('消息服务setTimeout错误:', error);
+        // 降级处理：直接在下一个事件循环移除
+        Promise.resolve().then(() => {
+          setTimeout(() => removeInstance(id), 3000);
+        });
       }
     }
+  } catch (error) {
+    console.error('更新重复消息状态错误:', error);
   }
-  
-  return duplicate
-}
+};
 
 // 限制消息数量
 const limitMessageCount = () => {
@@ -133,7 +112,7 @@ const createMessage = (config: MessageConfig) => {
   // 检查重复消息
   const duplicate = isDuplicateMessage(config)
   if (duplicate) {
-    return updateDuplicateMessage(duplicate)
+    return updateDuplicateMessage(duplicate.id)
   }
   
   // 限制消息数量

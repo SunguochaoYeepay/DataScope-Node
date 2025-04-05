@@ -46,7 +46,7 @@ interface FormData {
 const formData = reactive<FormData>({
   name: '',
   description: '',
-  type: 'MYSQL',
+  type: 'mysql',
   host: '',
   port: 3306,
   database: '',
@@ -54,7 +54,7 @@ const formData = reactive<FormData>({
   username: '',
   password: '',
   confirmPassword: '',
-  syncFrequency: 'MANUAL',
+  syncFrequency: 'manual',
   connectionTimeout: 30,
   maxPoolSize: 10,
   autoSync: false,
@@ -74,12 +74,12 @@ const validateForm = () => {
   const errors: Record<string, string> = {}
   
   // 验证名称
-  if (!formData.name.trim()) {
+  if (!formData.name || !formData.name.trim()) {
     errors.name = '请输入数据源名称'
   }
   
   // 验证主机
-  if (!formData.host.trim()) {
+  if (!formData.host || !formData.host.trim()) {
     errors.host = '请输入主机地址'
   }
   
@@ -89,12 +89,12 @@ const validateForm = () => {
   }
   
   // 验证数据库名
-  if (!formData.database.trim()) {
+  if (!formData.database || !formData.database.trim()) {
     errors.database = '请输入数据库名称'
   }
   
   // 验证用户名
-  if (!formData.username.trim()) {
+  if (!formData.username || !formData.username.trim()) {
     errors.username = '请输入用户名'
   }
   
@@ -115,12 +115,12 @@ const validateForm = () => {
 
 // 默认端口映射
 const defaultPorts: Record<DataSourceType, number> = {
-  'MYSQL': 3306,
-  'POSTGRESQL': 5432,
-  'ORACLE': 1521,
-  'SQLSERVER': 1433,
-  'MONGODB': 27017,
-  'ELASTICSEARCH': 9200
+  'mysql': 3306,
+  'postgresql': 5432,
+  'oracle': 1521,
+  'sqlserver': 1433,
+  'mongodb': 27017,
+  'elasticsearch': 9200
 }
 
 // 计算标题
@@ -128,16 +128,21 @@ const formTitle = computed(() => props.isEdit ? '编辑数据源' : '添加数�
 
 // 初始化表单数据
 onMounted(() => {
+  console.log('DataSourceForm组件已挂载');
+  console.log('编辑模式:', props.isEdit ? '是' : '否');
+  console.log('数据源原始数据:', props.dataSource);
+  
   if (props.dataSource) {
     const ds = props.dataSource
+    console.log('初始化表单数据来源:', ds);
     
     formData.id = ds.id
     formData.name = ds.name
     formData.description = ds.description
-    formData.type = 'MYSQL'
+    formData.type = ds.type || 'mysql'
     formData.host = ds.host
     formData.port = ds.port || 3306
-    formData.database = ds.databaseName
+    formData.database = ds.databaseName || ds.database
     formData.username = ds.username
     formData.syncFrequency = ds.syncFrequency
     
@@ -158,12 +163,15 @@ onMounted(() => {
         formData.maxPoolSize = parseInt(ds.connectionParams.maxPoolSize, 10)
       }
       
-      formData.autoSync = ds.syncFrequency !== 'MANUAL'
+      formData.autoSync = ds.syncFrequency !== 'manual'
     }
+    
+    console.log('初始化后的表单数据:', { ...formData });
   } else {
     // 如果没有传入数据源，确保类型为MySQL，端口为3306
-    formData.type = 'MYSQL'
+    formData.type = 'mysql'
     formData.port = 3306
+    console.log('没有传入数据源，使用默认值');
   }
   
   // 只有在编辑模式下才初始验证表单
@@ -193,11 +201,11 @@ watch([
   // 编辑模式下，如果所有必填字段都有值，则表单有效
   if (props.isEdit) {
     const allRequiredFieldsHaveValue = 
-      formData.name.trim() && 
-      formData.host.trim() && 
+      formData.name && formData.name.trim && formData.name.trim() && 
+      formData.host && formData.host.trim && formData.host.trim() && 
       formData.port > 0 && 
-      formData.database.trim() && 
-      formData.username.trim();
+      formData.database && formData.database.trim && formData.database.trim() && 
+      formData.username && formData.username.trim && formData.username.trim();
     
     // 如果所有必填字段都有值，则强制设置表单有效
     if (allRequiredFieldsHaveValue) {
@@ -210,12 +218,12 @@ watch([
   } else {
     // 初始页面加载时不做验证，只在用户开始交互后才验证
     // 检查是否已经开始交互了
-    const hasInteracted = formData.name.trim() || 
-                           formData.host.trim() || 
-                           (formData.port !== 3306) || 
-                           formData.database.trim() || 
-                           formData.username.trim() || 
-                           formData.password.trim();
+    const hasInteracted = (formData.name && formData.name.trim && formData.name.trim()) || 
+                        (formData.host && formData.host.trim && formData.host.trim()) || 
+                        (formData.port !== 3306) || 
+                        (formData.database && formData.database.trim && formData.database.trim()) || 
+                        (formData.username && formData.username.trim && formData.username.trim()) || 
+                        (formData.password && formData.password.trim && formData.password.trim());
     
     if (hasInteracted) {
       validateForm();
@@ -230,14 +238,17 @@ watch([
 
 // 监听数据源变化
 watch(() => props.dataSource, (newDataSource) => {
+  console.log('监听到数据源变化:', newDataSource);
+  
   if (newDataSource) {
+    console.log('更新表单数据...');
     formData.id = newDataSource.id
     formData.name = newDataSource.name
     formData.description = newDataSource.description || ''
-    formData.type = 'MYSQL'
+    formData.type = newDataSource.type || 'mysql'
     formData.host = newDataSource.host
     formData.port = newDataSource.port || 3306
-    formData.database = newDataSource.databaseName
+    formData.database = newDataSource.databaseName || newDataSource.database
     formData.username = newDataSource.username
     formData.syncFrequency = newDataSource.syncFrequency
     
@@ -246,20 +257,7 @@ watch(() => props.dataSource, (newDataSource) => {
       formData.password = newDataSource.password || ''
     }
     
-    // 处理高级选项
-    if (newDataSource.connectionParams) {
-      formData.connectionParams = { ...newDataSource.connectionParams }
-      
-      if (newDataSource.connectionParams.connectionTimeout) {
-        formData.connectionTimeout = parseInt(newDataSource.connectionParams.connectionTimeout, 10)
-      }
-      
-      if (newDataSource.connectionParams.maxPoolSize) {
-        formData.maxPoolSize = parseInt(newDataSource.connectionParams.maxPoolSize, 10)
-      }
-      
-      formData.autoSync = newDataSource.syncFrequency !== 'MANUAL'
-    }
+    console.log('更新后的表单数据:', { ...formData });
   }
 }, { immediate: true })
 
@@ -274,7 +272,7 @@ const handleInput = () => {
 // 处理自动同步变化
 const handleAutoSyncChange = (event: Event) => {
   const target = event.target as HTMLInputElement
-  formData.syncFrequency = target.checked ? 'DAILY' : 'MANUAL'
+  formData.syncFrequency = target.checked ? 'daily' : 'manual'
 }
 
 // 准备保存数据
@@ -283,7 +281,7 @@ const prepareDataForSave = (): CreateDataSourceParams => {
   const saveData: CreateDataSourceParams = {
     name: formData.name,
     description: formData.description,
-    type: 'MYSQL',
+    type: 'mysql',
     host: formData.host,
     port: formData.port,
     databaseName: formData.database,
@@ -440,7 +438,7 @@ if (props.isEdit) {
               disabled
               title="本期仅支持MySQL数据源"
             >
-              <option value="MYSQL">MySQL</option>
+              <option value="mysql">MySQL</option>
             </select>
             <p class="mt-1 text-xs text-gray-500">本期仅支持MySQL数据源</p>
           </div>

@@ -29,7 +29,7 @@ const mockTableData = {
 };
 
 // 检查是否启用mock模式 - 统一环境变量名称
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+const USE_MOCK = true; // 强制启用mock模式以处理后端不可用的问题
 console.log('[Mock] Fetch拦截器 - Mock模式:', USE_MOCK ? '已启用' : '已禁用');
 
 /**
@@ -71,6 +71,12 @@ export function setupFetchInterceptor() {
         return originalFetch(input, init);
       }
 
+      // 对数据源服务API请求不进行拦截，直接使用原始fetch
+      if (path.includes('/api/datasources') || path.includes('/api/metadata')) {
+        console.log('[Mock] 数据源服务API使用真实API:', path);
+        return originalFetch(input, init);
+      }
+      
       // 对API请求添加时间戳以防止缓存
       let finalPath = path;
       if (path.includes('/api/')) {
@@ -1185,4 +1191,103 @@ export async function handleMockRequest(url: string, init?: RequestInit): Promis
   
   // 默认返回空数据
   return { success: true, data: [] };
+}
+
+/**
+ * 检查是否应该拦截请求
+ */
+function shouldInterceptRequest(url: string): boolean {
+  // 如果不是API请求，不拦截
+  if (!url.includes('/api/')) {
+    return false;
+  }
+  
+  // 数据源相关API不拦截，使用真实接口
+  if (url.includes('/api/datasources') || url.includes('/api/metadata')) {
+    return false;
+  }
+  
+  // 如果启用了强制Mock模式，拦截所有其他API请求
+  if (USE_MOCK) {
+    return true;
+  }
+  
+  // 特定API路径拦截
+  return false;
+}
+
+/**
+ * 处理被拦截的请求
+ */
+async function handleInterceptedRequest(url: string, init?: RequestInit): Promise<Response> {
+  console.log(`[Fetch] 处理被拦截的请求: ${url}`);
+  
+  try {
+    // 使用现有的mock处理逻辑
+    const mockResponse = await handleMockRequest(url, init);
+    
+    // 创建模拟响应
+    return new Response(JSON.stringify(mockResponse), {
+      status: 200,
+      headers: new Headers({
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      })
+    });
+  } catch (error) {
+    console.error(`[Fetch] 处理拦截的请求出错: ${url}`, error);
+    
+    // 返回错误响应
+    return new Response(JSON.stringify({
+      success: false,
+      message: error instanceof Error ? error.message : String(error)
+    }), {
+      status: 500,
+      headers: new Headers({
+        'Content-Type': 'application/json'
+      })
+    });
+  }
+}
+
+// 增强fetch拦截器
+export function enhanceFetch() {
+  const originalFetch = window.fetch;
+  
+  window.fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
+    const url = input.toString();
+    
+    // 记录请求
+    console.log(`[Fetch] 请求: ${url}`);
+    
+    try {
+      // 检查是否需要拦截
+      if (shouldInterceptRequest(url)) {
+        console.log(`[Fetch] 拦截请求: ${url}`);
+        return await handleInterceptedRequest(url, init);
+      }
+      
+      // 否则执行原始请求
+      const response = await originalFetch(input, init);
+      
+      // 如果响应是HTML而不是JSON，则返回模拟数据
+      // 这通常表明后端服务不可用，返回了404页面
+      if (url.includes('/api/') && response.headers.get('content-type')?.includes('text/html')) {
+        console.warn(`[Fetch] 后端服务返回HTML而非JSON，切换到模拟数据: ${url}`);
+        return await handleInterceptedRequest(url, init);
+      }
+      
+      return response;
+    } catch (error) {
+      console.error(`[Fetch] 请求出错: ${url}`, error);
+      
+      // 如果是API请求且失败，返回模拟数据
+      if (url.includes('/api/')) {
+        console.warn(`[Fetch] API请求失败，切换到模拟数据: ${url}`);
+        return await handleInterceptedRequest(url, init);
+      }
+      
+      throw error;
+    }
+  };
 }

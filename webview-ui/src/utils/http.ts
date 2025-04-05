@@ -21,13 +21,13 @@ declare global {
 }
 
 // 定义API基础URL和超时时间
-const API_BASE_URL = '/api';
-const USE_MOCK = import.meta.env.VITE_ENABLE_MOCK === 'true';
+const API_BASE_URL = 'http://localhost:5000/api';
+const USE_MOCK = false; // 强制禁用模拟模式
 
-console.log(`[HTTP] 初始化axios, MOCK模式: ${USE_MOCK}`);
+console.log(`[HTTP] 初始化axios, MOCK模式: ${USE_MOCK}, API基础URL: ${API_BASE_URL}`);
 
-// 如果启用Mock模式，设置axios拦截器
-if (USE_MOCK) {
+// 如果启用Mock模式，设置axios拦截器（已经强制禁用）
+if (false && USE_MOCK) {
   // 请求拦截器
   axios.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
@@ -36,11 +36,8 @@ if (USE_MOCK) {
       
       // 为所有API请求添加Mock标记
       if (url.startsWith('/api/')) {
-        if (!config.headers) {
-          config.headers = {};
-        }
-        // 使用类型断言避免类型错误
-        (config.headers as Record<string, string>)['X-Mocked-Request'] = 'true';
+        // 设置请求头
+        config.headers.set('X-Mocked-Request', 'true');
       }
       
       return config;

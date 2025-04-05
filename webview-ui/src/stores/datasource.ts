@@ -258,6 +258,15 @@ export const useDataSourceStore = defineStore('dataSource', () => {
   
   // 同步元数据
   const syncDataSourceMetadata = async (id: string) => {
+    // 检查ID是否有效
+    if (!id || id === 'undefined') {
+      console.error('同步元数据失败: 无效的数据源ID', id);
+      return { 
+        success: false, 
+        message: '无效的数据源ID' 
+      };
+    }
+    
     try {
       loading.show('同步元数据中...')
       const result = await dataSourceService.syncMetadata({ id })

@@ -1,0 +1,58 @@
+{
+  "baseConfig": {
+    "apiBaseUrl": "http://localhost:5000/api",
+    "mockDataEnabled": false,
+    "autoSwitchToMock": true,
+    "connectionTimeout": 10000
+  },
+  "datasource": {
+    "list": "/datasources",
+    "detail": "/datasources/{id}",
+    "create": "/datasources",
+    "update": "/datasources/{id}",
+    "delete": "/datasources/{id}",
+    "test": "/datasources/test-connection",
+    "metadata": "/metadata/datasources/{dataSourceId}",
+    "sync": "/metadata/datasources/{dataSourceId}/sync",
+    "schemas": "/datasources/{id}/schemas",
+    "tables": "/datasources/{id}/tables",
+    "search": "/datasources/search"
+  },
+  "metadata": {
+    "tables": "/metadata/datasources/{dataSourceId}/tables",
+    "views": "/metadata/datasources/{dataSourceId}/views",
+    "columns": "/metadata/datasources/{dataSourceId}/tables/{tableName}/columns",
+    "statistics": "/metadata/datasources/{dataSourceId}/tables/{tableName}/statistics",
+    "relationships": "/metadata/datasources/{dataSourceId}/relationships"
+  },
+  "query": {
+    "list": "/queries",
+    "detail": "/queries/{id}",
+    "create": "/queries",
+    "update": "/queries/{id}",
+    "delete": "/queries/{id}",
+    "execute": "/queries/{id}/execute",
+    "history": "/queries/{id}/history",
+    "favorite": "/queries/{id}/favorite",
+    "unfavorite": "/queries/{id}/unfavorite",
+    "search": "/queries/search"
+  },
+  "version": {
+    "list": "/queries/{queryId}/versions",
+    "detail": "/queries/{queryId}/versions/{id}",
+    "create": "/queries/{queryId}/versions",
+    "compare": "/queries/{queryId}/versions/compare"
+  },
+  "integration": {
+    "list": "/integrations",
+    "detail": "/integrations/{id}",
+    "create": "/integrations",
+    "update": "/integrations/{id}",
+    "delete": "/integrations/{id}",
+    "test": "/integrations/{id}/test",
+    "endpoints": "/integrations/{id}/endpoints",
+    "updateStatus": "/integrations/{id}/status",
+    "executeQuery": "/integration/execute-query",
+    "apis": "/low-code/apis"
+  }
+}

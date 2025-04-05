@@ -17,6 +17,7 @@ import type {
 import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/metadata'
 import { getApiBaseUrl } from './query'
 import { http } from '@/utils/http'
+import { getDataSourceApiUrl, getMetadataApiUrl, isMockEnabled } from './apiUtils'
 
 // 表数据预览结果接口
 interface TableDataPreviewResult {
@@ -29,14 +30,22 @@ interface TableDataPreviewResult {
 }
 
 // 检查是否启用mock模式
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true'
+const USE_MOCK = false; // 强制禁用模拟数据
 console.log('数据源服务 - Mock模式:', USE_MOCK ? '已启用' : '已禁用')
 
-// API 基础路径
-const API_BASE_URL = `${getApiBaseUrl()}/api/datasources`
+// API 基础路径 - 获取基础URL，不要重复添加/api
+// 直接使用实际的API地址
+const API_BASE_URL = 'http://localhost:5000/api';
 
-// 元数据API基础路径 - 已更新为标准API路径
-const METADATA_API_BASE_URL = `${getApiBaseUrl()}/api/metadata`
+// 元数据API基础路径
+const METADATA_API_BASE_URL = 'http://localhost:5000/api/metadata';
+
+// 检查当前环境，配置开发环境下的API基地址
+if (import.meta.env.DEV) {
+  console.log('开发环境下配置API基础路径');
+  // 指向后端服务正确的端口(5000)
+  (window as any).__API_BASE_PATH = 'http://localhost:5000/api';
+}
 
 // 模拟数据源列表
 const mockDataSources: DataSource[] = Array.from({ length: 5 }, (_, i) => ({
@@ -138,8 +147,8 @@ export const dataSourceService = {
   // 获取数据源列表
   async getDataSources(params: DataSourceQueryParams): Promise<PageResponse<DataSource>> {
     try {
-      // 如果启用了Mock模式，返回模拟数据
-      if (USE_MOCK) {
+      // 禁用模拟模式
+      if (false && USE_MOCK) {
         console.log('返回模拟数据源列表数据');
         
         // 应用过滤
@@ -183,25 +192,33 @@ export const dataSourceService = {
       }
       
       // 构建查询参数 - 使用标准参数：page/size
-      const queryParams = new URLSearchParams()
+      const queryParams = new URLSearchParams();
       
-      // 添加过滤参数
-      if (params.name) {
+      // 安全添加过滤参数 - 修复类型检查问题
+      if (params?.name) {
         queryParams.append('name', params.name);
       }
-      if (params.type) {
+      if (params?.type) {
         queryParams.append('type', params.type.toLowerCase());
       }
-      if (params.status) {
+      if (params?.status) {
         queryParams.append('status', params.status);
       }
       
       // 添加分页参数（使用标准page/size参数名）
-      queryParams.append('page', String(params.page || 1));
-      queryParams.append('size', String(params.size || 10));
+      queryParams.append('page', String(params?.page || 1));
+      queryParams.append('size', String(params?.size || 10));
       
-      // 使用http工具函数发送请求
-      const responseData = await http.get(`/api/datasources?${queryParams.toString()}`);
+      // 直接使用fetch避免http工具的多重封装问题
+      const url = `${API_BASE_URL}/datasources?${queryParams.toString()}`;
+      console.log('请求数据源列表URL:', url);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`获取数据源列表失败: ${response.statusText}`);
+      }
+      
+      const responseData = await response.json();
       console.log('数据源列表原始响应:', responseData);
       
       // 处理不同响应格式
@@ -546,6 +563,19 @@ export const dataSourceService = {
   // 同步数据源元数据
   async syncMetadata(params: SyncMetadataParams): Promise<MetadataSyncResult> {
     try {
+      // 检查ID是否有效
+      if (!params.id || params.id === 'undefined') {
+        console.error('同步元数据失败: 无效的数据源ID', params.id);
+        return { 
+          success: false, 
+          message: '无效的数据源ID',
+          tablesCount: 0,
+          viewsCount: 0,
+          syncDuration: 0,
+          lastSyncTime: new Date().toISOString()
+        };
+      }
+      
       if (USE_MOCK) {
         console.log('执行模拟元数据同步:', params);
         
@@ -575,7 +605,10 @@ export const dataSourceService = {
         filters: params.filters || {}
       };
       
-      // 使用新的API路径格式，符合后端规范
+      // 使用新的API路径格式，确保正确的路径格式
+      // 之前: ${METADATA_API_BASE_URL}/datasources/${params.id}/sync
+      // METADATA_API_BASE_URL已经是 /metadata
+      // 新的路径应该是 /metadata/datasources/${params.id}/sync
       const url = `${METADATA_API_BASE_URL}/datasources/${params.id}/sync`;
       console.log('同步元数据请求URL:', url);
       
@@ -621,6 +654,12 @@ export const dataSourceService = {
   // 获取表元数据
   async getTableMetadata(dataSourceId: string, tableName?: string): Promise<TableMetadata[]> {
     try {
+      // 检查ID是否有效
+      if (!dataSourceId || dataSourceId === 'undefined') {
+        console.error('获取表元数据失败: 无效的数据源ID', dataSourceId);
+        return [];
+      }
+      
       // 检查是否使用模拟数据
       if (USE_MOCK) {
         console.log(`使用模拟数据返回表元数据，数据源ID: ${dataSourceId}${tableName ? ', 表名: ' + tableName : ''}`);
@@ -667,9 +706,12 @@ export const dataSourceService = {
       }
       
       // 使用标准API路径
+      // 修复: 确保正确的URL路径格式
+      // 之前: ${METADATA_API_BASE_URL}/${dataSourceId}/tables/...
+      // 正确格式应该是: ${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/...
       const url = tableName 
-        ? `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}`
-        : `${METADATA_API_BASE_URL}/${dataSourceId}/tables`;
+        ? `${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}`
+        : `${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables`;
 
       console.log(`获取表元数据URL: ${url}`);
       const response = await fetch(url);
@@ -730,6 +772,12 @@ export const dataSourceService = {
   // 获取表字段信息
   async getTableColumns(dataSourceId: string, tableName: string): Promise<ColumnMetadata[]> {
     try {
+      // 检查ID是否有效
+      if (!dataSourceId || dataSourceId === 'undefined' || !tableName) {
+        console.error('获取列元数据失败: 无效的数据源ID或表名', { dataSourceId, tableName });
+        return [];
+      }
+      
       // 检查是否使用模拟数据
       if (USE_MOCK) {
         console.log(`使用模拟数据返回表列信息，数据源ID: ${dataSourceId}, 表名: ${tableName}`);
@@ -737,9 +785,9 @@ export const dataSourceService = {
         // 模拟延迟
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // 生成模拟列数据，符合ColumnMetadata接口
+        // 生成模拟列
         const mockColumns: ColumnMetadata[] = Array.from({ length: 10 }, (_, i) => ({
-          name: `column_${i+1}`,
+          name: `mock_column_${i+1}`,
           type: i % 5 === 0 ? 'INTEGER' : (i % 5 === 1 ? 'VARCHAR' : (i % 5 === 2 ? 'TIMESTAMP' : (i % 5 === 3 ? 'BOOLEAN' : 'DECIMAL'))),
           nullable: i % 2 === 0,
           primaryKey: i === 0,
@@ -749,27 +797,40 @@ export const dataSourceService = {
           comment: i === 0 ? `这是表${tableName}的主键列` : `这是表${tableName}的列${i+1}`,
           defaultValue: undefined,
           size: i % 5 === 1 ? 255 : undefined,
-          scale: i % 5 === 4 ? 2 : undefined,
-          referencedTable: i === 1 ? 'mock_reference_table' : undefined,
-          referencedColumn: i === 1 ? 'id' : undefined
+          scale: i % 5 === 4 ? 2 : undefined
         }));
         
         return mockColumns;
       }
       
-      // 使用标准API路径
-      const url = `${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns`
+      // 构建API路径
+      // 修复: 确保正确的URL路径格式
+      // 之前: ${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns
+      // 正确格式应该是: ${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}/columns
+      const url = `${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}/columns`;
+      console.log(`获取列信息URL: ${url}`);
       
-      const response = await fetch(url)
+      const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`获取表字段信息失败: ${response.statusText}`)
+        throw new Error(`获取列信息失败: ${response.statusText}`);
       }
-
-      const data = await handleResponse<any>(response)
-      return data
+      
+      const responseData = await response.json();
+      
+      // 处理响应格式
+      if (Array.isArray(responseData)) {
+        return responseData;
+      } else if (responseData.data && Array.isArray(responseData.data)) {
+        return responseData.data;
+      } else if (responseData.data && responseData.data.items && Array.isArray(responseData.data.items)) {
+        return responseData.data.items;
+      } else {
+        console.error('未识别的列信息响应格式:', responseData);
+        return [];
+      }
     } catch (error) {
-      console.error('获取表字段信息错误:', error)
-      throw error
+      console.error('获取表字段信息错误:', error);
+      throw error;
     }
   },
   
@@ -777,7 +838,7 @@ export const dataSourceService = {
   async getTableRelationships(dataSourceId: string): Promise<TableRelationship[]> {
     try {
       // 构建查询参数获取表关系，根据新API格式
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/relationships`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/relationships`)
       
       if (!response.ok) {
         throw new Error(`获取表关系失败: ${response.statusText}`)
@@ -880,7 +941,7 @@ export const dataSourceService = {
       }
       
       // 使用新的API路径格式
-      const url = `/api/metadata/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
+      const url = `/api/metadata/datasources/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
       console.log('获取表数据预览, URL:', url);
       
       const response = await fetch(url);
@@ -992,7 +1053,7 @@ export const dataSourceService = {
       queryParams.append('limit', limit.toString())
       
       // 使用新的预览API路径
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/preview?${queryParams.toString()}`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}/preview?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`获取表预览数据失败: ${response.statusText}`)
@@ -1012,7 +1073,7 @@ export const dataSourceService = {
       queryParams.append('keyword', keyword)
       
       // 使用新的搜索API路径
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/search?${queryParams.toString()}`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/search?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`搜索元数据失败: ${response.statusText}`)
@@ -1063,7 +1124,7 @@ export const dataSourceService = {
   // 新增: 获取同步历史记录
   async getSyncHistory(dataSourceId: string): Promise<any[]> {
     try {
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/sync-history`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/sync-history`)
       
       if (!response.ok) {
         throw new Error(`获取同步历史失败: ${response.statusText}`)
@@ -1086,7 +1147,7 @@ export const dataSourceService = {
         queryParams.append('columns', columnNames.join(','))
       }
       
-      const response = await fetch(`${METADATA_API_BASE_URL}/${dataSourceId}/columns/analyze?${queryParams.toString()}`)
+      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/columns/analyze?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`分析列详情失败: ${response.statusText}`)
@@ -1203,7 +1264,7 @@ export const dataSourceService = {
       }
       
       // 发送请求
-      const response = await fetch(`${METADATA_API_BASE_URL}/search?${queryParams.toString()}`);
+      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/search?${queryParams.toString()}`);
       
       if (!response.ok) {
         throw new Error(`高级搜索失败: ${response.statusText}`);

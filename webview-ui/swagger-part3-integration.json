@@ -1,0 +1,372 @@
+{
+  "paths": {
+    "/integrations": {
+      "get": {
+        "tags": ["集成管理"],
+        "summary": "获取集成列表",
+        "description": "获取所有集成的分页列表",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，从1开始",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页记录数",
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "按名称过滤",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "按集成类型过滤",
+            "schema": { "type": "string", "enum": ["SIMPLE_TABLE", "TABLE", "CHART"] }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "按状态过滤",
+            "schema": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "DRAFT"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回集成列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Integration" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["集成管理"],
+        "summary": "创建集成",
+        "description": "创建一个新的集成配置",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateIntegrationParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建集成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Integration" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/{id}": {
+      "get": {
+        "tags": ["集成管理"],
+        "summary": "获取集成详情",
+        "description": "根据ID获取集成的详细信息",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "集成ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回集成详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Integration" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["集成管理"],
+        "summary": "更新集成",
+        "description": "更新已有集成的配置信息",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "集成ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateIntegrationParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新集成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Integration" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["集成管理"],
+        "summary": "删除集成",
+        "description": "根据ID删除集成",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "集成ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功删除集成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "集成已成功删除" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/{id}/preview": {
+      "get": {
+        "tags": ["集成管理"],
+        "summary": "预览集成",
+        "description": "预览集成的结果数据",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "集成ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回预览数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": { "type": "string" },
+                              "label": { "type": "string" },
+                              "type": { "type": "string" }
+                            }
+                          }
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": { "type": "object" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integrations/{id}/status": {
+      "patch": {
+        "tags": ["集成管理"],
+        "summary": "更新集成状态",
+        "description": "更新集成的状态",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "集成ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { 
+                    "type": "string", 
+                    "enum": ["ACTIVE", "INACTIVE", "DRAFT"],
+                    "example": "ACTIVE"
+                  }
+                },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "status": { "type": "string" },
+                        "updateTime": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/integration/execute-query": {
+      "post": {
+        "tags": ["集成管理"],
+        "summary": "执行集成查询",
+        "description": "执行集成的查询并返回结果",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "integrationId": { "type": "string" },
+                  "parameters": { "type": "object" },
+                  "pagination": {
+                    "type": "object",
+                    "properties": {
+                      "page": { "type": "integer" },
+                      "pageSize": { "type": "integer" }
+                    }
+                  }
+                },
+                "required": ["integrationId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功执行查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": { "type": "string" },
+                              "label": { "type": "string" },
+                              "type": { "type": "string" }
+                            }
+                          }
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": { "type": "object" }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "page": { "type": "integer" },
+                            "pageSize": { "type": "integer" },
+                            "totalPages": { "type": "integer" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

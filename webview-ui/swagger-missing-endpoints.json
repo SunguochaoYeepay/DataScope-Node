@@ -1,0 +1,521 @@
+{
+  "paths": {
+    "/queries/{id}/execution-plan": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询执行计划",
+        "description": "获取查询的执行计划分析",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回执行计划",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryExecutionPlan" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}/parameters": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询参数",
+        "description": "获取查询的参数定义",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回查询参数",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/QueryParameter" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}/versions": {
+      "get": {
+        "tags": ["版本管理"],
+        "summary": "获取查询版本列表",
+        "description": "获取指定查询的所有版本",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，从1开始",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页记录数",
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "版本状态过滤",
+            "schema": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "DEPRECATED"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回查询版本列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/QueryVersion" }
+                        },
+                        "total": { "type": "integer", "example": 5 },
+                        "page": { "type": "integer", "example": 1 },
+                        "size": { "type": "integer", "example": 10 },
+                        "totalPages": { "type": "integer", "example": 1 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["版本管理"],
+        "summary": "创建查询版本",
+        "description": "为指定查询创建新版本",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sqlContent": { "type": "string", "example": "SELECT * FROM users WHERE id > 100 LIMIT 10" },
+                  "description": { "type": "string", "example": "新版本描述" },
+                  "comment": { "type": "string", "example": "添加了ID过滤条件" }
+                },
+                "required": ["sqlContent"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryVersion" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/versions/{versionId}": {
+      "get": {
+        "tags": ["版本管理"],
+        "summary": "获取查询版本详情",
+        "description": "获取指定版本的详细信息",
+        "parameters": [
+          {
+            "name": "versionId",
+            "in": "path",
+            "description": "版本ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回版本详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryVersion" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["版本管理"],
+        "summary": "更新查询版本",
+        "description": "更新指定版本的信息",
+        "parameters": [
+          {
+            "name": "versionId",
+            "in": "path",
+            "description": "版本ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sqlContent": { "type": "string", "example": "SELECT * FROM users WHERE id > 200 LIMIT 20" },
+                  "description": { "type": "string", "example": "更新版本描述" },
+                  "comment": { "type": "string", "example": "修改了ID过滤条件和结果限制" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryVersion" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/versions/{versionId}/publish": {
+      "post": {
+        "tags": ["版本管理"],
+        "summary": "发布查询版本",
+        "description": "将查询版本从草稿状态发布为正式版本",
+        "parameters": [
+          {
+            "name": "versionId",
+            "in": "path",
+            "description": "版本ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功发布版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryVersion" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/versions/{versionId}/deprecate": {
+      "post": {
+        "tags": ["版本管理"],
+        "summary": "废弃查询版本",
+        "description": "将查询版本标记为废弃",
+        "parameters": [
+          {
+            "name": "versionId",
+            "in": "path",
+            "description": "版本ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功废弃版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryVersion" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{queryId}/versions/{versionId}/activate": {
+      "post": {
+        "tags": ["版本管理"],
+        "summary": "激活查询版本",
+        "description": "将指定版本设置为查询的活动版本",
+        "parameters": [
+          {
+            "name": "queryId",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "description": "版本ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功激活版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{queryId}/versions/{versionId}/execute": {
+      "post": {
+        "tags": ["版本管理"],
+        "summary": "执行特定版本的查询",
+        "description": "执行查询的指定版本",
+        "parameters": [
+          {
+            "name": "queryId",
+            "in": "path",
+            "description": "查询ID",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "description": "版本ID",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "limit": { "type": "integer" },
+                  "offset": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "查询执行成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/QueryResult" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/low-code/apis": {
+      "get": {
+        "tags": ["集成管理"],
+        "summary": "获取集成API列表",
+        "description": "获取所有低代码平台集成API的列表",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，从1开始",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "每页记录数",
+            "schema": { "type": "integer", "default": 10 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回集成API列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "integration-1" },
+                          "name": { "type": "string", "example": "客户数据集成" },
+                          "description": { "type": "string", "example": "与CRM系统的客户数据集成" },
+                          "type": { "type": "string", "example": "SIMPLE_TABLE" },
+                          "status": { "type": "string", "example": "ACTIVE" },
+                          "queryId": { "type": "string", "example": "query-1" },
+                          "dataSourceId": { "type": "string", "example": "datasource-1" },
+                          "config": { "type": "object" },
+                          "createTime": { "type": "string", "format": "date-time" },
+                          "updateTime": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QueryParameter": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "param-1" },
+          "name": { "type": "string", "example": "param1" },
+          "type": { "type": "string", "enum": ["string", "number", "boolean", "date"], "example": "string" },
+          "label": { "type": "string", "example": "参数1" },
+          "defaultValue": { "type": "string", "example": "默认值" },
+          "required": { "type": "boolean", "example": true },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": { "type": "string", "example": "选项1" },
+                "value": { "type": "string", "example": "value1" }
+              }
+            }
+          }
+        }
+      },
+      "QueryExecutionPlan": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "plan-123456789" },
+          "queryId": { "type": "string", "example": "query-1" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "plan": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "example": "1" },
+                "type": { "type": "string", "example": "Scan" },
+                "tableName": { "type": "string", "example": "users" },
+                "cost": { "type": "number", "example": 10.5 },
+                "rows": { "type": "integer", "example": 1000 },
+                "description": { "type": "string", "example": "Sequential scan on users table" }
+              }
+            }
+          },
+          "estimatedCost": { "type": "number", "example": 51.4 },
+          "estimatedRows": { "type": "integer", "example": 950 },
+          "planningTime": { "type": "number", "example": 0.12 },
+          "executionTime": { "type": "number", "example": 0.35 },
+          "queryText": { "type": "string", "example": "SELECT * FROM users WHERE id > 0 ORDER BY id" },
+          "dataSourceId": { "type": "string", "example": "ds-1" }
+        }
+      }
+    }
+  }
+}

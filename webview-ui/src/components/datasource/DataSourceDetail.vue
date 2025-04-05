@@ -80,8 +80,8 @@ const loadMetadata = async () => {
     
     // 直接从API获取表列表
     try {
-      const response = await fetch(`/api/metadata/${dataSource.value.id}/tables`)
-      const data = await response.json()
+    const response = await fetch(`/api/metadata/datasources/${dataSource.value.id}/tables`)
+    const data = await response.json()
       console.log('从API获取到的元数据:', data)
       
       if (data.success && Array.isArray(data.data)) {
@@ -130,7 +130,7 @@ const loadMetadata = async () => {
             }
             
             console.log(`获取表 ${tableName} 的列信息`);
-            const tableResponse = await fetch(`/api/metadata/${dataSource.value.id}/tables/${tableName}`);
+            const tableResponse = await fetch(`/api/metadata/datasources/${dataSource.value.id}/tables/${tableName}`);
             const tableData = await tableResponse.json();
             
             if (tableData.success && tableData.data) {
@@ -195,30 +195,42 @@ const loadMetadata = async () => {
 
 // 同步元数据
 const syncMetadata = async () => {
-  if (!dataSource.value) return
+  // 增强检查，确保dataSource.value和id都存在且有效
+  if (!dataSource.value) {
+    console.error('同步元数据失败: 数据源对象为空');
+    messageService.error('同步元数据失败: 数据源信息未加载');
+    return;
+  }
   
-  isSyncingMetadata.value = true
+  if (!dataSource.value.id || dataSource.value.id === 'undefined') {
+    console.error('同步元数据失败: 无效的数据源ID', dataSource.value.id);
+    messageService.error('同步元数据失败: 无效的数据源ID');
+    return;
+  }
+  
+  isSyncingMetadata.value = true;
   
   try {
+    console.log('开始同步元数据:', dataSource.value.id);
     // 使用store中的方法进行同步，它已经能处理各种异常情况
-    const result = await dataSourceStore.syncDataSourceMetadata(dataSource.value.id)
+    const result = await dataSourceStore.syncDataSourceMetadata(dataSource.value.id);
     
     // 使用统一的响应处理器处理结果
     handleResponse(result, {
       showSuccessMessage: true,
       successMessage: '元数据同步成功',
       errorMessage: '元数据同步失败'
-    })
+    });
     
     // 重新加载元数据
-    await loadMetadata()
+    await loadMetadata();
   } catch (err) {
-    console.error('同步元数据失败:', err)
+    console.error('同步元数据失败:', err);
     // 错误已由响应处理器处理
   } finally {
-    isSyncingMetadata.value = false
+    isSyncingMetadata.value = false;
   }
-}
+};
 
 // 搜索表
 const filteredTables = computed(() => {
@@ -285,8 +297,17 @@ const backToMetadata = () => {
 }
 
 // 获取数据源类型名称
-const getDataSourceTypeName = (type: string) => {
+const getDataSourceTypeName = (type?: string) => {
+  if (!type) return '未知';
+  
   const typeMap: Record<string, string> = {
+    'mysql': 'MySQL',
+    'postgresql': 'PostgreSQL',
+    'oracle': 'Oracle',
+    'sqlserver': 'SQL Server',
+    'mongodb': 'MongoDB',
+    'elasticsearch': 'Elasticsearch',
+    // 兼容大写格式
     'MYSQL': 'MySQL',
     'POSTGRESQL': 'PostgreSQL',
     'ORACLE': 'Oracle',
@@ -299,8 +320,16 @@ const getDataSourceTypeName = (type: string) => {
 }
 
 // 格式化同步频率
-const formatSyncFrequency = (frequency: string) => {
+const formatSyncFrequency = (frequency?: string) => {
+  if (!frequency) return '未知';
+  
   const frequencyMap: Record<string, string> = {
+    'manual': '手动',
+    'hourly': '每小时',
+    'daily': '每天',
+    'weekly': '每周',
+    'monthly': '每月',
+    // 兼容大写格式
     'MANUAL': '手动',
     'HOURLY': '每小时',
     'DAILY': '每天',
@@ -414,9 +443,9 @@ onMounted(() => {
               <dd class="mt-1 text-sm">
                 <div class="mt-4 flex items-center">
                   <span class="px-2 py-1 text-xs rounded-full"
-                    :class="dataSource.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                    :class="dataSource.status && ['active', 'ACTIVE'].includes(dataSource.status) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
                   >
-                    {{ dataSource.status === 'active' ? '活跃' : '未连接' }}
+                    {{ dataSource.status && ['active', 'ACTIVE'].includes(dataSource.status) ? '活跃' : '未连接' }}
                   </span>
                 </div>
               </dd>
@@ -424,7 +453,7 @@ onMounted(() => {
             <div class="sm:col-span-2">
               <dt class="text-sm font-medium text-gray-500">连接字符串</dt>
               <dd class="mt-1 text-sm text-gray-900">
-                {{ `${dataSource.type.toLowerCase()}://${dataSource.host}:${dataSource.port}/${dataSource.databaseName}` }}
+                {{ `${dataSource.type ? dataSource.type.toLowerCase() : 'unknown'}://${dataSource.host || 'localhost'}:${dataSource.port || ''}/${dataSource.databaseName || ''}` }}
               </dd>
             </div>
             <div class="sm:col-span-1">
@@ -465,13 +494,13 @@ onMounted(() => {
             <div class="sm:col-span-1">
               <dt class="text-sm font-medium text-gray-500">创建时间</dt>
               <dd class="mt-1 text-sm text-gray-900">
-                {{ new Date(dataSource.createdAt).toLocaleString() }}
+                {{ dataSource.createdAt ? new Date(dataSource.createdAt).toLocaleString() : '未知' }}
               </dd>
             </div>
             <div class="sm:col-span-1">
               <dt class="text-sm font-medium text-gray-500">最后更新时间</dt>
               <dd class="mt-1 text-sm text-gray-900">
-                {{ new Date(dataSource.updatedAt).toLocaleString() }}
+                {{ dataSource.updatedAt ? new Date(dataSource.updatedAt).toLocaleString() : '未知' }}
               </dd>
             </div>
             <div class="sm:col-span-2">

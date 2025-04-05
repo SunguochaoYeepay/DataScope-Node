@@ -1,0 +1,810 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DataScope API",
+    "description": "DataScope系统当前API规范文档，基于前端Mock服务分析",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3200/api",
+      "description": "开发服务器"
+    }
+  ],
+  "tags": [
+    {
+      "name": "查询管理",
+      "description": "管理查询的创建、执行和历史记录"
+    },
+    {
+      "name": "数据源管理",
+      "description": "管理数据源的连接、测试和同步"
+    },
+    {
+      "name": "元数据管理",
+      "description": "管理数据源元数据"
+    },
+    {
+      "name": "集成管理",
+      "description": "低代码平台集成"
+    }
+  ],
+  "paths": {
+    "/queries": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询列表",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "queryType",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["SQL", "NATURAL_LANGUAGE"] }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED", "DEPRECATED", "DRAFT", "PUBLISHED"] }
+          },
+          {
+            "name": "serviceStatus",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["ENABLED", "DISABLED"] }
+          },
+          {
+            "name": "dataSourceId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "sortDir",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["asc", "desc"] }
+          },
+          {
+            "name": "includeDrafts",
+            "in": "query",
+            "schema": { "type": "boolean", "default": false }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回查询列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Query" }
+                        },
+                        "total": { "type": "integer" },
+                        "page": { "type": "integer" },
+                        "size": { "type": "integer" },
+                        "totalPages": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "创建新查询",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SaveQueryParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Query" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}": {
+      "get": {
+        "tags": ["查询管理"],
+        "summary": "获取查询详情",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回查询详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Query" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "查询不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": false },
+                    "message": { "type": "string" },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["查询管理"],
+        "summary": "更新查询信息",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SaveQueryParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Query" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["查询管理"],
+        "summary": "删除查询",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功删除查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}/execute": {
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "执行查询",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "limit": { "type": "integer" },
+                  "offset": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "查询执行成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/QueryResult" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/nl-to-sql": {
+      "post": {
+        "tags": ["查询管理"],
+        "summary": "自然语言转SQL",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NaturalLanguageQueryParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功转换为SQL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sql": { "type": "string" },
+                        "explanation": { "type": "string" },
+                        "tables": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasources": {
+      "get": {
+        "tags": ["数据源管理"],
+        "summary": "获取数据源列表",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["mysql", "postgresql", "oracle", "sqlserver", "mongodb", "elasticsearch"] }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["active", "inactive", "error", "syncing"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回数据源列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/DataSource" }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "totalPages": { "type": "integer" },
+                            "page": { "type": "integer" },
+                            "size": { "type": "integer" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["数据源管理"],
+        "summary": "创建数据源",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDataSourceParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建数据源",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/DataSource" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasources/{id}": {
+      "get": {
+        "tags": ["数据源管理"],
+        "summary": "获取数据源详情",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回数据源详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/DataSource" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["数据源管理"],
+        "summary": "更新数据源",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateDataSourceParams" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新数据源",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/DataSource" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["数据源管理"],
+        "summary": "删除数据源",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功删除数据源",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasources/{id}/check-status": {
+      "get": {
+        "tags": ["数据源管理"],
+        "summary": "检查数据源状态",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回数据源状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "status": { "type": "string" },
+                        "isActive": { "type": "boolean" },
+                        "lastCheckedAt": { "type": "string", "format": "date-time" },
+                        "message": { "type": "string" },
+                        "details": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metadata/datasources/{dataSourceId}/sync": {
+      "post": {
+        "tags": ["元数据管理"],
+        "summary": "同步数据源元数据",
+        "parameters": [
+          {
+            "name": "dataSourceId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "includeSchemas": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "excludeSchemas": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "includeTables": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "excludeTables": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功启动元数据同步",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": { "type": "boolean" },
+                        "syncId": { "type": "string" },
+                        "dataSourceId": { "type": "string" },
+                        "startTime": { "type": "string", "format": "date-time" },
+                        "endTime": { "type": "string", "format": "date-time" },
+                        "tablesCount": { "type": "integer" },
+                        "viewsCount": { "type": "integer" },
+                        "syncDuration": { "type": "integer" },
+                        "status": { "type": "string" },
+                        "message": { "type": "string" },
+                        "errors": { "type": "array", "items": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Query": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "folderId": { "type": "string" },
+          "status": { "type": "string" },
+          "serviceStatus": { "type": "string" },
+          "dataSourceId": { "type": "string" },
+          "dataSourceName": { "type": "string" },
+          "queryType": { "type": "string" },
+          "queryText": { "type": "string" },
+          "resultCount": { "type": "integer" },
+          "executionTime": { "type": "number" },
+          "error": { "type": "string" },
+          "versionStatus": { "type": "string" },
+          "isActive": { "type": "boolean" },
+          "isFavorite": { "type": "boolean" },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "avatar": { "type": "string" }
+            }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedBy": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "avatar": { "type": "string" }
+            }
+          },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "executionCount": { "type": "integer" },
+          "lastExecutedAt": { "type": "string", "format": "date-time" },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "SaveQueryParams": {
+        "type": "object",
+        "required": ["name", "dataSourceId", "sql"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "dataSourceId": { "type": "string" },
+          "sql": { "type": "string" },
+          "description": { "type": "string" },
+          "status": { "type": "string" },
+          "serviceStatus": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "isPublic": { "type": "boolean" },
+          "queryType": { "type": "string", "enum": ["SQL", "NATURAL_LANGUAGE"] }
+        }
+      },
+      "QueryResult": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "queryId": { "type": "string" },
+          "status": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "executionTime": { "type": "number" },
+          "rowCount": { "type": "integer" },
+          "rows": { "type": "array", "items": { "type": "object" } },
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "columnTypes": { "type": "array", "items": { "type": "string" } },
+          "fields": { "type": "array", "items": { "type": "object" } },
+          "error": { "type": "string" },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "hasMore": { "type": "boolean" }
+        }
+      },
+      "NaturalLanguageQueryParams": {
+        "type": "object",
+        "required": ["dataSourceId", "question"],
+        "properties": {
+          "dataSourceId": { "type": "string" },
+          "question": { "type": "string" },
+          "contextTables": { "type": "array", "items": { "type": "string" } },
+          "maxRows": { "type": "integer" },
+          "timeout": { "type": "integer" }
+        }
+      },
+      "DataSource": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "type": { "type": "string" },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "databaseName": { "type": "string" },
+          "database": { "type": "string" },
+          "schema": { "type": "string" },
+          "username": { "type": "string" },
+          "status": { "type": "string" },
+          "syncFrequency": { "type": "string" },
+          "lastSyncTime": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "errorMessage": { "type": "string" },
+          "connectionParams": { "type": "object" },
+          "encryptionType": { "type": "string" },
+          "encryptionOptions": { "type": "object" },
+          "isActive": { "type": "boolean" }
+        }
+      },
+      "CreateDataSourceParams": {
+        "type": "object",
+        "required": ["name", "type", "host", "port", "databaseName", "username", "password", "syncFrequency"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "type": { "type": "string" },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "databaseName": { "type": "string" },
+          "database": { "type": "string" },
+          "schema": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "syncFrequency": { "type": "string" },
+          "connectionParams": { "type": "object" },
+          "encryptionType": { "type": "string" },
+          "encryptionOptions": { "type": "object" }
+        }
+      },
+      "UpdateDataSourceParams": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "databaseName": { "type": "string" },
+          "database": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "syncFrequency": { "type": "string" },
+          "connectionParams": { "type": "object" },
+          "encryptionType": { "type": "string" },
+          "encryptionOptions": { "type": "object" }
+        }
+      }
+    }
+  }
+}
