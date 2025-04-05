@@ -18,6 +18,20 @@
 - 在main.ts中设置正确的全局API路径配置
 - 修复CSP策略，允许连接到正确的后端端口（从3100更新到5000）
 - 更新了数据源服务中的请求实现，使用fetch直接请求以避免多重封装问题
+- 修复了废弃旧Mock服务后导致的引用错误
+  - 更新了`src/utils/http.ts`中的导入，删除对不存在文件的引用
+  - 更新了`src/services/query.ts`中的导入，删除对不存在文件的引用
+  - 确保所有服务能正确使用新的统一Mock服务框架
+- 恢复Mock服务文件，解决前端启动问题
+  - 恢复src/plugins/axios-interceptor.ts
+  - 恢复src/plugins/mockData.ts
+  - 恢复src/plugins/serverMock.ts
+  - 恢复src/services/fetch-interceptor.ts
+  - 恢复src/services/mockData.ts
+  - 恢复src/services/mock-query.ts
+  - 修复src/main.ts中对axios-interceptor的引用
+  - 修复src/utils/http.ts中对mock服务的引用
+  - 修复查询列表展示
 
 ### 改进
 - 优化了项目启动流程，支持同时启动前端和后端服务

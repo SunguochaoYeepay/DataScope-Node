@@ -4,9 +4,9 @@ import { createPinia } from 'pinia'
 // 最优先导入dayjs配置（包含locale和plugins），必须在其他所有导入之前
 import './plugins/dayjs'
 
-// 导入并初始化axios拦截器 - 已迁移到统一Mock服务
-// import { setupAxiosInterceptor } from './plugins/axios-interceptor'
-// setupAxiosInterceptor() // 旧的axios拦截器已被禁用，请使用新的Mock服务
+// 导入并初始化axios拦截器
+import { setupAxiosInterceptor } from './plugins/axios-interceptor'
+setupAxiosInterceptor() // 明确初始化axios拦截器
 
 // 删除旧的Mock服务导入
 // import setupMock from './services/api'
