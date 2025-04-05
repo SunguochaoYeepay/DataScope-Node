@@ -187,12 +187,17 @@ export const dataSourceService = {
         });
       }
       
-      const response = await api.get<DataSourcesResponse>(
-        `/api/datasources?${searchParams.toString()}`,
-      );
+      // 使用fetch代替api.get
+      const apiUrl = getDataSourceApiBaseUrl();
+      const response = await fetch(`${apiUrl}/datasources?${searchParams.toString()}`);
       
-      console.log('[DataSourceService] 成功获取数据源列表，数量：', response.data?.items?.length);
-      return response.data;
+      if (!response.ok) {
+        throw new Error(`获取数据源列表失败: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('[DataSourceService] 成功获取数据源列表，数量：', data?.items?.length);
+      return data;
     } catch (error) {
       console.error('[DataSourceService] 获取数据源列表失败：', error);
       throw error;
