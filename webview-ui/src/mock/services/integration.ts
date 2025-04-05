@@ -245,7 +245,64 @@ const integrationService = {
         }))
       }
     };
+  },
+  
+  // 兼容旧的接口, 直接调用新的实现
+  async getMockIntegrations(): Promise<any[]> {
+    const result = await integrationService.getIntegrations({});
+    return result.items;
+  },
+  
+  async getMockIntegration(id: string): Promise<any | null> {
+    try {
+      const integration = await integrationService.getIntegration(id);
+      return integration;
+    } catch (error) {
+      console.error('获取集成失败:', error);
+      return null;
+    }
+  },
+  
+  async createMockIntegration(data: any): Promise<any> {
+    return integrationService.createIntegration(data);
+  },
+  
+  async updateMockIntegration(id: string, updates: any): Promise<any> {
+    return integrationService.updateIntegration(id, updates);
+  },
+  
+  async deleteMockIntegration(id: string): Promise<boolean> {
+    try {
+      return await integrationService.deleteIntegration(id);
+    } catch (error) {
+      console.error('删除集成失败:', error);
+      return false;
+    }
+  },
+  
+  async executeMockQuery(integrationId: string, query: any): Promise<any> {
+    try {
+      const result = await integrationService.executeQuery(integrationId, query);
+      return {
+        success: true,
+        data: result.jsonResponse.data
+      };
+    } catch (error) {
+      console.error('执行查询失败:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   }
 };
+
+// 添加兼容旧API的导出
+export const getMockIntegrations = integrationService.getMockIntegrations;
+export const getMockIntegration = integrationService.getMockIntegration;
+export const createMockIntegration = integrationService.createMockIntegration;
+export const updateMockIntegration = integrationService.updateMockIntegration;
+export const deleteMockIntegration = integrationService.deleteMockIntegration;
+export const executeMockQuery = integrationService.executeMockQuery;
 
 export default integrationService;

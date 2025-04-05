@@ -6,6 +6,8 @@ import type { Integration, IntegrationQuery } from '@/types/integration';
 
 // 从mock服务中导入集成相关函数
 import integrationService from '@/mock/services/integration';
+// 导入正确的mockData
+import { mockIntegrations } from '@/mock/data';
 
 // 是否使用模拟数据
 const USE_MOCK = true; // 始终使用模拟数据，因为api服务已被删除

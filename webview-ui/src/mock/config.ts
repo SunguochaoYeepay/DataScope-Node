@@ -80,9 +80,16 @@ export const mockConfig = {
 };
 
 // 判断是否应该拦截请求
-export function shouldMockRequest(url: string): boolean {
+export function shouldMockRequest(req: any): boolean {
   // 必须启用Mock服务
   if (!mockConfig.enabled) {
+    return false;
+  }
+  
+  // 获取URL，确保url是字符串
+  const url = req?.url || '';
+  if (typeof url !== 'string') {
+    console.error('[Mock] 收到非字符串URL:', url);
     return false;
   }
   

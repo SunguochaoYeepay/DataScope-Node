@@ -818,65 +818,97 @@ export const useQueryStore = defineStore('query', () => {
       
       console.log('查询Store: 调用查询列表API, 参数:', apiParams)
       
+      // 调试使用的Mock数据URL
+      if (params?.name && params.name.includes('debug')) {
+        console.log('查询Store: 启用调试模式，调用/mock/services/query')
+        const mockModule = await import('@/mock/services/query')
+        const result = await mockModule.default.getQueries(apiParams)
+        console.log('查询Store: 从模拟服务获取数据:', result)
+        queries.value = result.items || []
+        
+        if (result.pagination) {
+          pagination.value = {
+            page: result.pagination.page,
+            pageSize: result.pagination.size,
+            total: result.pagination.total,
+            totalPages: result.pagination.totalPages || Math.ceil(result.pagination.total / result.pagination.size),
+            hasMore: result.pagination.page < result.pagination.totalPages
+          }
+        }
+        
+        return queries.value
+      }
+      
       const response = await queryService.getQueries(apiParams)
       
-      console.log('查询Store: 查询列表API响应:', response)
+      console.log('查询Store: 查询列表API响应类型:', Object.prototype.toString.call(response))
+      console.log('查询Store: 查询列表API响应结构:', Object.keys(response || {}))
+      console.log('查询Store: 查询列表API完整响应:', JSON.stringify(response).slice(0, 500) + '...')
       
-      // 检查新的API格式 - 包含success标志和data字段
-      if (response && response.success === true && response.data) {
-        console.log('查询Store: 检测到success:true格式响应，使用response.data', response.data.length);
-        queries.value = response.data;
+      // 处理多种可能的API响应格式
+      if (response) {
+        // 格式1: {success: true, data: [...]}
+        if (response.success === true && Array.isArray(response.data)) {
+          console.log('查询Store: 检测到success:true格式响应，使用response.data', response.data.length);
+          queries.value = response.data;
+          
+          // 更新分页信息（如果存在）
+          if (response.pagination) {
+            pagination.value = {
+              page: response.pagination.page,
+              pageSize: response.pagination.size,
+              total: response.pagination.total,
+              totalPages: response.pagination.totalPages || Math.ceil(response.pagination.total / response.pagination.size),
+              hasMore: response.pagination.page < response.pagination.totalPages
+            };
+          }
+          
+          return response.data;
+        }
         
-        // 更新分页信息（如果存在）
-        if (response.pagination) {
+        // 格式2: {items: [], pagination: {}}
+        if (response.items && Array.isArray(response.items)) {
+          console.log('查询Store: 检测到items格式响应，使用response.items', response.items.length);
+          queries.value = response.items;
+          
+          if (response.pagination) {
+            pagination.value = {
+              page: response.pagination.page,
+              pageSize: response.pagination.size,
+              total: response.pagination.total,
+              totalPages: response.pagination.totalPages,
+              hasMore: response.pagination.page < response.pagination.totalPages
+            };
+          }
+          
+          return response.items;
+        }
+        
+        // 格式3: 数组直接返回
+        if (Array.isArray(response)) {
+          console.log('查询Store: 检测到数组格式响应，直接使用', response.length);
+          queries.value = response;
+          
           pagination.value = {
-            page: response.pagination.page,
-            pageSize: response.pagination.size,
-            total: response.pagination.total,
-            totalPages: response.pagination.totalPages || Math.ceil(response.pagination.total / response.pagination.size),
-            hasMore: response.pagination.page < response.pagination.totalPages
+            page: apiParams.page,
+            pageSize: apiParams.size,
+            total: response.length,
+            totalPages: Math.ceil(response.length / apiParams.size),
+            hasMore: apiParams.page * apiParams.size < response.length
           };
+          
+          return response;
         }
-        
-        return response.data;
-      }
-      
-      // 处理结果并更新状态
-      if (response && response.items) {
-        queries.value = response.items
-        pagination.value = {
-          page: response.pagination.page,
-          pageSize: response.pagination.size,
-          total: response.pagination.total,
-          totalPages: response.pagination.totalPages,
-          hasMore: response.pagination.page < response.pagination.totalPages
-        }
-        
-        return response.items
-      }
-      
-      // 如果返回的是数组，直接使用
-      if (Array.isArray(response)) {
-        queries.value = response
-        pagination.value = {
-          page: apiParams.page,
-          pageSize: apiParams.size,
-          total: response.length,
-          totalPages: Math.ceil(response.length / apiParams.size),
-          hasMore: apiParams.page * apiParams.size < response.length
-        }
-        
-        return response
       }
       
       // 如果是空结果或格式不匹配，返回空数组
-      console.warn('查询Store: 查询列表API返回结果格式不匹配:', response)
-      queries.value = []
-      return []
+      console.warn('查询Store: 查询列表API返回结果格式不匹配:', response);
+      queries.value = [];
+      return [];
     } catch (error) {
-      console.error('查询Store: 获取查询列表失败:', error)
-      const errorMessage = getErrorMessage(error)
-      throw new Error(`获取查询列表失败: ${errorMessage}`)
+      console.error('查询Store: 获取查询列表失败:', error);
+      const errorMessage = getErrorMessage(error);
+      throw new Error(`获取查询列表失败: ${errorMessage}`);
     }
   }
   

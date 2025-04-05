@@ -1,6 +1,6 @@
 import axios from 'axios'
-// 删除对已移除的mockData文件的引用
-// import { mockQueries } from '../plugins/mockData'
+// 将模拟数据的导入改为从新的mock系统导入
+import { mockQueries } from '@/mock/data/query'
 import type { 
   Query, 
   QueryParameter,
@@ -34,34 +34,33 @@ export interface QueryExecutionResult {
 
 /**
  * 获取API基础URL
- * 用于确保所有请求都使用相同的基础URL
- * 在Mock模式下会返回空字符串，以确保使用相对路径
+ * 确保所有请求都使用相同的基础URL，避免重复的/api
  */
 export function getApiBaseUrl(): string {
-  // 检查是否启用mock模式
-  const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+  // 使用环境变量判断是否为Mock模式
+  const isMockMode = import.meta.env.VITE_USE_MOCK_API === 'true';
+  const isDev = import.meta.env.DEV;
   
-  // 在Mock模式下始终返回空字符串，确保请求使用相对路径
-  if (USE_MOCK) {
-    console.log('Mock 模式已启用, API基础URL: "" (使用相对路径)');
+  if (isMockMode) {
+    // 对于Mock模式，返回空字符串，让请求使用相对路径
+    // 这样会自动使用当前域名作为基础URL
+    console.log('[API] Mock模式，使用空基础URL');
     return '';
   }
   
-  // 开发环境下使用正确的端口
-  let baseUrl = '';
-  if (import.meta.env.DEV && !import.meta.env.VITE_API_BASE_URL) {
-    baseUrl = 'http://localhost:5000';
-  } else {
-    baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  // 开发环境使用配置的API地址
+  if (isDev) {
+    // 移除末尾的/api以防止重复
+    let baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    if (baseUrl.endsWith('/api')) {
+      baseUrl = baseUrl.slice(0, -4);
+      console.log('[API] 移除基础URL末尾的/api防止重复:', baseUrl);
+    }
+    return baseUrl;
   }
   
-  // 确保baseUrl不以/api结尾，防止重复
-  if (baseUrl.endsWith('/api')) {
-    baseUrl = baseUrl.substring(0, baseUrl.length - 4);
-  }
-  
-  console.log('Mock 模式已禁用, API基础URL:', baseUrl);
-  return baseUrl;
+  // 生产环境使用当前域名
+  return '';
 }
 
 // 查询参数类型
@@ -104,7 +103,21 @@ const queryService = {
         includeDrafts: params.includeDrafts
       };
       
-      const response = await http.get<any>(`${getApiBaseUrl()}/api/queries`, { params: queryParams });
+      // 修复请求URL，防止/api/api重复
+      // 使用相对路径，让http工具正确处理基础URL
+      const apiUrl = '/api/queries';
+      console.log('使用查询API URL:', apiUrl, '基础URL:', getApiBaseUrl());
+      
+      // 发送请求前进行调试检查
+      const fullUrl = `${getApiBaseUrl()}${apiUrl}`;
+      console.log('完整请求URL:', fullUrl);
+      
+      // 如果检测到/api/api，发出警告
+      if (fullUrl.includes('/api/api/')) {
+        console.warn('警告: 检测到重复的API路径:', fullUrl);
+      }
+      
+      const response = await http.get<any>(apiUrl, { params: queryParams });
       console.log('查询列表API响应:', response);
       
       // 检查响应结构

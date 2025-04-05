@@ -4,7 +4,7 @@
  */
 import axios from 'axios';
 import type { QueryVersion } from '@/types/queryVersion';
-import { mockQueries } from '@/plugins/mockData';
+import { mockQueries } from '@/mock/data/query';
 
 // 检查是否启用mock模式
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';

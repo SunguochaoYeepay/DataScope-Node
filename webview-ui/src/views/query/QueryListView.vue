@@ -537,11 +537,13 @@ const fetchQueries = async () => {
     });
     
     // 检查API返回结果
-    console.log('API返回查询列表:', result);
+    console.log('API返回查询列表类型:', Object.prototype.toString.call(result));
+    console.log('API返回查询列表长度:', Array.isArray(result) ? result.length : 'not an array');
+    console.log('API返回查询列表结构:', Object.keys(result || {}));
     
-    if (!result || !Array.isArray(result)) {
-      console.error('API返回格式不正确:', result);
-      messageService.error('获取查询列表失败: 返回数据格式不正确');
+    if (!result) {
+      console.error('API返回结果为空');
+      messageService.error('获取查询列表失败: 返回数据为空');
       queries.value = [];
       return;
     }
@@ -555,17 +557,6 @@ const fetchQueries = async () => {
       console.log('查询示例详情:', JSON.stringify(sampleQuery, null, 2));
     } else {
       console.log('查询列表为空');
-      // 移除自动重试机制，防止循环调用
-      /*
-      if (shouldAutoRetry && retryCount < 3) {
-        console.log(`列表为空，自动重试第${retryCount + 1}次...`);
-        retryCount++;
-        setTimeout(() => {
-          fetchQueries();
-        }, 1000);
-        return;
-      }
-      */
     }
     
     // 补充数据源信息

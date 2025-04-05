@@ -3,6 +3,9 @@
 ## [未发布]
 
 ### 修复
+- 修复查询保存功能中"mockQueries is not defined"错误，恢复对mockData.ts的正确导入
+- 添加查询版本API的中间件处理，支持`/api/queries/{id}/versions`路径的GET和POST请求
+- 修复了shouldMockRequest函数的类型安全问题，确保传入的url是字符串，解决了启动服务器时的"url.startsWith is not a function"错误
 - 修复了DataSourceForm组件中对undefined值调用trim方法导致的错误
 - 增强了表单验证逻辑，防止对未定义字段调用方法
 - 改进了表单字段检查，添加了null和undefined安全检查
@@ -27,8 +30,22 @@
   - 恢复了axios-interceptor.ts和相关的Mock服务文件
   - 修复了页面无法显示查询列表的问题
 - 修复了查询执行API的路由问题，添加了对`/api/queries/{id}/execute`路径的支持
+- 修复了查询ID格式为query-001形式的执行API路由，正确处理特殊ID格式
 - 修复了集成页面中缺少mock服务的问题，重新连接到正确的mock服务模块
 - 修复了查询列表页面无法显示数据的问题，支持了新的API响应格式
+- 修复了mockData.ts中的重复导出和函数定义，消除了TypeScript编译错误
+- 修复了查询store中fetchQueries方法，增强了对不同API响应格式的兼容性
+- 修复了集成store中错误的mockData导入路径，现在从`@/mock/data`中正确导入模拟数据
+- 实现了旧的mock服务与新的mock系统的集成
+  - 将旧的mockData.ts中的功能全部迁移到新的mock系统中
+  - 在`mock/services/integration.ts`中添加了完整的兼容层，支持旧的API调用
+  - 在拦截器中使用新的mock服务提供的函数，保持API一致性
+  - 修复了middleware与axios拦截器的冲突，使两者能够协同工作
+- 修复集成服务API路由问题，现在支持`/api/low-code/apis/{id}`路径获取单个集成
+- 扩展了集成API中间件的功能，支持REST风格的完整API操作（GET/POST/PUT/DELETE）
+- 修复了集成执行查询的端点`/api/low-code/apis/{id}/execute`
+- 修复了integration store中获取集成数据时的格式兼容问题
+- 优化中间件对集成API路径的处理逻辑，提高路由匹配精度
 
 ### 改进
 - 优化了项目启动流程，支持同时启动前端和后端服务
@@ -44,6 +61,24 @@
 - 准备了数据源模拟数据和服务逻辑示例，作为重构模板
 - 设计了拦截器和中间件接口，提供了统一的请求拦截机制
 - 重新实现了Mock服务中间件架构，提升了API模拟能力和代码组织性
+- 集成了旧的axios拦截器与新的mock服务架构，保留原有功能同时增强功能性
+- 完成了旧mock系统到新mock系统的迁移
+  - 保留了旧系统的所有功能和数据
+  - 在新系统中创建了完整的兼容层
+  - 让两套系统能够协同工作，提高了系统稳定性
+  - 简化了未来的维护，只需要维护一套模拟数据
+  - 删除了src/plugins/mockData.ts文件，完全迁移到新的mock/data目录
+  - 修复了所有引用旧mock数据的服务文件，如query.ts和versionService.ts
+  - 更新了serverMock.ts文件以使用新的mock服务，并添加了废弃警告
+- 改进了mock中间件处理请求的逻辑，优先处理集成API以避免路由冲突
+- 增强了集成API响应格式的一致性，确保前端接收到统一的数据结构
+- 优化了集成测试连接API的响应内容，提供更详细的测试结果
+- 完全删除了所有旧版mock系统文件和代码，包括：
+  - 移除`src/plugins/axios-interceptor.ts`文件
+  - 移除`src/plugins/serverMock.ts`文件
+  - 移除`src/services/mock-query.ts`文件
+  - 清理`src/utils/http.ts`中的旧mock拦截代码
+  - 移除`main.ts`中对旧mock系统的引用和初始化
 
 ### 重构
 - 建立了新的模块化Mock服务框架，解决了原有代码中模拟服务散乱的问题
@@ -71,6 +106,9 @@
   - 添加`dev:pm2`命令用于启动固定端口的开发服务器
   - 添加`stop:pm2`和`restart:pm2`命令用于管理开发服务器进程
   - 创建`ecosystem.config.js`配置文件实现自动端口管理
+- 添加了数据完整性检查机制
+- 为集成API添加了测试连接功能`/api/low-code/apis/{id}/test`
+- 扩展了集成服务的错误处理机制，提供更明确的错误信息
 
 ### 优化改进
 
@@ -171,3 +209,9 @@
 - 修复了可能导致服务器响应异常的类型错误
 - 修复了路由处理逻辑中的潜在问题
 - 解决了Vite开发服务器缓存导致的注入脚本冲突问题
+
+### 新增修复项
+- 修复了查询执行API的路由问题，添加了对`/api/queries/{id}/execute`路径的支持
+- 修复了集成页面中缺少mock服务的问题，重新连接到正确的mock服务模块
+- 修复了查询列表页面无法显示数据的问题，支持了新的API响应格式
+- 修复了`src/services/mockData.ts`中的重复定义问题，删除了重复导出的函数和变量

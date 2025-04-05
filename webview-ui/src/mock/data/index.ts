@@ -6,14 +6,17 @@
 
 import { mockDataSources } from './datasource';
 import { mockIntegrations } from './integration';
+import { mockQueries } from './query';
 
 // 导出所有模拟数据
 export {
   mockDataSources,
-  mockIntegrations
+  mockIntegrations,
+  mockQueries
 };
 
 export default {
   dataSources: mockDataSources,
-  integrations: mockIntegrations
+  integrations: mockIntegrations,
+  queries: mockQueries
 };

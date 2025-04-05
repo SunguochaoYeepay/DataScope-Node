@@ -288,9 +288,6 @@ export const mockIntegrations = [
   }
 ];
 
-// 确保以下函数导出
-export { mockIntegrations };
-
 /**
  * 获取模拟集成列表
  */
@@ -368,12 +365,4 @@ export function executeMockQuery(integrationId: string, query: any): Promise<any
       });
     }, 500);
   });
-}
-
-// 以下函数用于集成相关功能
-/**
- * 获取模拟集成列表
- */
-export function getMockIntegrations(): Promise<any[]> {
-  return Promise.resolve([...mockIntegrations]);
 }
