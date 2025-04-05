@@ -153,148 +153,45 @@ const adaptDataSource = (source: any): DataSource => {
 // 数据源服务
 export const dataSourceService = {
   // 获取数据源列表
-  async getDataSources(params: DataSourceQueryParams): Promise<PageResponse<DataSource>> {
+  async getDataSources(
+    params?: QueryParams<DataSourcePagination>,
+  ): Promise<DataSourcesResponse> {
+    console.log('[DataSourceService] 获取数据源列表，参数：', params);
+    
+    if (USE_MOCK) {
+      console.log('[DataSourceService] 使用模拟数据');
+      return this.getMockDataSources(params);
+    }
+
     try {
-      // 禁用模拟模式
-      if (false && USE_MOCK) {
-        console.log('返回模拟数据源列表数据');
-        
-        // 应用过滤
-        let filteredItems = [...mockDataSources];
-        
-        if (params?.name) {
-          const keyword = params.name.toLowerCase();
-          filteredItems = filteredItems.filter(ds => 
-            ds.name.toLowerCase().includes(keyword) || 
-            ds.description.toLowerCase().includes(keyword)
-          );
-        }
-        
-        if (params.type) {
-          filteredItems = filteredItems.filter(ds => 
-            ds.type.toLowerCase() === params.type?.toLowerCase()
-          );
-        }
-        
-        if (params.status) {
-          filteredItems = filteredItems.filter(ds => 
-            ds.status === params.status
-          );
-        }
-        
-        // 应用分页
-        const page = params.page || 1;
-        const size = params.size || 10;
-        const start = (page - 1) * size;
-        const end = start + size;
-        const paginatedItems = filteredItems.slice(start, Math.min(end, filteredItems.length));
-        
-        // 返回模拟分页响应
-        return {
-          items: paginatedItems,
-          page: page,
-          size: size,
-          total: filteredItems.length,
-          totalPages: Math.ceil(filteredItems.length / size)
-        };
-      }
+      const searchParams = new URLSearchParams();
       
-      // 构建查询参数 - 使用标准参数：page/size
-      const queryParams = new URLSearchParams();
-      
-      // 安全添加过滤参数 - 修复类型检查问题
-      if (params?.name) {
-        queryParams.append('name', params.name);
-      }
-      if (params?.type) {
-        queryParams.append('type', params.type.toLowerCase());
-      }
-      if (params?.status) {
-        queryParams.append('status', params.status);
-      }
-      
-      // 添加分页参数（使用标准page/size参数名）
-      queryParams.append('page', String(params?.page || 1));
-      queryParams.append('size', String(params?.size || 10));
-      
-      // 直接使用fetch避免http工具的多重封装问题
-      const url = `${getDataSourceApiBaseUrl()}/datasources?${queryParams.toString()}`;
-      console.log('请求数据源列表URL:', url);
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`获取数据源列表失败: ${response.statusText}`);
-      }
-      
-      const responseData = await response.json();
-      console.log('数据源列表原始响应:', responseData);
-      
-      // 处理不同响应格式
-      let items: any[] = [];
-      let totalItems = 0;
-      let totalPages = 1;
-      let currentPage = Number(params.page || 1);
-      let pageSize = Number(params.size || 10);
-      
-      // 1. 处理标准成功响应格式
-      if (responseData.success === true && responseData.data) {
-        // 提取items数组
-        if (Array.isArray(responseData.data)) {
-          items = responseData.data;
-          totalItems = items.length;
-        } else if (responseData.data.items && Array.isArray(responseData.data.items)) {
-          items = responseData.data.items;
-          
-          // 从pagination对象中提取分页信息
-          if (responseData.data.pagination) {
-            totalItems = responseData.data.pagination.total || items.length;
-            totalPages = responseData.data.pagination.totalPages || 
-                        Math.ceil(totalItems / pageSize);
-            currentPage = responseData.data.pagination.page || currentPage;
-            pageSize = responseData.data.pagination.size || pageSize;
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            if (typeof value === 'object') {
+              // 处理嵌套对象
+              Object.entries(value).forEach(([nestedKey, nestedValue]) => {
+                if (nestedValue !== undefined && nestedValue !== null) {
+                  searchParams.append(`${key}[${nestedKey}]`, String(nestedValue));
+                }
+              });
+            } else {
+              searchParams.append(key, String(value));
+            }
           }
-        }
-      } 
-      // 2. 处理直接返回数组的格式
-      else if (Array.isArray(responseData)) {
-        items = responseData;
-        totalItems = items.length;
-      } 
-      // 3. 处理其他格式
-      else {
-        // 尝试从各种可能的字段中提取数据
-        if (responseData.items && Array.isArray(responseData.items)) {
-          items = responseData.items;
-        } else if (responseData.dataSources && Array.isArray(responseData.dataSources)) {
-          items = responseData.dataSources;
-        } else if (responseData.data && Array.isArray(responseData.data)) {
-          items = responseData.data;
-        }
-        
-        // 提取分页信息
-        totalItems = responseData.total || responseData.totalCount || items.length;
-        totalPages = responseData.totalPages || 
-                    responseData.pages || 
-                    Math.ceil(totalItems / pageSize);
-        currentPage = responseData.page || currentPage;
-        pageSize = responseData.size || responseData.pageSize || pageSize;
+        });
       }
       
-      // 适配数据源对象
-      const dataSources: DataSource[] = items.map(adaptDataSource);
+      const response = await api.get<DataSourcesResponse>(
+        `/api/datasources?${searchParams.toString()}`,
+      );
       
-      // 返回标准分页响应
-      return {
-        items: dataSources,
-        page: currentPage,
-        size: pageSize,
-        total: totalItems,
-        totalPages: totalPages
-      };
+      console.log('[DataSourceService] 成功获取数据源列表，数量：', response.data?.items?.length);
+      return response.data;
     } catch (error) {
-      console.error('获取数据源列表错误:', error);
-      // 使用统一的错误处理函数
-      throw handleApiError(error, '获取数据源列表失败');
+      console.error('[DataSourceService] 获取数据源列表失败：', error);
+      throw error;
     }
   },
   
@@ -1363,7 +1260,63 @@ export const dataSourceService = {
       console.error('检查数据源状态错误:', error);
       throw error;
     }
-  }
+  },
+
+  const getMockDataSources = (params?: QueryParams<DataSourcePagination>): DataSourcesResponse => {
+    console.log('[Mock] 获取模拟数据源列表，参数：', params);
+    const mockData = mockDataSources();
+    
+    // 过滤数据
+    let filteredData = [...mockData.items];
+    
+    if (params?.name) {
+      filteredData = filteredData.filter((item) => 
+        item.name.toLowerCase().includes(params.name!.toLowerCase())
+      );
+      console.log(`[Mock] 按名称过滤，筛选条件："${params.name}"，剩余：${filteredData.length}项`);
+    }
+    
+    if (params?.type) {
+      filteredData = filteredData.filter((item) => item.type === params.type);
+      console.log(`[Mock] 按类型过滤，筛选条件："${params.type}"，剩余：${filteredData.length}项`);
+    }
+    
+    if (params?.status) {
+      filteredData = filteredData.filter((item) => 
+        item.status.toLowerCase() === params.status!.toLowerCase()
+      );
+      console.log(`[Mock] 按状态过滤，筛选条件："${params.status}"，剩余：${filteredData.length}项`);
+    }
+    
+    // 分页处理
+    const page = params?.page || 1;
+    const size = params?.size || 10;
+    const start = (page - 1) * size;
+    const end = start + size;
+    const paginatedData = filteredData.slice(start, end);
+    
+    console.log(`[Mock] 分页处理：第${page}页，每页${size}条，总计${filteredData.length}条，当前页${paginatedData.length}条`);
+    
+    // 输出详细的返回数据
+    console.log('[Mock] 返回数据源列表的前3条：', 
+      paginatedData.slice(0, 3).map(item => ({ 
+        id: item.id, 
+        name: item.name, 
+        type: item.type, 
+        status: item.status 
+      }))
+    );
+    
+    return {
+      items: paginatedData,
+      meta: {
+        total: filteredData.length,
+        page,
+        size,
+        success: true
+      }
+    };
+  },
 }
 
 export default dataSourceService

@@ -20,6 +20,7 @@ export const integrationService = {
    */
   getIntegrations: async (): Promise<IntegrationConfig[]> => {
     const response = await http.get('/api/low-code/apis');
+    console.log('[集成Service] 获取集成列表API响应:', response);
     return response.data || [];
   },
   

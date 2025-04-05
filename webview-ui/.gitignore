@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vite temporary files
+.temp
+.temp/
+.temp/*
+*.timestamp-*.mjs
+vite.config.ts.timestamp-*

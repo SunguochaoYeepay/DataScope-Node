@@ -75,7 +75,9 @@ export const mockConfig = {
     datasources: true,
     queries: true,
     users: true,
-    visualizations: true
+    visualizations: true,
+    integrations: true,
+    'low-code': true  // 添加low-code模块支持，涵盖/api/low-code/apis路径
   }
 };
 

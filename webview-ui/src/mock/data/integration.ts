@@ -8,9 +8,9 @@
 export const mockIntegrations = [
   {
     id: 'integration-1',
-    name: '示例REST API',
-    description: '连接到示例REST API服务',
-    type: 'REST',
+    name: '示例用户数据表格',
+    description: '展示用户数据的表格集成',
+    type: 'TABLE',
     baseUrl: 'https://api.example.com/v1',
     authType: 'BASIC',
     username: 'api_user',
@@ -25,21 +25,14 @@ export const mockIntegrations = [
         method: 'GET',
         path: '/users',
         description: '获取所有用户的列表'
-      },
-      {
-        id: 'endpoint-2',
-        name: '获取单个用户',
-        method: 'GET',
-        path: '/users/{id}',
-        description: '根据ID获取单个用户'
       }
     ]
   },
   {
     id: 'integration-2',
-    name: '天气API',
-    description: '连接到天气预报API',
-    type: 'REST',
+    name: '天气数据图表',
+    description: '展示天气预报的数据图表集成',
+    type: 'CHART',
     baseUrl: 'https://api.weather.com',
     authType: 'API_KEY',
     apiKey: '********',
@@ -49,14 +42,7 @@ export const mockIntegrations = [
     endpoints: [
       {
         id: 'endpoint-3',
-        name: '获取当前天气',
-        method: 'GET',
-        path: '/current',
-        description: '获取指定位置的当前天气'
-      },
-      {
-        id: 'endpoint-4',
-        name: '获取天气预报',
+        name: '获取天气数据',
         method: 'GET',
         path: '/forecast',
         description: '获取未来7天的天气预报'
@@ -65,10 +51,10 @@ export const mockIntegrations = [
   },
   {
     id: 'integration-3',
-    name: '支付网关',
-    description: '连接到支付处理API',
-    type: 'REST',
-    baseUrl: 'https://api.payment.com',
+    name: '简单订单查询',
+    description: '提供简单的订单查询集成',
+    type: 'SIMPLE_TABLE',
+    baseUrl: 'https://api.orders.com',
     authType: 'OAUTH2',
     clientId: 'client123',
     clientSecret: '********',
@@ -78,24 +64,10 @@ export const mockIntegrations = [
     endpoints: [
       {
         id: 'endpoint-5',
-        name: '创建支付',
-        method: 'POST',
-        path: '/payments',
-        description: '创建新的支付请求'
-      },
-      {
-        id: 'endpoint-6',
-        name: '获取支付状态',
+        name: '查询订单',
         method: 'GET',
-        path: '/payments/{id}',
-        description: '检查支付状态'
-      },
-      {
-        id: 'endpoint-7',
-        name: '退款',
-        method: 'POST',
-        path: '/payments/{id}/refund',
-        description: '处理退款请求'
+        path: '/orders',
+        description: '查询订单数据'
       }
     ]
   }
@@ -112,9 +84,9 @@ export function resetIntegrations(): void {
   [
     {
       id: 'integration-1',
-      name: '示例REST API',
-      description: '连接到示例REST API服务',
-      type: 'REST',
+      name: '示例用户数据表格',
+      description: '展示用户数据的表格集成',
+      type: 'TABLE',
       baseUrl: 'https://api.example.com/v1',
       authType: 'BASIC',
       username: 'api_user',
@@ -129,21 +101,14 @@ export function resetIntegrations(): void {
           method: 'GET',
           path: '/users',
           description: '获取所有用户的列表'
-        },
-        {
-          id: 'endpoint-2',
-          name: '获取单个用户',
-          method: 'GET',
-          path: '/users/{id}',
-          description: '根据ID获取单个用户'
         }
       ]
     },
     {
       id: 'integration-2',
-      name: '天气API',
-      description: '连接到天气预报API',
-      type: 'REST',
+      name: '天气数据图表',
+      description: '展示天气预报的数据图表集成',
+      type: 'CHART',
       baseUrl: 'https://api.weather.com',
       authType: 'API_KEY',
       apiKey: '********',
@@ -153,14 +118,7 @@ export function resetIntegrations(): void {
       endpoints: [
         {
           id: 'endpoint-3',
-          name: '获取当前天气',
-          method: 'GET',
-          path: '/current',
-          description: '获取指定位置的当前天气'
-        },
-        {
-          id: 'endpoint-4',
-          name: '获取天气预报',
+          name: '获取天气数据',
           method: 'GET',
           path: '/forecast',
           description: '获取未来7天的天气预报'
@@ -169,10 +127,10 @@ export function resetIntegrations(): void {
     },
     {
       id: 'integration-3',
-      name: '支付网关',
-      description: '连接到支付处理API',
-      type: 'REST',
-      baseUrl: 'https://api.payment.com',
+      name: '简单订单查询',
+      description: '提供简单的订单查询集成',
+      type: 'SIMPLE_TABLE',
+      baseUrl: 'https://api.orders.com',
       authType: 'OAUTH2',
       clientId: 'client123',
       clientSecret: '********',
@@ -182,24 +140,10 @@ export function resetIntegrations(): void {
       endpoints: [
         {
           id: 'endpoint-5',
-          name: '创建支付',
-          method: 'POST',
-          path: '/payments',
-          description: '创建新的支付请求'
-        },
-        {
-          id: 'endpoint-6',
-          name: '获取支付状态',
+          name: '查询订单',
           method: 'GET',
-          path: '/payments/{id}',
-          description: '检查支付状态'
-        },
-        {
-          id: 'endpoint-7',
-          name: '退款',
-          method: 'POST',
-          path: '/payments/{id}/refund',
-          description: '处理退款请求'
+          path: '/orders',
+          description: '查询订单数据'
         }
       ]
     }

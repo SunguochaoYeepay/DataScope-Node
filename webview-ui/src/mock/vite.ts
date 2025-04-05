@@ -114,6 +114,73 @@ export function createMockMiddleware(): Connect.NextHandleFunction {
         }
       }
       
+      // 处理集成API (low-code APIs)
+      if (req.url.includes('/api/low-code/apis')) {
+        console.log('[Mock] 处理集成API请求:', req.url);
+        
+        // 获取单个集成
+        const singleMatch = req.url.match(/\/api\/low-code\/apis\/([^\/\?]+)$/);
+        if (singleMatch && req.method === 'GET') {
+          const id = singleMatch[1];
+          console.log(`[Mock] 获取集成详情: ${id}`);
+          
+          try {
+            const response = await mockServices.integration.getIntegration(id);
+            
+            // 返回模拟响应
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(response));
+          } catch (error) {
+            // 处理未找到的情况
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              success: false,
+              error: {
+                code: 'NOT_FOUND',
+                message: `未找到ID为${id}的集成`
+              }
+            }));
+          }
+          return;
+        }
+        
+        // 获取集成列表
+        if (req.url.match(/\/api\/low-code\/apis(\?.*)?$/) && req.method === 'GET') {
+          console.log('[Mock] 获取集成列表');
+          
+          // 解析查询参数
+          const urlObj = new URL(`http://localhost${req.url}`);
+          const params = {
+            page: parseInt(urlObj.searchParams.get('page') || '1', 10),
+            size: parseInt(urlObj.searchParams.get('size') || '10', 10),
+            type: urlObj.searchParams.get('type') || '',
+            status: urlObj.searchParams.get('status') || ''
+          };
+          
+          try {
+            const response = await mockServices.integration.getIntegrations(params);
+            
+            // 返回模拟响应
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(response));
+          } catch (error) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: error instanceof Error ? error.message : String(error)
+              }
+            }));
+          }
+          return;
+        }
+      }
+      
       // 对于其他API请求，返回通用响应
       console.log(`[Mock] 通用处理: ${req.url}`);
       

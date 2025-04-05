@@ -42,26 +42,56 @@ const instance = axios.create({
 // 添加响应拦截器 - 标准错误处理
 instance.interceptors.response.use(
   (response: AxiosResponse) => {
+    // 添加调试日志
+    console.log(`[HTTP拦截器] 接收到响应, URL: ${response.config.url}, 状态: ${response.status}, 数据类型: ${typeof response.data}, 是否数组: ${Array.isArray(response.data)}`);
+    if (Array.isArray(response.data)) {
+      console.log(`[HTTP拦截器] 数组长度: ${response.data.length}, 示例数据:`, 
+        response.data.length > 0 ? JSON.stringify(response.data[0]).substring(0, 200) : '空数组');
+    }
+    
     // 如果是普通的成功请求，直接返回数据
     if (response.status >= 200 && response.status < 300) {
-      const apiResponse = response.data as ApiResponse;
-      
-      if (apiResponse.success) {
-        // 成功响应检查是否有消息需要显示
-        if (apiResponse.error?.message && apiResponse.error.message.trim() !== '') {
-          // 生成唯一key
-          const messageKey = `success-${response.config.url}-${Date.now()}`;
-          message.success(apiResponse.error.message, undefined, false);
+      // 处理多种可能的响应格式
+      // 1. 如果响应是标准的 ApiResponse 格式
+      if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+        const apiResponse = response.data as ApiResponse;
+        
+        if (apiResponse.success) {
+          // 成功响应检查是否有消息需要显示
+          if (apiResponse.error?.message && apiResponse.error.message.trim() !== '') {
+            const messageKey = `success-${response.config.url}-${Date.now()}`;
+            message.success(apiResponse.error.message, undefined, false);
+          }
+          return apiResponse.data;
+        } else {
+          // 业务逻辑错误
+          if (apiResponse.error?.message) {
+            const messageKey = `error-${apiResponse.error.code}-${response.config.url}-${Date.now()}`;
+            message.error(apiResponse.error.message, undefined, false);
+          }
+          return Promise.reject(apiResponse);
         }
-        return apiResponse.data;
-      } else {
-        // 业务逻辑错误
-        if (apiResponse.error?.message) {
-          // 生成包含url和错误代码的唯一key
-          const messageKey = `error-${apiResponse.error.code}-${response.config.url}-${Date.now()}`;
-          message.error(apiResponse.error.message, undefined, false);
+      } 
+      // 2. 如果响应是数组
+      else if (Array.isArray(response.data)) {
+        console.log('[HTTP] 收到数组响应, 长度:', response.data.length);
+        return response.data;
+      }
+      // 3. 如果响应是对象，但没有标准的 success 字段
+      else if (response.data && typeof response.data === 'object') {
+        // 可能是对象或具有data属性的对象
+        if ('data' in response.data) {
+          console.log('[HTTP] 收到包含data属性的对象响应');
+          return response.data.data;
+        } else {
+          console.log('[HTTP] 收到普通对象响应');
+          return response.data;
         }
-        return Promise.reject(apiResponse);
+      }
+      // 4. 其他情况
+      else {
+        console.log('[HTTP] 收到其他类型响应');
+        return response.data;
       }
     }
     

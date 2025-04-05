@@ -83,22 +83,46 @@ async function handleDatasourcesApi(req: IncomingMessage, res: ServerResponse, u
   if (urlPath === '/api/datasources' && method === 'GET') {
     logMock('debug', `处理GET请求: /api/datasources`);
     
+    // 处理查询参数，支持嵌套格式params[key]
+    const params: any = {};
+    for (const key in urlQuery) {
+      if (key.startsWith('params[') && key.endsWith(']')) {
+        const paramName = key.substring(7, key.length - 1);
+        params[paramName] = urlQuery[key];
+      } else {
+        params[key] = urlQuery[key];
+      }
+    }
+    
+    console.log('[Mock中间件] 数据源请求参数:', JSON.stringify(params));
+    
     try {
       // 使用服务层获取数据源列表，支持分页和过滤
       const result = await dataSourceService.getDataSources({
-        page: parseInt(urlQuery.page as string) || 1,
-        size: parseInt(urlQuery.size as string) || 10,
-        name: urlQuery.name as string,
-        type: urlQuery.type as string,
-        status: urlQuery.status as string
+        page: parseInt(params.page as string) || 1,
+        size: parseInt(params.size as string) || 10,
+        name: params.name as string,
+        type: params.type as string,
+        status: params.status as string
       });
       
-      sendJsonResponse(res, 200, { 
+      console.log(`[Mock中间件] 数据源服务返回结果: 获取到${result.items.length}条数据源`);
+      if (result.items.length > 0) {
+        console.log('[Mock中间件] 第一条数据源:', JSON.stringify(result.items[0]).substring(0, 200));
+      }
+      
+      const response = { 
         data: result.items, 
         pagination: result.pagination,
         success: true
-      });
+      };
+      
+      console.log('[Mock中间件] 返回数据源列表响应:', 
+        `${result.items.length}条数据, 总数:${result.pagination.total}, 分页:${result.pagination.page}/${result.pagination.totalPages}`);
+      
+      sendJsonResponse(res, 200, response);
     } catch (error) {
+      console.error('[Mock中间件] 获取数据源列表失败:', error);
       sendJsonResponse(res, 500, { 
         error: '获取数据源列表失败',
         message: error instanceof Error ? error.message : String(error),
@@ -238,274 +262,83 @@ async function handleQueriesApi(req: IncomingMessage, res: ServerResponse, urlPa
     console.log(`[Mock] 检测到查询API请求: ${method} ${urlPath}`, urlQuery);
   }
   
-  // 获取查询列表
-  if (urlPath === '/api/queries' && method === 'GET') {
-    logMock('debug', `处理GET请求: /api/queries`);
-    console.log('[Mock] 处理查询列表请求, 参数:', urlQuery);
-    
-    try {
-      // 使用服务层获取查询列表，支持分页和过滤
-      const result = await queryService.getQueries({
-        page: parseInt(urlQuery.page as string) || 1,
-        size: parseInt(urlQuery.size as string) || 10,
-        name: urlQuery.name as string,
-        dataSourceId: urlQuery.dataSourceId as string,
-        status: urlQuery.status as string,
-        queryType: urlQuery.queryType as string,
-        isFavorite: urlQuery.isFavorite === 'true'
-      });
+  // 处理查询参数，支持嵌套格式params[key]
+  const params: any = {};
+  for (const key in urlQuery) {
+    if (key.startsWith('params[') && key.endsWith(']')) {
+      const paramName = key.substring(7, key.length - 1);
+      params[paramName] = urlQuery[key];
+    } else {
+      params[key] = urlQuery[key];
+    }
+  }
+  
+  try {
+    // 获取查询列表
+    if (urlPath === '/api/queries' && method === 'GET') {
+      logMock('debug', `处理GET请求: /api/queries`);
+      console.log('[Mock] 处理查询列表请求, 参数:', params);
       
-      console.log('[Mock] 查询列表结果:', {
-        itemsCount: result.items.length,
-        pagination: result.pagination
-      });
-      
-      console.log('[Mock] 返回查询列表数据格式:', { 
-        data: `Array[${result.items.length}]`, 
-        pagination: result.pagination,
-        success: true
-      });
-      
-      // 检查result.items是否包含数据，如果为空则从导入的模块中获取
-      if (result.items.length === 0) {
-        try {
-          // 使用动态导入方式获取查询数据，避免循环依赖
-          const mockQueryData = await import('../data/query');
-          const mockQueries = mockQueryData.mockQueries || [];
-          
-          if (mockQueries.length > 0) {
-            console.log('[Mock] 查询列表为空，使用模拟数据:', mockQueries.length);
-            
-            const page = parseInt(urlQuery.page as string) || 1;
-            const size = parseInt(urlQuery.size as string) || 10;
-            const start = (page - 1) * size;
-            const end = Math.min(start + size, mockQueries.length);
-            
-            const paginatedItems = mockQueries.slice(start, end);
-            const pagination = {
-              total: mockQueries.length,
-              page,
-              size,
-              totalPages: Math.ceil(mockQueries.length / size)
-            };
-            
-            sendJsonResponse(res, 200, {
-              data: paginatedItems,
-              pagination,
-              success: true
-            });
-            return true;
-          }
-        } catch (error) {
-          console.error('[Mock] 导入查询模拟数据失败:', error);
-        }
+      try {
+        // 使用服务层获取查询列表，支持分页和过滤
+        const result = await queryService.getQueries({
+          page: parseInt(params.page as string) || 1,
+          size: parseInt(params.size as string) || 10,
+          name: params.name as string,
+          type: params.type as string,
+          dataSourceId: params.dataSourceId as string,
+          queryType: params.queryType as string,
+          serviceStatus: params.serviceStatus as string
+        });
+        
+        // 确保返回的数据具有正确的结构
+        const response = {
+          data: Array.isArray(result.data) ? result.data : [],
+          pagination: result.pagination || {
+            total: 0,
+            page: parseInt(params.page as string) || 1,
+            size: parseInt(params.size as string) || 10,
+            totalPages: 0
+          },
+          success: true
+        };
+        
+        console.log('[Mock] 查询列表结果:', {
+          itemsCount: response.data.length,
+          pagination: response.pagination
+        });
+        
+        console.log('[Mock] 返回查询列表数据格式:', {
+          data: Array.isArray(response.data) ? `Array[${response.data.length}]` : typeof response.data,
+          pagination: response.pagination,
+          success: response.success
+        });
+        
+        sendJsonResponse(res, 200, response);
+      } catch (error) {
+        console.error('[Mock] 获取查询列表失败:', error);
+        
+        // 发生错误时返回空结果，避免前端报错
+        sendJsonResponse(res, 200, { 
+          data: [],
+          pagination: {
+            total: 0,
+            page: parseInt(params.page as string) || 1,
+            size: parseInt(params.size as string) || 10,
+            totalPages: 0
+          },
+          success: true
+        });
       }
-      
-      sendJsonResponse(res, 200, {
-        data: result.items,
-        pagination: result.pagination,
-        success: true
-      });
-    } catch (error) {
-      console.error('[Mock] 获取查询列表失败:', error);
-      sendJsonResponse(res, 500, {
-        error: '获取查询列表失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
+      return true;
     }
-    return true;
-  }
-  
-  // 获取单个查询
-  if (urlPath.match(/^\/api\/queries\/[^\/]+$/) && method === 'GET') {
-    const id = urlPath.split('/').pop() || '';
-    
-    logMock('debug', `处理GET请求: ${urlPath}, ID: ${id}`);
-    
-    try {
-      const query = await queryService.getQuery(id);
-      sendJsonResponse(res, 200, {
-        data: query,
-        success: true
-      });
-    } catch (error) {
-      sendJsonResponse(res, 404, {
-        error: '查询不存在',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 创建查询
-  if (urlPath === '/api/queries' && method === 'POST') {
-    logMock('debug', `处理POST请求: /api/queries`);
-    
-    try {
-      const body = await parseRequestBody(req);
-      const newQuery = await queryService.createQuery(body);
-      
-      sendJsonResponse(res, 201, {
-        data: newQuery,
-        message: '查询创建成功',
-        success: true
-      });
-    } catch (error) {
-      sendJsonResponse(res, 400, {
-        error: '创建查询失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 更新查询
-  if (urlPath.match(/^\/api\/queries\/[^\/]+$/) && method === 'PUT') {
-    const id = urlPath.split('/').pop() || '';
-    
-    logMock('debug', `处理PUT请求: ${urlPath}, ID: ${id}`);
-    
-    try {
-      const body = await parseRequestBody(req);
-      const updatedQuery = await queryService.updateQuery(id, body);
-      
-      sendJsonResponse(res, 200, {
-        data: updatedQuery,
-        message: '查询更新成功',
-        success: true
-      });
-    } catch (error) {
-      sendJsonResponse(res, 404, {
-        error: '更新查询失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 执行查询
-  if (urlPath.match(/^\/api\/queries\/[^\/]+\/execute$/) && method === 'POST') {
-    const id = urlPath.split('/')[3]; // 提取ID: /api/queries/{id}/execute
-    
-    logMock('debug', `处理POST请求: ${urlPath}, ID: ${id}`);
-    
-    try {
-      const body = await parseRequestBody(req);
-      const result = await queryService.executeQuery(id, body);
-      
-      sendJsonResponse(res, 200, {
-        data: result,
-        success: true
-      });
-    } catch (error) {
-      sendJsonResponse(res, 400, {
-        error: '执行查询失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 创建查询版本
-  if (urlPath.match(/^\/api\/queries\/[^\/]+\/versions$/) && method === 'POST') {
-    const queryId = urlPath.split('/')[3]; // 提取查询ID: /api/queries/{id}/versions
-    
-    logMock('debug', `处理POST请求: ${urlPath}, 查询ID: ${queryId}`);
-    
-    try {
-      const body = await parseRequestBody(req);
-      const result = await queryService.createQueryVersion(queryId, body);
-      
-      sendJsonResponse(res, 201, {
-        data: result,
-        success: true,
-        message: '查询版本创建成功'
-      });
-    } catch (error) {
-      sendJsonResponse(res, 404, {
-        error: '创建查询版本失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 获取查询版本列表
-  if (urlPath.match(/^\/api\/queries\/[^\/]+\/versions$/) && method === 'GET') {
-    const queryId = urlPath.split('/')[3]; // 提取查询ID: /api/queries/{id}/versions
-    
-    logMock('debug', `处理GET请求: ${urlPath}, 查询ID: ${queryId}`);
-    
-    try {
-      const versions = await queryService.getQueryVersions(queryId);
-      
-      sendJsonResponse(res, 200, {
-        data: versions,
-        success: true
-      });
-    } catch (error) {
-      sendJsonResponse(res, 404, {
-        error: '获取查询版本列表失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 发布查询版本
-  if (urlPath.match(/^\/api\/queries\/versions\/[^\/]+\/publish$/) && method === 'POST') {
-    const versionId = urlPath.split('/')[4]; // 提取版本ID: /api/queries/versions/{id}/publish
-    
-    logMock('debug', `处理POST请求: ${urlPath}, 版本ID: ${versionId}`);
-    
-    try {
-      const result = await queryService.publishQueryVersion(versionId);
-      
-      sendJsonResponse(res, 200, {
-        data: result,
-        success: true,
-        message: '查询版本发布成功'
-      });
-    } catch (error) {
-      sendJsonResponse(res, 404, {
-        error: '发布查询版本失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
-    return true;
-  }
-  
-  // 激活查询版本
-  if (urlPath.match(/^\/api\/queries\/[^\/]+\/versions\/[^\/]+\/activate$/) && method === 'POST') {
-    const urlParts = urlPath.split('/');
-    const queryId = urlParts[3]; // 提取查询ID: /api/queries/{queryId}/versions/{versionId}/activate
-    const versionId = urlParts[5]; // 提取版本ID
-    
-    logMock('debug', `处理POST请求: ${urlPath}, 查询ID: ${queryId}, 版本ID: ${versionId}`);
-    
-    try {
-      const result = await queryService.activateQueryVersion(queryId, versionId);
-      
-      sendJsonResponse(res, 200, {
-        data: result,
-        success: true,
-        message: '查询版本激活成功'
-      });
-    } catch (error) {
-      sendJsonResponse(res, 404, {
-        error: '激活查询版本失败',
-        message: error instanceof Error ? error.message : String(error),
-        success: false
-      });
-    }
+  } catch (error) {
+    console.error('[Mock] 处理查询API请求出错:', error);
+    sendJsonResponse(res, 500, {
+      error: '处理查询请求失败',
+      message: error instanceof Error ? error.message : String(error),
+      success: false
+    });
     return true;
   }
   
@@ -536,16 +369,37 @@ async function handleIntegrationApi(req: IncomingMessage, res: ServerResponse, u
           status: urlQuery.status as string
         });
         
-        // 如果要兼容旧版格式，直接返回数组
-        const responseData = result.items;
+        // 打印获取到的结果
+        console.log('[Mock中间件] 获取到集成列表数据:', Array.isArray(result) ? `数组(${result.length}条)` : typeof result);
+        if (Array.isArray(result) && result.length > 0) {
+          console.log('[Mock中间件] 第一条数据样例:', JSON.stringify(result[0]).substring(0, 200) + '...');
+        }
         
-        sendJsonResponse(res, 200, responseData);
+        // 直接返回数组形式的响应
+        const responseData = result;
+        
+        console.log('[Mock中间件] 返回集成列表响应:', 
+          Array.isArray(responseData) ? `数组(${responseData.length}条)` : typeof responseData,
+          '内容示例:', Array.isArray(responseData) && responseData.length > 0 ? 
+          JSON.stringify(responseData[0]).substring(0, 100) : '空数据');
+        
+        // 设置明确的响应头
+        res.setHeader('Content-Type', 'application/json');
+        res.statusCode = 200;
+        
+        // 转为JSON字符串并发送
+        const jsonStr = JSON.stringify(responseData);
+        console.log('[Mock中间件] 发送JSON响应:', jsonStr.substring(0, 200) + (jsonStr.length > 200 ? '...' : ''));
+        res.end(jsonStr);
       } catch (error) {
-        sendJsonResponse(res, 500, { 
+        console.error('[Mock中间件] 获取集成列表失败:', error);
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ 
           error: '获取集成列表失败',
           message: error instanceof Error ? error.message : String(error),
           success: false
-        });
+        }));
       }
       return true;
     }

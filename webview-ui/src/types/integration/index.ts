@@ -2,6 +2,9 @@
  * 集成类型定义
  */
 
+// 集成状态
+export type IntegrationStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+
 // 表单组件类型
 export enum FormComponentType {
   INPUT = 'input',
@@ -124,26 +127,39 @@ export enum ChartType {
   PIE = 'pie'
 }
 
+// 图表主题
+export enum ChartTheme {
+  DEFAULT = 'default',
+  LIGHT = 'light',
+  DARK = 'dark'
+}
+
 // 图表配置
 export interface ChartConfig {
   type: ChartType;
   title?: string;
-  xAxis?: {
-    field: string;
-    label: string;
+  theme?: ChartTheme;
+  dataMapping: {
+    xField: string;
+    yField: string;
+    seriesField?: string;
+    valueField?: string;
   };
-  yAxis?: {
-    field: string;
-    label: string;
+  height?: number;
+  showLegend?: boolean;
+  animation?: boolean;
+  styleOptions?: {
+    colors?: string[];
+    backgroundColor?: string;
+    fontFamily?: string;
+    borderRadius?: number;
+    padding?: number | number[];
   };
-  series: {
-    name: string;
-    field: string;
-    type: string;
-  }[];
-  legend?: {
-    show: boolean;
-    position: string;
+  interactions?: {
+    enableZoom?: boolean;
+    enablePan?: boolean;
+    enableSelect?: boolean;
+    tooltipMode?: 'single' | 'multiple';
   };
 }
 

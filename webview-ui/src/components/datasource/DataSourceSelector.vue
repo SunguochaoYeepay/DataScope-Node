@@ -42,6 +42,7 @@ const props = defineProps({
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'selected', id: string, dataSource: DataSource): void
+  (e: 'change', id: string | undefined): void
 }>()
 
 // 组件状态
@@ -102,7 +103,9 @@ const loadDataSources = async () => {
   console.log('[DataSourceSelector] 开始加载数据源列表...');
   
   try {
-    const result = await dataSourceService.getDataSources({ status: 'ACTIVE' });
+    const result = await dataSourceService.getDataSources({ status: 'active' });
+    
+    console.log('[DataSourceSelector] 数据源服务返回结果:', result);
     
     if (result) {
       const oldLength = dataSources.value.length;
@@ -124,6 +127,11 @@ const loadDataSources = async () => {
       }));
       
       console.log(`[DataSourceSelector] 成功加载${dataSources.value.length}个数据源(原${oldLength}个)`);
+      
+      // 打印完整的数据源列表，帮助调试
+      dataSources.value.forEach((ds, index) => {
+        console.log(`[DataSourceSelector] 数据源[${index}]: ID=${ds.id}, 名称=${ds.name}, 类型=${ds.type}, 状态=${ds.status}`);
+      });
       
       // 如果有指定数据源类型，过滤并记录日志
       if (props.dataSourceType) {
@@ -154,10 +162,26 @@ const refreshDataSources = async () => {
 };
 
 // 数据源选择变更处理
-const handleDataSourceChange = (event: Event) => {
-  const target = event.target as HTMLSelectElement
-  selectedDataSourceId.value = target.value
-}
+const handleDataSourceChange = (dataSourceId: string | number | undefined) => {
+  console.log('[DataSourceSelector] 数据源变更:', dataSourceId);
+  
+  if (dataSourceId) {
+    const dsId = String(dataSourceId); // 确保ID是字符串类型
+    const selectedDs = dataSources.value.find(item => item.id === dsId);
+    
+    if (selectedDs) {
+      console.log('[DataSourceSelector] 选中数据源:', selectedDs);
+      emit('change', dsId);
+      selectedDataSourceId.value = dsId;
+    } else {
+      console.warn(`[DataSourceSelector] 无法找到ID为${dsId}的数据源`);
+    }
+  } else {
+    console.log('[DataSourceSelector] 清除数据源选择');
+    emit('change', undefined);
+    selectedDataSourceId.value = undefined;
+  }
+};
 
 // 添加下拉状态
 const isDropdownOpen = ref(false);

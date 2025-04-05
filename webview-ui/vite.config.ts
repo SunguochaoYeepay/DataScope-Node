@@ -72,7 +72,7 @@ function createMockApi() {
     delay: 300,
     apiBasePath: '/api',
     logLevel: 'debug',
-    enabledModules: ['datasources', 'queries', 'users', 'visualizations']
+    enabledModules: ['datasources', 'queries', 'users', 'visualizations', 'integrations', 'low-code']
   };
   
   if (isMockEnabled) {
@@ -192,7 +192,7 @@ export default defineConfig(({ mode }) => {
       force: true,
     },
     // 使用单独的缓存目录
-    cacheDir: 'node_modules/.vite_cache',
+    cacheDir: '.temp/vite_cache',
     // 防止堆栈溢出
     esbuild: {
       logOverride: {

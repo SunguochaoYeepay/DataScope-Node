@@ -85,11 +85,36 @@ onMounted(async () => {
 
 // 获取集成列表
 const fetchIntegrations = async () => {
+  loading.value = true;
+  
   try {
-    await integrationStore.fetchIntegrations();
+    const result = await integrationStore.fetchIntegrations();
+    
+    // 检查是否有数据
+    if (result && result.length > 0) {
+      // 有数据，但检查是否有错误
+      if (integrationStore.error) {
+        console.warn('获取集成列表部分成功，有数据但存在错误:', integrationStore.error);
+        // 显示警告而不是错误，因为我们至少有一些数据
+        message.warning(`获取集成列表部分成功: ${integrationStore.error}`);
+      } else {
+        console.log('获取集成列表成功，获取到', result.length, '条数据');
+      }
+    } else {
+      // 没有数据，检查是否有错误
+      if (integrationStore.error) {
+        console.error('获取集成列表失败:', integrationStore.error);
+        message.error(`获取集成列表失败: ${integrationStore.error}`);
+      } else {
+        console.log('获取集成列表成功，但没有数据');
+        message.info('暂无集成数据');
+      }
+    }
   } catch (error) {
-    console.error('获取集成列表失败', error);
-    message.error('获取集成列表失败');
+    console.error('获取集成列表时发生异常', error);
+    message.error(`获取集成列表失败: ${error instanceof Error ? error.message : '未知错误'}`);
+  } finally {
+    loading.value = false;
   }
 };
 
