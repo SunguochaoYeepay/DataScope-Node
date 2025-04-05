@@ -30,15 +30,15 @@ interface TableDataPreviewResult {
 }
 
 // 检查是否启用mock模式
-const USE_MOCK = false; // 强制禁用模拟数据
+const USE_MOCK = true; // 强制启用模拟数据
 console.log('数据源服务 - Mock模式:', USE_MOCK ? '已启用' : '已禁用')
 
 // API 基础路径 - 获取基础URL，不要重复添加/api
 // 直接使用实际的API地址
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:8080/api';
 
 // 元数据API基础路径
-const METADATA_API_BASE_URL = 'http://localhost:5000/api/metadata';
+const METADATA_API_BASE_URL = 'http://localhost:8080/api/metadata';
 
 // 检查当前环境，配置开发环境下的API基地址
 if (import.meta.env.DEV) {
@@ -305,7 +305,7 @@ export const dataSourceService = {
         return mockDataSource;
       }
       
-      const response = await fetch(`${API_BASE_URL}/${id}`)
+      const response = await fetch(`${API_BASE_URL}/datasources/${id}`)
       if (!response.ok) {
         throw new Error(`获取数据源详情失败: ${response.statusText}`)
       }
@@ -364,7 +364,7 @@ export const dataSourceService = {
         connectionParams: data.connectionParams || {} // 使用统一的字段名
       }
       
-      const response = await fetch(`${API_BASE_URL}`, {
+      const response = await fetch(`${API_BASE_URL}/datasources`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -427,7 +427,7 @@ export const dataSourceService = {
         connectionParams: params.connectionParams || {}
       }
       
-      const response = await fetch(`${API_BASE_URL}/${params.id}`, {
+      const response = await fetch(`${API_BASE_URL}/datasources/${params.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -469,7 +469,7 @@ export const dataSourceService = {
         return;
       }
       
-      const response = await fetch(`${API_BASE_URL}/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/datasources/${id}`, {
         method: 'DELETE'
       })
       
@@ -516,7 +516,7 @@ export const dataSourceService = {
         connectionParams: params.connectionParams || {}
       };
       
-      const response = await fetch(`${API_BASE_URL}/test`, {
+      const response = await fetch(`${API_BASE_URL}/datasources/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1089,7 +1089,7 @@ export const dataSourceService = {
   // 获取数据源统计信息
   async getDataSourceStats(id: string): Promise<DataSourceStats> {
     try {
-      const response = await fetch(`${API_BASE_URL}/${id}/stats`)
+      const response = await fetch(`${API_BASE_URL}/datasources/${id}/stats`)
       
       if (!response.ok) {
         throw new Error(`获取数据源统计信息失败: ${response.statusText}`)
@@ -1186,7 +1186,7 @@ export const dataSourceService = {
       }
       
       // 使用API文档中的正确路径：/datasources/{id}/test
-      const response = await fetch(`${API_BASE_URL}/${id}/test`, {
+      const response = await fetch(`${API_BASE_URL}/datasources/${id}/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -10,12 +10,8 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { parse } from 'url';
 import { mockConfig, shouldMockRequest, logMock } from '../config';
 
-// 模拟数据源列表
-const MOCK_DATASOURCES = [
-  { id: 1, name: '数据源1', type: 'mysql', host: 'localhost', port: 3306, username: 'root', database: 'test_db1', status: 'active' },
-  { id: 2, name: '数据源2', type: 'postgres', host: 'db.example.com', port: 5432, username: 'admin', database: 'test_db2', status: 'active' },
-  { id: 3, name: '数据源3', type: 'mongodb', host: '192.168.1.100', port: 27017, username: 'mongodb', database: 'test_db3', status: 'inactive' }
-];
+// 导入服务
+import { dataSourceService } from '../services';
 
 // 模拟查询列表
 const MOCK_QUERIES = [
@@ -44,35 +40,166 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// 解析请求体
+async function parseRequestBody(req: IncomingMessage): Promise<any> {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        resolve({});
+      }
+    });
+  });
+}
+
 // 处理数据源API
-function handleDatasourcesApi(req: IncomingMessage, res: ServerResponse, urlPath: string): boolean {
+async function handleDatasourcesApi(req: IncomingMessage, res: ServerResponse, urlPath: string, urlQuery: any): Promise<boolean> {
   const method = req.method?.toUpperCase();
   
+  // 获取数据源列表
   if (urlPath === '/api/datasources' && method === 'GET') {
     logMock('debug', `处理GET请求: /api/datasources`);
-    sendJsonResponse(res, 200, { 
-      data: MOCK_DATASOURCES, 
-      total: MOCK_DATASOURCES.length,
-      success: true
-    });
+    
+    try {
+      // 使用服务层获取数据源列表，支持分页和过滤
+      const result = await dataSourceService.getDataSources({
+        page: parseInt(urlQuery.page as string) || 1,
+        size: parseInt(urlQuery.size as string) || 10,
+        name: urlQuery.name as string,
+        type: urlQuery.type as string,
+        status: urlQuery.status as string
+      });
+      
+      sendJsonResponse(res, 200, { 
+        data: result.items, 
+        pagination: result.pagination,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 500, { 
+        error: '获取数据源列表失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
     return true;
   }
   
-  if (urlPath.match(/^\/api\/datasources\/\d+$/) && method === 'GET') {
-    const id = parseInt(urlPath.split('/').pop() || '0');
-    const datasource = MOCK_DATASOURCES.find(d => d.id === id);
+  // 获取单个数据源
+  if (urlPath.match(/^\/api\/datasources\/[^\/]+$/) && method === 'GET') {
+    const id = urlPath.split('/').pop() || '';
     
     logMock('debug', `处理GET请求: ${urlPath}, ID: ${id}`);
     
-    if (datasource) {
+    try {
+      const datasource = await dataSourceService.getDataSource(id);
       sendJsonResponse(res, 200, { 
         data: datasource,
         success: true
       });
-    } else {
+    } catch (error) {
       sendJsonResponse(res, 404, { 
         error: '数据源不存在',
+        message: error instanceof Error ? error.message : String(error),
         success: false 
+      });
+    }
+    return true;
+  }
+  
+  // 创建数据源
+  if (urlPath === '/api/datasources' && method === 'POST') {
+    logMock('debug', `处理POST请求: /api/datasources`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const newDataSource = await dataSourceService.createDataSource(body);
+      
+      sendJsonResponse(res, 201, {
+        data: newDataSource,
+        message: '数据源创建成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '创建数据源失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 更新数据源
+  if (urlPath.match(/^\/api\/datasources\/[^\/]+$/) && method === 'PUT') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理PUT请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const updatedDataSource = await dataSourceService.updateDataSource(id, body);
+      
+      sendJsonResponse(res, 200, {
+        data: updatedDataSource,
+        message: '数据源更新成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '更新数据源失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 删除数据源
+  if (urlPath.match(/^\/api\/datasources\/[^\/]+$/) && method === 'DELETE') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理DELETE请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      await dataSourceService.deleteDataSource(id);
+      
+      sendJsonResponse(res, 200, {
+        message: '数据源删除成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '删除数据源失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 测试数据源连接
+  if (urlPath === '/api/datasources/test-connection' && method === 'POST') {
+    logMock('debug', `处理POST请求: /api/datasources/test-connection`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const result = await dataSourceService.testConnection(body);
+      
+      sendJsonResponse(res, 200, {
+        data: result,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '测试连接失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
       });
     }
     return true;
@@ -166,6 +293,7 @@ export default function createMockMiddleware(): Connect.NextHandleFunction {
       const url = req.url || '';
       const parsedUrl = parse(url, true);
       const urlPath = parsedUrl.pathname || '';
+      const urlQuery = parsedUrl.query || {};
       
       // 检查是否应该处理此请求
       if (!shouldMockRequest(url)) {
@@ -194,7 +322,7 @@ export default function createMockMiddleware(): Connect.NextHandleFunction {
       let handled = false;
       
       // 按顺序尝试不同的API处理器
-      if (!handled) handled = handleDatasourcesApi(req, res, urlPath);
+      if (!handled) handled = await handleDatasourcesApi(req, res, urlPath, urlQuery);
       if (!handled) handled = handleQueriesApi(req, res, urlPath);
       
       // 如果没有处理，返回404

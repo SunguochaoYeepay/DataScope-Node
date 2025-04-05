@@ -2,6 +2,7 @@
  * 备份文件 - 此Mock服务已被禁用，使用src/mock替代
  * 
  * 此文件保留作为参考，但为避免与主Mock服务冲突，已完全禁用
+ * 警告：此文件中的所有功能已被迁移到新的Mock框架中，请不要使用此文件的实现
  */
 
 import { mockQueries, mockDataSources } from './mockData';
@@ -249,153 +250,65 @@ export function createMockServerMiddleware(): Connect.NextHandleFunction {
               if (requestBody) {
                 const data = JSON.parse(requestBody);
                 filters = data.filters || {};
-                console.log('[Server Mock] 同步元数据过滤器:', filters);
               }
             } catch (e) {
-              console.error('[Server Mock] 解析同步参数失败:', e);
+              console.error('[Server Mock] 解析请求体失败:', e);
             }
             
-            // 返回同步结果
+            // 返回同步作业状态
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ 
               success: true, 
               data: {
-                success: true,
-                syncId: `sync-${Date.now()}`,
+                jobId: `sync-job-${Date.now()}`,
                 dataSourceId: dataSource.id,
-                startTime: new Date().toISOString(),
-                endTime: new Date(Date.now() + 5000).toISOString(),
-                tablesCount: Math.floor(Math.random() * 20) + 5,
-                viewsCount: Math.floor(Math.random() * 10) + 1,
-                syncDuration: Math.floor(Math.random() * 5000) + 1000,
-                status: 'completed',
-                message: '同步完成',
-                errors: []
+                status: 'running',
+                createdAt: new Date().toISOString(),
+                filters: filters,
+                progress: {
+                  total: 100,
+                  current: 0,
+                  message: '开始同步元数据'
+                }
               }
             }));
           });
           return;
         }
         
-        // 添加数据源统计信息端点: GET /api/datasources/{id}/stats
-        const statsMatch = req.url.match(/\/api\/datasources\/([^\/\?]+)\/stats/);
-        if (statsMatch && method === 'GET') {
-          const dataSourceId = statsMatch[1];
-          console.log('[Server Mock] 获取数据源统计信息:', dataSourceId);
-          
-          // 查找数据源
-          const dataSource = mockDataSources.find(ds => ds.id === dataSourceId);
-          
-          if (!dataSource) {
-            res.statusCode = 404;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ 
-              success: false, 
-              error: {
-                statusCode: 404,
-                message: `未找到ID为${dataSourceId}的数据源`,
-                code: 'NOT_FOUND',
-                details: null
-              }
-            }));
-            return;
-          }
-          
-          // 返回统计信息
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ 
-            success: true, 
-            data: {
-              dataSourceId: dataSource.id,
-              tablesCount: Math.floor(Math.random() * 50) + 5,
-              viewsCount: Math.floor(Math.random() * 10) + 1,
-              totalRows: Math.floor(Math.random() * 1000000) + 1000,
-              totalSize: `${(Math.random() * 100 + 10).toFixed(2)} MB`,
-              lastUpdate: new Date().toISOString(),
-              queriesCount: Math.floor(Math.random() * 500) + 10,
-              connectionPoolSize: Math.floor(Math.random() * 10) + 5,
-              activeConnections: Math.floor(Math.random() * 5) + 1,
-              avgQueryTime: `${(Math.random() * 100 + 10).toFixed(2)}ms`,
-              totalTables: Math.floor(Math.random() * 50) + 5,
-              totalViews: Math.floor(Math.random() * 10) + 1,
-              totalQueries: Math.floor(Math.random() * 500) + 10,
-              avgResponseTime: Math.floor(Math.random() * 100) + 10,
-              peakConnections: Math.floor(Math.random() * 20) + 5
-            }
-          }));
-          return;
-        }
-        
-        // 执行查询: POST /api/queries/{id}/execute
-        const executeQueryMatch = req.url.match(/\/api\/queries\/([^\/\?]+)\/execute/);
-        if (executeQueryMatch && method === 'POST') {
-          const queryId = executeQueryMatch[1];
-          console.log('[Server Mock] 执行查询:', queryId);
-          
-          // 返回模拟查询结果
-          const mockResult = {
-            id: `result-${Date.now()}`,
-            queryId: queryId,
-            status: 'COMPLETED',
-            executionTime: 253,
-            createdAt: new Date().toISOString(),
-            rowCount: 20,
-            columns: ['id', 'name', 'email', 'age', 'status', 'created_at'],
-            fields: [
-              { name: 'id', type: 'integer', displayName: 'ID' },
-              { name: 'name', type: 'string', displayName: '名称' },
-              { name: 'email', type: 'string', displayName: '邮箱' },
-              { name: 'age', type: 'integer', displayName: '年龄' },
-              { name: 'status', type: 'string', displayName: '状态' },
-              { name: 'created_at', type: 'timestamp', displayName: '创建时间' }
-            ],
-            rows: Array.from({ length: 20 }, (_, i) => ({
-              id: i + 1,
-              name: `测试用户 ${i + 1}`,
-              email: `user${i + 1}@example.com`,
-              age: Math.floor(Math.random() * 50) + 18,
-              status: i % 3 === 0 ? 'active' : (i % 3 === 1 ? 'pending' : 'inactive'),
-              created_at: new Date(Date.now() - i * 86400000).toISOString()
-            }))
-          };
-          
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ success: true, data: mockResult }));
-          return;
-        }
-        
-        // 其他API请求返回通用成功响应
-        console.log(`[Server Mock] 通用处理: ${req.url}`);
-        res.statusCode = 200;
+        // 如果没有匹配任何端点，返回404
+        console.warn(`[Server Mock] 未实现的API端点: ${req.url}`);
+        res.statusCode = 404;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ 
-          success: true, 
-          data: { message: `API请求处理成功: ${req.url}` }
+          success: false, 
+          error: {
+            statusCode: 404,
+            message: `未实现的API端点: ${req.url}`,
+            code: 'NOT_IMPLEMENTED',
+            details: null
+          }
         }));
-        
       } catch (error) {
-        // 处理任何可能发生的错误
-        console.error('[Server Mock] 处理API请求时出错:', error);
-        console.error('[Server Mock] 错误堆栈:', error instanceof Error ? error.stack : 'No stack trace');
+        // 处理服务器错误
+        console.error('[Server Mock] 处理请求出错:', error);
         res.statusCode = 500;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ 
           success: false, 
           error: {
             statusCode: 500,
-            code: 'INTERNAL_ERROR',
-            message: `处理API请求时发生内部错误: ${error instanceof Error ? error.message : String(error)}`,
-            details: error instanceof Error ? error.stack : undefined
+            message: '服务器内部错误',
+            code: 'INTERNAL_SERVER_ERROR',
+            details: error instanceof Error ? error.message : String(error)
           }
         }));
       }
       return;
     }
     
-    // 不是API请求，交给下一个中间件处理
+    // 对于非API请求，传递给下一个中间件
     next();
   };
 }
