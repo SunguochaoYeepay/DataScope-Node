@@ -206,8 +206,8 @@ export const dataSourceService = {
    */
   getMockDataSources(params?: QueryParams<DataSourcePagination>): DataSourcesResponse {
     console.log('[Mock] 获取模拟数据源列表，参数：', params);
-    // 过滤数据
-    let filteredData = [...mockDataSources];
+    // 过滤数据 - 确保安全地使用mockDataSources
+    let filteredData = Array.isArray(mockDataSources) ? [...mockDataSources] : [];
     
     if (params?.name) {
       filteredData = filteredData.filter((item) => 

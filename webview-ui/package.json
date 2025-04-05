@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/kill-port.cjs 8080 && cross-env VITE_USE_MOCK_API=true vite --port 8080 --strictPort --clearScreen=false",
+    "dev:api": "node scripts/kill-port.cjs 8080 && cross-env VITE_USE_MOCK_API=false vite --port 8080 --strictPort --clearScreen=false",
     "dev:fixed": "node scripts/kill-port.cjs 8080 && cross-env VITE_USE_MOCK_API=true vite --port 8080 --strictPort --clearScreen=false",
     "dev:network": "node scripts/kill-port.cjs 8080 && cross-env VITE_USE_MOCK_API=true vite --host 0.0.0.0 --port 8080 --strictPort --clearScreen=false",
     "dev:no-hmr": "node scripts/kill-port.cjs 8080 && cross-env VITE_DISABLE_HMR=true cross-env VITE_USE_MOCK_API=true vite --port 8080 --strictPort --clearScreen=false",

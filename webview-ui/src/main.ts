@@ -34,6 +34,9 @@ import './plugins/echarts'
 // 引入消息服务插件
 import { installMessageService } from './services/message'
 
+// 导入修复文件 (会根据环境变量自动处理)
+import './mockDataSources-fix';
+
 // 初始化查询模板
 initQueryTemplates()
 
