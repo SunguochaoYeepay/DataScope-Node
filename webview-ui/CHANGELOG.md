@@ -40,6 +40,12 @@
 - 提供了清晰的文档说明，便于团队成员理解Mock服务的使用方法
 - 定义了模块化的目录结构，将数据、服务、拦截器和中间件分离
 - 创建了模板文件，便于后续实现具体的模拟服务
+- 清理了旧的Mock服务文件，完成了Mock服务的统一迁移
+  - 删除了`src/plugins/serverMock.ts`已废弃的Mock服务
+  - 删除了`src/plugins/mockData.ts`旧的模拟数据文件
+  - 删除了`src/services/fetch-interceptor.ts`旧的拦截器实现
+  - 删除了`src/services/mock-query.ts`和`src/services/mockData.ts`独立的模拟逻辑文件
+  - 统一使用`src/mock`目录下的新Mock服务架构
 
 ### 更新
 - 禁用了前端模拟服务器，确保前端使用真实后端数据
