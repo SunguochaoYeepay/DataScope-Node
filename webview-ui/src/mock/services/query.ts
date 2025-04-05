@@ -194,6 +194,52 @@ const queryService = {
   },
   
   /**
+   * 获取收藏的查询列表
+   */
+  async getFavoriteQueries(params?: any): Promise<any> {
+    await simulateDelay();
+    
+    const page = params?.page || 1;
+    const size = params?.size || 10;
+    
+    // 过滤出收藏的查询
+    let favoriteQueries = mockQueries.filter(q => q.isFavorite === true);
+    
+    // 应用其他过滤条件
+    if (params?.name || params?.search) {
+      const keyword = (params.name || params.search || '').toLowerCase();
+      favoriteQueries = favoriteQueries.filter(q => 
+        q.name.toLowerCase().includes(keyword) || 
+        (q.description && q.description.toLowerCase().includes(keyword))
+      );
+    }
+    
+    if (params?.dataSourceId) {
+      favoriteQueries = favoriteQueries.filter(q => q.dataSourceId === params.dataSourceId);
+    }
+    
+    if (params?.status) {
+      favoriteQueries = favoriteQueries.filter(q => q.status === params.status);
+    }
+    
+    // 应用分页
+    const start = (page - 1) * size;
+    const end = Math.min(start + size, favoriteQueries.length);
+    const paginatedItems = favoriteQueries.slice(start, end);
+    
+    // 返回分页结果
+    return {
+      items: paginatedItems,
+      pagination: {
+        total: favoriteQueries.length,
+        page,
+        size,
+        totalPages: Math.ceil(favoriteQueries.length / size)
+      }
+    };
+  },
+  
+  /**
    * 获取单个查询
    */
   async getQuery(id: string): Promise<any> {

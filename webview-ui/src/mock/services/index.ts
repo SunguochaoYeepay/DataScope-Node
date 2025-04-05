@@ -8,6 +8,8 @@
 import dataSource from './datasource';
 // 导入完整的查询服务实现
 import queryServiceImplementation from './query';
+// 导入集成服务
+import integrationServiceImplementation from './integration';
 
 // 导入工具函数
 import { 
@@ -114,7 +116,8 @@ const query = {
  */
 const services = {
   dataSource,
-  query: queryServiceImplementation
+  query: queryServiceImplementation,
+  integration: integrationServiceImplementation
 };
 
 // 导出mock service工具
@@ -128,6 +131,7 @@ export {
 // 导出各个服务
 export const dataSourceService = services.dataSource;
 export const queryService = services.query;
+export const integrationService = services.integration;
 
 // 默认导出所有服务
 export default services; 

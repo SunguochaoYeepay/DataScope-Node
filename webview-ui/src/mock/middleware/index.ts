@@ -12,6 +12,7 @@ import { mockConfig, shouldMockRequest, logMock } from '../config';
 
 // 导入服务
 import { dataSourceService, queryService } from '../services';
+import integrationService from '../services/integration';
 
 // 处理CORS请求
 function handleCors(res: ServerResponse) {
@@ -251,6 +252,42 @@ async function handleQueriesApi(req: IncomingMessage, res: ServerResponse, urlPa
     return true;
   }
   
+  // 获取收藏查询列表
+  if (urlPath === '/api/queries/favorites' && method === 'GET') {
+    logMock('debug', `处理GET请求: /api/queries/favorites`);
+    console.log('[Mock] 处理收藏查询列表请求, 参数:', urlQuery);
+    
+    try {
+      // 使用服务层获取收藏查询列表
+      const result = await queryService.getFavoriteQueries({
+        page: parseInt(urlQuery.page as string) || 1,
+        size: parseInt(urlQuery.size as string) || 10,
+        name: urlQuery.name as string || urlQuery.search as string,
+        dataSourceId: urlQuery.dataSourceId as string,
+        status: urlQuery.status as string
+      });
+      
+      console.log('[Mock] 收藏查询列表结果:', {
+        itemsCount: result.items.length,
+        pagination: result.pagination
+      });
+      
+      sendJsonResponse(res, 200, { 
+        data: result.items, 
+        pagination: result.pagination,
+        success: true
+      });
+    } catch (error) {
+      console.error('[Mock] 获取收藏查询列表失败:', error);
+      sendJsonResponse(res, 500, { 
+        error: '获取收藏查询列表失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
   // 获取单个查询
   if (urlPath.match(/^\/api\/queries\/[^\/]+$/) && method === 'GET') {
     const id = urlPath.split('/').pop() || '';
@@ -448,6 +485,196 @@ async function handleQueriesApi(req: IncomingMessage, res: ServerResponse, urlPa
   return false;
 }
 
+// 处理集成API
+async function handleIntegrationApi(req: IncomingMessage, res: ServerResponse, urlPath: string, urlQuery: any): Promise<boolean> {
+  const method = req.method?.toUpperCase();
+  
+  // 检查URL是否匹配集成API
+  const isIntegrationPath = urlPath.includes('/low-code/apis');
+  
+  // 打印所有集成相关请求以便调试
+  if (isIntegrationPath) {
+    console.log(`[Mock] 检测到集成API请求: ${method} ${urlPath}`, urlQuery);
+  }
+  
+  // 获取集成列表
+  if (urlPath === '/api/low-code/apis' && method === 'GET') {
+    logMock('debug', `处理GET请求: /api/low-code/apis`);
+    
+    try {
+      const result = await integrationService.getIntegrations({
+        page: parseInt(urlQuery.page as string) || 1,
+        size: parseInt(urlQuery.size as string) || 10,
+        name: urlQuery.name as string,
+        type: urlQuery.type as string,
+        status: urlQuery.status as string
+      });
+      
+      sendJsonResponse(res, 200, { 
+        data: result.items, 
+        pagination: result.pagination,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 500, { 
+        error: '获取集成列表失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 获取单个集成
+  if (urlPath.match(/^\/api\/low-code\/apis\/[^\/]+$/) && method === 'GET') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理GET请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const integration = await integrationService.getIntegration(id);
+      sendJsonResponse(res, 200, { 
+        data: integration,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, { 
+        error: '集成不存在',
+        message: error instanceof Error ? error.message : String(error),
+        success: false 
+      });
+    }
+    return true;
+  }
+  
+  // 创建集成
+  if (urlPath === '/api/low-code/apis' && method === 'POST') {
+    logMock('debug', `处理POST请求: /api/low-code/apis`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const newIntegration = await integrationService.createIntegration(body);
+      
+      sendJsonResponse(res, 201, {
+        data: newIntegration,
+        message: '集成创建成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '创建集成失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 更新集成
+  if (urlPath.match(/^\/api\/low-code\/apis\/[^\/]+$/) && method === 'PUT') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理PUT请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const updatedIntegration = await integrationService.updateIntegration(id, body);
+      
+      sendJsonResponse(res, 200, {
+        data: updatedIntegration,
+        message: '集成更新成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '更新集成失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 删除集成
+  if (urlPath.match(/^\/api\/low-code\/apis\/[^\/]+$/) && method === 'DELETE') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理DELETE请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      await integrationService.deleteIntegration(id);
+      
+      sendJsonResponse(res, 200, {
+        message: '集成删除成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '删除集成失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 测试集成 - 修正URL匹配模式
+  if (urlPath.match(/^\/api\/low-code\/apis\/[^\/]+\/test$/) && method === 'POST') {
+    // 从URL中提取集成ID - 修正ID提取方式
+    const segments = urlPath.split('/');
+    const idIndex = segments.findIndex(s => s === 'apis') + 1;
+    const id = idIndex < segments.length ? segments[idIndex] : '';
+    
+    logMock('debug', `处理POST请求: ${urlPath}, 集成ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const result = await integrationService.testIntegration(id, body);
+      
+      sendJsonResponse(res, 200, {
+        data: result,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '测试集成失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 执行集成查询 - 修正URL匹配模式
+  if (urlPath.match(/^\/api\/low-code\/apis\/[^\/]+\/query$/) && method === 'POST') {
+    // 从URL中提取集成ID - 修正ID提取方式
+    const segments = urlPath.split('/');
+    const idIndex = segments.findIndex(s => s === 'apis') + 1;
+    const id = idIndex < segments.length ? segments[idIndex] : '';
+    
+    logMock('debug', `处理POST请求: ${urlPath}, 集成ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const result = await integrationService.executeQuery(id, body);
+      
+      sendJsonResponse(res, 200, {
+        data: result,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '执行查询失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  return false;
+}
+
 // 创建中间件
 export default function createMockMiddleware(): Connect.NextHandleFunction {
   // 如果Mock服务被禁用，返回空中间件
@@ -517,6 +744,7 @@ export default function createMockMiddleware(): Connect.NextHandleFunction {
       // 按顺序尝试不同的API处理器
       if (!handled) handled = await handleDatasourcesApi(req, res, urlPath, urlQuery);
       if (!handled) handled = await handleQueriesApi(req, res, urlPath, urlQuery);
+      if (!handled) handled = await handleIntegrationApi(req, res, urlPath, urlQuery);
       
       // 如果没有处理，返回404
       if (!handled) {
