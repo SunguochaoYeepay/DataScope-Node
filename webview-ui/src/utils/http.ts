@@ -24,10 +24,14 @@ declare global {
 const API_BASE_URL = 'http://localhost:5000/api';
 const USE_MOCK = false; // 强制禁用模拟模式
 
-console.log(`[HTTP] 初始化axios, MOCK模式: ${USE_MOCK}, API基础URL: ${API_BASE_URL}`);
+// 修改为使用环境变量判断mock模式
+// 这样在不同位置使用相同的判断逻辑
+const isMockEnabled = () => import.meta.env.VITE_USE_MOCK_API === 'true';
+
+console.log(`[HTTP] 初始化axios, MOCK模式: ${isMockEnabled() ? '已启用' : '已禁用'}, API基础URL: ${API_BASE_URL}`);
 
 // 如果启用Mock模式，设置axios拦截器（已经强制禁用）
-if (false && USE_MOCK) {
+if (false && isMockEnabled()) {
   // 请求拦截器
   axios.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
@@ -417,7 +421,7 @@ async function handleMockRequest<T>(url: string, options: RequestOptions = {}, d
  */
 async function request<T = any>(url: string, options: RequestOptions = {}): Promise<T> {
   // 如果启用了Mock模式，使用模拟数据
-  if (USE_MOCK) {
+  if (isMockEnabled()) {
     try {
       const response = await handleMockRequest<ApiResponse<T>>(url, options);
       // 使用响应处理器处理响应
@@ -443,8 +447,13 @@ async function request<T = any>(url: string, options: RequestOptions = {}): Prom
     successMessage?: string;
   };
   
-  // 构建完整URL
-  const fullUrl = buildUrl(`${API_BASE_URL}${url}`, params);
+  // 在mock模式下使用相对路径，否则添加API基础URL前缀
+  const isInMockMode = isMockEnabled();
+  const fullUrl = isInMockMode
+    ? buildUrl(url, params)  // Mock模式下使用相对路径 
+    : buildUrl(`${API_BASE_URL}${url}`, params);  // 非Mock模式使用完整路径
+  
+  console.log(`[HTTP] 请求URL: ${fullUrl}, MOCK模式: ${isInMockMode}`);
   
   // 设置默认请求头
   if (!fetchOptions.headers) {
@@ -571,7 +580,7 @@ export const httpClient = {
    */
   post: <T = any>(url: string, data?: any, options: RequestOptions = {}): Promise<T> => {
     // 如果启用了Mock模式，使用模拟数据
-    if (USE_MOCK) {
+    if (isMockEnabled()) {
       return handleMockRequest<T>(url, { ...options, method: 'POST' }, data);
     }
     
@@ -587,7 +596,7 @@ export const httpClient = {
    */
   put: <T = any>(url: string, data?: any, options: RequestOptions = {}): Promise<T> => {
     // 如果启用了Mock模式，使用模拟数据
-    if (USE_MOCK) {
+    if (isMockEnabled()) {
       return handleMockRequest<T>(url, { ...options, method: 'PUT' }, data);
     }
     
@@ -603,7 +612,7 @@ export const httpClient = {
    */
   delete: <T = any>(url: string, options: RequestOptions = {}): Promise<T> => {
     // 如果启用了Mock模式，使用模拟数据
-    if (USE_MOCK) {
+    if (isMockEnabled()) {
       return handleMockRequest<T>(url, { ...options, method: 'DELETE' });
     }
     
@@ -615,7 +624,7 @@ export const httpClient = {
    */
   patch: <T = any>(url: string, data?: any, options: RequestOptions = {}): Promise<T> => {
     // 如果启用了Mock模式，使用模拟数据
-    if (USE_MOCK) {
+    if (isMockEnabled()) {
       return handleMockRequest<T>(url, { ...options, method: 'PATCH' }, data);
     }
     

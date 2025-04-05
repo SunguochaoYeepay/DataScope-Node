@@ -6,6 +6,8 @@
 
 // 导入数据源服务
 import dataSource from './datasource';
+// 导入完整的查询服务实现
+import queryServiceImplementation from './query';
 
 // 导入工具函数
 import { 
@@ -17,6 +19,7 @@ import {
 
 /**
  * 查询服务Mock
+ * @deprecated 使用从 './query' 导入的完整实现代替
  */
 const query = {
   /**
@@ -111,7 +114,7 @@ const query = {
  */
 const services = {
   dataSource,
-  query
+  query: queryServiceImplementation
 };
 
 // 导出mock service工具

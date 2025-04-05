@@ -47,6 +47,11 @@ if (import.meta.env.DEV) {
   (window as any).__API_BASE_PATH = 'http://localhost:5000/api';
 }
 
+// 修改为使用getApiBaseUrl()函数
+// 确保使用与查询服务相同的URL构建方式
+const getDataSourceApiBaseUrl = () => `${getApiBaseUrl()}/api`;
+const getMetadataApiBaseUrl = () => `${getApiBaseUrl()}/api/metadata`;
+
 // 模拟数据源列表
 const mockDataSources: DataSource[] = Array.from({ length: 5 }, (_, i) => ({
   id: `ds-${i+1}`,
@@ -154,7 +159,7 @@ export const dataSourceService = {
         // 应用过滤
         let filteredItems = [...mockDataSources];
         
-        if (params.name) {
+        if (params?.name) {
           const keyword = params.name.toLowerCase();
           filteredItems = filteredItems.filter(ds => 
             ds.name.toLowerCase().includes(keyword) || 
@@ -210,7 +215,7 @@ export const dataSourceService = {
       queryParams.append('size', String(params?.size || 10));
       
       // 直接使用fetch避免http工具的多重封装问题
-      const url = `${API_BASE_URL}/datasources?${queryParams.toString()}`;
+      const url = `${getDataSourceApiBaseUrl()}/datasources?${queryParams.toString()}`;
       console.log('请求数据源列表URL:', url);
       
       const response = await fetch(url);
@@ -305,16 +310,21 @@ export const dataSourceService = {
         return mockDataSource;
       }
       
-      const response = await fetch(`${API_BASE_URL}/datasources/${id}`)
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources/${id}`)
+      
       if (!response.ok) {
-        throw new Error(`获取数据源详情失败: ${response.statusText}`)
+        throw new Error(`获取数据源失败: ${response.statusText}`);
       }
       
-      const data = await handleResponse<any>(response)
-      return adaptDataSource(data)
+      const responseData = await response.json();
+      // 处理响应格式，返回data或整个responseData
+      const data = responseData.success === true ? responseData.data : responseData;
+      
+      // 确保返回正确格式的数据源对象
+      return adaptDataSource(data);
     } catch (error) {
-      console.error(`获取数据源${id}详情错误:`, error)
-      throw error
+      console.error(`获取数据源失败 [${id}]:`, error);
+      throw error;
     }
   },
   
@@ -350,137 +360,112 @@ export const dataSourceService = {
         return newDataSource;
       }
       
-      // 构建符合后端期望的请求体
+      // 处理请求数据
       const requestBody = {
         name: data.name,
-        description: data.description || '',
-        type: data.type.toLowerCase(), // 后端期望小写的类型
+        description: data.description,
+        // 类型使用原始值，后端会处理大小写
+        type: data.type?.toLowerCase(),
         host: data.host,
         port: data.port,
-        database: data.database || data.databaseName, // 优先使用database，其次使用databaseName
+        databaseName: data.databaseName,
         username: data.username,
         password: data.password,
-        syncFrequency: data.syncFrequency,
-        connectionParams: data.connectionParams || {} // 使用统一的字段名
-      }
+        connectionParams: data.connectionParams,
+        // 其他可能的字段
+        syncFrequency: data.syncFrequency || 'manual'
+      };
       
-      const response = await fetch(`${API_BASE_URL}/datasources`, {
+      console.log('创建数据源，发送数据:', requestBody);
+      
+      // 发送请求
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
-      })
+      });
       
       if (!response.ok) {
-        throw new Error(`创建数据源失败: ${response.statusText}`)
+        const errorData = await response.json();
+        throw errorData.error || new Error(`创建数据源失败: ${response.statusText}`);
       }
       
-      const result = await response.json()
-      const responseData = result.data || result
+      const responseData = await response.json();
+      console.log('创建数据源响应:', responseData);
       
-      return adaptDataSource(responseData)
+      // 提取数据，适配格式
+      const dataSource = responseData.success === true ? responseData.data : responseData;
+      
+      return adaptDataSource(dataSource);
     } catch (error) {
-      console.error('创建数据源错误:', error)
-      throw error
+      console.error('创建数据源失败:', error);
+      throw error;
     }
   },
   
   // 更新数据源
   async updateDataSource(params: UpdateDataSourceParams): Promise<DataSource> {
     try {
-      // 如果启用了Mock模式，返回模拟数据
-      if (USE_MOCK) {
-        console.log('更新模拟数据源:', params);
-        
-        // 查找要更新的数据源
-        const index = mockDataSources.findIndex(ds => ds.id === params.id);
-        
-        if (index === -1) {
-          throw new Error(`未找到ID为${params.id}的数据源`);
-        }
-        
-        // 更新数据源
-        const updatedDataSource = {
-          ...mockDataSources[index],
-          ...params,
-          updatedAt: new Date().toISOString()
-        };
-        
-        // 替换原有数据源
-        mockDataSources[index] = updatedDataSource;
-        
-        return updatedDataSource;
+      // 确保ID存在
+      if (!params.id) {
+        throw new Error('更新数据源需要提供ID');
       }
-      
-      // 构建符合后端期望的请求体
-      const requestBody: any = {
-        id: params.id,
+
+      // 构建请求体
+      const requestBody = {
         name: params.name,
         description: params.description,
         host: params.host,
         port: params.port,
         database: params.database || params.databaseName,
         username: params.username,
-        ...(params.password && { password: params.password }),
+        // 只有在提供密码时才包含密码字段
+        ...(params.password ? { password: params.password } : {}),
         syncFrequency: params.syncFrequency,
         connectionParams: params.connectionParams || {}
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/datasources/${params.id}`, {
+      };
+
+      // 发送请求
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources/${params.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
-      })
-      
+      });
+
       if (!response.ok) {
-        throw new Error(`更新数据源失败: ${response.statusText}`)
+        throw new Error(`更新数据源失败: ${response.statusText}`);
       }
-      
-      const result = await response.json()
-      const data = result.data || result
-      
-      return adaptDataSource(data)
+
+      const result = await response.json();
+      const responseData = result.data || result;
+
+      return adaptDataSource(responseData);
     } catch (error) {
-      console.error(`更新数据源${params.id}错误:`, error)
-      throw error
+      console.error('更新数据源错误:', error);
+      throw error;
     }
   },
   
   // 删除数据源
   async deleteDataSource(id: string): Promise<void> {
     try {
-      // 如果启用了Mock模式
-      if (USE_MOCK) {
-        console.log('删除模拟数据源, id:', id);
-        
-        // 查找要删除的数据源索引
-        const index = mockDataSources.findIndex(ds => ds.id === id);
-        
-        if (index === -1) {
-          throw new Error(`未找到ID为${id}的数据源`);
-        }
-        
-        // 从模拟列表中删除
-        mockDataSources.splice(index, 1);
-        
-        return;
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/datasources/${id}`, {
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources/${id}`, {
         method: 'DELETE'
-      })
-      
+      });
+
       if (!response.ok) {
-        throw new Error(`删除数据源失败: ${response.statusText}`)
+        throw new Error(`删除数据源失败: ${response.statusText}`);
       }
-      
-      await handleResponse<void>(response)
+
+      // 返回成功响应
+      return;
     } catch (error) {
-      console.error(`删除数据源${id}错误:`, error)
-      throw error
+      console.error(`删除数据源错误 [${id}]:`, error);
+      throw error;
     }
   },
   
@@ -507,22 +492,18 @@ export const dataSourceService = {
       
       // 构建请求体
       const requestBody = {
-        type: params.type,
-        host: params.host,
-        port: params.port,
-        database: params.databaseName || params.database,
-        username: params.username,
-        password: params.password || '',
-        connectionParams: params.connectionParams || {}
+        ...params,
+        type: params.type?.toLowerCase()
       };
       
-      const response = await fetch(`${API_BASE_URL}/datasources/test`, {
+      // 发送请求
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources/test`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody),
-      })
+        body: JSON.stringify(requestBody)
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -609,7 +590,7 @@ export const dataSourceService = {
       // 之前: ${METADATA_API_BASE_URL}/datasources/${params.id}/sync
       // METADATA_API_BASE_URL已经是 /metadata
       // 新的路径应该是 /metadata/datasources/${params.id}/sync
-      const url = `${METADATA_API_BASE_URL}/datasources/${params.id}/sync`;
+      const url = `${getMetadataApiBaseUrl()}/datasources/${params.id}/sync`;
       console.log('同步元数据请求URL:', url);
       
       const response = await http.post(url, syncParams);
@@ -710,8 +691,8 @@ export const dataSourceService = {
       // 之前: ${METADATA_API_BASE_URL}/${dataSourceId}/tables/...
       // 正确格式应该是: ${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/...
       const url = tableName 
-        ? `${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}`
-        : `${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables`;
+        ? `${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/tables/${tableName}`
+        : `${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/tables`;
 
       console.log(`获取表元数据URL: ${url}`);
       const response = await fetch(url);
@@ -807,7 +788,7 @@ export const dataSourceService = {
       // 修复: 确保正确的URL路径格式
       // 之前: ${METADATA_API_BASE_URL}/${dataSourceId}/tables/${tableName}/columns
       // 正确格式应该是: ${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}/columns
-      const url = `${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}/columns`;
+      const url = `${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/tables/${tableName}/columns`;
       console.log(`获取列信息URL: ${url}`);
       
       const response = await fetch(url);
@@ -838,7 +819,7 @@ export const dataSourceService = {
   async getTableRelationships(dataSourceId: string): Promise<TableRelationship[]> {
     try {
       // 构建查询参数获取表关系，根据新API格式
-      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/relationships`)
+      const response = await fetch(`${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/relationships`)
       
       if (!response.ok) {
         throw new Error(`获取表关系失败: ${response.statusText}`)
@@ -941,7 +922,7 @@ export const dataSourceService = {
       }
       
       // 使用新的API路径格式
-      const url = `/api/metadata/datasources/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
+      const url = `${getDataSourceApiBaseUrl()}/datasources/${dataSourceId}/tables/${tableName}/data?${queryParams.toString()}`;
       console.log('获取表数据预览, URL:', url);
       
       const response = await fetch(url);
@@ -1053,7 +1034,7 @@ export const dataSourceService = {
       queryParams.append('limit', limit.toString())
       
       // 使用新的预览API路径
-      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/tables/${tableName}/preview?${queryParams.toString()}`)
+      const response = await fetch(`${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/tables/${tableName}/preview?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`获取表预览数据失败: ${response.statusText}`)
@@ -1073,7 +1054,7 @@ export const dataSourceService = {
       queryParams.append('keyword', keyword)
       
       // 使用新的搜索API路径
-      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/search?${queryParams.toString()}`)
+      const response = await fetch(`${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/search?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`搜索元数据失败: ${response.statusText}`)
@@ -1089,7 +1070,7 @@ export const dataSourceService = {
   // 获取数据源统计信息
   async getDataSourceStats(id: string): Promise<DataSourceStats> {
     try {
-      const response = await fetch(`${API_BASE_URL}/datasources/${id}/stats`)
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources/${id}/stats`)
       
       if (!response.ok) {
         throw new Error(`获取数据源统计信息失败: ${response.statusText}`)
@@ -1124,7 +1105,7 @@ export const dataSourceService = {
   // 新增: 获取同步历史记录
   async getSyncHistory(dataSourceId: string): Promise<any[]> {
     try {
-      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/sync-history`)
+      const response = await fetch(`${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/sync-history`)
       
       if (!response.ok) {
         throw new Error(`获取同步历史失败: ${response.statusText}`)
@@ -1147,7 +1128,7 @@ export const dataSourceService = {
         queryParams.append('columns', columnNames.join(','))
       }
       
-      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/${dataSourceId}/columns/analyze?${queryParams.toString()}`)
+      const response = await fetch(`${getMetadataApiBaseUrl()}/datasources/${dataSourceId}/columns/analyze?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`分析列详情失败: ${response.statusText}`)
@@ -1186,7 +1167,7 @@ export const dataSourceService = {
       }
       
       // 使用API文档中的正确路径：/datasources/{id}/test
-      const response = await fetch(`${API_BASE_URL}/datasources/${id}/test`, {
+      const response = await fetch(`${getDataSourceApiBaseUrl()}/datasources/${id}/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1264,7 +1245,7 @@ export const dataSourceService = {
       }
       
       // 发送请求
-      const response = await fetch(`${METADATA_API_BASE_URL}/datasources/search?${queryParams.toString()}`);
+      const response = await fetch(`${getMetadataApiBaseUrl()}/datasources/search?${queryParams.toString()}`);
       
       if (!response.ok) {
         throw new Error(`高级搜索失败: ${response.statusText}`);

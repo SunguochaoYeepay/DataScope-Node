@@ -11,14 +11,7 @@ import { parse } from 'url';
 import { mockConfig, shouldMockRequest, logMock } from '../config';
 
 // 导入服务
-import { dataSourceService } from '../services';
-
-// 模拟查询列表
-const MOCK_QUERIES = [
-  { id: 1, name: '查询1', sql: 'SELECT * FROM users', datasource_id: 1, created_at: '2023-01-01T00:00:00Z', updated_at: '2023-01-02T10:30:00Z' },
-  { id: 2, name: '查询2', sql: 'SELECT count(*) FROM orders', datasource_id: 2, created_at: '2023-01-03T00:00:00Z', updated_at: '2023-01-05T14:20:00Z' },
-  { id: 3, name: '复杂查询', sql: 'SELECT u.id, u.name, COUNT(o.id) as order_count FROM users u JOIN orders o ON u.id = o.user_id GROUP BY u.id, u.name', datasource_id: 1, created_at: '2023-01-10T00:00:00Z', updated_at: '2023-01-12T09:15:00Z' }
-];
+import { dataSourceService, queryService } from '../services';
 
 // 处理CORS请求
 function handleCors(res: ServerResponse) {
@@ -209,61 +202,243 @@ async function handleDatasourcesApi(req: IncomingMessage, res: ServerResponse, u
 }
 
 // 处理查询API
-function handleQueriesApi(req: IncomingMessage, res: ServerResponse, urlPath: string): boolean {
+async function handleQueriesApi(req: IncomingMessage, res: ServerResponse, urlPath: string, urlQuery: any): Promise<boolean> {
   const method = req.method?.toUpperCase();
   
-  if (urlPath === '/api/queries' && method === 'GET') {
-    logMock('debug', `处理GET请求: /api/queries`);
-    sendJsonResponse(res, 200, { 
-      data: MOCK_QUERIES, 
-      total: MOCK_QUERIES.length,
-      success: true
-    });
-    return true;
+  // 检查URL是否匹配查询API
+  const isQueriesPath = urlPath.includes('/queries');
+  
+  // 打印所有查询相关请求以便调试
+  if (isQueriesPath) {
+    console.log(`[Mock] 检测到查询API请求: ${method} ${urlPath}`, urlQuery);
   }
   
-  if (urlPath.match(/^\/api\/queries\/\d+$/) && method === 'GET') {
-    const id = parseInt(urlPath.split('/').pop() || '0');
-    const query = MOCK_QUERIES.find(q => q.id === id);
+  // 获取查询列表
+  if (urlPath === '/api/queries' && method === 'GET') {
+    logMock('debug', `处理GET请求: /api/queries`);
+    console.log('[Mock] 处理查询列表请求, 参数:', urlQuery);
     
-    logMock('debug', `处理GET请求: ${urlPath}, ID: ${id}`);
-    
-    if (query) {
+    try {
+      // 使用服务层获取查询列表，支持分页和过滤
+      const result = await queryService.getQueries({
+        page: parseInt(urlQuery.page as string) || 1,
+        size: parseInt(urlQuery.size as string) || 10,
+        name: urlQuery.name as string,
+        dataSourceId: urlQuery.dataSourceId as string,
+        status: urlQuery.status as string,
+        queryType: urlQuery.queryType as string,
+        isFavorite: urlQuery.isFavorite === 'true'
+      });
+      
+      console.log('[Mock] 查询列表结果:', {
+        itemsCount: result.items.length,
+        pagination: result.pagination
+      });
+      
       sendJsonResponse(res, 200, { 
-        data: query,
+        data: result.items, 
+        pagination: result.pagination,
         success: true
       });
-    } else {
-      sendJsonResponse(res, 404, { 
-        error: '查询不存在',
+    } catch (error) {
+      console.error('[Mock] 获取查询列表失败:', error);
+      sendJsonResponse(res, 500, { 
+        error: '获取查询列表失败',
+        message: error instanceof Error ? error.message : String(error),
         success: false
       });
     }
     return true;
   }
   
-  if (urlPath.match(/^\/api\/queries\/\d+\/run$/) && method === 'POST') {
-    const id = parseInt(urlPath.split('/')[3] || '0');
-    const query = MOCK_QUERIES.find(q => q.id === id);
+  // 获取单个查询
+  if (urlPath.match(/^\/api\/queries\/[^\/]+$/) && method === 'GET') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理GET请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const query = await queryService.getQuery(id);
+      sendJsonResponse(res, 200, { 
+        data: query,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, { 
+        error: '查询不存在',
+        message: error instanceof Error ? error.message : String(error),
+        success: false 
+      });
+    }
+    return true;
+  }
+  
+  // 创建查询
+  if (urlPath === '/api/queries' && method === 'POST') {
+    logMock('debug', `处理POST请求: /api/queries`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const newQuery = await queryService.createQuery(body);
+      
+      sendJsonResponse(res, 201, {
+        data: newQuery,
+        message: '查询创建成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '创建查询失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 更新查询
+  if (urlPath.match(/^\/api\/queries\/[^\/]+$/) && method === 'PUT') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理PUT请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const updatedQuery = await queryService.updateQuery(id, body);
+      
+      sendJsonResponse(res, 200, {
+        data: updatedQuery,
+        message: '查询更新成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '更新查询失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 删除查询
+  if (urlPath.match(/^\/api\/queries\/[^\/]+$/) && method === 'DELETE') {
+    const id = urlPath.split('/').pop() || '';
+    
+    logMock('debug', `处理DELETE请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      await queryService.deleteQuery(id);
+      
+      sendJsonResponse(res, 200, {
+        message: '查询删除成功',
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '删除查询失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 执行查询
+  if (urlPath.match(/^\/api\/queries\/[^\/]+\/run$/) && method === 'POST') {
+    const id = urlPath.split('/')[3] || '';
     
     logMock('debug', `处理POST请求: ${urlPath}, ID: ${id}`);
     
-    if (query) {
-      // 模拟查询执行结果
+    try {
+      const body = await parseRequestBody(req);
+      const result = await queryService.executeQuery(id, body);
+      
       sendJsonResponse(res, 200, {
-        data: [
-          { id: 1, name: 'John Doe', email: 'john@example.com' },
-          { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
-          { id: 3, name: 'Bob Johnson', email: 'bob@example.com' }
-        ],
-        columns: ['id', 'name', 'email'],
-        rows: 3,
-        execution_time: 0.123,
+        data: result,
         success: true
       });
-    } else {
-      sendJsonResponse(res, 404, { 
-        error: '查询不存在',
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '执行查询失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 切换查询收藏状态
+  if (urlPath.match(/^\/api\/queries\/[^\/]+\/favorite$/) && method === 'POST') {
+    const id = urlPath.split('/')[3] || '';
+    
+    logMock('debug', `处理POST请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const result = await queryService.toggleFavorite(id);
+      
+      sendJsonResponse(res, 200, {
+        data: result,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '更新收藏状态失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 获取查询版本
+  if (urlPath.match(/^\/api\/queries\/[^\/]+\/versions$/) && method === 'GET') {
+    const id = urlPath.split('/')[3] || '';
+    
+    logMock('debug', `处理GET请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const versions = await queryService.getQueryVersions(id);
+      
+      sendJsonResponse(res, 200, {
+        data: versions,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '获取查询版本失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
+  // 获取查询特定版本
+  if (urlPath.match(/^\/api\/queries\/[^\/]+\/versions\/[^\/]+$/) && method === 'GET') {
+    const parts = urlPath.split('/');
+    const queryId = parts[3] || '';
+    const versionId = parts[5] || '';
+    
+    logMock('debug', `处理GET请求: ${urlPath}, 查询ID: ${queryId}, 版本ID: ${versionId}`);
+    
+    try {
+      const versions = await queryService.getQueryVersions(queryId);
+      const version = versions.find((v: any) => v.id === versionId);
+      
+      if (!version) {
+        throw new Error(`未找到ID为${versionId}的查询版本`);
+      }
+      
+      sendJsonResponse(res, 200, {
+        data: version,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 404, {
+        error: '获取查询版本失败',
+        message: error instanceof Error ? error.message : String(error),
         success: false
       });
     }
@@ -291,12 +466,30 @@ export default function createMockMiddleware(): Connect.NextHandleFunction {
     try {
       // 解析URL
       const url = req.url || '';
-      const parsedUrl = parse(url, true);
+      
+      // 检查是否应该处理此请求
+      if (!url.includes('/api/')) {
+        return next();
+      }
+      
+      // 增强处理重复的API路径
+      let processedUrl = url;
+      if (url.includes('/api/api/')) {
+        processedUrl = url.replace(/\/api\/api\//g, '/api/');
+        logMock('debug', `检测到重复的API路径，已修正: ${url} -> ${processedUrl}`);
+        // 修改原始请求的URL，确保后续处理能正确识别
+        req.url = processedUrl;
+      }
+      
+      // 测试：打印所有API请求以便调试
+      console.log(`[Mock] 处理API请求: ${req.method} ${processedUrl}`);
+      
+      const parsedUrl = parse(processedUrl, true);
       const urlPath = parsedUrl.pathname || '';
       const urlQuery = parsedUrl.query || {};
       
-      // 检查是否应该处理此请求
-      if (!shouldMockRequest(url)) {
+      // 再次检查是否应该处理此请求（使用处理后的URL）
+      if (!shouldMockRequest(processedUrl)) {
         return next();
       }
       
@@ -323,7 +516,7 @@ export default function createMockMiddleware(): Connect.NextHandleFunction {
       
       // 按顺序尝试不同的API处理器
       if (!handled) handled = await handleDatasourcesApi(req, res, urlPath, urlQuery);
-      if (!handled) handled = handleQueriesApi(req, res, urlPath);
+      if (!handled) handled = await handleQueriesApi(req, res, urlPath, urlQuery);
       
       // 如果没有处理，返回404
       if (!handled) {

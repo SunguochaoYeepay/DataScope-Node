@@ -39,19 +39,28 @@ export interface QueryExecutionResult {
 export function getApiBaseUrl(): string {
   // 检查是否启用mock模式
   const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
-  console.log('Mock 模式:', USE_MOCK ? '已启用' : '已禁用', 'API基础URL:', USE_MOCK ? '' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'));
   
   // 在Mock模式下始终返回空字符串，确保请求使用相对路径
   if (USE_MOCK) {
+    console.log('Mock 模式已启用, API基础URL: "" (使用相对路径)');
     return '';
   }
   
   // 开发环境下使用正确的端口
+  let baseUrl = '';
   if (import.meta.env.DEV && !import.meta.env.VITE_API_BASE_URL) {
-    return 'http://localhost:5000';
+    baseUrl = 'http://localhost:5000';
+  } else {
+    baseUrl = import.meta.env.VITE_API_BASE_URL || '';
   }
   
-  return import.meta.env.VITE_API_BASE_URL || '';
+  // 确保baseUrl不以/api结尾，防止重复
+  if (baseUrl.endsWith('/api')) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 4);
+  }
+  
+  console.log('Mock 模式已禁用, API基础URL:', baseUrl);
+  return baseUrl;
 }
 
 // 查询参数类型

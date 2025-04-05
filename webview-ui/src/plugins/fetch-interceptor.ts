@@ -66,17 +66,6 @@ export function setupFetchInterceptor() {
         console.error('[Mock] URL解析错误:', e);
       }
       
-      // 如果不是API请求，使用原始fetch
-      if (!path.includes('/api/')) {
-        return originalFetch(input, init);
-      }
-
-      // 对数据源服务API请求不进行拦截，直接使用原始fetch
-      if (path.includes('/api/datasources') || path.includes('/api/metadata')) {
-        console.log('[Mock] 数据源服务API使用真实API:', path);
-        return originalFetch(input, init);
-      }
-      
       // 对API请求添加时间戳以防止缓存
       let finalPath = path;
       if (path.includes('/api/')) {
@@ -1188,6 +1177,21 @@ export async function handleMockRequest(url: string, init?: RequestInit): Promis
       return { success: true, data: integration };
     }
   }
+  
+  // 如果不是API请求，使用原始fetch
+  if (!path.includes('/api/')) {
+    return originalFetch(input, init);
+  }
+
+  // 注释掉特殊处理数据源服务API的代码，让所有API请求都经过Mock处理
+  // 这是因为我们已经将数据源服务迁移到新的Mock框架，不再需要特殊处理
+  /*
+  // 对数据源服务API请求不进行拦截，直接使用原始fetch
+  if (path.includes('/api/datasources') || path.includes('/api/metadata')) {
+    console.log('[Mock] 数据源服务API使用真实API:', path);
+    return originalFetch(input, init);
+  }
+  */
   
   // 默认返回空数据
   return { success: true, data: [] };
