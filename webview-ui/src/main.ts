@@ -8,8 +8,8 @@ import './plugins/dayjs'
 import { setupAxiosInterceptor } from './plugins/axios-interceptor'
 setupAxiosInterceptor() // 明确初始化axios拦截器
 
-// 在API服务之前引入Mock服务
-import setupMock from './services/api'
+// 删除旧的Mock服务导入
+// import setupMock from './services/api'
 
 import App from './App.vue'
 import router from './router'
@@ -37,8 +37,8 @@ import { installMessageService } from './services/message'
 // 初始化查询模板
 initQueryTemplates()
 
-// 初始化Mock API服务
-setupMock()
+// 删除旧的Mock API服务初始化
+// setupMock()
 
 // 创建应用实例
 const app = createApp(App)

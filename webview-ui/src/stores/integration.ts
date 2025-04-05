@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Integration, IntegrationQuery } from '@/types/integration';
-import { api } from '@/services/api';
+// 删除对已删除的api服务的引用
+// import { api } from '@/services/api';
 import {
   getMockIntegrations,
   getMockIntegration,
@@ -12,7 +13,7 @@ import {
 } from '@/services/mockData';
 
 // 是否使用模拟数据
-const USE_MOCK = true;
+const USE_MOCK = true; // 始终使用模拟数据，因为api服务已被删除
 
 // 集成状态类型
 type IntegrationStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
@@ -36,9 +37,13 @@ export const useIntegrationStore = defineStore('integration', () => {
         integrations.value = result;
         return result;
       } else {
-        // 调用接口获取集成列表
-        const result = await api.get('/api/low-code/apis');
+        // 使用fetch API替代api服务
+        const response = await fetch('/api/low-code/apis');
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
         
+        const result = await response.json();
         console.log('[集成Store] 获取到集成数据:', result);
         
         // 处理不同格式的响应
@@ -85,18 +90,22 @@ export const useIntegrationStore = defineStore('integration', () => {
         }
         return result;
       } else {
-        // 调用接口获取单个集成
-        const response = await api.get(`/api/low-code/apis/${id}`);
+        // 使用fetch API替代api服务
+        const response = await fetch(`/api/low-code/apis/${id}`);
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
         
-        console.log('[集成Store] 获取到单个集成原始数据:', response);
+        const responseData = await response.json();
+        console.log('[集成Store] 获取到单个集成原始数据:', responseData);
         
         let result = null;
         // 处理不同格式的响应
-        if (response && typeof response === 'object' && !Array.isArray(response)) {
+        if (responseData && typeof responseData === 'object' && !Array.isArray(responseData)) {
           // 直接是对象 - 这是我们当前的API格式
-          if (response.id && response.name) {
+          if (responseData.id && responseData.name) {
             console.log('[集成Store] 收到对象格式数据(直接是集成对象)');
-            result = response;
+            result = responseData;
             
             // 检查并确保集成对象包含必要字段
             if (!result.dataSourceId && result.config && result.config.dataSourceId) {
@@ -111,10 +120,10 @@ export const useIntegrationStore = defineStore('integration', () => {
           }
         } 
         
-        if (!result && response && response.data) {
+        if (!result && responseData && responseData.data) {
           // 包装在data字段中 - 之前的API格式
           console.log('[集成Store] 收到对象格式数据(包装在data字段中)');
-          result = response.data;
+          result = responseData.data;
           
           // 检查并确保集成对象包含必要字段
           if (!result.dataSourceId && result.config && result.config.dataSourceId) {
@@ -130,7 +139,7 @@ export const useIntegrationStore = defineStore('integration', () => {
         
         if (!result) {
           // 其他格式的响应
-          console.error('[集成Store] 未知的单个集成API响应格式:', response);
+          console.error('[集成Store] 未知的单个集成API响应格式:', responseData);
           return null;
         }
         
@@ -162,16 +171,34 @@ export const useIntegrationStore = defineStore('integration', () => {
         currentIntegration.value = result;
         return result;
       } else {
-        // 调用接口创建集成
-        const result = await api.post('/api/low-code/apis', integration);
+        // 使用fetch API替代api服务
+        const response = await fetch('/api/low-code/apis', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(integration)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
         
         if (result && result.data) {
           // 更新本地数据
           integrations.value.push(result.data);
           currentIntegration.value = result.data;
+          return result.data;
+        } else if (result) {
+          // 直接返回结果
+          integrations.value.push(result);
+          currentIntegration.value = result;
+          return result;
         }
         
-        return result.data;
+        return null;
       }
     } catch (err: any) {
       console.error('创建集成失败', err);
@@ -198,58 +225,53 @@ export const useIntegrationStore = defineStore('integration', () => {
           integrations.value[index] = result;
         }
         
-        currentIntegration.value = result;
+        // 如果当前正在查看这个集成，更新currentIntegration
+        if (currentIntegration.value && currentIntegration.value.id === id) {
+          currentIntegration.value = result;
+        }
+        
         return result;
       } else {
-        // 调用接口更新集成
-        const result = await api.put(`/api/low-code/apis/${id}`, integration);
+        // 使用fetch API替代api服务
+        const response = await fetch(`/api/low-code/apis/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(integration)
+        });
         
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        let updatedIntegration = null;
         if (result && result.data) {
+          updatedIntegration = result.data;
+        } else if (result && typeof result === 'object') {
+          updatedIntegration = result;
+        }
+        
+        if (updatedIntegration) {
           // 更新本地数据
           const index = integrations.value.findIndex(item => item.id === id);
           if (index !== -1) {
-            integrations.value[index] = result.data;
+            integrations.value[index] = updatedIntegration;
           }
           
-          currentIntegration.value = result.data;
+          // 如果当前正在查看这个集成，更新currentIntegration
+          if (currentIntegration.value && currentIntegration.value.id === id) {
+            currentIntegration.value = updatedIntegration;
+          }
         }
         
-        return result.data;
+        return updatedIntegration;
       }
     } catch (err: any) {
       console.error('更新集成失败', err);
       error.value = err.message || '更新集成失败';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  };
-  
-  // 更新集成状态
-  const updateIntegrationStatus = async (id: string, status: IntegrationStatus) => {
-    loading.value = true;
-    error.value = null;
-    
-    try {
-      // 调用接口更新集成状态
-      const result = await api.patch(`/api/low-code/apis/${id}/status`, { status });
-      
-      if (result && result.data) {
-        // 更新本地数据
-        const index = integrations.value.findIndex(item => item.id === id);
-        if (index !== -1) {
-          integrations.value[index].status = status;
-        }
-        
-        if (currentIntegration.value && currentIntegration.value.id === id) {
-          currentIntegration.value.status = status;
-        }
-      }
-      
-      return result.data;
-    } catch (err: any) {
-      console.error('更新集成状态失败', err);
-      error.value = err.message || '更新集成状态失败';
       throw err;
     } finally {
       loading.value = false;
@@ -264,30 +286,36 @@ export const useIntegrationStore = defineStore('integration', () => {
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await deleteMockIntegration(id);
-        
-        if (result) {
-          // 更新本地数据
-          integrations.value = integrations.value.filter(item => item.id !== id);
-          
-          if (currentIntegration.value && currentIntegration.value.id === id) {
-            currentIntegration.value = null;
-          }
-        }
-        
-        return result;
-      } else {
-        // 调用接口删除集成
-        const result = await api.delete(`/api/low-code/apis/${id}`);
+        await deleteMockIntegration(id);
         
         // 更新本地数据
         integrations.value = integrations.value.filter(item => item.id !== id);
         
+        // 如果当前正在查看这个集成，清空currentIntegration
         if (currentIntegration.value && currentIntegration.value.id === id) {
           currentIntegration.value = null;
         }
         
-        return result.data;
+        return true;
+      } else {
+        // 使用fetch API替代api服务
+        const response = await fetch(`/api/low-code/apis/${id}`, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        // 更新本地数据
+        integrations.value = integrations.value.filter(item => item.id !== id);
+        
+        // 如果当前正在查看这个集成，清空currentIntegration
+        if (currentIntegration.value && currentIntegration.value.id === id) {
+          currentIntegration.value = null;
+        }
+        
+        return true;
       }
     } catch (err: any) {
       console.error('删除集成失败', err);
@@ -298,53 +326,83 @@ export const useIntegrationStore = defineStore('integration', () => {
     }
   };
   
-  // 测试集成
-  const testIntegration = async (id: string, params?: Record<string, any>) => {
-    loading.value = true;
-    error.value = null;
-    
-    try {
-      // 调用测试接口
-      const result = await api.post(`/api/low-code/apis/${id}/test`, params || {});
-      return result.data;
-    } catch (err: any) {
-      console.error('测试集成失败', err);
-      error.value = err.message || '测试集成失败';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  };
-  
   // 执行集成查询
-  const executeQuery = async (integrationId: string, params: Record<string, any> = {}): Promise<any> => {
+  const executeIntegrationQuery = async (queryInfo: IntegrationQuery) => {
     loading.value = true;
     error.value = null;
     
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const mockParams: IntegrationQuery = {
-          sql: params.sql,
-          params: params.params,
-          options: params.options
-        };
-        const result = await executeMockQuery(integrationId, mockParams);
+        const result = await executeMockQuery(queryInfo);
         return result;
       } else {
-        // 调用执行接口 - 修改为正确的API路径和参数格式
-        const result = await api.post(`/api/queries/execute`, {
-          dataSourceId: params.dataSourceId, // 确保包含数据源ID
-          queryId: integrationId,
-          sql: params.sql,
-          params: params.params || []
+        // 使用fetch API替代api服务
+        const response = await fetch('/api/low-code/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(queryInfo)
         });
         
-        return result.data;
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        return result.data || result;
       }
     } catch (err: any) {
-      console.error('执行查询失败', err);
-      error.value = err.message || '执行查询失败';
+      console.error('执行集成查询失败', err);
+      error.value = err.message || '执行集成查询失败';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  // 更新集成状态
+  const updateIntegrationStatus = async (id: string, status: IntegrationStatus) => {
+    loading.value = true;
+    error.value = null;
+    
+    try {
+      if (USE_MOCK) {
+        // 在模拟数据模式下，使用更新集成的方法
+        return await updateIntegration(id, { status } as Partial<Integration>);
+      } else {
+        // 使用fetch API替代api服务
+        const response = await fetch(`/api/low-code/apis/${id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // 更新本地数据
+        const index = integrations.value.findIndex(item => item.id === id);
+        if (index !== -1) {
+          integrations.value[index].status = status;
+        }
+        
+        // 如果当前正在查看这个集成，更新currentIntegration
+        if (currentIntegration.value && currentIntegration.value.id === id) {
+          currentIntegration.value.status = status;
+        }
+        
+        return result.data || result;
+      }
+    } catch (err: any) {
+      console.error('更新集成状态失败', err);
+      error.value = err.message || '更新集成状态失败';
       throw err;
     } finally {
       loading.value = false;
@@ -358,8 +416,11 @@ export const useIntegrationStore = defineStore('integration', () => {
     
     try {
       // 调用接口获取配置
-      const result = await api.get(`/api/low-code/apis/${id}/config`);
-      return result.data;
+      const result = await fetch(`/api/low-code/apis/${id}/config`);
+      if (!result.ok) {
+        throw new Error(`API请求失败: ${result.status}`);
+      }
+      return await result.json();
     } catch (err: any) {
       console.error('获取集成配置失败', err);
       error.value = err.message || '获取集成配置失败';
@@ -403,15 +464,14 @@ export const useIntegrationStore = defineStore('integration', () => {
     loading,
     error,
     
-    // 操作方法
+    // 方法
     fetchIntegrations,
     fetchIntegrationById,
     createIntegration,
     updateIntegration,
-    updateIntegrationStatus,
     deleteIntegration,
-    testIntegration,
-    executeQuery,
+    executeIntegrationQuery,
+    updateIntegrationStatus,
     getIntegrationConfig,
     
     // 工具方法

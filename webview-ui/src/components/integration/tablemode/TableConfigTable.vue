@@ -715,7 +715,6 @@ import { useMessageStore } from '@/stores/message';
 import draggable from 'vuedraggable';
 import { ColumnDisplayType, ColumnAlign, ChartType, ChartTheme } from '@/types/integration';
 import type { TableColumn, TableConfig, TableAction, BatchAction, QueryResult, QueryResultColumn } from '@/types/integration';
-import { api } from '@/services/api';
 
 interface Props {
   modelValue: TableConfig;
@@ -1111,10 +1110,15 @@ const loadFieldOptions = async () => {
 
   try {
     // 调用接口获取查询结果
-    const result = await api.post(`/api/queries/${props.queryId}/execute`, {});
-    if (result?.data) {
-      const data = result.data as QueryResult;
-      queryResult.value = data;
+    const result = await fetch(`/api/queries/${props.queryId}/execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    if (result.ok) {
+      const data = await result.json();
+      queryResult.value = data as QueryResult;
       // 从查询结果中获取字段
       if (data.columns) {
         availableFields.value = data.columns.map(col => col.name);

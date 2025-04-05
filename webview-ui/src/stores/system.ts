@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { api } from '@/services/api';
+// 删除对已删除的api服务的引用
+// import { api } from '@/services/api';
 
 // 表单字段类型
 interface FormField {
@@ -88,7 +89,7 @@ const mockForms: Form[] = [
 ];
 
 // 使用模拟数据
-const USE_MOCK = false;
+const USE_MOCK = true; // 改为始终使用模拟数据，因为api服务已被删除
 
 export const useSystemStore = defineStore('system', () => {
   // 状态
@@ -130,10 +131,23 @@ export const useSystemStore = defineStore('system', () => {
         forms.value = filteredForms;
         return filteredForms;
       } else {
-        // 调用真实API
-        const result = await api.get('/api/forms', { params: filters });
-        forms.value = result.data;
-        return result.data;
+        // 替换为使用fetch API
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, String(value));
+          }
+        });
+        
+        const response = await fetch(`/api/forms?${queryParams.toString()}`);
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        const data = result.data || result;
+        forms.value = data;
+        return data;
       }
     } catch (err: any) {
       console.error('获取表单列表失败', err);
@@ -164,10 +178,16 @@ export const useSystemStore = defineStore('system', () => {
         
         return null;
       } else {
-        // 调用真实API
-        const result = await api.get(`/api/forms/${id}`);
-        currentForm.value = result.data;
-        return result.data;
+        // 替换为使用fetch API
+        const response = await fetch(`/api/forms/${id}`);
+        if (!response.ok) {
+          throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        const data = result.data || result;
+        currentForm.value = data;
+        return data;
       }
     } catch (err: any) {
       console.error('获取表单失败', err);
