@@ -805,70 +805,78 @@ export const useQueryStore = defineStore('query', () => {
   // 获取查询列表
   const fetchQueries = async (params?: QueryParams): Promise<Query[]> => {
     try {
-      loading.show('加载查询列表...')
-      
-      const queryParams = {
-        queryType: params?.queryType,
+      const apiParams = {
+        page: params?.page || 1,
+        size: params?.size || 10,
+        search: params?.name || params?.searchTerm,
+        dataSourceId: params?.dataSourceId,
         status: params?.status,
         serviceStatus: params?.serviceStatus,
-        searchTerm: params?.search,
-        sortBy: params?.sortBy,
-        sortDir: params?.sortDir,
-        includeDrafts: params?.includeDrafts,
-        page: params?.page ?? 1,
-        size: params?.size ?? 10
+        queryType: params?.queryType,
+        includeDrafts: params?.includeDrafts
       }
       
-      const response = await queryService.getQueries(queryParams)
-      console.log('查询列表获取结果:', response);
+      console.log('查询Store: 调用查询列表API, 参数:', apiParams)
       
-      // 检查响应格式
-      if (!response) {
-        console.error('fetchQueries: API返回空响应');
-        queries.value = [];
-        pagination.value = {
-          page: 1,
-          pageSize: 10,
-          total: 0,
-          totalPages: 0,
-          hasMore: false
-        };
-        return [];
+      const response = await queryService.getQueries(apiParams)
+      
+      console.log('查询Store: 查询列表API响应:', response)
+      
+      // 检查新的API格式 - 包含success标志和data字段
+      if (response && response.success === true && response.data) {
+        console.log('查询Store: 检测到success:true格式响应，使用response.data', response.data.length);
+        queries.value = response.data;
+        
+        // 更新分页信息（如果存在）
+        if (response.pagination) {
+          pagination.value = {
+            page: response.pagination.page,
+            pageSize: response.pagination.size,
+            total: response.pagination.total,
+            totalPages: response.pagination.totalPages || Math.ceil(response.pagination.total / response.pagination.size),
+            hasMore: response.pagination.page < response.pagination.totalPages
+          };
+        }
+        
+        return response.data;
       }
       
-      // 确保response.items存在
-      const items = response.items || [];
-      queries.value = items;
-      
-      // 更新分页信息
-      if (response.pagination) {
+      // 处理结果并更新状态
+      if (response && response.items) {
+        queries.value = response.items
         pagination.value = {
           page: response.pagination.page,
-          pageSize: response.pagination.pageSize,
+          pageSize: response.pagination.size,
           total: response.pagination.total,
           totalPages: response.pagination.totalPages,
-          hasMore: response.pagination.hasMore
-        };
-      } else {
-        // 如果响应中没有分页信息，使用默认值
-        pagination.value = {
-          page: queryParams.page,
-          pageSize: queryParams.size,
-          total: items.length,
-          totalPages: Math.ceil(items.length / queryParams.size),
-          hasMore: queryParams.page * queryParams.size < items.length
-        };
+          hasMore: response.pagination.page < response.pagination.totalPages
+        }
+        
+        return response.items
       }
       
-      console.log(`查询列表更新: ${items.length}条数据, 总计${pagination.value.total}条`);
-      return items;
-    } catch (error) {
-      console.error('加载查询列表失败:', error)
-      messageService.error('加载查询列表失败: ' + (error instanceof Error ? error.message : String(error)))
+      // 如果返回的是数组，直接使用
+      if (Array.isArray(response)) {
+        queries.value = response
+        pagination.value = {
+          page: apiParams.page,
+          pageSize: apiParams.size,
+          total: response.length,
+          totalPages: Math.ceil(response.length / apiParams.size),
+          hasMore: apiParams.page * apiParams.size < response.length
+        }
+        
+        return response
+      }
+      
+      // 如果是空结果或格式不匹配，返回空数组
+      console.warn('查询Store: 查询列表API返回结果格式不匹配:', response)
       queries.value = []
       return []
-    } finally {
-      loading.hide()
+    } catch (error) {
+      console.error('查询Store: 获取查询列表失败:', error)
+      const errorMessage = getErrorMessage(error)
+      throw new Error(`获取查询列表失败: ${errorMessage}`)
     }
   }
   

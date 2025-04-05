@@ -405,6 +405,30 @@ async function handleQueriesApi(req: IncomingMessage, res: ServerResponse, urlPa
     return true;
   }
   
+  // 执行查询（兼容execute路径）
+  if (urlPath.match(/^\/api\/queries\/[^\/]+\/execute$/) && method === 'POST') {
+    const id = urlPath.split('/')[3] || '';
+    
+    logMock('debug', `处理POST请求: ${urlPath}, ID: ${id}`);
+    
+    try {
+      const body = await parseRequestBody(req);
+      const result = await queryService.executeQuery(id, body);
+      
+      sendJsonResponse(res, 200, {
+        data: result,
+        success: true
+      });
+    } catch (error) {
+      sendJsonResponse(res, 400, {
+        error: '执行查询失败',
+        message: error instanceof Error ? error.message : String(error),
+        success: false
+      });
+    }
+    return true;
+  }
+  
   // 切换查询收藏状态
   if (urlPath.match(/^\/api\/queries\/[^\/]+\/favorite$/) && method === 'POST') {
     const id = urlPath.split('/')[3] || '';

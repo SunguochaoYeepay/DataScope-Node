@@ -3,14 +3,9 @@ import { ref, computed } from 'vue';
 import type { Integration, IntegrationQuery } from '@/types/integration';
 // 删除对已删除的api服务的引用
 // import { api } from '@/services/api';
-import {
-  getMockIntegrations,
-  getMockIntegration,
-  createMockIntegration,
-  updateMockIntegration,
-  deleteMockIntegration,
-  executeMockQuery
-} from '@/services/mockData';
+
+// 从mock服务中导入集成相关函数
+import integrationService from '@/mock/services/integration';
 
 // 是否使用模拟数据
 const USE_MOCK = true; // 始终使用模拟数据，因为api服务已被删除
@@ -33,9 +28,9 @@ export const useIntegrationStore = defineStore('integration', () => {
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await getMockIntegrations();
-        integrations.value = result;
-        return result;
+        const result = await integrationService.getIntegrations({});
+        integrations.value = result.items;
+        return result.items;
       } else {
         // 使用fetch API替代api服务
         const response = await fetch('/api/low-code/apis');
@@ -83,7 +78,7 @@ export const useIntegrationStore = defineStore('integration', () => {
       
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await getMockIntegration(id);
+        const result = await integrationService.getIntegration(id);
         if (result) {
           currentIntegration.value = result;
           console.log('[集成Store] Mock模式 - 获取到集成数据:', result);
@@ -166,7 +161,7 @@ export const useIntegrationStore = defineStore('integration', () => {
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await createMockIntegration(integration);
+        const result = await integrationService.createIntegration(integration);
         integrations.value.push(result);
         currentIntegration.value = result;
         return result;
@@ -217,7 +212,7 @@ export const useIntegrationStore = defineStore('integration', () => {
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await updateMockIntegration(id, integration);
+        const result = await integrationService.updateIntegration(id, integration);
         
         // 更新本地数据
         const index = integrations.value.findIndex(item => item.id === id);
@@ -286,7 +281,7 @@ export const useIntegrationStore = defineStore('integration', () => {
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        await deleteMockIntegration(id);
+        await integrationService.deleteIntegration(id);
         
         // 更新本地数据
         integrations.value = integrations.value.filter(item => item.id !== id);
@@ -334,7 +329,9 @@ export const useIntegrationStore = defineStore('integration', () => {
     try {
       if (USE_MOCK) {
         // 使用模拟数据
-        const result = await executeMockQuery(queryInfo);
+        // 从当前集成或查询信息中获取ID
+        const integrationId = currentIntegration.value?.id || '';
+        const result = await integrationService.executeQuery(integrationId, queryInfo);
         return result;
       } else {
         // 使用fetch API替代api服务

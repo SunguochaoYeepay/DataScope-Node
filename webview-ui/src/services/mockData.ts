@@ -1,247 +1,340 @@
-import type { Integration, IntegrationQuery } from '@/types/integration';
-import { ChartType } from '@/types/integration';
+/**
+ * 模拟数据集中管理文件
+ * 此文件集中管理所有接口所需的模拟数据，确保数据一致性
+ */
 
-// 图表数据接口
-interface ChartData {
-  month: string;
-  product: string;
-  sales: number;
-}
+import type { Query, QueryStatus, QueryType, QueryServiceStatus } from '../types/query';
 
-// 模拟集成列表数据
-const mockIntegrations: Integration[] = [
+// 模拟数据源
+export const mockDataSources = [
   {
-    id: 'int-001',
-    name: '客户数据集成',
-    description: '与CRM系统的客户数据集成',
-    type: 'SIMPLE_TABLE',
-    status: 'ACTIVE',
-    queryId: 'query-001',
-    dataSourceId: 'ds-001',
-    integrationPoint: {
-      id: 'ip-001',
-      name: 'CRM API 集成点',
-      type: 'URL',
-      urlConfig: {
-        url: 'https://api.example.com/crm',
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      }
-    },
-    createTime: '2023-01-15T08:30:00Z',
-    updateTime: '2023-03-20T14:15:00Z'
+    id: 'ds-1',
+    name: 'MySQL示例数据库',
+    description: '连接到示例MySQL数据库',
+    type: 'mysql',
+    host: 'localhost',
+    port: 3306,
+    database: 'example_db',
+    username: 'user',
+    status: 'active',
+    syncFrequency: 'daily',
+    lastSyncTime: new Date(Date.now() - 86400000).toISOString(),
+    createdAt: new Date(Date.now() - 2592000000).toISOString(),
+    updatedAt: new Date(Date.now() - 864000000).toISOString(),
+    isActive: true
   },
   {
-    id: 'int-002',
-    name: '订单系统集成',
-    description: '与企业ERP系统的订单数据集成',
-    type: 'TABLE',
-    status: 'ACTIVE',
-    queryId: 'query-002',
-    dataSourceId: 'ds-002',
-    integrationPoint: {
-      id: 'ip-002',
-      name: 'ERP API 集成点',
-      type: 'URL',
-      urlConfig: {
-        url: 'https://erp.company.internal/api',
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
-    },
-    createTime: '2023-02-10T10:45:00Z',
-    updateTime: '2023-04-05T16:20:00Z'
+    id: 'ds-2',
+    name: 'PostgreSQL生产库',
+    description: '连接到PostgreSQL生产环境数据库',
+    type: 'postgresql',
+    host: '192.168.1.100',
+    port: 5432,
+    database: 'production_db',
+    username: 'admin',
+    status: 'active',
+    syncFrequency: 'hourly',
+    lastSyncTime: new Date(Date.now() - 3600000).toISOString(),
+    createdAt: new Date(Date.now() - 7776000000).toISOString(),
+    updatedAt: new Date(Date.now() - 172800000).toISOString(),
+    isActive: true
   },
   {
-    id: 'int-003',
-    name: '销售数据可视化',
-    description: '销售数据图表分析集成',
-    type: 'CHART',
-    status: 'ACTIVE',
-    queryId: 'query-003',
-    dataSourceId: 'ds-003',
-    integrationPoint: {
-      id: 'ip-003',
-      name: '数据分析API集成点',
-      type: 'URL',
-      urlConfig: {
-        url: 'https://analytics.example.com/api/sales',
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      }
-    },
-    chartConfig: {
-      type: 'bar',
-      title: '月度销售分析',
-      description: '各产品线月度销售额分析',
-      height: 400,
-      showLegend: true,
-      dataMapping: {
-        xField: 'month',
-        yField: 'sales',
-        seriesField: 'product'
-      },
-      styleOptions: {
-        colors: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de']
-      }
-    },
-    createTime: '2023-03-05T09:15:00Z',
-    updateTime: '2023-04-10T14:30:00Z'
+    id: 'ds-3',
+    name: 'SQLite本地库',
+    description: '连接到本地SQLite数据库',
+    type: 'sqlite',
+    database: '/path/to/local.db',
+    status: 'active',
+    syncFrequency: 'manual',
+    lastSyncTime: null,
+    createdAt: new Date(Date.now() - 1728000000).toISOString(),
+    updatedAt: new Date(Date.now() - 345600000).toISOString(),
+    isActive: true
+  },
+  {
+    id: 'ds-4',
+    name: 'SQL Server测试库',
+    description: '连接到SQL Server测试环境',
+    type: 'sqlserver',
+    host: '192.168.1.200',
+    port: 1433,
+    database: 'test_db',
+    username: 'tester',
+    status: 'inactive',
+    syncFrequency: 'weekly',
+    lastSyncTime: new Date(Date.now() - 604800000).toISOString(),
+    createdAt: new Date(Date.now() - 5184000000).toISOString(),
+    updatedAt: new Date(Date.now() - 2592000000).toISOString(),
+    isActive: false
+  },
+  {
+    id: 'ds-5',
+    name: 'Oracle企业库',
+    description: '连接到Oracle企业数据库',
+    type: 'oracle',
+    host: '192.168.1.150',
+    port: 1521,
+    database: 'enterprise_db',
+    username: 'system',
+    status: 'active',
+    syncFrequency: 'daily',
+    lastSyncTime: new Date(Date.now() - 172800000).toISOString(),
+    createdAt: new Date(Date.now() - 10368000000).toISOString(),
+    updatedAt: new Date(Date.now() - 1728000000).toISOString(),
+    isActive: true
   }
 ];
+
+// 模拟元数据
+export const mockMetadata = {
+  tables: [
+    {
+      name: 'users',
+      schema: 'public',
+      type: 'TABLE',
+      description: '用户表',
+      rowCount: 10000,
+      totalSize: 2048000,
+      createdAt: new Date(Date.now() - 5184000000).toISOString(),
+      columns: [
+        { name: 'id', type: 'INT', nullable: false, primary: true, description: '用户ID' },
+        { name: 'username', type: 'VARCHAR(50)', nullable: false, description: '用户名' },
+        { name: 'email', type: 'VARCHAR(100)', nullable: false, description: '电子邮件' },
+        { name: 'created_at', type: 'TIMESTAMP', nullable: false, description: '创建时间' }
+      ]
+    },
+    {
+      name: 'orders',
+      schema: 'public',
+      type: 'TABLE',
+      description: '订单表',
+      rowCount: 50000,
+      totalSize: 8192000,
+      createdAt: new Date(Date.now() - 4752000000).toISOString(),
+      columns: [
+        { name: 'id', type: 'INT', nullable: false, primary: true, description: '订单ID' },
+        { name: 'user_id', type: 'INT', nullable: false, description: '用户ID' },
+        { name: 'amount', type: 'DECIMAL(10,2)', nullable: false, description: '订单金额' },
+        { name: 'created_at', type: 'TIMESTAMP', nullable: false, description: '创建时间' }
+      ]
+    },
+    {
+      name: 'products',
+      schema: 'public',
+      type: 'TABLE',
+      description: '产品表',
+      rowCount: 5000,
+      totalSize: 1024000,
+      createdAt: new Date(Date.now() - 4320000000).toISOString(),
+      columns: [
+        { name: 'id', type: 'INT', nullable: false, primary: true, description: '产品ID' },
+        { name: 'name', type: 'VARCHAR(100)', nullable: false, description: '产品名称' },
+        { name: 'price', type: 'DECIMAL(10,2)', nullable: false, description: '产品价格' },
+        { name: 'stock', type: 'INT', nullable: false, description: '库存数量' }
+      ]
+    }
+  ]
+};
+
+// 模拟查询
+export const mockQueries: Query[] = Array.from({ length: 10 }, (_, i) => {
+  const id = `query-${i + 1}`;
+  const timestamp = new Date(Date.now() - i * 86400000).toISOString();
+  
+  return {
+    id,
+    name: `示例查询 ${i + 1}`,
+    description: `这是示例查询 ${i + 1} 的描述`,
+    folderId: i % 3 === 0 ? 'folder-1' : (i % 3 === 1 ? 'folder-2' : 'folder-3'),
+    dataSourceId: `ds-${(i % 5) + 1}`,
+    dataSourceName: mockDataSources[(i % 5)].name,
+    queryType: (i % 2 === 0 ? 'SQL' : 'NATURAL_LANGUAGE') as QueryType,
+    queryText: i % 2 === 0 ? 
+      `SELECT * FROM example_table WHERE id > ${i} ORDER BY name LIMIT 10` : 
+      `查找最近10条${i % 2 === 0 ? '订单' : '用户'}记录`,
+    status: (i % 4 === 0 ? 'DRAFT' : (i % 4 === 1 ? 'PUBLISHED' : (i % 4 === 2 ? 'DEPRECATED' : 'ARCHIVED'))) as QueryStatus,
+    serviceStatus: (i % 2 === 0 ? 'ENABLED' : 'DISABLED') as QueryServiceStatus,
+    createdAt: timestamp,
+    updatedAt: new Date(Date.now() - i * 43200000).toISOString(),
+    createdBy: { id: 'user1', name: '测试用户' },
+    updatedBy: { id: 'user1', name: '测试用户' },
+    executionCount: Math.floor(Math.random() * 50),
+    isFavorite: i % 3 === 0,
+    isActive: i % 5 !== 0,
+    lastExecutedAt: new Date(Date.now() - i * 432000).toISOString(),
+    resultCount: Math.floor(Math.random() * 100) + 10,
+    executionTime: Math.floor(Math.random() * 500) + 10,
+    tags: [`标签${i+1}`, `类型${i % 3}`],
+    currentVersion: {
+      id: `ver-${id}-1`,
+      queryId: id,
+      versionNumber: 1,
+      name: '当前版本',
+      sql: `SELECT * FROM example_table WHERE id > ${i} ORDER BY name LIMIT 10`,
+      dataSourceId: `ds-${(i % 5) + 1}`,
+      status: 'PUBLISHED',
+      isLatest: true,
+      createdAt: timestamp
+    },
+    versions: [{
+      id: `ver-${id}-1`,
+      queryId: id,
+      versionNumber: 1,
+      name: '当前版本',
+      sql: `SELECT * FROM example_table WHERE id > ${i} ORDER BY name LIMIT 10`,
+      dataSourceId: `ds-${(i % 5) + 1}`,
+      status: 'PUBLISHED',
+      isLatest: true,
+      createdAt: timestamp
+    }]
+  };
+});
+
+// 模拟集成
+export const mockIntegrations = [
+  {
+    id: 'integration-1',
+    name: '示例REST API',
+    description: '连接到示例REST API服务',
+    type: 'REST',
+    baseUrl: 'https://api.example.com/v1',
+    authType: 'BASIC',
+    username: 'api_user',
+    password: '********',
+    status: 'ACTIVE',
+    createdAt: new Date(Date.now() - 2592000000).toISOString(),
+    updatedAt: new Date(Date.now() - 864000000).toISOString(),
+    endpoints: [
+      {
+        id: 'endpoint-1',
+        name: '获取用户列表',
+        method: 'GET',
+        path: '/users',
+        description: '获取所有用户的列表'
+      },
+      {
+        id: 'endpoint-2',
+        name: '获取单个用户',
+        method: 'GET',
+        path: '/users/{id}',
+        description: '根据ID获取单个用户'
+      }
+    ]
+  },
+  {
+    id: 'integration-2',
+    name: '天气API',
+    description: '连接到天气预报API',
+    type: 'REST',
+    baseUrl: 'https://api.weather.com',
+    authType: 'API_KEY',
+    apiKey: '********',
+    status: 'ACTIVE',
+    createdAt: new Date(Date.now() - 1728000000).toISOString(),
+    updatedAt: new Date(Date.now() - 432000000).toISOString(),
+    endpoints: [
+      {
+        id: 'endpoint-3',
+        name: '获取当前天气',
+        method: 'GET',
+        path: '/current',
+        description: '获取指定位置的当前天气'
+      },
+      {
+        id: 'endpoint-4',
+        name: '获取天气预报',
+        method: 'GET',
+        path: '/forecast',
+        description: '获取未来7天的天气预报'
+      }
+    ]
+  },
+  {
+    id: 'integration-3',
+    name: '支付网关',
+    description: '连接到支付处理API',
+    type: 'REST',
+    baseUrl: 'https://api.payment.com',
+    authType: 'OAUTH2',
+    clientId: 'client123',
+    clientSecret: '********',
+    status: 'INACTIVE',
+    createdAt: new Date(Date.now() - 864000000).toISOString(),
+    updatedAt: new Date(Date.now() - 172800000).toISOString(),
+    endpoints: [
+      {
+        id: 'endpoint-5',
+        name: '创建支付',
+        method: 'POST',
+        path: '/payments',
+        description: '创建新的支付请求'
+      },
+      {
+        id: 'endpoint-6',
+        name: '获取支付状态',
+        method: 'GET',
+        path: '/payments/{id}',
+        description: '检查支付状态'
+      },
+      {
+        id: 'endpoint-7',
+        name: '退款',
+        method: 'POST',
+        path: '/payments/{id}/refund',
+        description: '处理退款请求'
+      }
+    ]
+  }
+];
+
+// 确保以下函数导出
+export { mockIntegrations };
 
 /**
  * 获取模拟集成列表
  */
-export function getMockIntegrations(): Promise<Integration[]> {
+export function getMockIntegrations(): Promise<any[]> {
   return Promise.resolve([...mockIntegrations]);
 }
 
 /**
  * 获取单个模拟集成详情
  */
-export function getMockIntegration(id: string): Promise<Integration | null> {
-  // 先从现有数据中查找，精确匹配ID
-  let integration = mockIntegrations.find(i => i.id === id);
-  
-  // 如果没找到，尝试查找名称含有ID数字部分的集成
-  if (!integration && id.includes('-')) {
-    const idNumber = id.split('-')[1];
-    // 找出所有ID中包含该数字的集成
-    const matches = mockIntegrations.filter(i => i.id.includes(`-${idNumber}`));
-    if (matches.length > 0) {
-      integration = matches[0]; // 取第一个匹配项
-    }
-  }
-  
-  if (integration) {
-    // 创建深拷贝以避免修改原始数据
-    const result = JSON.parse(JSON.stringify(integration));
-    
-    // 确保dataSourceId和queryId字段存在且有值
-    if (!result.dataSourceId) {
-      console.log(`[Mock数据] 集成 ${id} 缺少dataSourceId，设置默认值`);
-      result.dataSourceId = `ds-${id.split('-')[1] || '001'}`;
-    }
-    
-    if (!result.queryId) {
-      console.log(`[Mock数据] 集成 ${id} 缺少queryId，设置默认值`);
-      result.queryId = `query-${id.split('-')[1] || '001'}`;
-    }
-    
-    // 添加日志以检查数据完整性
-    console.log(`[Mock数据] 返回集成详情:`, {
-      id: result.id,
-      name: result.name,
-      dataSourceId: result.dataSourceId,
-      queryId: result.queryId,
-      type: result.type
-    });
-    
-    // 为避免ID不匹配问题，将请求的ID设置为返回数据的ID
-    result.id = id;
-    
-    return Promise.resolve(result);
-  }
-  
-  // 如果仍然没找到，则创建一个带有默认值的新集成
+export function getMockIntegration(id: string): Promise<any | null> {
+  const integration = mockIntegrations.find(i => i.id === id);
   if (!integration) {
-    console.log(`[Mock数据] 未找到ID为 ${id} 的集成，创建默认集成数据`);
-    
-    // 从ID中提取数字部分，如int-001中的001
-    const idNumber = id.includes('-') ? id.split('-')[1] : '001';
-    
-    // 根据ID决定集成类型
-    let integrationType: 'SIMPLE_TABLE' | 'TABLE' | 'CHART' = 'TABLE';
-    let idNum = 0;
-    
-    if (idNumber && !isNaN(parseInt(idNumber))) {
-      idNum = parseInt(idNumber);
-      // 根据ID数字进行分配: 1-3是SIMPLE_TABLE, 4-6是TABLE, 7-9是CHART
-      if (idNum % 3 === 1) {
-        integrationType = 'SIMPLE_TABLE';
-      } else if (idNum % 3 === 2) {
-        integrationType = 'TABLE';
-      } else {
-        integrationType = 'CHART';
-      }
-    }
-    
-    const defaultIntegration: Integration = {
-      id: id,
-      name: `集成 ${id}`,
-      description: '默认生成的集成配置',
-      type: integrationType,
-      status: 'ACTIVE',
-      queryId: `query-${idNumber}`,
-      dataSourceId: `ds-${idNumber}`,
-      integrationPoint: {
-        id: `ip-${idNumber}`,
-        name: '默认集成点',
-        type: 'URL',
-        urlConfig: {
-          url: 'https://example.com/api',
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        }
-      },
-      createTime: new Date().toISOString(),
-      updateTime: new Date().toISOString()
-    };
-    
-    // 如果是图表类型，添加图表配置
-    if (integrationType === 'CHART') {
-      defaultIntegration.chartConfig = {
-        type: ChartType.BAR,
-        title: '销售数据图表',
-        description: '按月度展示的销售数据',
-        height: 400,
-        showLegend: true,
-        dataMapping: {
-          xField: 'month',
-          yField: 'sales',
-          seriesField: 'product'
-        },
-        styleOptions: {
-          colors: ['#5470c6', '#91cc75', '#fac858']
-        }
-      };
-    }
-    
-    return Promise.resolve(defaultIntegration);
+    return Promise.resolve(null);
   }
-  
-  console.warn(`[Mock数据] 未找到ID为 ${id} 的集成`);
-  return Promise.resolve(null);
+  return Promise.resolve({...integration});
 }
 
 /**
  * 创建模拟集成
  */
-export function createMockIntegration(integration: Omit<Integration, 'id' | 'createTime' | 'updateTime'>): Promise<Integration> {
-  const newIntegration: Integration = {
+export function createMockIntegration(integration: any): Promise<any> {
+  const newIntegration = {
     ...integration,
-    id: `int-${Math.floor(Math.random() * 1000)}`,
-    createTime: new Date().toISOString(),
-    updateTime: new Date().toISOString()
+    id: `integration-${Math.floor(Math.random() * 1000)}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
-  
   return Promise.resolve(newIntegration);
 }
 
 /**
  * 更新模拟集成
  */
-export function updateMockIntegration(id: string, updates: Partial<Integration>): Promise<Integration> {
+export function updateMockIntegration(id: string, updates: any): Promise<any> {
   const integration = mockIntegrations.find(i => i.id === id);
   if (!integration) {
     return Promise.reject(new Error('Integration not found'));
   }
   
-  const updatedIntegration: Integration = {
+  const updatedIntegration = {
     ...integration,
     ...updates,
-    updateTime: new Date().toISOString()
+    updatedAt: new Date().toISOString()
   };
   
   return Promise.resolve(updatedIntegration);
@@ -262,80 +355,25 @@ export function deleteMockIntegration(id: string): Promise<boolean> {
 /**
  * 执行模拟查询
  */
-export function executeMockQuery(integrationId: string, query: IntegrationQuery): Promise<any> {
-  // 模拟查询执行延迟
-  return new Promise((resolve) => {
+export function executeMockQuery(integrationId: string, query: any): Promise<any> {
+  return new Promise(resolve => {
     setTimeout(() => {
-      // 根据不同的集成类型返回不同的模拟数据
-      const integration = mockIntegrations.find(i => i.id === integrationId);
-      
-      if (!integration) {
-        resolve({
-          success: false,
-          error: 'Integration not found'
-        });
-        return;
-      }
-      
-      // 根据集成类型返回不同数据
-      if (integration.type === 'SIMPLE_TABLE') {
-        // 客户数据 (简单表格类型)
-        resolve({
-          success: true,
-          data: [
-            { id: 1, name: '张三', email: 'zhang@example.com', status: 'active' },
-            { id: 2, name: '李四', email: 'li@example.com', status: 'inactive' },
-            { id: 3, name: '王五', email: 'wang@example.com', status: 'active' }
-          ]
-        });
-      } else if (integration.type === 'TABLE') {
-        // 订单数据 (高级表格类型)
-        resolve({
-          success: true,
-          data: {
-            rows: [
-              { orderId: 'ORD-001', amount: 1200.50, status: 'completed', date: '2023-04-10' },
-              { orderId: 'ORD-002', amount: 856.75, status: 'pending', date: '2023-04-11' },
-              { orderId: 'ORD-003', amount: 2450.00, status: 'processing', date: '2023-04-12' }
-            ],
-            columns: [
-              { field: 'orderId', label: '订单ID', type: 'string' },
-              { field: 'amount', label: '金额', type: 'number' },
-              { field: 'status', label: '状态', type: 'string' },
-              { field: 'date', label: '日期', type: 'date' }
-            ],
-            total: 3,
-            page: 1,
-            pageSize: 10
-          }
-        });
-      } else if (integration.type === 'CHART') {
-        // 图表数据 (销售数据可视化)
-        const chartData: ChartData[] = [];
-        const months = ['一月', '二月', '三月', '四月', '五月', '六月'];
-        const products = ['产品A', '产品B', '产品C'];
-        
-        months.forEach(month => {
-          products.forEach(product => {
-            chartData.push({
-              month,
-              product,
-              sales: Math.floor(Math.random() * 1000) + 500
-            });
-          });
-        });
-        
-        resolve({
-          success: true,
-          data: chartData
-        });
-      } else {
-        // 默认返回空数据
-        resolve({
-          success: true,
-          data: []
-        });
-      }
-    }, 500); // 模拟网络延迟
+      resolve({
+        success: true,
+        data: [
+          { id: 1, name: '测试数据1', value: Math.random() * 100 },
+          { id: 2, name: '测试数据2', value: Math.random() * 100 },
+          { id: 3, name: '测试数据3', value: Math.random() * 100 }
+        ]
+      });
+    }, 500);
   });
+}
+
+// 以下函数用于集成相关功能
+/**
+ * 获取模拟集成列表
+ */
+export function getMockIntegrations(): Promise<any[]> {
+  return Promise.resolve([...mockIntegrations]);
 }

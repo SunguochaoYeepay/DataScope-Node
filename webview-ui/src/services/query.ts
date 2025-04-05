@@ -86,7 +86,7 @@ const queryService = {
    * @param params 查询参数
    * @returns 查询列表和分页信息
    */
-  async getQueries(params: any = {}): Promise<{ items: Query[]; pagination: PaginationInfo }> {
+  async getQueries(params: any = {}): Promise<any> {
     try {
       const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
       console.log('获取查询列表, 使用Mock:', USE_MOCK, '参数:', params);
@@ -111,6 +111,12 @@ const queryService = {
       if (!response) {
         console.error('API返回空响应');
         return { items: [], pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0, hasMore: false } };
+      }
+      
+      // 处理新的成功响应格式 {success: true, data: [...], pagination: {...}}
+      if (response && response.success === true && Array.isArray(response.data)) {
+        console.log('检测到新格式API响应，直接返回原始响应');
+        return response; // 直接返回整个响应，让store处理
       }
       
       // 适配不同的返回格式
