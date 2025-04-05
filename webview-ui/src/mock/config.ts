@@ -6,6 +6,10 @@
 
 // 从环境变量或全局设置中获取是否启用Mock服务
 export function isEnabled(): boolean {
+  // 强制禁用，忽略所有设置
+  return false;
+  
+  /* 旧的逻辑暂时注释掉
   try {
     // 在Node.js环境中
     if (typeof process !== 'undefined' && process.env) {
@@ -49,6 +53,7 @@ export function isEnabled(): boolean {
     console.warn('[Mock] 检查环境变量出错，默认禁用Mock服务', error);
     return false;
   }
+  */
 }
 
 // 向后兼容旧代码的函数

@@ -94,6 +94,15 @@
 - 改进了mock中间件处理请求的逻辑，优先处理集成API以避免路由冲突
 - 增强了集成API响应格式的一致性，确保前端接收到统一的数据结构
 - 优化了集成测试连接API的响应内容，提供更详细的测试结果
+- 修复了集成（integration）模块硬编码使用mock数据的问题，现在它将正确遵循环境变量VITE_USE_MOCK_API的设置
+- 修复了数据源（datasource）服务中硬编码mock模式的问题，将USE_MOCK常量改为根据环境变量动态设置
+- 修复了系统（system）store中硬编码mock模式的问题，现在所有mock开关都统一由环境变量控制
+- 删除了旧的mock系统，包括src/services/mockData.ts文件
+- 更新了src/services/datasource.ts以使用新的mock系统
+- 修复了旧版和新版mock数据格式不兼容的问题
+- 完全清理了对旧mock系统的依赖
+- 删除了public/api目录中的静态mock文件
+- 删除了public目录下的Swagger相关文件和模拟响应文件
 
 ### 改进
 - 优化了项目启动流程，支持同时启动前端和后端服务

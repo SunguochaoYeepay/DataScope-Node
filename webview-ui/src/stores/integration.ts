@@ -4,16 +4,21 @@ import type { Integration, IntegrationQuery } from '@/types/integration';
 // 删除对已删除的api服务的引用
 // import { api } from '@/services/api';
 
-// 从mock服务中导入集成相关函数
-import integrationService from '@/mock/services/integration';
-// 导入正确的mockData
-import { mockIntegrations } from '@/mock/data';
+// 不再直接导入mock服务
+// import integrationService from '@/mock/services/integration';
+// import { mockIntegrations } from '@/mock/data';
 
-// 是否使用模拟数据
-const USE_MOCK = true; // 始终使用模拟数据，因为api服务已被删除
+// 是否使用模拟数据 - 根据环境变量决定
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+
+// API基础URL从环境变量获取
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // 集成状态类型
 type IntegrationStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+
+// 日志开关-判断mock状态
+console.log(`[集成Store] 初始化，MOCK模式: ${USE_MOCK ? '启用' : '禁用'}, API地址: ${API_BASE_URL}`);
 
 export const useIntegrationStore = defineStore('integration', () => {
   // 状态
@@ -29,13 +34,16 @@ export const useIntegrationStore = defineStore('integration', () => {
     
     try {
       if (USE_MOCK) {
-        // 使用模拟数据
-        const result = await integrationService.getIntegrations({});
+        // 使用模拟数据 - 动态导入，避免非mock模式下加载mock服务
+        console.log('[集成Store] 使用mock模式获取集成列表');
+        const { default: mockService } = await import('@/mock/services/integration');
+        const result = await mockService.getIntegrations({});
         integrations.value = result.items;
         return result.items;
       } else {
-        // 使用fetch API替代api服务
-        const response = await fetch('/api/low-code/apis');
+        // 使用fetch API请求真实后端
+        console.log('[集成Store] 使用API请求获取集成列表');
+        const response = await fetch(`${API_BASE_URL}/low-code/apis`);
         if (!response.ok) {
           throw new Error(`API请求失败: ${response.status}`);
         }

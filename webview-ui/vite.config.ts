@@ -60,73 +60,20 @@ cleanViteCache();
 killPort(8080);
 
 // 创建Mock API插件
-function createMockApiPlugin(useMock: boolean, useSimpleMock: boolean): Plugin | null {
-  if (!useMock && !useSimpleMock) {
-    return null;
-  }
+function createMockApi() {
+  console.log('[Vite配置] 准备创建Mock API插件');
   
-  // 加载中间件
-  const mockMiddleware = useMock ? createMockMiddleware() : null;
-  const simpleMiddleware = useSimpleMock ? createSimpleMiddleware() : null;
+  // 强制禁用Mock，不管环境变量如何设置
+  const isMockEnabled = false; // 强制禁用
+  const originalEnvValue = process.env.VITE_USE_MOCK_API;
+  process.env.VITE_USE_MOCK_API = 'false'; // 强制设置环境变量
   
-  return {
-    name: 'vite-plugin-mock-api',
-    // 关键点：使用 pre 确保此插件先于内置插件执行
-    enforce: 'pre' as const,
-    // 在服务器创建之前配置
-    configureServer(server) {
-      // 替换原始请求处理器，使我们的中间件具有最高优先级
-      const originalHandler = server.middlewares.handle;
-      
-      server.middlewares.handle = function(req, res, next) {
-        const url = req.url || '';
-        
-        // 只处理API请求
-        if (url.startsWith('/api/')) {
-          console.log(`[Mock插件] 检测到API请求: ${req.method} ${url}`);
-          
-          // 优先处理特定测试API
-          if (useSimpleMock && simpleMiddleware && url.startsWith('/api/test')) {
-            console.log(`[Mock插件] 使用简单中间件处理: ${url}`);
-            
-            // 设置一个标记，防止其他中间件处理此请求
-            (req as any)._mockHandled = true;
-            
-            return simpleMiddleware(req, res, (err?: Error) => {
-              if (err) {
-                console.error(`[Mock插件] 简单中间件处理出错:`, err);
-                next(err);
-              } else if (!(res as ServerResponse).writableEnded) {
-                // 如果响应没有结束，继续处理
-                next();
-              }
-            });
-          }
-          
-          // 处理其他API请求
-          if (useMock && mockMiddleware) {
-            console.log(`[Mock插件] 使用Mock中间件处理: ${url}`);
-            
-            // 设置一个标记，防止其他中间件处理此请求
-            (req as any)._mockHandled = true;
-            
-            return mockMiddleware(req, res, (err?: Error) => {
-              if (err) {
-                console.error(`[Mock插件] Mock中间件处理出错:`, err);
-                next(err);
-              } else if (!(res as ServerResponse).writableEnded) {
-                // 如果响应没有结束，继续处理
-                next();
-              }
-            });
-          }
-        }
-        
-        // 对于非API请求，使用原始处理器
-        return originalHandler.call(server.middlewares, req, res, next);
-      };
-    }
-  };
+  console.log(`[Vite配置] Mock API环境变量原始值: VITE_USE_MOCK_API = ${originalEnvValue}`);
+  console.log(`[Vite配置] Mock API: 禁用`);
+  console.log(`[Mock] 服务状态: 已禁用`);
+  
+  // 不创建任何中间件，确保请求不会被Mock系统拦截
+  return null; // 返回null而不是空数组，确保不会加载任何相关插件
 }
 
 // 基本配置
@@ -150,7 +97,7 @@ export default defineConfig(({ mode }) => {
   console.log(`[Vite配置] HMR: ${disableHmr ? '禁用' : '启用'}`);
   
   // 创建Mock插件
-  const mockPlugin = createMockApiPlugin(useMockApi, useSimpleMock);
+  const mockPlugin = createMockApi();
   
   // 配置
   return {

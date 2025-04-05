@@ -89,7 +89,7 @@ const mockForms: Form[] = [
 ];
 
 // 使用模拟数据
-const USE_MOCK = true; // 改为始终使用模拟数据，因为api服务已被删除
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true'; // 根据环境变量决定是否使用mock
 
 export const useSystemStore = defineStore('system', () => {
   // 状态

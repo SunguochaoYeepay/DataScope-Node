@@ -21,7 +21,7 @@ declare global {
 }
 
 // 定义API基础URL和超时时间
-const API_BASE_URL = import.meta.env.VITE_USE_MOCK_API === 'true' ? '' : 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_USE_MOCK_API === 'true' ? '' : import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const TIMEOUT = 15000;
 
 // 修改为使用环境变量判断mock模式

@@ -52,7 +52,7 @@ const mockDataSources: DataSource[] = mockDataSourcesOriginal.map(ds => ({
 }));
 
 // 检查是否启用mock模式
-const USE_MOCK = true; // 强制启用模拟数据
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true'; // 根据环境变量决定是否使用mock
 console.log('数据源服务 - Mock模式:', USE_MOCK ? '已启用' : '已禁用')
 
 // API 基础路径 - 获取基础URL，不要重复添加/api
