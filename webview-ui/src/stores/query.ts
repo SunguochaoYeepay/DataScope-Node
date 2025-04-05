@@ -126,27 +126,42 @@ export const useQueryStore = defineStore('query', () => {
       loading.show('正在执行查询...')
       
       // 使用查询服务执行查询
-      const result = await queryService.executeQuery(params)
+      // 注意：queryService.executeQuery接收id和params，这里我们需要创建一个临时ID
+      const tempId = 'temp-' + Date.now()
+      const result = await queryService.executeQuery(tempId, params)
+      
+      // 转换结果格式以匹配QueryResult类型
+      const queryResult: QueryResult = {
+        id: tempId,
+        queryId: tempId,
+        status: 'COMPLETED',
+        createdAt: new Date().toISOString(),
+        executionTime: result.metadata?.executionTime || 0,
+        rowCount: result.rows.length,
+        rows: result.rows,
+        columns: result.columns.map(col => typeof col === 'string' ? col : col.field),
+        error: undefined
+      }
       
       // 更新当前查询结果
-      currentQueryResult.value = result
+      currentQueryResult.value = queryResult
       
       // 创建查询对象，确保包含所有必需属性
       const tempQuery: Query = {
-        id: result.id,
+        id: queryResult.id,
         name: 'Query at ' + new Date().toLocaleString(),
         description: '',
         folderId: '',
         dataSourceId: params.dataSourceId,
         queryType: params.queryType || 'SQL',
         queryText: params.queryText,
-        status: result.status as QueryStatus,
+        status: 'COMPLETED',
         serviceStatus: 'ACTIVE',
-        createdAt: result.createdAt || new Date().toISOString(),
+        createdAt: queryResult.createdAt,
         updatedAt: new Date().toISOString(),
-        executionTime: result.executionTime || 0,
-        resultCount: result.rowCount || 0,
-        error: result.error,
+        executionTime: queryResult.executionTime || 0,
+        resultCount: queryResult.rowCount || 0,
+        error: queryResult.error,
         isFavorite: false,
         executionCount: 0,
         lastExecutedAt: new Date().toISOString()
@@ -157,7 +172,7 @@ export const useQueryStore = defineStore('query', () => {
       queryHistory.value = [tempQuery, ...queryHistory.value].slice(0, 100)
       
       // 处理数据格式，确保在前端一致展示
-      const processedResult = processQueryResult(result)
+      const processedResult = processQueryResult(queryResult)
       
       messageService.success('查询执行成功')
       return processedResult
