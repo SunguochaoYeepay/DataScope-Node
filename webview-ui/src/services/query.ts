@@ -520,44 +520,10 @@ const queryService = {
    */
   async deleteQuery(id: string): Promise<void> {
     try {
-      console.log(`删除查询, ID: ${id}`);
-      
-      // 检查是否使用模拟数据
-      const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
-      
-      // 在Mock模式下模拟删除查询
-      if (USE_MOCK) {
-        console.log(`使用模拟数据删除查询，ID: ${id}`);
-        
-        // 查找要删除的查询在模拟数据中的索引
-        const index = mockQueries.findIndex(q => q.id === id);
-        
-        // 如果找到了，从模拟数据数组中删除
-        if (index !== -1) {
-          mockQueries.splice(index, 1);
-          console.log(`已从模拟数据中删除查询，ID: ${id}`);
-        } else {
-          console.warn(`在模拟数据中未找到要删除的查询，ID: ${id}`);
-        }
-        
-        // 模拟延迟
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        return;
-      }
-      
-      const url = `${getApiBaseUrl()}/api/queries/${id}`;
-      const response = await fetch(url, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`删除查询失败: ${response.statusText}`);
-      }
-      
-      return;
+      console.log(`删除查询 [${id}]`);
+      await http.delete(`${getApiBaseUrl()}/api/queries/${id}`);
     } catch (error) {
-      console.error(`删除查询失败, ID: ${id}`, error);
+      console.error(`删除查询失败 [${id}]:`, error);
       throw error;
     }
   },
@@ -1408,19 +1374,6 @@ const queryService = {
       return response.data;
     } catch (error) {
       console.error(`更新查询失败 [${id}]:`, error);
-      throw error;
-    }
-  },
-
-  /**
-   * 删除查询
-   */
-  async deleteQuery(id: string): Promise<void> {
-    try {
-      console.log(`删除查询 [${id}]`);
-      await http.delete(`${getApiBaseUrl()}/api/queries/${id}`);
-    } catch (error) {
-      console.error(`删除查询失败 [${id}]:`, error);
       throw error;
     }
   },

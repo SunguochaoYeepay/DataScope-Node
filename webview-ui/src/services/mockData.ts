@@ -262,54 +262,80 @@ export function deleteMockIntegration(id: string): Promise<boolean> {
 /**
  * 执行模拟查询
  */
-export async function executeMockQuery(queryInfo: any, params?: any): Promise<any> {
-  console.log('执行模拟查询', queryInfo);
-  
-  // 如果第一个参数是QueryInfo对象（只传递了一个参数）
-  if (queryInfo && typeof queryInfo === 'object' && queryInfo.integrationId) {
-    const integrationId = queryInfo.integrationId;
-    console.log(`从QueryInfo中提取集成ID: ${integrationId}`);
-    
-    // 模拟响应
-    return {
-      success: true,
-      data: {
-        resultType: 'JSON',
-        jsonResponse: {
+export function executeMockQuery(integrationId: string, query: IntegrationQuery): Promise<any> {
+  // 模拟查询执行延迟
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // 根据不同的集成类型返回不同的模拟数据
+      const integration = mockIntegrations.find(i => i.id === integrationId);
+      
+      if (!integration) {
+        resolve({
+          success: false,
+          error: 'Integration not found'
+        });
+        return;
+      }
+      
+      // 根据集成类型返回不同数据
+      if (integration.type === 'SIMPLE_TABLE') {
+        // 客户数据 (简单表格类型)
+        resolve({
           success: true,
-          message: '查询执行成功',
-          timestamp: new Date().toISOString(),
-          requestDetails: queryInfo,
-          responseData: Array.from({ length: 10 }, (_, i) => ({
-            id: i + 1,
-            name: `测试数据项 ${i + 1}`,
-            value: Math.round(Math.random() * 100)
-          }))
-        }
+          data: [
+            { id: 1, name: '张三', email: 'zhang@example.com', status: 'active' },
+            { id: 2, name: '李四', email: 'li@example.com', status: 'inactive' },
+            { id: 3, name: '王五', email: 'wang@example.com', status: 'active' }
+          ]
+        });
+      } else if (integration.type === 'TABLE') {
+        // 订单数据 (高级表格类型)
+        resolve({
+          success: true,
+          data: {
+            rows: [
+              { orderId: 'ORD-001', amount: 1200.50, status: 'completed', date: '2023-04-10' },
+              { orderId: 'ORD-002', amount: 856.75, status: 'pending', date: '2023-04-11' },
+              { orderId: 'ORD-003', amount: 2450.00, status: 'processing', date: '2023-04-12' }
+            ],
+            columns: [
+              { field: 'orderId', label: '订单ID', type: 'string' },
+              { field: 'amount', label: '金额', type: 'number' },
+              { field: 'status', label: '状态', type: 'string' },
+              { field: 'date', label: '日期', type: 'date' }
+            ],
+            total: 3,
+            page: 1,
+            pageSize: 10
+          }
+        });
+      } else if (integration.type === 'CHART') {
+        // 图表数据 (销售数据可视化)
+        const chartData: ChartData[] = [];
+        const months = ['一月', '二月', '三月', '四月', '五月', '六月'];
+        const products = ['产品A', '产品B', '产品C'];
+        
+        months.forEach(month => {
+          products.forEach(product => {
+            chartData.push({
+              month,
+              product,
+              sales: Math.floor(Math.random() * 1000) + 500
+            });
+          });
+        });
+        
+        resolve({
+          success: true,
+          data: chartData
+        });
+      } else {
+        // 默认返回空数据
+        resolve({
+          success: true,
+          data: []
+        });
       }
-    };
-  }
-  
-  // 传统调用方式（两个参数：集成ID和参数）
-  const integrationId = queryInfo; // 第一个参数是集成ID
-  console.log(`模拟执行集成查询, 集成ID: ${integrationId}`);
-  
-  // 模拟响应
-  return {
-    success: true,
-    data: {
-      resultType: 'JSON',
-      jsonResponse: {
-        success: true,
-        message: '查询执行成功',
-        timestamp: new Date().toISOString(),
-        parameters: params || {},
-        responseData: Array.from({ length: 5 }, (_, i) => ({
-          id: i + 1,
-          name: `测试项目 ${i + 1}`,
-          value: Math.round(Math.random() * 100)
-        }))
-      }
-    }
-  };
+    }, 500); // 模拟网络延迟
+  });
 }

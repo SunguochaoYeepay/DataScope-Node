@@ -23,15 +23,9 @@
   - 更新了`src/services/query.ts`中的导入，删除对不存在文件的引用
   - 确保所有服务能正确使用新的统一Mock服务框架
 - 恢复Mock服务文件，解决前端启动问题
-  - 恢复src/plugins/axios-interceptor.ts
-  - 恢复src/plugins/mockData.ts
-  - 恢复src/plugins/serverMock.ts
-  - 恢复src/services/fetch-interceptor.ts
-  - 恢复src/services/mockData.ts
-  - 恢复src/services/mock-query.ts
-  - 修复src/main.ts中对axios-interceptor的引用
-  - 修复src/utils/http.ts中对mock服务的引用
-  - 修复查询列表展示
+  - 从版本c3425ba恢复了被删除的Mock服务相关文件
+  - 恢复了axios-interceptor.ts和相关的Mock服务文件
+  - 修复了页面无法显示查询列表的问题
 
 ### 改进
 - 优化了项目启动流程，支持同时启动前端和后端服务
@@ -137,7 +131,7 @@
 - 修复环境变量加载问题，确保正确读取VITE_USE_MOCK_API
 - 解决多个服务同时启动导致的端口冲突问题
 
-## [0.1.0] - 2023-06-01
+## [0.1.0] - 2023-06-15
 
 ### Added
 
