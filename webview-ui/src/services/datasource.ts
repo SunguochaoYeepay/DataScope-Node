@@ -18,6 +18,9 @@ import type { TableMetadata, TableRelationship, ColumnMetadata } from '@/types/m
 import { getApiBaseUrl } from './query'
 import { http } from '@/utils/http'
 import { getDataSourceApiUrl, getMetadataApiUrl, isMockEnabled } from './apiUtils'
+// 导入新的mock系统中的数据源数据，使用type关键字导入类型
+import { mockDataSources as mockDataSourcesOriginal } from '@/mock/data/datasource'
+import type { DataSource as MockDataSource } from '@/mock/data/datasource'
 
 // 表数据预览结果接口
 interface TableDataPreviewResult {
@@ -28,6 +31,25 @@ interface TableDataPreviewResult {
   total: number;
   totalPages: number;
 }
+
+// 将mock数据源类型转换为服务使用的类型
+const mockDataSources: DataSource[] = mockDataSourcesOriginal.map(ds => ({
+  id: ds.id,
+  name: ds.name,
+  description: ds.description || '', // 确保description不为undefined
+  type: ds.type as DataSourceType, // 类型转换
+  host: ds.host || 'localhost',
+  port: ds.port || 3306,
+  databaseName: ds.databaseName || '',
+  database: ds.databaseName, // 保持兼容性
+  username: ds.username || '',
+  status: ds.status as DataSourceStatus, // 类型转换
+  syncFrequency: ds.syncFrequency || 'manual' as SyncFrequency,
+  lastSyncTime: ds.lastSyncTime,
+  createdAt: ds.createdAt,
+  updatedAt: ds.updatedAt,
+  isActive: ds.isActive
+}));
 
 // 检查是否启用mock模式
 const USE_MOCK = true; // 强制启用模拟数据
@@ -51,25 +73,6 @@ if (import.meta.env.DEV) {
 // 确保使用与查询服务相同的URL构建方式
 const getDataSourceApiBaseUrl = () => `${getApiBaseUrl()}/api`;
 const getMetadataApiBaseUrl = () => `${getApiBaseUrl()}/api/metadata`;
-
-// 模拟数据源列表
-const mockDataSources: DataSource[] = Array.from({ length: 5 }, (_, i) => ({
-  id: `ds-${i+1}`,
-  name: `模拟数据源 ${i+1}`,
-  description: `这是一个模拟的数据源，用于开发测试 ${i+1}`,
-  type: (i % 3 === 0 ? 'mysql' : (i % 3 === 1 ? 'postgresql' : 'oracle')) as DataSourceType,
-  host: 'localhost',
-  port: 3306 + i,
-  databaseName: `test_db_${i+1}`,
-  database: `test_db_${i+1}`,
-  username: 'user',
-  status: (i === 4 ? 'error' : 'active') as DataSourceStatus,
-  syncFrequency: 'manual' as SyncFrequency,
-  lastSyncTime: i === 0 ? new Date().toISOString() : (i === 4 ? null : null),
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  isActive: i !== 4
-}))
 
 // 处理统一响应格式
 const handleResponse = async <T>(response: Response): Promise<T> => {
