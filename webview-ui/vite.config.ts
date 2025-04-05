@@ -63,17 +63,39 @@ killPort(8080);
 function createMockApi() {
   console.log('[Vite配置] 准备创建Mock API插件');
   
-  // 强制禁用Mock，不管环境变量如何设置
-  const isMockEnabled = false; // 强制禁用
-  const originalEnvValue = process.env.VITE_USE_MOCK_API;
-  process.env.VITE_USE_MOCK_API = 'false'; // 强制设置环境变量
+  // 从环境变量读取是否启用Mock
+  const isMockEnabled = process.env.VITE_USE_MOCK_API === 'true';
+  console.log(`[Vite配置] Mock API环境变量值: VITE_USE_MOCK_API = ${process.env.VITE_USE_MOCK_API}`);
+  console.log(`[Vite配置] Mock API: ${isMockEnabled ? '启用' : '禁用'}`);
   
-  console.log(`[Vite配置] Mock API环境变量原始值: VITE_USE_MOCK_API = ${originalEnvValue}`);
-  console.log(`[Vite配置] Mock API: 禁用`);
-  console.log(`[Mock] 服务状态: 已禁用`);
+  const mockConfig = {
+    delay: 300,
+    apiBasePath: '/api',
+    logLevel: 'debug',
+    enabledModules: ['datasources', 'queries', 'users', 'visualizations']
+  };
   
-  // 不创建任何中间件，确保请求不会被Mock系统拦截
-  return null; // 返回null而不是空数组，确保不会加载任何相关插件
+  if (isMockEnabled) {
+    console.log('[Mock] 配置:', mockConfig);
+    console.log('[Mock] 服务状态: 已启用');
+    
+    // 这里返回实际的mock插件实现
+    return {
+      name: 'mock-api',
+      configureServer(server) {
+        // 导入中间件
+        const createMockMiddleware = require('./src/mock/middleware').default;
+        const middleware = createMockMiddleware(mockConfig);
+        
+        // 使用中间件
+        server.middlewares.use(middleware);
+        console.log('[Mock] 中间件已加载');
+      }
+    };
+  } else {
+    console.log('[Mock] 服务状态: 已禁用');
+    return null; // 禁用时返回null
+  }
 }
 
 // 基本配置
