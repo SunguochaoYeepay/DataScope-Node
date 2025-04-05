@@ -1,5 +1,6 @@
 import axios from 'axios'
-import { mockQueries } from '../plugins/mockData'
+// 删除对已移除的mockData文件的引用
+// import { mockQueries } from '../plugins/mockData'
 import type { 
   Query, 
   QueryParameter,
@@ -1286,7 +1287,144 @@ const queryService = {
       console.error(`获取查询建议失败, 查询ID: ${queryId}`, error);
       throw error;
     }
-  }
+  },
+
+  /**
+   * 查找匹配的查询
+   * @deprecated 请使用统一的API请求方法
+   */
+  async findQueryByName(name: string): Promise<Query | null> {
+    try {
+      const response = await http.get<any>(`${getApiBaseUrl()}/api/queries`, { 
+        params: { 
+          searchTerm: name,
+          page: 1,
+          size: 10 
+        } 
+      });
+      
+      // 处理响应数据
+      const items = response.data?.items || response.items || [];
+      // 找到名称匹配的第一个结果
+      const query = items.find((q: Query) => q.name === name);
+      return query || null;
+    } catch (error) {
+      console.error(`查询名称搜索失败 [${name}]:`, error);
+      return null;
+    }
+  },
+
+  /**
+   * 查找匹配查询
+   * @deprecated 请使用统一的API
+   */
+  async searchQueries(searchTerm: string): Promise<Query[]> {
+    try {
+      if (!searchTerm || searchTerm.trim() === '') {
+        return [];
+      }
+      
+      const response = await http.get<any>(`${getApiBaseUrl()}/api/queries`, { 
+        params: { 
+          searchTerm,
+          page: 1,
+          size: 20 
+        } 
+      });
+      
+      // 处理响应数据
+      return response.data?.items || response.items || [];
+    } catch (error) {
+      console.error(`查询搜索失败 [${searchTerm}]:`, error);
+      return [];
+    }
+  },
+
+  /**
+   * 按标签查找查询
+   * @deprecated 请使用统一的API
+   */
+  async findQueriesByTag(tag: string): Promise<Query[]> {
+    try {
+      const response = await http.get<any>(`${getApiBaseUrl()}/api/queries`, { 
+        params: { 
+          tag,
+          page: 1,
+          size: 20 
+        } 
+      });
+      
+      // 处理响应数据
+      return response.data?.items || response.items || [];
+    } catch (error) {
+      console.error(`按标签查询失败 [${tag}]:`, error);
+      return [];
+    }
+  },
+
+  /**
+   * 按类型查找查询
+   * @deprecated 请使用统一的API
+   */
+  async findQueriesByType(type: string): Promise<Query[]> {
+    try {
+      const response = await http.get<any>(`${getApiBaseUrl()}/api/queries`, { 
+        params: { 
+          queryType: type,
+          page: 1,
+          size: 20 
+        } 
+      });
+      
+      // 处理响应数据
+      return response.data?.items || response.items || [];
+    } catch (error) {
+      console.error(`按类型查询失败 [${type}]:`, error);
+      return [];
+    }
+  },
+
+  /**
+   * 创建新查询
+   */
+  async createQuery(data: Partial<Query>): Promise<Query> {
+    try {
+      console.log('创建查询, 参数:', data);
+      const response = await http.post<any>(`${getApiBaseUrl()}/api/queries`, data);
+      return response.data;
+    } catch (error) {
+      console.error('创建查询失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 更新查询
+   */
+  async updateQuery(id: string, data: Partial<Query>): Promise<Query> {
+    try {
+      console.log(`更新查询 [${id}]`, data);
+      const response = await http.put<any>(`${getApiBaseUrl()}/api/queries/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error(`更新查询失败 [${id}]:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * 删除查询
+   */
+  async deleteQuery(id: string): Promise<void> {
+    try {
+      console.log(`删除查询 [${id}]`);
+      await http.delete(`${getApiBaseUrl()}/api/queries/${id}`);
+    } catch (error) {
+      console.error(`删除查询失败 [${id}]:`, error);
+      throw error;
+    }
+  },
 };
 
+export default queryService;
 export { queryService };
