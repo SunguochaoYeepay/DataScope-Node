@@ -10,8 +10,44 @@ import TableConfigTable from '@/components/integration/tablemode/TableConfigTabl
 import IntegrationPointEditor from '@/components/integration/IntegrationPointEditor.vue';
 import IntegrationDebug from '@/components/integration/IntegrationDebug.vue';
 import DataSourceSelector from '@/components/datasource/DataSourceSelector.vue';
-import type { Integration, FormConfig, TableConfig, IntegrationPoint } from '@/types/integration';
+import type { Integration, FormConfig, TableConfig, IntegrationPoint, FormCondition, FormButton, TableColumn } from '@/types/integration';
+import type { FormLayoutType } from '@/types/integration';
 import type { DataSource } from '@/types/datasource';
+import { ColumnAlign } from '@/types/integration';
+
+// 定义默认表格配置
+const defaultTableConfig: TableConfig = {
+  columns: [] as TableColumn[],
+  actions: [],
+  pagination: {
+    enabled: true,
+    pageSize: 10,
+    pageSizeOptions: [10, 20, 50, 100]
+  },
+  export: {
+    enabled: true,
+    formats: ['CSV', 'EXCEL'],
+    maxRows: 1000
+  },
+  batchActions: [],
+  aggregation: {
+    enabled: false,
+    groupByFields: [],
+    aggregationFunctions: []
+  },
+  advancedFilters: {
+    enabled: false,
+    defaultFilters: [],
+    savedFilters: []
+  }
+};
+
+// 定义默认表单配置
+const defaultFormConfig: FormConfig = {
+  layout: 'vertical' as FormLayoutType,
+  conditions: [] as FormCondition[],
+  buttons: [] as FormButton[]
+};
 
 // 路由相关
 const route = useRoute();
@@ -40,7 +76,7 @@ const integration = reactive<Integration>({
     layout: 'vertical',
     conditions: [],
     buttons: []
-  },
+  } as FormConfig,
   tableConfig: {
     columns: [],
     actions: [],
@@ -53,8 +89,20 @@ const integration = reactive<Integration>({
       enabled: true,
       formats: ['CSV', 'EXCEL'],
       maxRows: 1000
+    },
+    // 添加必填字段
+    batchActions: [],
+    aggregation: {
+      enabled: false,
+      groupByFields: [],
+      aggregationFunctions: []
+    },
+    advancedFilters: {
+      enabled: false,
+      defaultFilters: [],
+      savedFilters: []
     }
-  },
+  } as TableConfig,
   integrationPoint: {
     id: '',
     name: '',
@@ -109,42 +157,165 @@ const loadIntegration = async (id: string) => {
     const result = await integrationStore.fetchIntegrationById(id);
     
     if (result) {
-      console.log('[IntegrationEdit] 获取到集成数据:', result);
+      console.log('[IntegrationEdit] 获取到集成数据:', JSON.stringify(result));
       
-      // 复制数据到本地状态
-      integration.id = result.id;
-      integration.name = result.name;
-      integration.description = result.description || '';
-      integration.type = result.type;
-      integration.status = result.status;
+      // 安全地将API响应转换为前端类型
+      const apiData = result as any; // 使用any类型暂时绕过类型检查
+
+      // 复制数据到本地状态 - 基本信息
+      integration.id = apiData.id || '';
+      integration.name = apiData.name || '';
+      integration.description = apiData.description || '';
       
-      // 特别关注这两个关键字段
-      integration.queryId = result.queryId || result.config?.queryId || '';
-      integration.dataSourceId = result.dataSourceId || result.config?.dataSourceId || '';
+      // 类型和状态 (确保兼容后端返回的格式)
+      integration.type = (apiData.type || 'FORM').toUpperCase();
+      integration.status = (apiData.status || 'DRAFT').toUpperCase();
       
-      console.log('[IntegrationEdit] 设置数据源ID:', integration.dataSourceId);
-      console.log('[IntegrationEdit] 设置查询ID:', integration.queryId);
+      // 特别关注这两个关键字段 (添加更多详细的日志)
+      // 确保数据源ID和查询ID总是从正确的位置获取
+      integration.queryId = apiData.queryId || (apiData.query && apiData.query.id ? apiData.query.id : '') || '';
+      integration.dataSourceId = apiData.dataSourceId || (apiData.dataSource && apiData.dataSource.id ? apiData.dataSource.id : '') || '';
       
-      integration.createTime = result.createTime;
-      integration.updateTime = result.updateTime;
+      console.log('[IntegrationEdit] 设置数据源ID:', integration.dataSourceId, 
+                '原始值:', apiData.dataSourceId, 
+                '数据源对象:', apiData.dataSource);
+      console.log('[IntegrationEdit] 设置查询ID:', integration.queryId, 
+                '原始值:', apiData.queryId,
+                '查询对象:', apiData.query);
       
-      // 表单配置
-      if (result.formConfig) {
-        integration.formConfig = { ...result.formConfig };
-        console.log('[IntegrationEdit] 加载表单配置:', integration.formConfig);
+      // 时间字段
+      integration.createTime = apiData.createTime || apiData.createdAt || '';
+      integration.updateTime = apiData.updateTime || apiData.updatedAt || '';
+      
+      // 处理配置对象 - 支持两种可能的位置
+      const config = apiData.config || {};
+      if (config) {
+        console.log('[IntegrationEdit] 发现config配置对象:', JSON.stringify(config));
       }
       
-      // 表格配置
-      if (result.tableConfig) {
-        integration.tableConfig = { ...result.tableConfig };
-        console.log('[IntegrationEdit] 加载表格配置:', integration.tableConfig);
+      // 表单配置 - 确保兼容不同的数据结构
+      if (apiData.formConfig) {
+        integration.formConfig = { 
+          layout: apiData.formConfig.layout || 'vertical',
+          conditions: apiData.formConfig.conditions || [],
+          buttons: apiData.formConfig.buttons || []
+        } as FormConfig;
+        console.log('[IntegrationEdit] 加载表单配置(直接字段)');
+      } else if (config.formConfig) {
+        integration.formConfig = { 
+          layout: config.formConfig.layout || 'vertical',
+          conditions: config.formConfig.conditions || [],
+          buttons: config.formConfig.buttons || []
+        } as FormConfig;
+        console.log('[IntegrationEdit] 加载表单配置(config内)');
+      } else {
+        // 使用默认表单配置
+        integration.formConfig = {
+          layout: 'vertical',
+          conditions: [],
+          buttons: []
+        } as FormConfig;
+        console.log('[IntegrationEdit] 使用默认表单配置');
+      }
+      
+      // 表格配置 - 确保兼容不同的数据结构并添加默认值
+      const processTableConfig = (source: any): TableConfig => {
+        return {
+          columns: (source?.columns || []).map((col: any) => ({
+            ...col,
+            align: col.align || ColumnAlign.LEFT,
+            visible: col.visible !== undefined ? col.visible : true,
+            sortable: col.sortable !== undefined ? col.sortable : true,
+            filterable: col.filterable !== undefined ? col.filterable : true
+          })),
+          actions: source?.actions || [],
+          pagination: source?.pagination || {
+            enabled: true,
+            pageSize: 10,
+            pageSizeOptions: [10, 20, 50, 100]
+          },
+          export: source?.export || {
+            enabled: true,
+            formats: ['CSV', 'EXCEL'],
+            maxRows: 1000
+          },
+          batchActions: source?.batchActions || [],
+          aggregation: source?.aggregation || {
+            enabled: false,
+            groupByFields: [],
+            aggregationFunctions: []
+          },
+          advancedFilters: source?.advancedFilters || {
+            enabled: false,
+            defaultFilters: [],
+            savedFilters: []
+          }
+        } as TableConfig;
+      };
+      
+      if (apiData.tableConfig) {
+        integration.tableConfig = processTableConfig(apiData.tableConfig);
+        console.log('[IntegrationEdit] 加载表格配置(直接字段)');
+      } else if (config.tableConfig) {
+        integration.tableConfig = processTableConfig(config.tableConfig);
+        console.log('[IntegrationEdit] 加载表格配置(config内)');
+      } else {
+        // 使用默认表格配置
+        integration.tableConfig = { ...defaultTableConfig };
+        console.log('[IntegrationEdit] 使用默认表格配置');
+      }
+      
+      // 确保表格配置有默认值
+      if (!integration.tableConfig.columns || integration.tableConfig.columns.length === 0) {
+        console.log('[IntegrationEdit] 表格列为空，设置默认配置');
+        integration.tableConfig.columns = [
+          { 
+            field: 'id', 
+            label: 'ID', 
+            type: 'text', 
+            visible: true, 
+            displayOrder: 0,
+            align: ColumnAlign.LEFT,
+            sortable: true,
+            filterable: true
+          }
+        ];
       }
       
       // 集成点配置
-      if (result.integrationPoint) {
-        integration.integrationPoint = { ...result.integrationPoint };
+      if (apiData.integrationPoint) {
+        integration.integrationPoint = { 
+          id: apiData.integrationPoint.id || '',
+          name: apiData.integrationPoint.name || '',
+          type: apiData.integrationPoint.type || 'URL',
+          urlConfig: apiData.integrationPoint.urlConfig || {
+            url: '',
+            method: 'GET',
+            headers: {}
+          }
+        };
         console.log('[IntegrationEdit] 加载集成点配置:', integration.integrationPoint);
+      } else {
+        // 默认集成点配置
+        integration.integrationPoint = {
+          id: '',
+          name: '',
+          type: 'URL',
+          urlConfig: {
+            url: '',
+            method: 'GET',
+            headers: {}
+          }
+        };
       }
+      
+      console.log('[IntegrationEdit] 集成数据加载完成', {
+        id: integration.id,
+        name: integration.name,
+        type: integration.type,
+        dataSourceId: integration.dataSourceId,
+        queryId: integration.queryId
+      });
     } else {
       console.error('[IntegrationEdit] 未找到集成项');
       message.error('未找到集成项');
@@ -172,14 +343,14 @@ const validateForm = (): boolean => {
     isValid = false;
   }
   
-  // 验证数据源ID
-  if (!integration.dataSourceId.trim()) {
+  // 验证数据源ID - 添加安全检查
+  if (!integration.dataSourceId || !integration.dataSourceId.trim()) {
     formErrors.dataSourceId = '请选择数据源';
     isValid = false;
   }
   
-  // 验证查询ID
-  if (!integration.queryId.trim()) {
+  // 验证查询ID - 添加安全检查
+  if (!integration.queryId || !integration.queryId.trim()) {
     formErrors.queryId = '请选择数据查询';
     isValid = false;
   }
@@ -313,12 +484,15 @@ const handleQuerySelected = (id: string, data: any) => {
 const handleTypeChange = () => {
   // 重置相关配置
   if (integration.type === 'FORM') {
+    // 创建一个完整符合FormConfig类型的对象
     integration.formConfig = {
       layout: 'vertical',
       conditions: [],
-      buttons: []
+      buttons: [],
+      // 确保所有必要的字段都存在
     } as FormConfig;
   } else if (integration.type === 'TABLE') {
+    // 创建一个完整符合TableConfig类型的对象
     integration.tableConfig = {
       columns: [],
       actions: [],
@@ -331,6 +505,17 @@ const handleTypeChange = () => {
         enabled: true,
         formats: ['CSV', 'EXCEL'],
         maxRows: 1000
+      },
+      batchActions: [],
+      aggregation: {
+        enabled: false,
+        groupByFields: [],
+        aggregationFunctions: []
+      },
+      advancedFilters: {
+        enabled: false,
+        defaultFilters: [],
+        savedFilters: []
       }
     } as TableConfig;
   }
@@ -442,7 +627,7 @@ const handleDebugInfo = (info: any) => {
             <!-- 数据源选择 -->
             <div class="md:col-span-1">
               <DataSourceSelector
-                v-model="integration.dataSourceId"
+                v-model="integration.dataSourceId!"
                 label="数据源"
                 placeholder="请选择数据源"
                 :error="formErrors.dataSourceId"
@@ -457,7 +642,7 @@ const handleDebugInfo = (info: any) => {
             <!-- 查询选择 -->
             <div class="md:col-span-1">
               <QuerySelector
-                v-model="integration.queryId"
+                v-model="integration.queryId!"
                 label="数据查询"
                 placeholder="请选择数据查询"
                 :error="formErrors.queryId"
@@ -498,7 +683,7 @@ const handleDebugInfo = (info: any) => {
           <h2 class="text-lg font-medium text-gray-900 mb-4">表单配置</h2>
           
           <FormConfigEditor
-            v-model="integration.formConfig"
+            v-model="integration.formConfig!"
             :queryId="integration.queryId"
           />
           
@@ -512,7 +697,7 @@ const handleDebugInfo = (info: any) => {
           <h2 class="text-lg font-medium text-gray-900 mb-4">表格配置</h2>
           
           <TableConfigTable
-            v-model="integration.tableConfig"
+            v-model="integration.tableConfig!"
             :queryId="integration.queryId"
           />
           

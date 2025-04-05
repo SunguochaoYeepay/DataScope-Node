@@ -152,7 +152,11 @@ const adaptDataSource = (source: any): DataSource => {
 
 // 数据源服务
 export const dataSourceService = {
-  // 获取数据源列表
+  /**
+   * 获取数据源列表
+   * @param params 查询参数
+   * @returns 数据源列表及分页信息
+   */
   async getDataSources(
     params?: QueryParams<DataSourcePagination>,
   ): Promise<DataSourcesResponse> {
@@ -193,6 +197,65 @@ export const dataSourceService = {
       console.error('[DataSourceService] 获取数据源列表失败：', error);
       throw error;
     }
+  },
+  
+  /**
+   * 获取模拟数据源列表
+   * @param params 查询参数 
+   * @returns 模拟数据源列表及分页信息
+   */
+  getMockDataSources(params?: QueryParams<DataSourcePagination>): DataSourcesResponse {
+    console.log('[Mock] 获取模拟数据源列表，参数：', params);
+    // 过滤数据
+    let filteredData = [...mockDataSources];
+    
+    if (params?.name) {
+      filteredData = filteredData.filter((item) => 
+        item.name.toLowerCase().includes(params.name!.toLowerCase())
+      );
+      console.log(`[Mock] 按名称过滤，筛选条件："${params.name}"，剩余：${filteredData.length}项`);
+    }
+    
+    if (params?.type) {
+      filteredData = filteredData.filter((item) => item.type === params.type);
+      console.log(`[Mock] 按类型过滤，筛选条件："${params.type}"，剩余：${filteredData.length}项`);
+    }
+    
+    if (params?.status) {
+      filteredData = filteredData.filter((item) => 
+        item.status.toLowerCase() === params.status!.toLowerCase()
+      );
+      console.log(`[Mock] 按状态过滤，筛选条件："${params.status}"，剩余：${filteredData.length}项`);
+    }
+    
+    // 分页处理
+    const page = params?.page || 1;
+    const size = params?.size || 10;
+    const start = (page - 1) * size;
+    const end = start + size;
+    const paginatedData = filteredData.slice(start, end);
+    
+    console.log(`[Mock] 分页处理：第${page}页，每页${size}条，总计${filteredData.length}条，当前页${paginatedData.length}条`);
+    
+    // 输出详细的返回数据
+    console.log('[Mock] 返回数据源列表的前3条：', 
+      paginatedData.slice(0, 3).map(item => ({ 
+        id: item.id, 
+        name: item.name, 
+        type: item.type, 
+        status: item.status 
+      }))
+    );
+    
+    return {
+      items: paginatedData,
+      meta: {
+        total: filteredData.length,
+        page,
+        size,
+        success: true
+      }
+    };
   },
   
   // 获取单个数据源详情
@@ -1260,62 +1323,6 @@ export const dataSourceService = {
       console.error('检查数据源状态错误:', error);
       throw error;
     }
-  },
-
-  const getMockDataSources = (params?: QueryParams<DataSourcePagination>): DataSourcesResponse => {
-    console.log('[Mock] 获取模拟数据源列表，参数：', params);
-    const mockData = mockDataSources();
-    
-    // 过滤数据
-    let filteredData = [...mockData.items];
-    
-    if (params?.name) {
-      filteredData = filteredData.filter((item) => 
-        item.name.toLowerCase().includes(params.name!.toLowerCase())
-      );
-      console.log(`[Mock] 按名称过滤，筛选条件："${params.name}"，剩余：${filteredData.length}项`);
-    }
-    
-    if (params?.type) {
-      filteredData = filteredData.filter((item) => item.type === params.type);
-      console.log(`[Mock] 按类型过滤，筛选条件："${params.type}"，剩余：${filteredData.length}项`);
-    }
-    
-    if (params?.status) {
-      filteredData = filteredData.filter((item) => 
-        item.status.toLowerCase() === params.status!.toLowerCase()
-      );
-      console.log(`[Mock] 按状态过滤，筛选条件："${params.status}"，剩余：${filteredData.length}项`);
-    }
-    
-    // 分页处理
-    const page = params?.page || 1;
-    const size = params?.size || 10;
-    const start = (page - 1) * size;
-    const end = start + size;
-    const paginatedData = filteredData.slice(start, end);
-    
-    console.log(`[Mock] 分页处理：第${page}页，每页${size}条，总计${filteredData.length}条，当前页${paginatedData.length}条`);
-    
-    // 输出详细的返回数据
-    console.log('[Mock] 返回数据源列表的前3条：', 
-      paginatedData.slice(0, 3).map(item => ({ 
-        id: item.id, 
-        name: item.name, 
-        type: item.type, 
-        status: item.status 
-      }))
-    );
-    
-    return {
-      items: paginatedData,
-      meta: {
-        total: filteredData.length,
-        page,
-        size,
-        success: true
-      }
-    };
   },
 }
 
