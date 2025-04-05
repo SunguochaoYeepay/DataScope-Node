@@ -45,6 +45,7 @@
   - 删除了`src/plugins/mockData.ts`旧的模拟数据文件
   - 删除了`src/services/fetch-interceptor.ts`旧的拦截器实现
   - 删除了`src/services/mock-query.ts`和`src/services/mockData.ts`独立的模拟逻辑文件
+  - 删除了`src/plugins/axios-interceptor.ts`旧的Axios请求拦截器
   - 统一使用`src/mock`目录下的新Mock服务架构
 
 ### 更新
